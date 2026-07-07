@@ -59,7 +59,15 @@ export type Scene = {
 };
 
 /** what the hotspot renders as */
-export type HotspotType = "icon" | "image" | "text" | "nav" | "info" | "url" | "video";
+export type HotspotType =
+  | "icon"
+  | "image"
+  | "text"
+  | "nav"
+  | "info"
+  | "url"
+  | "video"
+  | "pdf";
 
 /** what happens on click */
 export type HotspotAction =
