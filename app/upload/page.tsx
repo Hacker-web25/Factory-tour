@@ -1,9 +1,10 @@
 "use client";
 
-// Uses useSearchParams — mark dynamic so Next doesn't try to prerender it.
+// Uses useSearchParams — must live inside a Suspense boundary to satisfy the
+// Next.js 14 App Router prerender rules.
 export const dynamic = "force-dynamic";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import TopBar from "@/components/TopBar";
@@ -22,7 +23,15 @@ type Item = {
   image_path?: string;
 };
 
-export default function UploadPage() {
+export default function UploadPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <UploadPage />
+    </Suspense>
+  );
+}
+
+function UploadPage() {
   const router = useRouter();
   const params = useSearchParams();
   const preselectedTourId = params.get("tour");

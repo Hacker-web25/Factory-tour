@@ -1,15 +1,22 @@
 "use client";
 
-// Uses useSearchParams — mark dynamic so Next doesn't try to prerender it.
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
 
-export default function EmbedPage() {
+export default function EmbedPageWrapper() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-black" />}>
+      <EmbedPage />
+    </Suspense>
+  );
+}
+
+function EmbedPage() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
   const [tour, setTour] = useState<Tour | null>(null);
