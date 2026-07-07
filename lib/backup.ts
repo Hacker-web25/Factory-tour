@@ -226,7 +226,7 @@ async function encodePayload(payload: BackupPayload): Promise<Blob> {
   const out = new Uint8Array(header.length + compressed.length);
   out.set(header, 0);
   out.set(compressed, header.length);
-  return new Blob([out], { type: "application/octet-stream" });
+  return new Blob([out as BlobPart], { type: "application/octet-stream" });
 }
 
 async function decodePayload(file: File): Promise<BackupPayload> {
@@ -256,7 +256,7 @@ async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const CS = (globalThis as any).CompressionStream;
   if (!CS) throw new Error("CompressionStream is not available in this browser");
-  const stream = new Blob([data]).stream().pipeThrough(new CS("gzip"));
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CS("gzip"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -264,7 +264,7 @@ async function gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const DS = (globalThis as any).DecompressionStream;
   if (!DS) throw new Error("DecompressionStream is not available in this browser");
-  const stream = new Blob([data]).stream().pipeThrough(new DS("gzip"));
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DS("gzip"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -297,7 +297,7 @@ function base64ToBlob(b64: string, mime: string): Blob {
   const bin = atob(b64);
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+  return new Blob([arr as BlobPart], { type: mime });
 }
 
 function extForMime(mime: string): string {
