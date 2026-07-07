@@ -1,5 +1,8 @@
 "use client";
 
+// Uses useSearchParams — mark dynamic so Next doesn't try to prerender it.
+export const dynamic = "force-dynamic";
+
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
