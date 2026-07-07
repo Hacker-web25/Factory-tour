@@ -21,12 +21,13 @@ import {
   HelpCircle,
   AlertCircle,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 
 export type IconEntry = {
   key: string;
   label: string;
-  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  Icon: LucideIcon;
 };
 
 /** Ordered library of built-in icons. Add more here to expand the picker. */
