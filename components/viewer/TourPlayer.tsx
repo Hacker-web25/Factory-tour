@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
+import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
-import { Play, Pause, Minimize2 } from "lucide-react";
+import { Play, Pause, Minimize2, ZoomIn, Ruler } from "lucide-react";
+import MeasureTool from "@/components/viewer/MeasureTool";
 
 type Props = {
   tour: Tour;
@@ -38,6 +40,33 @@ export default function TourPlayer({
   const [infoModal, setInfoModal] = useState<Hotspot | null>(null);
   const [videoModal, setVideoModal] = useState<Hotspot | null>(null);
   const [pdfModal, setPdfModal] = useState<Hotspot | null>(null);
+  // Ref for the panorama viewer's zoom-reset function.
+  const zoomResetRef = useRef<null | (() => void)>(null);
+  // Measure tool state + click-capture promise handoff
+  const [measureOn, setMeasureOn] = useState(false);
+  // Calibrate can update a scene's camera_height at runtime. `scenes` is a
+  // prop so we can't mutate it — store an override keyed by scene id.
+  const [heightOverride, setHeightOverride] = useState<Record<string, number>>(
+    {}
+  );
+  const measurePendingRef = useRef<null | ((p: {
+    yaw: number;
+    pitch: number;
+    x: number;
+    y: number;
+  } | null) => void)>(null);
+  const screenToYawPitchRef = useRef<null | ((
+    x: number,
+    y: number
+  ) => { yaw: number; pitch: number } | null)>(null);
+  function requestMeasurePoint() {
+    return new Promise<{ yaw: number; pitch: number; x: number; y: number } | null>(
+      (resolve) => {
+        measurePendingRef.current = resolve;
+      }
+    );
+  }
+
   // Detect the ?fullscreen=1 query flag — set when the editor opens this
   // route in a new tab. If true, we show a close button that ends the tab.
   const isFullscreenTab =
@@ -83,7 +112,7 @@ export default function TourPlayer({
     scenes,
     activeScene: active,
     hotspots,
-    onAdvance: (nextId) => setActiveSceneId(nextId),
+    onAdvance: (nextId) => navigateTo(nextId),
     onFireHotspot: (h) => {
       onHotspotClick(h);
       const dur = Math.max(1, h.auto_tour_showcase_duration ?? 5) * 1000;
@@ -131,13 +160,32 @@ export default function TourPlayer({
     }
   }, [ambientVolume]);
 
+  // Scene transition state — drives the Google-Earth-style zoom-through
+  // animation when navigating between scenes.
+  const [transitioning, setTransitioning] = useState<
+    "out" | "in" | null
+  >(null);
+
+  function navigateTo(sceneId: string) {
+    if (sceneId === activeSceneId) return;
+    setTransitioning("out");
+    // Halfway through the "out" animation, actually swap the scene so the
+    // new one is already rendered when we cross-fade in.
+    window.setTimeout(() => {
+      setActiveSceneId(sceneId);
+      setTransitioning("in");
+      // Clear the "in" state after the enter animation completes.
+      window.setTimeout(() => setTransitioning(null), 520);
+    }, 360);
+  }
+
   function onHotspotClick(h: Hotspot) {
     // Play sound effect regardless of action
     playHotspotSound(h.sound_effect, h.sound_effect_url);
 
     const action = h.action && h.action !== "none" ? h.action : legacyAction(h);
     if (action === "nav" && h.target_scene_id) {
-      setActiveSceneId(h.target_scene_id);
+      navigateTo(h.target_scene_id);
     } else if (action === "url" && h.url) {
       window.open(h.url, "_blank");
     } else if (action === "info_popup" || action === "image_popup") {
@@ -157,13 +205,49 @@ export default function TourPlayer({
     );
   }
 
+  // Lookup used by hover-preview cards on nav hotspots so they can show
+  // the target scene's name + thumbnail.
+  const scenesLookup = useMemo(() => {
+    const m = new Map<string, { name: string; thumbnailUrl: string | null }>();
+    for (const s of scenes) {
+      m.set(s.id, {
+        name: s.name,
+        thumbnailUrl: publicUrl(s.thumbnail_path ?? s.image_path) ?? null,
+      });
+    }
+    return m;
+  }, [scenes]);
+
+  const transitionClass =
+    transitioning === "out"
+      ? "scene-transition-out"
+      : transitioning === "in"
+      ? "scene-transition-in"
+      : "";
+
   return (
     <div className="h-full w-full flex flex-col bg-black">
       <div className="flex-1 relative">
+        <div
+          key={activeSceneId ?? "empty"}
+          className={`absolute inset-0 ${transitionClass}`}
+          style={{ transformOrigin: "center center", willChange: "transform, filter, opacity" }}
+        >
+        {active.is_flat ? (
+          <FlatViewer
+            imageUrl={publicUrl(active.image_path)}
+            hotspots={hotspots}
+            onHotspotClick={onHotspotClick}
+          />
+        ) : (
         <PanoramaViewer
           imageUrl={publicUrl(active.image_path)}
           hotspots={hotspots}
           mirrored={tour.mirrored ?? false}
+          hideStitching={active.hide_stitching ?? false}
+          hideTripod={active.hide_tripod ?? false}
+          tripodSize={active.tripod_size ?? 30}
+          scenesLookup={scenesLookup}
           nadirImageUrl={
             tour.nadir_image_path ? publicUrl(tour.nadir_image_path) : null
           }
@@ -174,9 +258,60 @@ export default function TourPlayer({
             (tour.auto_tour_rotate ?? true)
           }
           autoRotateSpeed={tour.auto_tour_rotate_speed ?? 1.5}
+          pitchMin={active.pitch_min}
+          pitchMax={active.pitch_max}
+          yawMin={active.yaw_min}
+          yawMax={active.yaw_max}
+          levelCorrection={active.level_correction ?? 0}
+          zoomMinFov={active.zoom_min_fov ?? 30}
+          zoomMaxFov={active.zoom_max_fov ?? 90}
+          zoomInitialFov={active.zoom_initial_fov ?? 75}
+          zoomSensitivity={active.zoom_sensitivity ?? 1}
+          onProvideZoomReset={(fn) => (zoomResetRef.current = fn)}
+          onProvideScreenToYawPitch={(fn) => (screenToYawPitchRef.current = fn)}
           onHotspotClick={onHotspotClick}
           initialYaw={active.initial_yaw}
           initialPitch={active.initial_pitch}
+        />
+        )}
+        </div>
+
+        {/* Measure tool overlay + click intercept */}
+        {measureOn && !active.is_flat && (
+          <div
+            className="absolute inset-0 z-10"
+            style={{ cursor: "crosshair" }}
+            onClick={(e) => {
+              const resolve = measurePendingRef.current;
+              if (!resolve || !screenToYawPitchRef.current) return;
+              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+              const yp = screenToYawPitchRef.current(e.clientX, e.clientY);
+              if (!yp) {
+                resolve(null);
+                measurePendingRef.current = null;
+                return;
+              }
+              resolve({
+                yaw: yp.yaw,
+                pitch: yp.pitch,
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+              });
+              measurePendingRef.current = null;
+            }}
+          />
+        )}
+        <MeasureTool
+          active={measureOn && !active.is_flat}
+          onClose={() => setMeasureOn(false)}
+          cameraHeight={
+            heightOverride[active.id] ?? active.camera_height ?? 1.6
+          }
+          sceneId={active.id}
+          onCameraHeightChange={(h) =>
+            setHeightOverride((prev) => ({ ...prev, [active.id]: h }))
+          }
+          requestPoint={requestMeasurePoint}
         />
 
         <div className="absolute top-3 left-3 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
@@ -215,11 +350,35 @@ export default function TourPlayer({
           </button>
         )}
 
+        {/* Reset zoom button — always available in bottom-right corner */}
+        <button
+          onClick={() => zoomResetRef.current?.()}
+          className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
+          title="Reset zoom to default"
+        >
+          <ZoomIn size={12} /> Reset zoom
+        </button>
+
+        {/* Measure tool toggle */}
+        {!active.is_flat && (
+          <button
+            onClick={() => setMeasureOn((v) => !v)}
+            className={`absolute bottom-3 right-32 border text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
+              measureOn
+                ? "bg-cyan-500 text-black border-cyan-400"
+                : "bg-black/60 hover:bg-black/80 text-white border-white/20"
+            }`}
+            title="Measure distance on the floor"
+          >
+            <Ruler size={12} /> {measureOn ? "Ruler on" : "Measure"}
+          </button>
+        )}
+
         <MenuOverlay
           tour={tour}
           scenes={scenes}
           activeSceneId={activeSceneId}
-          onSelectScene={setActiveSceneId}
+          onSelectScene={navigateTo}
         />
       </div>
 
@@ -228,7 +387,7 @@ export default function TourPlayer({
           {scenes.map((s) => (
             <button
               key={s.id}
-              onClick={() => setActiveSceneId(s.id)}
+              onClick={() => navigateTo(s.id)}
               className={`shrink-0 w-24 h-14 rounded overflow-hidden border-2 ${
                 activeSceneId === s.id
                   ? "border-accent"
@@ -342,94 +501,61 @@ function VideoModal({
         )}
       </div>
       {hotspot.label && (
-        <div className="mt-3 text-white text-sm">{hotspot.label}</div>
+        <div className="absolute bottom-4 left-4 right-4 text-white text-sm bg-black/70 px-3 py-2 rounded backdrop-blur-sm">
+          {hotspot.label}
+        </div>
       )}
     </div>
   );
 }
 
-function PdfModal({
-  hotspot,
-  onClose,
-}: {
-  hotspot: Hotspot;
-  onClose: () => void;
-}) {
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "youtu.be") return u.pathname.slice(1) || null;
+    if (u.hostname.includes("youtube.com")) {
+      if (u.pathname.startsWith("/watch")) return u.searchParams.get("v");
+      const parts = u.pathname.split("/");
+      const embedIdx = parts.indexOf("embed");
+      if (embedIdx >= 0 && parts[embedIdx + 1]) return parts[embedIdx + 1];
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function legacyAction(h: Hotspot): "none" | "nav" | "info_popup" | "url" | "image_popup" | "video_popup" | "pdf_popup" {
+  switch (h.type) {
+    case "nav": return "nav";
+    case "url": return "url";
+    case "info": return "info_popup";
+    case "image": return "image_popup";
+    case "video": return "video_popup";
+    case "pdf": return "pdf_popup";
+    default: return "none";
+  }
+}
+
+function PdfModal({ hotspot, onClose }: { hotspot: Hotspot; onClose: () => void }) {
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-30 bg-black/85 grid place-items-center p-6"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-panel rounded-lg overflow-hidden shadow-2xl w-[min(1000px,90vw)] h-[85vh] relative flex flex-col"
-      >
+    <div onClick={onClose} className="fixed inset-0 z-30 bg-black/85 grid place-items-center p-6">
+      <div onClick={(e) => e.stopPropagation()} className="bg-panel rounded-lg overflow-hidden shadow-2xl w-[min(1000px,90vw)] h-[85vh] relative flex flex-col">
         <div className="flex items-center justify-between bg-panel border-b border-border px-3 py-2">
-          <div className="text-sm truncate">
-            {hotspot.pdf_name || hotspot.label || "Document"}
-          </div>
+          <div className="text-sm truncate">{hotspot.pdf_name || hotspot.label || "Document"}</div>
           <div className="flex items-center gap-2">
             {hotspot.pdf_url && (
-              <a
-                href={hotspot.pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs bg-accent text-black px-2 py-1 rounded"
-              >
-                Open in tab
-              </a>
+              <a href={hotspot.pdf_url} download className="text-xs text-neutral-300 hover:text-white">Download</a>
             )}
-            <button
-              onClick={onClose}
-              className="text-xs text-neutral-300 hover:text-white"
-            >
-              ✕
-            </button>
+            <button onClick={onClose} className="text-xs text-neutral-300 hover:text-white">✕</button>
           </div>
         </div>
         {hotspot.pdf_url ? (
           <iframe src={hotspot.pdf_url} className="flex-1 w-full bg-white" />
         ) : (
-          <div className="flex-1 grid place-items-center text-neutral-400 text-sm">
-            No document URL set on this hotspot.
-          </div>
+          <div className="flex-1 grid place-items-center text-neutral-400 text-sm">No document URL set.</div>
         )}
       </div>
     </div>
   );
-}
-
-/** Extract 11-char YouTube video ID from various URL forms. */
-function extractYouTubeId(url: string): string | null {
-  const patterns = [
-    /youtu\.be\/([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
-    /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
-  ];
-  for (const re of patterns) {
-    const m = url.match(re);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-/** map legacy type to an action for backwards compat */
-function legacyAction(h: Hotspot) {
-  switch (h.type) {
-    case "nav":
-      return "nav";
-    case "url":
-      return "url";
-    case "info":
-      return "info_popup";
-    case "image":
-      return "image_popup";
-    case "video":
-      return "video_popup";
-    case "pdf":
-      return "pdf_popup";
-    default:
-      return "none";
-  }
 }

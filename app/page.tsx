@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
-import type { Tour, Scene } from "@/lib/types";
+import type { Tour } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import {
   Plus,
@@ -13,15 +13,19 @@ import {
   HardDrive,
   Image as ImageIcon,
   Upload as UploadIcon,
+  Grid3x3,
+  Rows3,
 } from "lucide-react";
 import { importTourFromFile } from "@/lib/backup";
 
 type TourWithCover = Tour & { cover_path: string | null; scene_count: number };
+type Layout = "grid" | "list";
 
 export default function DashboardPage() {
   const [tours, setTours] = useState<TourWithCover[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "published" | "draft">("all");
+  const [layout, setLayout] = useState<Layout>("grid");
   const [loading, setLoading] = useState(true);
   const [storageBytes, setStorageBytes] = useState<number>(0);
   const [importing, setImporting] = useState(false);
@@ -42,13 +46,11 @@ export default function DashboardPage() {
         .select("id, image_path")
         .eq("tour_id", t.id)
         .order("order_index");
-      // Prefer a user-uploaded thumbnail; fall back to first scene's panorama.
       const cover = t.thumbnail_path ?? scenes?.[0]?.image_path ?? null;
       list.push({ ...t, cover_path: cover, scene_count: scenes?.length ?? 0 });
     }
     setTours(list);
 
-    // storage size (list files in bucket)
     const { data: files } = await supabase.storage
       .from("panoramas")
       .list("", { limit: 1000 });
@@ -123,14 +125,18 @@ export default function DashboardPage() {
     });
   }, [tours, q, filter]);
 
-  const recent = tours.slice(0, 4);
-
   return (
     <div className="min-h-screen">
       <TopBar />
-      <main className="max-w-6xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        {/* Sub-header row: title left, actions right */}
+        <div className="flex items-end justify-between mb-5 gap-3 flex-wrap">
+          <div>
+            <div className="eyebrow mb-0.5">My tours</div>
+            <h1 className="text-[22px] font-semibold leading-tight">
+              Dashboard
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <input
               ref={fileInputRef}
@@ -140,24 +146,23 @@ export default function DashboardPage() {
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) handleImportBackup(f);
-                // reset so selecting the same file again re-triggers
                 if (fileInputRef.current) fileInputRef.current.value = "";
               }}
             />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
-              className="flex items-center gap-1 bg-panelSoft border border-border text-neutral-200 px-3 py-2 rounded disabled:opacity-50"
+              className="chip !py-1.5"
               title="Restore a tour from a .factour backup file"
             >
-              <UploadIcon size={16} />
+              <UploadIcon size={12} />
               {importing ? "Restoring…" : "Import backup"}
             </button>
             <button
               onClick={() => setCreatingTour(true)}
-              className="flex items-center gap-1 bg-accent text-black font-medium px-3 py-2 rounded"
+              className="flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-[12px] transition-colors"
             >
-              <Plus size={16} /> New tour
+              <Plus size={14} /> New tour
             </button>
           </div>
         </div>
@@ -169,180 +174,289 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {/* Compact stat strip */}
+        <div className="grid grid-cols-3 gap-2 mb-5">
           <StatCard
             label="Tours"
             value={tours.length}
-            icon={<ImageIcon size={18} />}
+            icon={<ImageIcon size={14} />}
           />
           <StatCard
             label="Published"
             value={tours.filter((t) => t.published).length}
-            icon={<Eye size={18} />}
+            icon={<Eye size={14} />}
           />
           <StatCard
             label="Storage used"
             value={formatBytes(storageBytes)}
-            icon={<HardDrive size={18} />}
+            icon={<HardDrive size={14} />}
           />
         </div>
 
-        {/* Recent uploads */}
-        <section className="mb-6">
-          <h2 className="text-sm uppercase text-neutral-400 mb-2">
-            Recent uploads
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {recent.map((t) => (
-              <Link
-                key={t.id}
-                href={`/tour/${t.id}/edit`}
-                className="aspect-video bg-panelSoft rounded overflow-hidden border border-border relative group"
+        {/* Toolbar: filter chips + search + layout toggle */}
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <div className="flex items-center gap-1">
+            {(["all", "published", "draft"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`chip ${filter === f ? "active" : ""}`}
               >
-                {t.cover_path ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={publicUrl(t.cover_path)}
-                    alt={t.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-neutral-500">
-                    no image
-                  </div>
-                )}
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 text-xs truncate">
-                  {t.title}
-                </div>
-              </Link>
+                {f}
+              </button>
             ))}
-            {recent.length === 0 && (
-              <div className="col-span-full text-neutral-500 text-sm">
-                Upload something to see recent tours here.
-              </div>
-            )}
           </div>
-        </section>
-
-        {/* Filters */}
-        <div className="flex gap-2 items-center mb-4">
-          <div className="relative flex-1 max-w-sm">
+          <div className="flex-1" />
+          <div className="relative">
             <Search
-              size={14}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-500"
+              size={12}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500"
             />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search tours..."
-              className="w-full bg-panelSoft border border-border rounded pl-7 pr-2 py-1.5 text-sm outline-none focus:border-accent"
+              className="field !w-56 !pl-7"
             />
           </div>
-          {(["all", "published", "draft"] as const).map((f) => (
+          <div className="flex items-center border border-border rounded overflow-hidden bg-panelSoft">
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`text-xs px-3 py-1.5 rounded border ${
-                filter === f
-                  ? "bg-accent text-black border-accent"
-                  : "border-border text-neutral-300"
+              onClick={() => setLayout("grid")}
+              className={`p-1.5 ${
+                layout === "grid" ? "text-accent" : "text-neutral-400"
               }`}
+              title="Grid view"
             >
-              {f}
+              <Grid3x3 size={14} />
             </button>
-          ))}
+            <button
+              onClick={() => setLayout("list")}
+              className={`p-1.5 ${
+                layout === "list" ? "text-accent" : "text-neutral-400"
+              }`}
+              title="List view"
+            >
+              <Rows3 size={14} />
+            </button>
+          </div>
         </div>
 
-        {/* Tour grid */}
+        {/* Tour grid / list */}
         {loading ? (
-          <div className="text-neutral-500">Loading…</div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="text-neutral-500 text-sm py-10 text-center">
+            Loading…
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState onNew={() => setCreatingTour(true)} />
+        ) : layout === "grid" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {filtered.map((t) => (
-              <Link
+              <TourCard
                 key={t.id}
-                href={`/tour/${t.id}/edit`}
-                className="bg-panelSoft border border-border rounded overflow-hidden hover:border-accent transition group/card block"
-              >
-                <div className="aspect-video bg-black relative group">
-                  {t.cover_path ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={publicUrl(t.cover_path)}
-                      alt={t.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full grid place-items-center text-neutral-500">
-                      no image
-                    </div>
-                  )}
-                  <span
-                    className={`absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded ${
-                      t.published
-                        ? "bg-accent text-black"
-                        : "bg-neutral-700 text-neutral-200"
-                    }`}
-                  >
-                    {t.published ? "PUBLISHED" : "DRAFT"}
-                  </span>
-                  {/* Thumbnail upload button (appears on hover, stops
-                      the Link navigation via preventDefault) */}
-                  <label
-                    className="absolute top-2 left-2 flex items-center gap-1 bg-black/70 text-white text-[10px] px-2 py-1 rounded cursor-pointer opacity-0 group-hover:opacity-100 transition"
-                    title={
-                      t.thumbnail_path
-                        ? "Replace thumbnail"
-                        : "Upload a custom thumbnail"
-                    }
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ImageIcon size={12} />
-                    {t.thumbnail_path ? "Change" : "Set thumbnail"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadThumbnail(t.id, f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                </div>
-                <div className="p-3 flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{t.title}</div>
-                    <div className="text-xs text-neutral-500">
-                      {t.scene_count} scene{t.scene_count === 1 ? "" : "s"} ·{" "}
-                      {new Date(t.updated_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      deleteTour(t.id);
-                    }}
-                    className="text-xs bg-neutral-800 hover:bg-red-900/40 px-2 py-1.5 rounded shrink-0"
-                    title="Delete tour"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </Link>
+                tour={t}
+                onDelete={deleteTour}
+                onUploadThumb={uploadThumbnail}
+              />
             ))}
-            {filtered.length === 0 && (
-              <div className="col-span-full text-neutral-500 text-sm">
-                No tours match.
-              </div>
-            )}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {filtered.map((t) => (
+              <TourRow
+                key={t.id}
+                tour={t}
+                onDelete={deleteTour}
+                onUploadThumb={uploadThumbnail}
+              />
+            ))}
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/* --------------------------------- CARDS -------------------------------- */
+
+function TourCard({
+  tour,
+  onDelete,
+  onUploadThumb,
+}: {
+  tour: TourWithCover;
+  onDelete: (id: string) => void;
+  onUploadThumb: (id: string, f: File) => void;
+}) {
+  return (
+    <Link
+      href={`/tour/${tour.id}/edit`}
+      className="group block bg-panelSoft border border-border rounded overflow-hidden hover:border-accent/60 transition-colors"
+    >
+      <div className="aspect-video bg-black relative overflow-hidden">
+        {tour.cover_path ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={publicUrl(tour.cover_path)}
+            alt={tour.title}
+            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full grid place-items-center text-neutral-600 text-xs">
+            no image
+          </div>
+        )}
+
+        <span
+          className={`absolute top-1.5 right-1.5 text-3xs px-1.5 py-0.5 rounded uppercase tracking-wider font-medium ${
+            tour.published
+              ? "bg-accent text-black"
+              : "bg-black/60 text-neutral-300 border border-white/10"
+          }`}
+        >
+          {tour.published ? "Public" : "Draft"}
+        </span>
+
+        <label
+          className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-black/70 backdrop-blur-sm text-white text-3xs px-1.5 py-1 rounded cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+          title={tour.thumbnail_path ? "Replace thumbnail" : "Set thumbnail"}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ImageIcon size={10} />
+          {tour.thumbnail_path ? "Change" : "Thumb"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUploadThumb(tour.id, f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2 pt-6">
+          <div className="text-[13px] font-medium truncate">{tour.title}</div>
+          <div className="text-3xs text-neutral-400 flex items-center gap-2">
+            <span>
+              {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
+            </span>
+            <span>·</span>
+            <span>{new Date(tour.updated_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-end px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(tour.id);
+          }}
+          className="text-neutral-400 hover:text-red-400 p-1 rounded hover:bg-red-500/10"
+          title="Delete tour"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </Link>
+  );
+}
+
+function TourRow({
+  tour,
+  onDelete,
+  onUploadThumb,
+}: {
+  tour: TourWithCover;
+  onDelete: (id: string) => void;
+  onUploadThumb: (id: string, f: File) => void;
+}) {
+  return (
+    <Link
+      href={`/tour/${tour.id}/edit`}
+      className="flex items-center gap-3 bg-panelSoft border border-border rounded px-2 py-2 hover:border-accent/60 transition-colors group"
+    >
+      <div className="w-24 h-14 bg-black rounded overflow-hidden shrink-0">
+        {tour.cover_path ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={publicUrl(tour.cover_path)}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full grid place-items-center text-neutral-600 text-3xs">
+            no image
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium truncate">{tour.title}</div>
+        <div className="text-3xs text-neutral-500 flex items-center gap-2">
+          <span>
+            {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
+          </span>
+          <span>·</span>
+          <span>{new Date(tour.updated_at).toLocaleDateString()}</span>
+        </div>
+      </div>
+      <span
+        className={`text-3xs px-1.5 py-0.5 rounded uppercase tracking-wider font-medium ${
+          tour.published
+            ? "bg-accent text-black"
+            : "bg-neutral-800 text-neutral-300 border border-border"
+        }`}
+      >
+        {tour.published ? "Public" : "Draft"}
+      </span>
+      <label
+        className="chip cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+        title={tour.thumbnail_path ? "Replace thumbnail" : "Set thumbnail"}
+      >
+        <ImageIcon size={11} />
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUploadThumb(tour.id, f);
+            e.target.value = "";
+          }}
+        />
+      </label>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDelete(tour.id);
+        }}
+        className="text-neutral-500 hover:text-red-400 p-1 rounded"
+      >
+        <Trash2 size={12} />
+      </button>
+    </Link>
+  );
+}
+
+function EmptyState({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="border border-dashed border-border rounded-lg py-16 text-center bg-panelSoft/30">
+      <ImageIcon size={28} className="mx-auto mb-2 text-neutral-600" />
+      <div className="text-sm text-neutral-300 mb-1">No tours match.</div>
+      <div className="text-xs text-neutral-500 mb-4">
+        Create your first tour to get started.
+      </div>
+      <button
+        onClick={onNew}
+        className="inline-flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-xs transition-colors"
+      >
+        <Plus size={14} /> New tour
+      </button>
     </div>
   );
 }
@@ -357,11 +471,15 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-panelSoft border border-border rounded p-4 flex items-center gap-3">
-      <div className="p-2 bg-panel rounded text-accent">{icon}</div>
-      <div>
-        <div className="text-xs text-neutral-400">{label}</div>
-        <div className="text-lg font-semibold">{value}</div>
+    <div className="bg-panelSoft border border-border rounded px-3 py-2.5 flex items-center gap-2.5">
+      <div className="w-8 h-8 grid place-items-center rounded bg-black/40 text-accent">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-3xs uppercase tracking-wider text-neutral-500">
+          {label}
+        </div>
+        <div className="text-[15px] font-semibold leading-tight">{value}</div>
       </div>
     </div>
   );
@@ -397,82 +515,82 @@ function NewTourModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-panel border border-border rounded-lg w-[600px] max-w-full p-6 max-h-[90vh] overflow-auto"
+        className="bg-panel border border-border rounded-lg w-[560px] max-w-full p-5 max-h-[90vh] overflow-auto shadow-panel"
       >
-        <h3 className="text-lg font-semibold mb-4">New tour</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[15px] font-semibold">New tour</h3>
+          <button
+            onClick={onCancel}
+            className="text-neutral-500 hover:text-white text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
 
-        <div className="space-y-4 mb-6">
+        <div className="space-y-3 mb-5">
           <div>
-            <label className="text-xs uppercase text-neutral-400 block mb-1">
-              Project title
-            </label>
+            <div className="eyebrow mb-1">Project title</div>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Micron Wires & Polymer Pvt Ltd"
               autoFocus
-              className="w-full bg-panelSoft border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent"
+              className="field"
             />
           </div>
           <div>
-            <label className="text-xs uppercase text-neutral-400 block mb-1">
-              Description
-            </label>
+            <div className="eyebrow mb-1">Description</div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="A short description of the site, the client, or what this tour covers…"
               rows={3}
-              className="w-full bg-panelSoft border border-border rounded px-3 py-2 text-sm outline-none focus:border-accent resize-none"
+              className="field resize-none"
             />
           </div>
         </div>
 
         <div className="mb-2">
-          <div className="text-xs uppercase text-neutral-400 mb-1">
-            Reading direction
-          </div>
-          <p className="text-[11px] text-neutral-500 mb-3">
-            Pick how panoramas are displayed. Applies to the whole tour and
-            can&rsquo;t be changed later. Click a card to create the tour.
+          <div className="eyebrow mb-1">Reading direction</div>
+          <p className="text-2xs text-neutral-500 mb-3">
+            How panoramas are displayed. Can&rsquo;t be changed later. Click a
+            card to create.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5">
           <button
             onClick={() =>
               onCreate({ title, description, mirrored: false })
             }
-            className="text-left border border-border rounded-lg p-4 hover:border-accent hover:bg-accent/5 transition"
+            className="text-left border border-border rounded-md p-3 hover:border-accent hover:bg-accent/5 transition-colors"
           >
-            <div className="text-sm font-medium mb-1 flex items-center gap-2">
+            <div className="text-[13px] font-medium mb-1 flex items-center gap-1.5">
               Standard
-              <span className="text-[10px] bg-accent text-black rounded px-1.5 py-0.5">
+              <span className="text-3xs bg-accent text-black rounded px-1.5 py-0.5 font-medium">
                 recommended
               </span>
             </div>
-            <div className="text-xs text-neutral-400 leading-relaxed">
-              Text on signs, calendars, clocks and posters reads normally.
-              Best for factory tours where you want everything to look
-              real-world.
+            <div className="text-2xs text-neutral-400 leading-relaxed">
+              Text on signs, calendars, clocks and posters reads normally. Best
+              for factory tours.
             </div>
           </button>
           <button
             onClick={() =>
               onCreate({ title, description, mirrored: true })
             }
-            className="text-left border border-border rounded-lg p-4 hover:border-accent hover:bg-accent/5 transition"
+            className="text-left border border-border rounded-md p-3 hover:border-accent hover:bg-accent/5 transition-colors"
           >
-            <div className="text-sm font-medium mb-1">Mirrored</div>
-            <div className="text-xs text-neutral-400 leading-relaxed">
-              Uses the raw equirectangular rendering — the world appears
-              horizontally flipped (text reads backwards). Only pick this if
-              your source panoramas were captured mirrored.
+            <div className="text-[13px] font-medium mb-1">Mirrored</div>
+            <div className="text-2xs text-neutral-400 leading-relaxed">
+              Uses raw equirectangular rendering — text reads backwards. Only
+              pick this if source panoramas were captured mirrored.
             </div>
           </button>
         </div>
 
-        <div className="flex justify-end mt-5">
+        <div className="flex justify-end mt-4">
           <button
             onClick={onCancel}
             className="text-xs text-neutral-400 hover:text-white"

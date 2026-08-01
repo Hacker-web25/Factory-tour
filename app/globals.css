@@ -4,22 +4,111 @@
 
 :root {
   color-scheme: dark;
+  --chrome: #0e0f11;
+  --panel: #141518;
+  --panel-soft: #1c1e22;
+  --border: #2a2c30;
+  --accent: #1DB584;
 }
 
 html, body {
-  background: #0f0f0f;
-  color: #f5f5f5;
+  background: var(--chrome);
+  color: #e6e7ea;
   height: 100%;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Uppercase micro-labels used all over the editor */
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b8f96;
+  font-weight: 500;
+}
+
+/* Compact form control (inputs, selects) with focus ring */
+.field {
+  width: 100%;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #e6e7ea;
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.field:focus {
+  border-color: var(--accent);
+  background: #1f2126;
+}
+
+/* Chip button (Wall / Floor / Set tint / Advanced) — Kuula-style */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: #c7cad0;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.chip:hover { background: #25272c; color: #fff; }
+.chip.active {
+  background: rgba(29, 181, 132, 0.15);
+  border-color: var(--accent);
+  color: #6bdcb1;
+}
+
+/* Section divider between property groups in the right panel */
+.section-divider { border-top: 1px solid var(--border); }
+
+/* Slim range slider styling — compact editor look */
+input[type="range"].slim {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: #2a2c30;
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"].slim::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d1d4d8;
+  cursor: pointer;
+  border: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+input[type="range"].slim::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d1d4d8;
+  cursor: pointer;
+  border: 0;
 }
 
 /* thin scrollbars for panels */
 .panel-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.panel-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.panel-scroll::-webkit-scrollbar-thumb { background: #2f3237; border-radius: 4px; }
+.panel-scroll::-webkit-scrollbar-thumb:hover { background: #3a3d43; }
 .panel-scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* hide default arrow on <details> when used as accordion */
@@ -55,3 +144,25 @@ details > summary::-webkit-details-marker { display: none; }
 .hs-anim-wave   { animation: hs-wave   1s   ease-in-out infinite; }
 .hs-anim-spin   { animation: hs-spin   2s   linear      infinite; }
 .hs-anim-shake  { animation: hs-shake  0.5s ease-in-out infinite; }
+
+/* Nav-hotspot hover preview card entrance */
+@keyframes hs-nav-preview-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.94); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1);    }
+}
+
+/* --------- Scene transition (Google-Earth-style stretch/zoom) -------- */
+.scene-transition-out {
+  animation: scene-out 380ms cubic-bezier(0.55, 0, 0.8, 0.35) forwards;
+}
+.scene-transition-in {
+  animation: scene-in 500ms cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+@keyframes scene-out {
+  from { transform: scale(1);    filter: blur(0px);  opacity: 1; }
+  to   { transform: scale(1.35); filter: blur(10px); opacity: 0; }
+}
+@keyframes scene-in {
+  from { transform: scale(1.25); filter: blur(14px); opacity: 0; }
+  to   { transform: scale(1);    filter: blur(0px);  opacity: 1; }
+}

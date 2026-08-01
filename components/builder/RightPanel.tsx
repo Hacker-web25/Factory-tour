@@ -34,6 +34,7 @@ import {
   Globe,
   Lock,
   Maximize2,
+  EyeOff,
 } from "lucide-react";
 
 type Tab = "photo" | "addon" | "autotour";
@@ -48,6 +49,11 @@ type Props = {
   onEnterEditMode: () => void;
   onEnterFullscreen?: () => void;
   onPatchTour: (fields: Partial<Tour>) => Promise<void>;
+  /** Read the panorama camera's current yaw/pitch (radians). Used by the
+   *  Camera section's "Use current view" button. */
+  getCurrentAim?: () => { yaw: number; pitch: number } | null;
+  /** Grab a PNG data URL of the current WebGL view. Used by "Set as thumbnail". */
+  getSnapshot?: () => string | null;
   onStartAddHotspot: (draft: Partial<Hotspot>) => void;
   onStartReposition: (id: string) => void;
   onTestAction: (h: Hotspot) => void;
@@ -71,6 +77,8 @@ export default function RightPanel({
   onEnterEditMode,
   onEnterFullscreen,
   onPatchTour,
+  getCurrentAim,
+  getSnapshot,
   onStartAddHotspot,
   onStartReposition,
   onTestAction,
@@ -107,6 +115,7 @@ export default function RightPanel({
         onEnterEditMode={onEnterEditMode}
         onPublishToggle={onPublishToggle}
         onEnterFullscreen={onEnterFullscreen}
+        onPatchTour={onPatchTour}
         hidden={hidden}
       />
     );
@@ -115,9 +124,9 @@ export default function RightPanel({
   return (
     <aside
       style={hidden ? { display: "none" } : undefined}
-      className="w-[340px] shrink-0 bg-panel border-l border-border flex flex-col"
+      className="w-[340px] shrink-0 bg-panel border-l border-border flex flex-col shadow-panel"
     >
-      <div className="flex items-center border-b border-border">
+      <div className="flex items-center border-b border-border bg-chrome">
         <TabBtn active={tab === "photo"} onClick={() => setTab("photo")}>
           PHOTO
         </TabBtn>
@@ -136,9 +145,9 @@ export default function RightPanel({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-accent text-black text-sm font-medium px-3 py-2 mr-2 my-1 rounded disabled:opacity-50"
+          className="bg-accent hover:bg-accentHover text-black text-[12px] font-semibold tracking-wide px-3 py-1.5 mr-2 my-1.5 rounded disabled:opacity-50 transition-colors"
         >
-          {saving ? "Saving…" : "SAVE"}
+          {saving ? "SAVING…" : "SAVE"}
         </button>
       </div>
 
@@ -153,6 +162,8 @@ export default function RightPanel({
             onSceneChange={onSceneChange}
             onPublishToggle={onPublishToggle}
             onPatchTour={onPatchTour}
+            getCurrentAim={getCurrentAim}
+            getSnapshot={getSnapshot}
           />
         )}
         {tab === "addon" && selectedHotspot && (
@@ -185,6 +196,37 @@ export default function RightPanel({
   );
 }
 
+function VisibilityBtn({
+  active,
+  onClick,
+  accent,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  accent: "neutral" | "amber" | "emerald";
+  children: React.ReactNode;
+}) {
+  const activeCls =
+    accent === "emerald"
+      ? "bg-emerald-500/20 border-emerald-500/60 text-emerald-300"
+      : accent === "amber"
+      ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
+      : "bg-neutral-700 border-neutral-500 text-white";
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-center gap-1 py-1.5 text-[11px] rounded border ${
+        active
+          ? activeCls
+          : "bg-panelSoft border-border text-neutral-300 hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function TabBtn({
   active,
   children,
@@ -197,13 +239,16 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-3 text-xs tracking-wide ${
+      className={`px-4 py-2.5 text-[11px] tracking-[0.08em] font-semibold uppercase transition-colors relative ${
         active
-          ? "bg-panelSoft text-white border-b-2 border-accent"
-          : "text-neutral-400 hover:text-white"
+          ? "text-white"
+          : "text-neutral-500 hover:text-neutral-200"
       }`}
     >
       {children}
+      {active && (
+        <span className="absolute left-2 right-2 bottom-0 h-[2px] bg-accent rounded-t" />
+      )}
     </button>
   );
 }
@@ -212,15 +257,27 @@ function TabBtn({
 function PreviewPanel({
   tour,
   onEnterEditMode,
-  onPublishToggle,
+  onPatchTour,
   hidden,
 }: {
   tour: Tour;
   onEnterEditMode: () => void;
-  onPublishToggle: () => Promise<void>;
-  onEnterFullscreen?: () => void; // kept optional for back-compat; unused now
+  onPublishToggle?: () => Promise<void>;
+  onEnterFullscreen?: () => void;
+  onPatchTour: (fields: Partial<Tour>) => Promise<void>;
   hidden?: boolean;
 }) {
+  const visibility: "private" | "unlisted" | "public" =
+    (tour.visibility as "private" | "unlisted" | "public") ??
+    (tour.published ? "public" : "private");
+
+  async function setVisibility(v: "private" | "unlisted" | "public") {
+    await onPatchTour({
+      visibility: v,
+      // Keep legacy `published` in sync for any older reads.
+      published: v === "public",
+    });
+  }
   return (
     <aside
       style={hidden ? { display: "none" } : undefined}
@@ -239,33 +296,64 @@ function PreviewPanel({
             // Open the public viewer with a fullscreen flag in a fresh tab.
             // The main editor stays untouched — no chrome-hiding state to
             // corrupt when the user comes back.
-            window.open(`/tour/${tour.id}?fullscreen=1`, "_blank");
+            window.open(`/tour/${tour.id}?fullscreen=1&preview=1`, "_blank");
           }}
           className="w-full bg-panelSoft border border-border text-neutral-100 font-medium py-2 rounded flex items-center justify-center gap-2 hover:bg-neutral-700"
         >
           <Maximize2 size={14} /> Fullscreen
         </button>
 
-        {/* Public/Private status pill */}
-        <button
-          onClick={onPublishToggle}
-          className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-2 rounded border ${
-            tour.published
-              ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/25"
-              : "bg-neutral-800/60 border-border text-neutral-300 hover:bg-neutral-700"
-          }`}
-          title="Click to toggle between Public and Private"
-        >
-          {tour.published ? (
-            <>
-              <Globe size={14} /> Public
-            </>
-          ) : (
-            <>
-              <Lock size={14} /> Private
-            </>
+        {/* Three-state visibility */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-neutral-400 mb-1">
+            Visibility
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            <VisibilityBtn
+              active={visibility === "private"}
+              onClick={() => setVisibility("private")}
+              accent="neutral"
+            >
+              <Lock size={12} /> Private
+            </VisibilityBtn>
+            <VisibilityBtn
+              active={visibility === "unlisted"}
+              onClick={() => setVisibility("unlisted")}
+              accent="amber"
+            >
+              <EyeOff size={12} /> Unlisted
+            </VisibilityBtn>
+            <VisibilityBtn
+              active={visibility === "public"}
+              onClick={() => setVisibility("public")}
+              accent="emerald"
+            >
+              <Globe size={12} /> Public
+            </VisibilityBtn>
+          </div>
+
+          {visibility === "unlisted" && (
+            <div className="mt-2">
+              <div className="text-[10px] uppercase text-neutral-400 mb-1">
+                Optional password
+              </div>
+              <input
+                type="text"
+                value={tour.unlisted_password ?? ""}
+                onChange={(e) =>
+                  onPatchTour({
+                    unlisted_password: e.target.value || null,
+                  })
+                }
+                placeholder="Leave blank for link-only"
+                className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+              />
+              <div className="text-[10px] text-neutral-500 mt-1">
+                Only people with the link (and password, if set) can view.
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         {/* Project title + description */}
         <div className="pt-3 border-t border-border min-w-0">
@@ -294,6 +382,8 @@ function PhotoTab({
   onSceneChange,
   onPublishToggle,
   onPatchTour,
+  getCurrentAim,
+  getSnapshot,
 }: {
   tour: Tour;
   scene: Scene;
@@ -301,6 +391,8 @@ function PhotoTab({
   onSceneChange: (s: Scene) => void;
   onPublishToggle: () => Promise<void>;
   onPatchTour: (fields: Partial<Tour>) => Promise<void>;
+  getCurrentAim?: () => { yaw: number; pitch: number } | null;
+  getSnapshot?: () => string | null;
 }) {
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
 
@@ -322,6 +414,19 @@ function PhotoTab({
         </div>
       </div>
 
+      <CameraSettings
+        scene={scene}
+        onSceneChange={onSceneChange}
+        getCurrentAim={getCurrentAim}
+      />
+
+      <SceneActions
+        scene={scene}
+        tour={tour}
+        onSceneChange={onSceneChange}
+        getSnapshot={getSnapshot}
+      />
+
       <div>
         <div className="text-xs uppercase text-neutral-400 mb-2">Add-ons</div>
         <div className="grid grid-cols-3 gap-2">
@@ -342,10 +447,28 @@ function PhotoTab({
             label="Hotspot"
             onClick={() => onStartAddHotspot({ type: "icon" })}
           />
+          <AddonBtn
+            icon={<Pencil size={14} />}
+            label="Polygon"
+            onClick={() =>
+              onStartAddHotspot({
+                type: "polygon",
+                action: "info_popup",
+                polygon_points: [],
+                polygon_fill_color: "#22d3ee",
+                polygon_stroke_color: "#22d3ee",
+                polygon_fill_opacity: 0.15,
+                polygon_stroke_width: 2,
+              })
+            }
+          />
         </div>
         <div className="text-[11px] text-neutral-500 mt-2">
           Click an add-on. A crosshair will appear — rotate the panorama to
           aim, then click <span className="text-accent">Place here</span>.
+          <br />
+          <span className="text-cyan-300">Polygon:</span> click multiple points
+          around an object to trace its outline, then finish.
         </div>
       </div>
 
@@ -699,6 +822,782 @@ function SceneAutoTourRow({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* =============================== CAMERA SETTINGS ========================= */
+
+function CameraSettings({
+  scene,
+  onSceneChange,
+  getCurrentAim,
+}: {
+  scene: Scene;
+  onSceneChange: (s: Scene) => void;
+  getCurrentAim?: () => { yaw: number; pitch: number } | null;
+}) {
+  const yawDeg = radToDeg(scene.initial_yaw ?? 0);
+  const pitchDeg = radToDeg(scene.initial_pitch ?? 0);
+  const levelDeg = radToDeg(scene.level_correction ?? 0);
+
+  // Convert stored min/max radians to a single "range" degree value
+  // (0 = locked, 180/360 = free). Symmetric around 0.
+  const pitchRange =
+    scene.pitch_min != null && scene.pitch_max != null
+      ? Math.round(radToDeg(scene.pitch_max - scene.pitch_min))
+      : 180;
+  const yawRange =
+    scene.yaw_min != null && scene.yaw_max != null
+      ? Math.round(radToDeg(scene.yaw_max - scene.yaw_min))
+      : 360;
+
+  // Zoom
+  const zoomMin = scene.zoom_min_fov ?? 30;
+  const zoomMax = scene.zoom_max_fov ?? 90;
+  const zoomInit = scene.zoom_initial_fov ?? 75;
+  const sensitivity = scene.zoom_sensitivity ?? 1;
+
+  function set(fields: Partial<Scene>) {
+    onSceneChange({ ...scene, ...fields });
+  }
+
+  function useCurrentView() {
+    const aim = getCurrentAim?.();
+    if (!aim) return;
+    set({ initial_yaw: aim.yaw, initial_pitch: aim.pitch });
+  }
+
+  function setPitchRange(deg: number) {
+    if (deg >= 179) {
+      set({ pitch_min: null, pitch_max: null }); // unlimited
+    } else {
+      const half = degToRad(deg / 2);
+      set({ pitch_min: -half, pitch_max: half });
+    }
+  }
+  function setYawRange(deg: number) {
+    if (deg >= 359) {
+      set({ yaw_min: null, yaw_max: null });
+    } else {
+      const half = degToRad(deg / 2);
+      set({ yaw_min: -half, yaw_max: half });
+    }
+  }
+
+  return (
+    <div className="pt-4 border-t border-border space-y-5">
+      <div className="text-xs uppercase text-neutral-400">Camera</div>
+
+      {/* --- Heading --- */}
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Initial view
+        </div>
+        <button
+          onClick={useCurrentView}
+          disabled={!getCurrentAim}
+          className="w-full text-xs bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded py-1.5 hover:bg-cyan-500/25 disabled:opacity-40 mb-2"
+          title="Grab the panorama's current direction as the opening angle"
+        >
+          Use current view
+        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField
+            label="Horizontal °"
+            value={yawDeg}
+            min={-180}
+            max={180}
+            onChange={(v) => set({ initial_yaw: degToRad(v) })}
+          />
+          <NumberField
+            label="Vertical °"
+            value={pitchDeg}
+            min={-89}
+            max={89}
+            onChange={(v) => set({ initial_pitch: degToRad(v) })}
+          />
+        </div>
+      </div>
+
+      {/* --- Movement range (Kuula-style single sliders) --- */}
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Vertical range (pitch)
+        </div>
+        <RangeLabelled
+          left="Locked"
+          right="Full"
+          value={pitchRange}
+          min={0}
+          max={180}
+          suffix="°"
+          onChange={setPitchRange}
+        />
+        <div className="text-[10px] text-neutral-500">
+          How far up/down viewers can look. 0 = locked to horizon, 180 = full.
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Horizontal range (yaw)
+        </div>
+        <RangeLabelled
+          left="Locked"
+          right="Full"
+          value={yawRange}
+          min={0}
+          max={360}
+          suffix="°"
+          onChange={setYawRange}
+        />
+        <div className="text-[10px] text-neutral-500">
+          How far left/right viewers can look. 0 = locked, 360 = full spin.
+        </div>
+      </div>
+
+      {/* --- Level correction --- */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[11px] uppercase text-neutral-400">
+            Level correction
+          </div>
+          <button
+            onClick={() => set({ level_correction: 0 })}
+            className="text-[10px] text-neutral-400 hover:text-white"
+          >
+            Reset
+          </button>
+        </div>
+        <RangeLabelled
+          left="−30°"
+          right="+30°"
+          value={levelDeg}
+          min={-30}
+          max={30}
+          step={0.5}
+          suffix="°"
+          onChange={(v) => set({ level_correction: degToRad(v) })}
+        />
+        <div className="text-[10px] text-neutral-500">
+          Rotates the horizon to fix a crooked tripod.
+        </div>
+      </div>
+
+      {/* --- Zoom controls --- */}
+      <div className="pt-3 border-t border-border">
+        <div className="text-[11px] uppercase text-neutral-400 mb-2">
+          Zoom
+        </div>
+
+        {/* Zoom range — how far in / out */}
+        <div className="mb-3">
+          <div className="text-[10px] text-neutral-500 mb-1">
+            Allowed zoom (FOV degrees — lower = more zoomed in)
+          </div>
+          <RangeLabelled
+            left="Max in"
+            right="Max out"
+            value={zoomMin}
+            min={20}
+            max={90}
+            suffix="°"
+            onChange={(v) =>
+              set({
+                zoom_min_fov: Math.min(v, zoomMax - 5),
+              })
+            }
+          />
+          <RangeLabelled
+            left=""
+            right=""
+            value={zoomMax}
+            min={20}
+            max={110}
+            suffix="°"
+            onChange={(v) =>
+              set({
+                zoom_max_fov: Math.max(v, zoomMin + 5),
+              })
+            }
+          />
+        </div>
+
+        {/* Initial zoom */}
+        <div className="mb-3">
+          <div className="text-[10px] text-neutral-500 mb-1">
+            Opening zoom
+          </div>
+          <RangeLabelled
+            left="In"
+            right="Out"
+            value={zoomInit}
+            min={zoomMin}
+            max={zoomMax}
+            suffix="°"
+            onChange={(v) => set({ zoom_initial_fov: v })}
+          />
+        </div>
+
+        {/* Sensitivity */}
+        <div className="mb-1">
+          <div className="text-[10px] text-neutral-500 mb-1">
+            Zoom sensitivity
+          </div>
+          <RangeLabelled
+            left="Slow"
+            right="Fast"
+            value={sensitivity}
+            min={0.2}
+            max={3}
+            step={0.1}
+            suffix="×"
+            onChange={(v) => set({ zoom_sensitivity: v })}
+          />
+        </div>
+
+        <button
+          onClick={() =>
+            set({
+              zoom_min_fov: 30,
+              zoom_max_fov: 90,
+              zoom_initial_fov: 75,
+              zoom_sensitivity: 1,
+            })
+          }
+          className="mt-2 text-[10px] text-neutral-400 hover:text-white"
+        >
+          Reset zoom defaults
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Slider with a text label on each end and a live value read-out on the right. */
+function RangeLabelled({
+  left,
+  right,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+}: {
+  left: string;
+  right: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="mb-1">
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="flex-1"
+        />
+        <div className="text-xs text-cyan-400 w-14 text-right">
+          {step < 1 ? value.toFixed(1) : Math.round(value)}
+          {suffix}
+        </div>
+      </div>
+      {(left || right) && (
+        <div className="flex items-center justify-between text-[10px] text-neutral-500 -mt-0.5 mr-16">
+          <span>{left}</span>
+          <span>{right}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block text-[11px] text-neutral-400">
+      {label}
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={0.5}
+        value={Number.isFinite(value) ? value.toFixed(1) : 0}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="mt-0.5 w-full bg-panelSoft border border-border rounded px-2 py-1 text-sm"
+      />
+    </label>
+  );
+}
+
+function RangeRow({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="text-xs text-neutral-400 w-10">{label}</div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="flex-1"
+      />
+      <div className="text-xs text-cyan-400 w-12 text-right">
+        {value.toFixed(step < 1 ? 1 : 0)}°
+      </div>
+    </div>
+  );
+}
+
+function radToDeg(r: number) {
+  return (r * 180) / Math.PI;
+}
+function degToRad(d: number) {
+  return (d * Math.PI) / 180;
+}
+
+/* =============================== SCENE ACTIONS =========================== */
+
+function SceneActions({
+  scene,
+  tour,
+  onSceneChange,
+  getSnapshot,
+}: {
+  scene: Scene;
+  tour: Tour;
+  onSceneChange: (s: Scene) => void;
+  getSnapshot?: () => string | null;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [otherTours, setOtherTours] = useState<
+    { id: string; title: string }[]
+  >([]);
+
+  useEffect(() => {
+    supabase
+      .from("tours")
+      .select("id, title")
+      .neq("id", tour.id)
+      .order("updated_at", { ascending: false })
+      .then(({ data }) => setOtherTours((data ?? []) as { id: string; title: string }[]));
+  }, [tour.id]);
+
+  async function setFromCurrentView() {
+    setBusy("thumb");
+    try {
+      const dataUrl = getSnapshot?.();
+      if (!dataUrl) {
+        alert("Couldn't grab the current view — try again after the panorama loads.");
+        return;
+      }
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = `thumbnails/scene-${scene.id}-${crypto.randomUUID()}.png`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, blob, { cacheControl: "3600", upsert: false });
+      if (error) return alert(error.message);
+      onSceneChange({ ...scene, thumbnail_path: path });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function uploadCustomThumb(file: File) {
+    setBusy("thumb");
+    try {
+      const ext = file.name.split(".").pop() ?? "png";
+      const path = `thumbnails/scene-${scene.id}-${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) return alert(error.message);
+      onSceneChange({ ...scene, thumbnail_path: path });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function downloadRaw() {
+    setBusy("dl");
+    try {
+      const url = supabase.storage
+        .from("panoramas")
+        .getPublicUrl(scene.image_path).data.publicUrl;
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${scene.name || "scene"}.jpg`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function replaceImage(file: File) {
+    setBusy("replace");
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${tour.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) return alert(error.message);
+      onSceneChange({ ...scene, image_path: path });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function copyOrMove(targetTourId: string, mode: "copy" | "move") {
+    if (!targetTourId) return;
+    setBusy(mode);
+    try {
+      // Fetch the next order_index in the destination
+      const { data: dest } = await supabase
+        .from("scenes")
+        .select("order_index")
+        .eq("tour_id", targetTourId)
+        .order("order_index", { ascending: false })
+        .limit(1);
+      const nextOrder = ((dest?.[0]?.order_index as number) ?? -1) + 1;
+
+      if (mode === "move") {
+        // Move: reassign tour_id + order_index. Hotspots follow automatically.
+        await supabase
+          .from("scenes")
+          .update({ tour_id: targetTourId, order_index: nextOrder })
+          .eq("id", scene.id);
+        alert("Scene moved to the target tour. Reload to see updated list.");
+        window.location.reload();
+        return;
+      }
+
+      // Copy: insert a new scene row referencing the same image, then
+      // duplicate every hotspot pointing at this scene.
+      const {
+        id: _id,
+        created_at: _c,
+        ...rest
+      } = scene as Scene & { id: string; created_at: string };
+      void _id;
+      void _c;
+      const { data: newScene, error: sceneErr } = await supabase
+        .from("scenes")
+        .insert({ ...rest, tour_id: targetTourId, order_index: nextOrder })
+        .select()
+        .single();
+      if (sceneErr || !newScene) return alert(sceneErr?.message ?? "Copy failed");
+
+      const { data: hots } = await supabase
+        .from("hotspots")
+        .select("*")
+        .eq("scene_id", scene.id);
+      if (hots?.length) {
+        const dupes = hots.map((h) => {
+          const {
+            id: _hid,
+            created_at: _hc,
+            ...hRest
+          } = h as { id: string; created_at: string };
+          void _hid;
+          void _hc;
+          return { ...hRest, scene_id: newScene.id };
+        });
+        await supabase.from("hotspots").insert(dupes);
+      }
+      alert(
+        `Scene copied to "${
+          otherTours.find((t) => t.id === targetTourId)?.title
+        }".`
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="pt-4 border-t border-border space-y-4">
+      <div className="text-xs uppercase text-neutral-400">Scene</div>
+
+      {/* Flat + hide stitching toggles */}
+      <div className="space-y-1.5">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={scene.is_flat ?? false}
+            onChange={(e) =>
+              onSceneChange({ ...scene, is_flat: e.target.checked })
+            }
+          />
+          Flat photo (not panoramic)
+        </label>
+        {!scene.is_flat && (
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scene.hide_stitching ?? false}
+              onChange={(e) =>
+                onSceneChange({ ...scene, hide_stitching: e.target.checked })
+              }
+            />
+            Hide stitching line (blends the seam)
+          </label>
+        )}
+        {!scene.is_flat && (
+          <>
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={scene.hide_tripod ?? false}
+                onChange={(e) =>
+                  onSceneChange({ ...scene, hide_tripod: e.target.checked })
+                }
+              />
+              Remove tripod / selfie-stick shadow
+            </label>
+            {scene.hide_tripod && (
+              <div className="pl-6">
+                <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                  <span>Cover size</span>
+                  <span>{scene.tripod_size ?? 30}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={60}
+                  step={1}
+                  value={scene.tripod_size ?? 30}
+                  onChange={(e) =>
+                    onSceneChange({
+                      ...scene,
+                      tripod_size: parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="w-full accent-cyan-400"
+                />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Folder — groups this scene under a collapsible header in the menu */}
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Folder
+        </div>
+        <input
+          type="text"
+          value={scene.folder ?? ""}
+          onChange={(e) =>
+            onSceneChange({ ...scene, folder: e.target.value || null })
+          }
+          placeholder="Optional — e.g. Floor 1, Kitchen…"
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        />
+        <div className="text-[10px] text-neutral-500 mt-1">
+          Scenes sharing a folder name are grouped in the menu.
+        </div>
+      </div>
+
+      {/* Camera height — assumption for the measuring tool */}
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Camera height (metres)
+        </div>
+        <input
+          type="number"
+          step={0.05}
+          min={0.3}
+          max={5}
+          value={scene.camera_height ?? 1.6}
+          onChange={(e) =>
+            onSceneChange({
+              ...scene,
+              camera_height: parseFloat(e.target.value) || 1.6,
+            })
+          }
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        />
+        <div className="text-[10px] text-neutral-500 mt-1">
+          Used by the Measure tool to project clicks onto the floor.
+        </div>
+      </div>
+
+      {/* Thumbnail */}
+      <div>
+        <div className="text-[11px] uppercase text-neutral-400 mb-1">
+          Thumbnail
+        </div>
+        {scene.thumbnail_path && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={
+              supabase.storage
+                .from("panoramas")
+                .getPublicUrl(scene.thumbnail_path).data.publicUrl
+            }
+            alt=""
+            className="w-full aspect-video object-cover rounded border border-border mb-1.5"
+          />
+        )}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={setFromCurrentView}
+            disabled={!getSnapshot || busy === "thumb" || scene.is_flat}
+            className="text-xs bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded py-1.5 disabled:opacity-40"
+          >
+            {busy === "thumb" ? "Saving…" : "Use current view"}
+          </button>
+          <label className="text-xs bg-panelSoft border border-border rounded py-1.5 text-center cursor-pointer">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) =>
+                e.target.files?.[0] && uploadCustomThumb(e.target.files[0])
+              }
+            />
+            Upload custom
+          </label>
+        </div>
+        {scene.thumbnail_path && (
+          <button
+            onClick={() => onSceneChange({ ...scene, thumbnail_path: null })}
+            className="text-[10px] text-red-400 hover:text-red-300 mt-1"
+          >
+            Remove thumbnail
+          </button>
+        )}
+      </div>
+
+      {/* Download / Replace */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          onClick={downloadRaw}
+          disabled={busy === "dl"}
+          className="text-xs bg-panelSoft border border-border rounded py-1.5"
+          title="Download the raw uploaded panorama"
+        >
+          {busy === "dl" ? "…" : "Download raw"}
+        </button>
+        <label className="text-xs bg-panelSoft border border-border rounded py-1.5 text-center cursor-pointer">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && replaceImage(e.target.files[0])}
+          />
+          {busy === "replace" ? "Replacing…" : "Replace image"}
+        </label>
+      </div>
+      <div className="text-[10px] text-neutral-500 -mt-2">
+        Replacing the image keeps all hotspots + settings intact.
+      </div>
+
+      {/* Copy / Move */}
+      {otherTours.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase text-neutral-400 mb-1">
+            Move / copy to another tour
+          </div>
+          <MoveCopyRow
+            tours={otherTours}
+            busy={busy}
+            onGo={(tid, mode) => copyOrMove(tid, mode)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoveCopyRow({
+  tours,
+  busy,
+  onGo,
+}: {
+  tours: { id: string; title: string }[];
+  busy: string | null;
+  onGo: (tid: string, mode: "copy" | "move") => void;
+}) {
+  const [target, setTarget] = useState("");
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+      >
+        <option value="">— pick a tour —</option>
+        {tours.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.title || "Untitled tour"}
+          </option>
+        ))}
+      </select>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          onClick={() => onGo(target, "copy")}
+          disabled={!target || busy === "copy"}
+          className="text-xs bg-panelSoft border border-border rounded py-1.5 disabled:opacity-40"
+        >
+          {busy === "copy" ? "Copying…" : "Copy"}
+        </button>
+        <button
+          onClick={() => {
+            if (
+              confirm(
+                "Move this scene to the target tour? It will be removed from the current tour."
+              )
+            )
+              onGo(target, "move");
+          }}
+          disabled={!target || busy === "move"}
+          className="text-xs bg-red-500/10 border border-red-500/30 text-red-300 rounded py-1.5 disabled:opacity-40"
+        >
+          {busy === "move" ? "Moving…" : "Move"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -1090,10 +1989,14 @@ function AddonBtn({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 bg-panelSoft border border-border rounded py-2 hover:border-accent"
+      className="flex flex-col items-center justify-center gap-1.5 bg-panelSoft border border-border rounded-md py-2.5 hover:border-accent hover:bg-panelHover transition-colors group"
     >
-      <span className="text-neutral-300">{icon}</span>
-      <span className="text-[10px] text-neutral-400">{label}</span>
+      <span className="text-neutral-300 group-hover:text-accent transition-colors">
+        {icon}
+      </span>
+      <span className="text-3xs uppercase tracking-wider text-neutral-400 group-hover:text-white transition-colors">
+        {label}
+      </span>
     </button>
   );
 }
@@ -1541,11 +2444,15 @@ function AddonTab({
         <SoundEffectPicker hotspot={hotspot} onChange={onChange} />
       </Section>
 
-      {hotspot.type === "image" && (
-        <Section title="Image overlay">
-          <div className="flex gap-2">
+      {/* Overlay mode picker — offered for every hotspot type, not just
+          images. Non-image hotspots use icon_url / icon_key as texture. */}
+      {true && (
+        <Section title="Overlay mode">
+          <div className="grid grid-cols-2 gap-2">
             <ModeBtn
-              active={hotspot.overlay_mode !== "surface"}
+              active={
+                !hotspot.overlay_mode || hotspot.overlay_mode === "billboard"
+              }
               onClick={() =>
                 onChange({ ...hotspot, overlay_mode: "billboard" })
               }
@@ -1559,14 +2466,96 @@ function AddonTab({
               active={hotspot.overlay_mode === "surface"}
               onClick={() => onChange({ ...hotspot, overlay_mode: "surface" })}
             >
-              Surface (2D)
+              2D
               <div className="text-[10px] text-neutral-400">
-                Sticks to walls
+                Generic surface stick
+              </div>
+            </ModeBtn>
+            <ModeBtn
+              active={hotspot.overlay_mode === "floor"}
+              onClick={() => onChange({ ...hotspot, overlay_mode: "floor" })}
+            >
+              Floor
+              <div className="text-[10px] text-neutral-400">
+                Engraved into ground
+              </div>
+            </ModeBtn>
+            <ModeBtn
+              active={hotspot.overlay_mode === "wall"}
+              onClick={() => onChange({ ...hotspot, overlay_mode: "wall" })}
+            >
+              Wall
+              <div className="text-[10px] text-neutral-400">
+                Perspective-matched
               </div>
             </ModeBtn>
           </div>
+
+          {/* Wall fine-tune: only shown for Wall mode. Small angular offsets
+              let the user nudge the plane to line up with the actual wall. */}
+          {hotspot.overlay_mode === "wall" && (
+            <div className="mt-3 space-y-2 border-t border-border/50 pt-3">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Wall alignment
+              </div>
+              <TiltSlider
+                label="Tilt left / right"
+                value={hotspot.wall_tilt_yaw ?? 0}
+                onChange={(v) =>
+                  onChange({ ...hotspot, wall_tilt_yaw: v })
+                }
+              />
+              <TiltSlider
+                label="Tilt up / down"
+                value={hotspot.wall_tilt_pitch ?? 0}
+                onChange={(v) =>
+                  onChange({ ...hotspot, wall_tilt_pitch: v })
+                }
+              />
+              <TiltSlider
+                label="Roll"
+                value={hotspot.wall_tilt_roll ?? 0}
+                onChange={(v) =>
+                  onChange({ ...hotspot, wall_tilt_roll: v })
+                }
+              />
+              <button
+                onClick={() =>
+                  onChange({
+                    ...hotspot,
+                    wall_tilt_yaw: 0,
+                    wall_tilt_pitch: 0,
+                    wall_tilt_roll: 0,
+                  })
+                }
+                className="text-[10px] text-neutral-400 hover:text-white underline"
+              >
+                Reset alignment
+              </button>
+            </div>
+          )}
         </Section>
       )}
+
+      {/* Scale-on-zoom toggle — meaningful for every render mode. */}
+      <Section title="Zoom behavior">
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hotspot.scale_on_zoom ?? true}
+            onChange={(e) =>
+              onChange({ ...hotspot, scale_on_zoom: e.target.checked })
+            }
+          />
+          <span>
+            Scale with zoom
+            <div className="text-[10px] text-neutral-400">
+              On: hotspot grows when you zoom in (feels part of the scene).
+              Off: stays the same on-screen size (like a fixed UI marker).
+            </div>
+          </span>
+        </label>
+      </Section>
 
       <div className="pt-3 border-t border-border space-y-2">
         <div className="grid grid-cols-2 gap-2">
@@ -1707,6 +2696,39 @@ function VideoConfig({
         />
         {uploading ? "Uploading…" : "or upload a video file"}
       </label>
+
+      {/* Inline video card — renders as a playable thumbnail card on the
+          panorama instead of a small icon. */}
+      <label className="mt-3 flex items-start gap-2 text-xs cursor-pointer">
+        <input
+          type="checkbox"
+          checked={hotspot.video_show_thumbnail ?? false}
+          onChange={(e) =>
+            onChange({ ...hotspot, video_show_thumbnail: e.target.checked })
+          }
+          className="mt-0.5"
+        />
+        <span>
+          Show as inline video card
+          <div className="text-[10px] text-neutral-400">
+            Displays the video's thumbnail with a play button — plays in place
+            on click instead of opening a modal.
+          </div>
+        </span>
+      </label>
+
+      {hotspot.video_show_thumbnail && (
+        <Field label="Thumbnail URL (optional — leave blank to auto-detect)">
+          <input
+            value={hotspot.video_thumbnail_url ?? ""}
+            onChange={(e) =>
+              onChange({ ...hotspot, video_thumbnail_url: e.target.value })
+            }
+            placeholder="https://…jpg"
+            className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+          />
+        </Field>
+      )}
     </>
   );
 }
@@ -1961,37 +2983,29 @@ function Checkbox({
   label: string;
 }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="w-3.5 h-3.5"
-      />
+    <label className="flex items-center gap items-center gap-1.5 text-xs cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="accent-cyan-400" />
       {label}
     </label>
   );
 }
 
-function ModeBtn({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
+function ModeBtn({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex-1 text-left rounded px-2 py-2 text-xs ${
-        active
-          ? "bg-accent text-black"
-          : "bg-panelSoft border border-border text-neutral-200"
-      }`}
-    >
+    <button onClick={onClick} className={`flex-1 text-left rounded px-2 py-2 text-xs ${active ? "bg-accent text-black" : "bg-panelSoft border border-border text-neutral-200"}`}>
       {children}
     </button>
+  );
+}
+
+function TiltSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const deg = (value * 180) / Math.PI;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] text-neutral-400 mb-0.5">
+        <span>{label}</span><span>{deg.toFixed(1)}°</span>
+      </div>
+      <input type="range" min={-45} max={45} step={0.5} value={deg} onChange={(e) => onChange((parseFloat(e.target.value) * Math.PI) / 180)} className="w-full accent-cyan-400" />
+    </div>
   );
 }

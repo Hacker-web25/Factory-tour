@@ -8,7 +8,13 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import TopBar from "@/components/TopBar";
-import { UploadCloud, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import {
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Trash2,
+  Plus,
+} from "lucide-react";
 import type { Tour } from "@/lib/types";
 
 type Item = {
@@ -17,8 +23,7 @@ type Item = {
   progress: number;
   message?: string;
   isPanorama: boolean;
-  // Set once the scene has been created in the DB, so we can clean up if the
-  // user later removes the item from the queue.
+  isFlat: boolean;
   scene_id?: string;
   image_path?: string;
 };
@@ -66,6 +71,7 @@ function UploadPage() {
         status: "queued",
         progress: 0,
         isPanorama,
+        isFlat: !isPanorama,
       });
     }
     setItems((s) => [...s, ...analyzed]);
@@ -116,6 +122,7 @@ function UploadPage() {
           name: file.name.replace(/\.[^.]+$/, ""),
           image_path: path,
           order_index: nextOrder++,
+          is_flat: items[i].isFlat,
         })
         .select()
         .single();
@@ -146,33 +153,36 @@ function UploadPage() {
 
   const allDone =
     items.length > 0 && items.every((i) => i.status === "done");
+  const queuedCount = items.filter((i) => i.status === "queued").length;
 
   return (
     <div className="min-h-screen">
       <TopBar />
-      <main className="max-w-3xl mx-auto p-6">
-        <h1 className="text-2xl font-semibold mb-4">Upload panoramas</h1>
+      <main className="max-w-3xl mx-auto px-6 py-8">
+        <div className="mb-5">
+          <div className="eyebrow mb-0.5">Add scenes</div>
+          <h1 className="text-[22px] font-semibold leading-tight">
+            Upload panoramas
+          </h1>
+        </div>
 
-        {/* Tour picker */}
-        <div className="mb-4 flex gap-2 items-center">
-          <label className="text-sm text-neutral-400">Tour:</label>
+        {/* Tour chip picker */}
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="eyebrow">Tour</span>
           <select
             value={tourId}
             onChange={(e) => setTourId(e.target.value)}
-            className="bg-panelSoft border border-border rounded px-2 py-1.5 text-sm flex-1"
+            className="field !w-auto min-w-[220px]"
           >
             {tours.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
               </option>
             ))}
-            {tours.length === 0 && <option value="">-- no tours --</option>}
+            {tours.length === 0 && <option value="">— no tours yet —</option>}
           </select>
-          <button
-            onClick={createNewTour}
-            className="text-sm bg-neutral-800 border border-border rounded px-3 py-1.5"
-          >
-            + New tour
+          <button onClick={createNewTour} className="chip">
+            <Plus size={11} /> New tour
           </button>
         </div>
 
@@ -188,16 +198,24 @@ function UploadPage() {
             setDragOver(false);
             addFiles(e.dataTransfer.files);
           }}
-          className={`border-2 border-dashed rounded-lg p-10 text-center transition ${
-            dragOver ? "border-accent bg-accent/5" : "border-border bg-panelSoft"
+          className={`border-2 border-dashed rounded-lg p-16 text-center transition-colors ${
+            dragOver
+              ? "border-accent bg-accent/5"
+              : "border-border bg-panelSoft/40 hover:bg-panelSoft/70"
           }`}
         >
-          <UploadCloud size={40} className="mx-auto mb-2 text-neutral-500" />
-          <div className="text-sm text-neutral-300 mb-2">
-            Drag & drop 360° JPG / PNG here
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-panelSoft border border-border grid place-items-center">
+            <UploadCloud size={26} className="text-neutral-400" />
           </div>
-          <label className="inline-block text-xs bg-accent text-black px-3 py-1.5 rounded cursor-pointer">
-            or browse files
+          <div className="text-[14px] text-neutral-200 mb-1 font-medium">
+            Drag &amp; drop 360° JPG / PNG
+          </div>
+          <div className="text-xs text-neutral-500 mb-4">
+            or click to browse — batch upload supported
+          </div>
+          <label className="inline-flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-xs cursor-pointer transition-colors">
+            <UploadCloud size={13} />
+            Browse files
             <input
               type="file"
               multiple
@@ -206,9 +224,8 @@ function UploadPage() {
               onChange={(e) => e.target.files && addFiles(e.target.files)}
             />
           </label>
-          <div className="text-[11px] text-neutral-500 mt-2">
-            Panorama detection: images with a 2:1 aspect ratio are marked as
-            equirectangular.
+          <div className="text-3xs text-neutral-600 mt-4">
+            Panorama detection: 2:1 aspect ratio → equirectangular.
           </div>
         </div>
 
@@ -216,54 +233,71 @@ function UploadPage() {
         {items.length > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm text-neutral-400">
-                {items.length} file(s) queued
+              <div className="text-xs text-neutral-400">
+                {items.length} file{items.length === 1 ? "" : "s"} queued
               </div>
               <button
                 onClick={uploadAll}
-                disabled={items.every((i) => i.status !== "queued")}
-                className="bg-accent text-black text-sm px-3 py-1.5 rounded disabled:opacity-40"
+                disabled={queuedCount === 0}
+                className="bg-accent hover:bg-accentHover text-black text-xs font-medium px-3 py-1.5 rounded disabled:opacity-40 transition-colors"
               >
-                Upload all
+                Upload {queuedCount > 0 ? `${queuedCount} ` : ""}file
+                {queuedCount === 1 ? "" : "s"}
               </button>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1.5">
               {items.map((it, i) => (
                 <li
                   key={i}
-                  className="bg-panelSoft border border-border rounded p-3"
+                  className="bg-panelSoft border border-border rounded px-3 py-2"
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate">{it.file.name}</div>
-                      <div className="text-[11px] text-neutral-500 flex gap-2">
-                        <span>{(it.file.size / 1024 / 1024).toFixed(1)} MB</span>
-                        <span>·</span>
+                      <div className="text-[13px] truncate">
+                        {it.file.name}
+                      </div>
+                      <div className="text-3xs text-neutral-500 flex gap-2 items-center">
                         <span>
-                          {it.isPanorama ? "panorama (2:1)" : "not 2:1 — may distort"}
+                          {(it.file.size / 1024 / 1024).toFixed(1)} MB
                         </span>
+                        <span>·</span>
+                        <span
+                          className={
+                            it.isPanorama ? "text-accent" : "text-neutral-500"
+                          }
+                        >
+                          {it.isPanorama ? "panorama (2:1)" : "not 2:1"}
+                        </span>
+                        {it.status === "queued" && (
+                          <label className="flex items-center gap-1 ml-2 cursor-pointer text-neutral-400">
+                            <input
+                              type="checkbox"
+                              checked={it.isFlat}
+                              onChange={(e) =>
+                                updateItem(i, { isFlat: e.target.checked })
+                              }
+                            />
+                            Flat photo
+                          </label>
+                        )}
                       </div>
                     </div>
                     {it.status === "done" && (
-                      <CheckCircle2 size={18} className="text-accent" />
+                      <CheckCircle2 size={16} className="text-accent" />
                     )}
                     {it.status === "error" && (
-                      <AlertCircle size={18} className="text-red-400" />
+                      <AlertCircle size={16} className="text-red-400" />
                     )}
                     {it.status === "uploading" && (
-                      <span className="text-xs text-neutral-400">
+                      <span className="text-2xs text-neutral-400">
                         {it.progress}%
                       </span>
                     )}
-                    {/* Delete: only allow when not mid-upload */}
                     {(it.status === "queued" ||
                       it.status === "error" ||
                       it.status === "done") && (
                       <button
                         onClick={async () => {
-                          // If this item finished uploading, delete the
-                          // created scene from the DB + storage so it
-                          // doesn't linger in the tour.
                           if (it.status === "done" && it.scene_id) {
                             if (
                               !confirm(
@@ -283,19 +317,19 @@ function UploadPage() {
                           }
                           setItems((s) => s.filter((_, idx) => idx !== i));
                         }}
-                        className="p-1.5 rounded hover:bg-red-500/15 text-red-400 hover:text-red-300"
+                        className="p-1 rounded hover:bg-red-500/15 text-neutral-500 hover:text-red-400"
                         title={
                           it.status === "done"
                             ? "Delete uploaded scene from tour"
                             : "Remove from queue"
                         }
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
                   {it.status === "uploading" && (
-                    <div className="mt-2 h-1 bg-neutral-800 rounded overflow-hidden">
+                    <div className="mt-2 h-0.5 bg-neutral-800 rounded overflow-hidden">
                       <div
                         className="h-full bg-accent transition-all"
                         style={{ width: `${it.progress}%` }}
@@ -303,7 +337,7 @@ function UploadPage() {
                     </div>
                   )}
                   {it.message && (
-                    <div className="text-[11px] text-red-400 mt-1">
+                    <div className="text-3xs text-red-400 mt-1">
                       {it.message}
                     </div>
                   )}
@@ -313,7 +347,7 @@ function UploadPage() {
             {allDone && (
               <button
                 onClick={() => router.push(`/tour/${tourId}/edit`)}
-                className="mt-4 w-full bg-accent text-black py-2 rounded font-medium"
+                className="mt-4 w-full bg-accent hover:bg-accentHover text-black py-2.5 rounded font-medium text-sm transition-colors"
               >
                 Open tour builder →
               </button>

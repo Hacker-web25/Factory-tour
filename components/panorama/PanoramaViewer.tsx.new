@@ -1,10 +1,9 @@
 "use client";
 
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Canvas, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import type { Hotspot } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { fontFor } from "@/lib/fonts";
@@ -14,7 +13,6 @@ import {
   sphericalToVec3,
   vec3ToSpherical,
 } from "./math";
-import PolygonHotspot from "./PolygonHotspot";
 
 type Props = {
   imageUrl: string;
@@ -183,36 +181,11 @@ function Scene({
   const orbitRef = useRef<any>(null);
   const [dragId, setDragId] = useState<string | null>(null);
 
-  // Apply the scene's initial view (yaw / pitch) whenever it changes.
-  //
-  // Naive `camera.lookAt(...)` doesn't stick because OrbitControls runs its
-  // own `update()` every frame and re-derives the camera's orientation from
-  // its internal spherical state. To make the initial view actually
-  // "persist", we have to move the camera to the opposite side of the
-  // OrbitControls target — then OrbitControls' own lookAt naturally faces
-  // the direction we want, and the internal spherical picks up correctly.
-  //
-  // Runs on scene switch (imageUrl) AND when the saved initial_yaw /
-  // initial_pitch changes (so "Use current view" takes effect immediately).
   useEffect(() => {
-    const orbit = orbitRef.current;
-    // Unit direction we want the camera to face.
-    const dir = sphericalToVec3(initialYaw, initialPitch, 1);
-    // Camera sits at the opposite side of the orbit target, at a tiny
-    // radius (matches the initial `[0, 0, 0.01]` position from <Canvas>).
-    const EPS = 0.01;
-    camera.position.set(-dir.x * EPS, -dir.y * EPS, -dir.z * EPS);
-    if (orbit) {
-      orbit.target.set(0, 0, 0);
-      // Push the spherical state so subsequent drags start from here.
-      orbit.update();
-    } else {
-      // Orbit not mounted yet on first render — fall back to lookAt so at
-      // least the very first frame is aimed correctly.
-      camera.lookAt(0, 0, 0);
-    }
+    const target = sphericalToVec3(initialYaw, initialPitch, 100);
+    camera.lookAt(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl, initialYaw, initialPitch]);
+  }, [imageUrl]);
 
   useEffect(() => {
     if (!onRequestAim) return;
@@ -404,20 +377,10 @@ function HotspotMarker(props: {
   const { hotspot: h } = props;
 
   // 3D-plane overlay modes (only when we actually have an image).
-  // Overlay modes are available for every hotspot kind. They need a texture
-  // to paint on the plane — use image_url, icon_url, or (last resort) a
-  // rasterized snapshot of the built-in icon. If no visual is available at
-  // all, fall through to the HTML billboard so the hotspot still renders.
-  const hasTexturableVisual = !!(h.image_url || h.icon_url || h.icon_key);
-  if (hasTexturableVisual) {
+  if (h.type === "image" && (h.image_url || h.icon_url)) {
     if (h.overlay_mode === "surface") return <SurfaceImage {...props} />;
     if (h.overlay_mode === "wall") return <WallImage {...props} />;
     if (h.overlay_mode === "floor") return <FloorImage {...props} />;
-  }
-
-  // Polygon hotspot — user-traced outline of an object
-  if (h.type === "polygon" && h.polygon_points && h.polygon_points.length >= 3) {
-    return <PolygonHotspot {...props} />;
   }
 
   return <HtmlBillboard {...props} />;
@@ -494,27 +457,9 @@ function HtmlBillboard({
   }
 
   // scale_on_zoom: when true (default), pass distanceFactor so the HTML
-  // scales like a world-space object and grows on zoom-in.
+  // scales like a world-space object and grows on zoom-in. When false, omit
+  // it — drei renders the HTML at a constant screen size regardless of FOV.
   const scaleOnZoom = h.scale_on_zoom !== false;
-
-  // For "no scale on zoom", drei's Html without distanceFactor renders at
-  // raw CSS pixel size — which reads as huge because the icon dimensions
-  // (~80px) were tuned for the distanceFactor=400 world scale. Instead we
-  // keep distanceFactor active but dynamically shrink it in proportion to
-  // the camera's FOV, so the on-screen size stays constant across zoom.
-  const { camera } = useThree();
-  const [dynFactor, setDynFactor] = useState(400);
-  useFrame(() => {
-    if (scaleOnZoom) return;
-    const cam = camera as THREE.PerspectiveCamera;
-    // Reference values at FOV=75° → distanceFactor=400.
-    const refTan = Math.tan((75 * Math.PI) / 360);
-    const curTan = Math.tan(((cam.fov ?? 75) * Math.PI) / 360);
-    const target = 400 * (curTan / refTan);
-    // Throttle React updates to avoid re-render every frame.
-    if (Math.abs(target - dynFactor) > 3) setDynFactor(target);
-  });
-  const activeDistanceFactor = scaleOnZoom ? 400 : dynFactor;
 
   // Navigation preview: when hovering over a nav hotspot (nav type or a
   // hotspot with an action that navigates), show a small card with the
@@ -528,7 +473,7 @@ function HtmlBillboard({
     <Html
       position={pos.toArray()}
       center
-      distanceFactor={activeDistanceFactor}
+      {...(scaleOnZoom ? { distanceFactor: 400 } : {})}
       zIndexRange={[10, 0]}
       style={{ pointerEvents: "auto" }}
     >
@@ -572,9 +517,9 @@ function HtmlBillboard({
               background: "rgba(15, 15, 20, 0.92)",
               border: "1px solid rgba(34, 211, 238, 0.55)",
               borderRadius: 6,
-              padding: 8,
-              width: 260,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
+              padding: 6,
+              width: 160,
+              boxShadow: "0 6px 20px rgba(0,0,0,0.5)",
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
               zIndex: 20,
@@ -589,9 +534,9 @@ function HtmlBillboard({
                 draggable={false}
                 style={{
                   width: "100%",
-                  height: 150,
+                  height: 80,
                   objectFit: "cover",
-                  borderRadius: 4,
+                  borderRadius: 3,
                   display: "block",
                 }}
               />
@@ -649,12 +594,7 @@ function HtmlBillboard({
               gap: 4,
             }}
           >
-            {/* Text-type hotspots render label ONLY — no icon marker. */}
-            {h.type === "video" && h.video_show_thumbnail ? (
-              <VideoCard hotspot={h} />
-            ) : h.type !== "text" ? (
-              <IconOrImage hotspot={h} width={w} height={hh} />
-            ) : null}
+            <IconOrImage hotspot={h} width={w} height={hh} />
             {showLabel && (
               <span
                 style={{
@@ -760,263 +700,6 @@ function IconOrImage({
   );
 }
 
-/* --------- Inline video card (thumbnail + play, expands to player) ---------- */
-
-function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
-  const [playing, setPlaying] = useState(false);
-  const ytId = useMemo(() => extractYouTubeVideoId(h.video_url ?? ""), [h.video_url]);
-  const thumbnail =
-    h.video_thumbnail_url ||
-    (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
-
-  const cardW = 260;
-  const cardH = 146;
-
-  if (playing) {
-    return (
-      <div
-        style={{ width: cardW, height: cardH, background: "#000", borderRadius: 6, overflow: "hidden", pointerEvents: "auto" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {ytId ? (
-          <iframe
-            width={cardW}
-            height={cardH}
-            src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
-            title=""
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowFullScreen
-            style={{ border: "none", display: "block" }}
-          />
-        ) : h.video_url ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <video
-            src={h.video_url}
-            controls
-            autoPlay
-            style={{ width: "100%", height: "100%", background: "#000" }}
-          />
-        ) : (
-          <div style={{ color: "#888", padding: 12, fontSize: 12 }}>
-            No video URL set.
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        setPlaying(true);
-      }}
-      style={{
-        width: cardW,
-        height: cardH,
-        borderRadius: 6,
-        overflow: "hidden",
-        position: "relative",
-        cursor: "pointer",
-        background: "#111",
-        border: "1px solid rgba(255,255,255,0.15)",
-        boxShadow: "0 6px 22px rgba(0,0,0,0.55)",
-        pointerEvents: "auto",
-      }}
-    >
-      {thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={thumbnail}
-          alt=""
-          draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-        />
-      )}
-      {/* Play button overlay */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55))",
-        }}
-      >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            background: "rgba(0,0,0,0.65)",
-            border: "2px solid rgba(255,255,255,0.9)",
-            display: "grid",
-            placeItems: "center",
-            boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
-          }}
-        >
-          {/* Play triangle */}
-          <div
-            style={{
-              width: 0,
-              height: 0,
-              marginLeft: 4,
-              borderLeft: "16px solid white",
-              borderTop: "10px solid transparent",
-              borderBottom: "10px solid transparent",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function extractYouTubeVideoId(url: string): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    if (u.hostname === "youtu.be") return u.pathname.slice(1) || null;
-    if (u.hostname.includes("youtube.com")) {
-      if (u.pathname.startsWith("/watch")) return u.searchParams.get("v");
-      const parts = u.pathname.split("/");
-      const embedIdx = parts.indexOf("embed");
-      if (embedIdx >= 0 && parts[embedIdx + 1]) return parts[embedIdx + 1];
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-/* ---------- Shared texture loader for Surface/Wall/Floor hotspots ---------
- * Handles all three ways a hotspot can supply its visual:
- *   1. h.image_url   — user-uploaded image (uploaded via IconPicker "image")
- *   2. h.icon_url    — user-uploaded custom icon
- *   3. h.icon_key    — built-in library icon (Lucide) — rasterized here with
- *                      the current tint applied
- * Returning null (with `failed=false`) means the hotspot has no visual set;
- * returning tex means paint the plane with it. `failed` means we tried and
- * something went wrong (bad URL, CORS, etc.) — the plane shows a red state.
- */
-function useHotspotFaceTexture(h: Hotspot): {
-  tex: THREE.Texture | null;
-  failed: boolean;
-  aspect: number;
-} {
-  const url = h.image_url ?? h.icon_url ?? null;
-  const iconKey = url ? null : h.icon_key ?? null;
-  const tint = h.icon_tint ?? "#ffffff";
-
-  const [tex, setTex] = useState<THREE.Texture | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [aspect, setAspect] = useState(1);
-
-  useEffect(() => {
-    let cancelled = false;
-    setFailed(false);
-
-    // Path 1: real image URL
-    if (url) {
-      const loader = new THREE.TextureLoader();
-      loader.setCrossOrigin("anonymous");
-      loader.load(
-        url,
-        (t) => {
-          if (cancelled) return;
-          t.colorSpace = THREE.SRGBColorSpace;
-          t.anisotropy = 8;
-          t.needsUpdate = true;
-          const img = t.image as HTMLImageElement | undefined;
-          if (img?.naturalWidth && img?.naturalHeight) {
-            setAspect(img.naturalWidth / img.naturalHeight);
-          }
-          setTex(t);
-        },
-        undefined,
-        () => {
-          if (!cancelled) setFailed(true);
-        }
-      );
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Path 2: built-in Lucide icon — render to SVG, then to a canvas texture
-    if (iconKey) {
-      const entry = findIcon(iconKey);
-      if (!entry) {
-        setTex(null);
-        return;
-      }
-      const Icon = entry.Icon;
-      const SIZE = 256;
-      // Render the icon to a static SVG string with the tint applied as stroke
-      let svgMarkup: string;
-      try {
-        svgMarkup = renderToStaticMarkup(
-          <Icon color={tint} size={SIZE} strokeWidth={2} />
-        );
-      } catch {
-        setFailed(true);
-        return;
-      }
-      // Ensure the xmlns is present so the browser can decode the blob
-      if (!/xmlns=/.test(svgMarkup)) {
-        svgMarkup = svgMarkup.replace(
-          "<svg",
-          '<svg xmlns="http://www.w3.org/2000/svg"'
-        );
-      }
-      const blob = new Blob([svgMarkup], {
-        type: "image/svg+xml;charset=utf-8",
-      });
-      const objectUrl = URL.createObjectURL(blob);
-      const img = new Image();
-      img.onload = () => {
-        if (cancelled) {
-          URL.revokeObjectURL(objectUrl);
-          return;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = SIZE;
-        canvas.height = SIZE;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          setFailed(true);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, SIZE, SIZE);
-        URL.revokeObjectURL(objectUrl);
-        const canvasTex = new THREE.CanvasTexture(canvas);
-        canvasTex.colorSpace = THREE.SRGBColorSpace;
-        canvasTex.needsUpdate = true;
-        setAspect(1);
-        setTex(canvasTex);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        if (!cancelled) setFailed(true);
-      };
-      img.src = objectUrl;
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Path 3: nothing to paint
-    setTex(null);
-    return () => {
-      cancelled = true;
-    };
-  }, [url, iconKey, tint]);
-
-  return { tex, failed };
-}
-
 /* --------- Surface (2D wall-attached) image ---------- */
 
 /* ---------------------------- Nadir patch ------------------------------ */
@@ -1036,16 +719,15 @@ function TripodPatch({
   const tex = useMemo(() => {
     if (!panoramaImage?.width || !panoramaImage?.height) return null;
     try {
+      // Read the panorama into a canvas
       const src = document.createElement("canvas");
       src.width = panoramaImage.width;
       src.height = panoramaImage.height;
       const sctx = src.getContext("2d");
       if (!sctx) return null;
       sctx.drawImage(panoramaImage, 0, 0);
-
-      // Clean-floor sample band: rows well above the tripod shadow. We take
-      // a fairly tall strip so the average absorbs floor pattern noise.
-      const rowStart = Math.round(panoramaImage.height * 0.70);
+      // Row range to sample — just above the shadow (approx latitude -55°..-65°)
+      const rowStart = Math.round(panoramaImage.height * 0.72);
       const rowEnd = Math.min(
         panoramaImage.height - 1,
         Math.round(panoramaImage.height * 0.82)
@@ -1058,44 +740,7 @@ function TripodPatch({
         stripH
       ).data;
 
-      // ---- Directional color model ----
-      // For each of NUM_BINS angular slices around the panorama, compute the
-      // MEAN color of the clean-floor strip for that column range. Then apply
-      // a wide moving-average smoothing pass so adjacent bins don't jump.
-      // This gives one soft, floor-matched color per direction.
-      const NUM_BINS = 128;
-      const bins = new Array(NUM_BINS)
-        .fill(0)
-        .map(() => ({ r: 0, g: 0, b: 0, n: 0 }));
-      for (let sx = 0; sx < panoramaImage.width; sx++) {
-        const bi = Math.floor((sx / panoramaImage.width) * NUM_BINS);
-        const bin = bins[bi];
-        for (let sy = 0; sy < stripH; sy++) {
-          const srcIdx = (sy * panoramaImage.width + sx) * 4;
-          bin.r += stripData[srcIdx];
-          bin.g += stripData[srcIdx + 1];
-          bin.b += stripData[srcIdx + 2];
-          bin.n++;
-        }
-      }
-      const raw = bins.map((b) =>
-        b.n > 0 ? [b.r / b.n, b.g / b.n, b.b / b.n] : [128, 128, 128]
-      );
-      // Wide smoothing (±12 bins ≈ ±34°) to erase visible seams / patterns.
-      const SMOOTH = 12;
-      const smoothed = raw.map((_, i) => {
-        let r = 0, g = 0, b = 0, n = 0;
-        for (let k = -SMOOTH; k <= SMOOTH; k++) {
-          const j = ((i + k) % NUM_BINS + NUM_BINS) % NUM_BINS;
-          r += raw[j][0];
-          g += raw[j][1];
-          b += raw[j][2];
-          n++;
-        }
-        return [r / n, g / n, b / n];
-      });
-
-      // ---- Render the disc ----
+      // Build the output disc canvas
       const SIZE = 512;
       const out = document.createElement("canvas");
       out.width = SIZE;
@@ -1107,10 +752,6 @@ function TripodPatch({
       const cx = SIZE / 2;
       const cy = SIZE / 2;
       const R = SIZE / 2;
-      // Very wide feather (starts at 45% of radius, fully transparent at 100%)
-      // so the disc melts into surrounding floor without a visible border.
-      const FEATHER_START = 0.45;
-
       for (let py = 0; py < SIZE; py++) {
         for (let px = 0; px < SIZE; px++) {
           const dx = px - cx;
@@ -1118,35 +759,29 @@ function TripodPatch({
           const r = Math.hypot(dx, dy);
           const dstIdx = (py * SIZE + px) * 4;
           if (r > R) {
+            // outside disc — transparent
             outData.data[dstIdx + 3] = 0;
             continue;
           }
-          const rNorm = r / R;
-
-          // Angular position → interpolated color from adjacent bins.
-          let theta = Math.atan2(dy, dx);
+          // Angular position → source column (wrap around 2π)
+          let theta = Math.atan2(dy, dx); // -π..π
           if (theta < 0) theta += Math.PI * 2;
-          const binF = (theta / (Math.PI * 2)) * NUM_BINS;
-          const b0 = Math.floor(binF) % NUM_BINS;
-          const b1 = (b0 + 1) % NUM_BINS;
-          const t = binF - Math.floor(binF);
-          const c0 = smoothed[b0];
-          const c1 = smoothed[b1];
-          const cr = c0[0] * (1 - t) + c1[0] * t;
-          const cg = c0[1] * (1 - t) + c1[1] * t;
-          const cb = c0[2] * (1 - t) + c1[2] * t;
-
-          // Smoothstep alpha ramp for a natural fade.
-          let alpha = 1;
-          if (rNorm > FEATHER_START) {
-            const x = (rNorm - FEATHER_START) / (1 - FEATHER_START);
-            const s = x * x * (3 - 2 * x); // smoothstep
-            alpha = 1 - s;
-          }
-
-          outData.data[dstIdx] = cr;
-          outData.data[dstIdx + 1] = cg;
-          outData.data[dstIdx + 2] = cb;
+          const sxNorm = theta / (Math.PI * 2);
+          const sx =
+            Math.floor(sxNorm * panoramaImage.width) % panoramaImage.width;
+          // Radial position → source row within the strip. Outer edge of disc
+          // matches the TOP of the strip (nearer to floor level in the pano);
+          // center of disc uses the BOTTOM (closer to shadow).
+          const rNorm = r / R; // 0..1
+          const sy = Math.floor((1 - rNorm) * (stripH - 1));
+          const srcIdx = (sy * panoramaImage.width + sx) * 4;
+          outData.data[dstIdx] = stripData[srcIdx];
+          outData.data[dstIdx + 1] = stripData[srcIdx + 1];
+          outData.data[dstIdx + 2] = stripData[srcIdx + 2];
+          // Soft alpha ramp at the outer 15% so the disc blends into the floor.
+          const edge = 0.85;
+          const alpha =
+            rNorm < edge ? 1 : Math.max(0, 1 - (rNorm - edge) / (1 - edge));
           outData.data[dstIdx + 3] = Math.round(255 * alpha);
         }
       }
@@ -1182,36 +817,24 @@ function TripodPatch({
 
 function NadirPatch({ url, sizePct }: { url: string; sizePct: number }) {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
-  const [aspect, setAspect] = useState(1);
   useEffect(() => {
     const l = new THREE.TextureLoader();
     l.setCrossOrigin("anonymous");
     l.load(url, (t) => {
       t.colorSpace = THREE.SRGBColorSpace;
-      const img = t.image as HTMLImageElement | undefined;
-      if (img?.naturalWidth && img?.naturalHeight) {
-        setAspect(img.naturalWidth / img.naturalHeight);
-      }
       setTex(t);
     });
   }, [url]);
   if (!tex) return null;
-  // Plane lying flat at the "south pole" of the sphere, sized by the
-  // image's natural aspect ratio. Round logos (transparent PNG) still look
-  // round because the PNG alpha channel does the masking; square/rectangular
-  // logos (QR codes, wordmarks) render at their true shape instead of being
-  // clipped to a circle.
-  const base = (SPHERE_RADIUS * Math.max(5, Math.min(80, sizePct))) / 100;
-  // "base" acts as the longer side; the shorter side scales down by aspect.
-  const worldW = aspect >= 1 ? base * 2 : base * 2 * aspect;
-  const worldH = aspect >= 1 ? (base * 2) / aspect : base * 2;
+  // Circular disc lying flat at the "south pole" of the sphere.
+  const worldSize = (SPHERE_RADIUS * Math.max(5, Math.min(80, sizePct))) / 100;
   return (
     <mesh
       position={[0, -HOTSPOT_RADIUS + 5, 0]}
       rotation={[-Math.PI / 2, 0, 0]}
       renderOrder={3}
     >
-      <planeGeometry args={[worldW, worldH]} />
+      <circleGeometry args={[worldSize, 64]} />
       <meshBasicMaterial
         map={tex}
         transparent
@@ -1241,9 +864,49 @@ function SurfaceImage({
   onDragStart: () => void;
   setOrbitEnabled: (v: boolean) => void;
 }) {
-  // Unified texture loader — handles image_url / icon_url / icon_key (built-in
-  // library icon, rasterized on the fly). See useHotspotFaceTexture above.
-  const { tex, failed } = useHotspotFaceTexture(h);
+  const url = h.image_url ?? h.icon_url ?? null;
+
+  // Load texture with an explicit loader (no Suspense) + UV mirror to compensate
+  // for the panorama sphere's BackSide flip. This is done at the texture level
+  // so it never conflicts with the mesh's world transform.
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!url) {
+      setTex(null);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setFailed(false);
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(
+      url,
+      (t) => {
+        if (cancelled) return;
+        t.colorSpace = THREE.SRGBColorSpace;
+        // No UV flip.
+        //
+        // Reasoning: `camera.lookAt(+Z)` is effectively a 180° rotation from
+        // the default camera pose, which makes the camera's screen-right axis
+        // align with world -X (not +X). The plane's basis matrix orients its
+        // local +X toward world -X as well. So local +X and screen right
+        // point the same way — texture reads correctly without any flip.
+        // A prior UV flip was inverting a plane that was already correct.
+        t.needsUpdate = true;
+        setTex(t);
+      },
+      undefined,
+      () => {
+        if (!cancelled) setFailed(true);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [url, mirrored]);
 
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
@@ -1409,8 +1072,45 @@ function WallImage(props: {
     onDragStart,
     setOrbitEnabled,
   } = props;
-  // Unified texture loader — handles image_url / icon_url / icon_key.
-  const { tex, failed, aspect: imgAspect } = useHotspotFaceTexture(h);
+  const url = h.image_url ?? h.icon_url ?? null;
+
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [imgAspect, setImgAspect] = useState<number>(1);
+  useEffect(() => {
+    if (!url) {
+      setTex(null);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setFailed(false);
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(
+      url,
+      (t) => {
+        if (cancelled) return;
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8; // crisper at oblique viewing angles — very "poster"
+        t.needsUpdate = true;
+        // Auto aspect ratio — critical for realism. A 3:4 portrait renders
+        // 3:4 no matter what width/height the user picked.
+        const img = t.image as HTMLImageElement | undefined;
+        if (img?.naturalWidth && img?.naturalHeight) {
+          setImgAspect(img.naturalWidth / img.naturalHeight);
+        }
+        setTex(t);
+      },
+      undefined,
+      () => {
+        if (!cancelled) setFailed(true);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
 
   const pos = useMemo(() => sphericalToVec3(h.yaw, h.pitch), [h.yaw, h.pitch]);
 
@@ -1524,24 +1224,64 @@ function WallImage(props: {
   );
 }
 
-function FloorImage(props: { hotspot: Hotspot; editable: boolean; selected: boolean; mirrored: boolean; onClick: () => void; onDoubleClick: () => void; onDragStart: () => void; setOrbitEnabled: (v: boolean) => void }) {
-  const { hotspot: h, selected, editable, onClick, onDoubleClick, onDragStart, setOrbitEnabled } = props;
-  // Unified texture loader — handles image_url / icon_url / icon_key.
-  const { tex, failed } = useHotspotFaceTexture(h);
+function FloorImage(props: {
+  hotspot: Hotspot;
+  editable: boolean;
+  selected: boolean;
+  mirrored: boolean;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  onDragStart: () => void;
+  setOrbitEnabled: (v: boolean) => void;
+}) {
+  const {
+    hotspot: h,
+    selected,
+    editable,
+    onClick,
+    onDoubleClick,
+    onDragStart,
+    setOrbitEnabled,
+  } = props;
+  const url = h.image_url ?? h.icon_url ?? null;
+
+  const [tex, setTex] = useState<THREE.Texture | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!url) { setTex(null); setFailed(false); return; }
+    let cancelled = false;
+    setFailed(false);
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(url, (t) => {
+      if (cancelled) return;
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.needsUpdate = true;
+      setTex(t);
+    }, undefined, () => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [url]);
+
   const pos = useMemo(() => {
     const p = sphericalToVec3(h.yaw, h.pitch);
     const horiz = new THREE.Vector3(p.x, 0, p.z);
     const len = horiz.length();
-    if (len < 1) horiz.set(0, 0, HOTSPOT_RADIUS * 0.5);
-    else {
+    if (len < 1) {
+      horiz.set(0, 0, HOTSPOT_RADIUS * 0.5);
+    } else {
+      const groundY = -HOTSPOT_RADIUS * 0.9;
       const t = Math.min(HOTSPOT_RADIUS, Math.max(20, len));
       horiz.setLength(t);
+      horiz.y = groundY;
+      return horiz;
     }
     horiz.y = -HOTSPOT_RADIUS * 0.9;
     return horiz;
   }, [h.yaw, h.pitch]);
+
   const worldW = Math.max(20, (h.width_pct ?? 80) * 2);
   const worldH = Math.max(20, (h.height_pct ?? 80) * 2);
+
   const ref = useRef<THREE.Group>(null);
   useEffect(() => {
     if (!ref.current) return;
@@ -1551,16 +1291,23 @@ function FloorImage(props: { hotspot: Hotspot; editable: boolean; selected: bool
     g.rotateX(-Math.PI / 2);
     if (h.rotation_deg) g.rotateZ((h.rotation_deg * Math.PI) / 180);
   }, [pos, h.rotation_deg]);
+
   const lastClickRef = useRef(0);
   function handlePointerDown(e: any) {
     e.stopPropagation?.();
-    (e.nativeEvent as PointerEvent | undefined)?.stopImmediatePropagation?.();
+    const native = e.nativeEvent as PointerEvent | undefined;
+    native?.stopImmediatePropagation?.();
     if (editable) setOrbitEnabled(false);
-    const startX = e.clientX, startY = e.clientY;
+    const startX = e.clientX;
+    const startY = e.clientY;
     let dragged = false;
     const onMove = (ev: PointerEvent) => {
-      if (!editable || dragged) return;
-      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_THRESHOLD_PX) { dragged = true; onDragStart(); }
+      if (!editable) return;
+      if (dragged) return;
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_THRESHOLD_PX) {
+        dragged = true;
+        onDragStart();
+      }
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
@@ -1568,12 +1315,18 @@ function FloorImage(props: { hotspot: Hotspot; editable: boolean; selected: bool
       setOrbitEnabled(true);
       if (dragged) return;
       const now = performance.now();
-      if (editable && now - lastClickRef.current < 350) { onDoubleClick(); lastClickRef.current = 0; }
-      else { onClick(); lastClickRef.current = now; }
+      if (editable && now - lastClickRef.current < 350) {
+        onDoubleClick();
+        lastClickRef.current = 0;
+      } else {
+        onClick();
+        lastClickRef.current = now;
+      }
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
+
   return (
     <group ref={ref} onPointerDown={handlePointerDown}>
       <mesh renderOrder={2}>

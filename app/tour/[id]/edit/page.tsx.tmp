@@ -619,35 +619,16 @@ export default function TourEditPage() {
   const inPlacementMode = pendingHotspot != null || repositioningId != null;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-chrome">
-      <header className="h-12 bg-chrome border-b border-border flex items-center px-3 gap-2 text-[13px] relative">
-        {/* Left: nav */}
-        <Link
-          href="/"
-          className="p-1.5 text-neutral-400 hover:text-white rounded"
-          title="Back to dashboard"
-        >
+    <div className="h-screen flex flex-col overflow-hidden">
+      <header className="h-12 bg-panel border-b border-border flex items-center px-3 gap-3">
+        <Link href="/" className="text-neutral-400 hover:text-white">
           <X size={16} />
         </Link>
-        <div className="min-w-0 flex items-baseline gap-2">
-          <div className="text-[13px] font-medium truncate">{tour.title}</div>
-          <div className="text-3xs text-neutral-500 uppercase tracking-wider">
-            {scenes.length} scene{scenes.length === 1 ? "" : "s"}
-          </div>
+        <div className="text-sm font-medium truncate">{tour.title}</div>
+        <div className="text-xs text-neutral-500">
+          {scenes.length} scene{scenes.length === 1 ? "" : "s"}
         </div>
-
-        {/* Center: brand mark */}
-        <Link
-          href="/"
-          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 font-semibold text-[15px] tracking-tight text-white hover:opacity-90"
-        >
-          <Pencil size={14} className="text-accent" />
-          Factory Tour
-        </Link>
-
         <div className="flex-1" />
-
-        {/* Right: actions */}
         <button
           onClick={() => {
             setPreviewMode((v) => !v);
@@ -655,49 +636,45 @@ export default function TourEditPage() {
             setRepositioningId(null);
             setSelectedHotspotId(null);
           }}
-          className={`chip ${previewMode ? "active" : ""}`}
+          className={`text-xs rounded px-3 py-1.5 flex items-center gap-1 border ${
+            previewMode
+              ? "bg-cyan-500 text-black border-cyan-500"
+              : "bg-panelSoft border-border"
+          }`}
           title={previewMode ? "Back to editing" : "Test hotspot actions"}
         >
           {previewMode ? (
             <>
-              <Pencil size={11} /> Edit
+              <Pencil size={12} /> Edit
             </>
           ) : (
             <>
-              <Play size={11} /> Preview
+              <Play size={12} /> Preview
             </>
           )}
         </button>
         <Link
-          href={`/tour/${tour.id}?preview=1`}
+          href={`/tour/${tour.id}`}
           target="_blank"
-          className="chip"
-          title="Open the viewer (editor preview — bypasses privacy gate)"
+          className="text-xs bg-panelSoft border border-border rounded px-3 py-1.5 flex items-center gap-1"
         >
-          <Eye size={11} /> Open
+          <Eye size={12} /> Open
         </Link>
         <button
           onClick={handleBackup}
           disabled={backingUp}
-          className="chip disabled:opacity-50"
+          className="text-xs bg-panelSoft border border-border rounded px-3 py-1.5 flex items-center gap-1 disabled:opacity-50"
           title="Download the entire tour as a .factour backup file"
         >
-          <Download size={11} />
+          <Download size={12} />
           {backingUp ? "Packaging…" : "Backup"}
         </button>
         <button
           onClick={() => setShareOpen(true)}
-          className="flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-[11px] transition-colors"
+          className="text-xs bg-panelSoft border border-border rounded px-3 py-1.5 flex items-center gap-1"
         >
-          <Share2 size={11} /> Share
+          <Share2 size={12} /> Share
         </button>
-        <Link
-          href="/"
-          className="ml-1 text-neutral-500 hover:text-white p-1.5 rounded"
-          title="Close editor"
-        >
-          <X size={16} />
-        </Link>
       </header>
 
       <div className="flex-1 flex overflow-hidden">

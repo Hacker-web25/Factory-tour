@@ -1,9 +1,16 @@
+export type Visibility = "private" | "unlisted" | "public";
+
 export type Tour = {
   id: string;
   title: string;
   description: string | null;
   cover_scene_id: string | null;
+  /** Legacy — kept in sync with visibility for backward compat. Use visibility. */
   published: boolean;
+  /** Access mode: private (nobody), unlisted (link-only, optional password), public. */
+  visibility: Visibility;
+  /** Optional password for unlisted access. */
+  unlisted_password: string | null;
   /** When true, panorama is rendered with BackSide (mirror-image world).
    *  When false, sphere is x-flipped so text and signs read correctly. */
   mirrored: boolean;
@@ -55,6 +62,39 @@ export type Scene = {
   ambient_audio_volume: number; // 0..1
   /** Per-scene duration override for auto-tour (seconds). null = use tour default. */
   auto_tour_duration: number | null;
+  /** Camera control limits (radians). null = unlimited. */
+  pitch_min: number | null;
+  pitch_max: number | null;
+  yaw_min: number | null;
+  yaw_max: number | null;
+  /** Horizon roll correction in radians (positive = clockwise). */
+  level_correction: number;
+  /** Zoom (FOV) controls. FOV in degrees. Smaller = zoomed in. */
+  zoom_min_fov: number;      // how far in (30 = tight zoom-in)
+  zoom_max_fov: number;      // how far out (90 = wide)
+  zoom_initial_fov: number;  // the fov when the scene opens
+  /** Wheel/pinch step multiplier — 1.0 default, 0.3 slow, 3 fast. */
+  zoom_sensitivity: number;
+  /** Per-scene thumbnail (custom or captured). Falls back to image_path. */
+  thumbnail_path: string | null;
+  /** Non-panoramic (flat) image — renders as a fixed plane instead of a sphere. */
+  is_flat: boolean;
+  /** When true, blend the equirectangular seam so the vertical stitching line
+   *  vanishes into surrounding texture. */
+  hide_stitching: boolean;
+  /** Auto-hide the tripod / selfie-stick shadow at the south pole by painting
+   *  a color-matched disc sampled from the surrounding floor. */
+  hide_tripod: boolean;
+  /** Diameter of the tripod cover disc, in % of viewport height (default 30). */
+  tripod_size: number;
+
+  /** Assumed camera height in metres — used by the measuring tool to project
+   *  clicks onto the floor plane. Default 1.6 (typical tripod height). */
+  camera_height: number;
+  /** Optional grouping label for the scene index menu. Scenes with the same
+   *  folder name are grouped together (with a collapsible header). */
+  folder: string | null;
+
   created_at: string;
 };
 
@@ -67,7 +107,8 @@ export type HotspotType =
   | "info"
   | "url"
   | "video"
-  | "pdf";
+  | "pdf"
+  | "polygon";
 
 /** what happens on click */
 export type HotspotAction =
@@ -88,7 +129,14 @@ export type SoundEffect =
   | "success"
   | "custom";
 
-export type OverlayMode = "billboard" | "surface";
+/** Overlay rendering mode:
+ *  - billboard: 2D card that always faces the camera (default for icons/text)
+ *  - surface:   flat 2D plane that hugs the sphere at the hotspot (generic wall stick)
+ *  - floor:     plane rotated flat, laid on the ground (for floor-mounted objects)
+ *  - wall:      plane matched to a specific wall's perspective — tunable via
+ *               wall_tilt_yaw / _pitch / _roll for precise integration
+ */
+export type OverlayMode = "billboard" | "surface" | "floor" | "wall";
 
 export type HotspotAnimation =
   | "none"
@@ -175,6 +223,31 @@ export type Hotspot = {
   auto_tour_showcase: boolean;
   auto_tour_showcase_at: number; // seconds from scene start when the action fires
   auto_tour_showcase_duration: number; // seconds to leave the popup open before auto-close
+
+  /** For flat (non-panoramic) scenes — position as fractions 0..1 across the image. */
+  flat_x: number;
+  flat_y: number;
+
+  /** When false, hotspot stays the same on-screen size regardless of camera
+   *  zoom (like a UI overlay). When true (default), it lives in world-space
+   *  and grows when the user zooms in. */
+  scale_on_zoom: boolean;
+
+  /** Fine perspective tuning for the WALL overlay mode (radians). */
+  wall_tilt_yaw: number;
+  wall_tilt_pitch: number;
+  wall_tilt_roll: number;
+
+  /** Polygon hotspot — outline of an arbitrary object drawn by the user. */
+  polygon_points: { yaw: number; pitch: number }[] | null;
+  polygon_fill_color: string;
+  polygon_stroke_color: string;
+  polygon_fill_opacity: number;
+  polygon_stroke_width: number;
+
+  /** In-place video card. */
+  video_show_thumbnail: boolean;
+  video_thumbnail_url: string | null;
 
   created_at: string;
 };

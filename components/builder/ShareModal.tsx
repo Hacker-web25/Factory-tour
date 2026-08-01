@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Tour } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import QRCode from "react-qr-code";
-import { X, Copy, RefreshCw, Lock, Download } from "lucide-react";
+import { X, Copy, RefreshCw, Lock, Download, EyeOff } from "lucide-react";
 
 export default function ShareModal({
   tour,
@@ -16,6 +16,11 @@ export default function ShareModal({
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const permanentUrl = `${origin}/tour/${tour.id}`;
 
+  // Backfill visibility from legacy `published` if the migration hasn't run.
+  const visibility: "private" | "unlisted" | "public" =
+    (tour.visibility as "private" | "unlisted" | "public") ??
+    (tour.published ? "public" : "private");
+
   return (
     <div
       onClick={onClose}
@@ -23,7 +28,7 @@ export default function ShareModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-panel border border-border rounded-lg w-[560px] max-w-full p-5 max-h-[90vh] overflow-auto"
+        className="bg-panel border border-border rounded-lg w-[580px] max-w-full p-5 max-h-[90vh] overflow-auto"
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold">Share tour</h3>
@@ -35,18 +40,19 @@ export default function ShareModal({
           </button>
         </div>
 
-        {tour.published ? (
+        {visibility === "private" && <PrivateNotice />}
+        {visibility === "unlisted" && (
+          <UnlistedShare tour={tour} permanentUrl={permanentUrl} />
+        )}
+        {visibility === "public" && (
           <PublicShare tour={tour} permanentUrl={permanentUrl} />
-        ) : (
-          <PrivateNotice />
         )}
       </div>
     </div>
   );
 }
 
-/* -------------------------- Private notice ------------------------------ */
-
+/* -------------------------- Private ------------------------------------ */
 function PrivateNotice() {
   return (
     <div className="text-center py-8">
@@ -55,14 +61,63 @@ function PrivateNotice() {
       </div>
       <div className="text-sm font-medium mb-1">This tour is private</div>
       <p className="text-xs text-neutral-400 leading-relaxed max-w-sm mx-auto">
-        Share links can only be generated for public tours. Open the Preview
-        panel on the right and toggle the <span className="text-emerald-400">Public</span> button, then reopen Share.
+        Change visibility to <span className="text-amber-300">Unlisted</span>{" "}
+        or <span className="text-emerald-300">Public</span> in the Preview
+        panel to generate share links.
       </p>
     </div>
   );
 }
 
-/* --------------------------- Public share ------------------------------- */
+/* -------------------------- Unlisted ----------------------------------- */
+function UnlistedShare({
+  tour,
+  permanentUrl,
+}: {
+  tour: Tour;
+  permanentUrl: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded p-3">
+        <EyeOff size={16} className="text-amber-300 mt-0.5" />
+        <div className="text-xs text-amber-200 leading-relaxed">
+          <span className="font-medium">Unlisted mode.</span> Anyone with this
+          link can view the tour
+          {tour.unlisted_password
+            ? " after entering the password below."
+            : "."}{" "}
+          Not listed anywhere publicly.
+        </div>
+      </div>
+
+      <LinkRow label="Unlisted link" value={permanentUrl} />
+
+      {tour.unlisted_password && (
+        <div>
+          <div className="text-xs uppercase text-neutral-400 mb-1">
+            Password
+          </div>
+          <CopyBar value={tour.unlisted_password} />
+          <div className="text-[11px] text-neutral-500 mt-1">
+            Share both the link and password with your team.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------- Public share -------------------------------- */
+type SessionOpt = { label: string; value: number | null };
+const SESSION_OPTIONS: SessionOpt[] = [
+  { label: "Single view (default)", value: null },
+  { label: "15 minutes", value: 15 },
+  { label: "30 minutes", value: 30 },
+  { label: "1 hour", value: 60 },
+  { label: "4 hours", value: 240 },
+  { label: "24 hours", value: 1440 },
+];
 
 function PublicShare({
   tour,
@@ -73,25 +128,29 @@ function PublicShare({
 }) {
   const [oneTimeUrl, setOneTimeUrl] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [sessionMinutes, setSessionMinutes] = useState<number | null>(null);
 
-  async function generateOneTime() {
+  async function generateOneTime(sessionMin: number | null) {
     setRegenerating(true);
     try {
-      // Invalidate any previous outstanding tokens for this tour so only the
-      // newest one is live at a time.
-      await supabase
+      // Invalidate every previous unused token for this tour.
+      const { error: killErr } = await supabase
         .from("share_links")
-        .update({ used: true })
+        .update({ used: true, used_at: new Date().toISOString() })
         .eq("tour_id", tour.id)
         .eq("used", false);
+      if (killErr) console.warn("kill err", killErr.message);
 
+      // Mint a fresh token.
       const token = crypto
         .randomUUID()
         .replace(/-/g, "")
         .slice(0, 20);
-      const { error } = await supabase
-        .from("share_links")
-        .insert({ tour_id: tour.id, token });
+      const { error } = await supabase.from("share_links").insert({
+        tour_id: tour.id,
+        token,
+        session_minutes: sessionMin,
+      });
       if (error) {
         alert(error.message);
         return;
@@ -102,11 +161,18 @@ function PublicShare({
     }
   }
 
-  // Auto-generate on open
+  // Generate once on modal open.
   useEffect(() => {
-    generateOneTime();
+    generateOneTime(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour.id]);
+
+  // Whenever the user changes the session length, re-mint so the new token
+  // carries the chosen session_minutes.
+  function handleSessionChange(v: number | null) {
+    setSessionMinutes(v);
+    generateOneTime(v);
+  }
 
   return (
     <div className="space-y-5">
@@ -122,10 +188,10 @@ function PublicShare({
             One-time link
           </div>
           <button
-            onClick={generateOneTime}
+            onClick={() => generateOneTime(sessionMinutes)}
             disabled={regenerating}
             className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
-            title="Invalidate this link and create a fresh one"
+            title="Invalidate the current one and mint a fresh token"
           >
             <RefreshCw
               size={11}
@@ -134,10 +200,33 @@ function PublicShare({
             Regenerate
           </button>
         </div>
-        <div className="text-[11px] text-neutral-500 mb-1">
-          Works for exactly one visit. After the first view it expires — hit
-          Regenerate to make a new one.
+        <div className="text-[11px] text-neutral-500 mb-2">
+          {sessionMinutes
+            ? `Works for one session — the viewer has ${describeMinutes(
+                sessionMinutes
+              )} from first click before it expires.`
+            : "Works for exactly one visit. After first view it expires — hit Regenerate for a fresh one."}
         </div>
+
+        <div className="flex items-center gap-2 mb-2">
+          <label className="text-[11px] text-neutral-400">Session:</label>
+          <select
+            value={sessionMinutes ?? ""}
+            onChange={(e) =>
+              handleSessionChange(
+                e.target.value === "" ? null : parseInt(e.target.value)
+              )
+            }
+            className="bg-panelSoft border border-border rounded px-2 py-1 text-xs flex-1"
+          >
+            {SESSION_OPTIONS.map((opt) => (
+              <option key={opt.label} value={opt.value ?? ""}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {oneTimeUrl ? (
           <CopyBar value={oneTimeUrl} />
         ) : (
@@ -156,11 +245,11 @@ function PublicShare({
           <div className="flex-1 text-[11px] text-neutral-500 leading-relaxed">
             <p>
               Points to the <span className="text-white">public link</span> —
-              scan it with any phone camera to open the tour. Great for
-              printing next to a physical location.
+              scan it with any phone camera. Great for printing next to a
+              physical location.
             </p>
             <button
-              onClick={() => downloadQrPng(permanentUrl)}
+              onClick={() => downloadQrPng()}
               className="mt-2 flex items-center gap-1 text-xs bg-panelSoft border border-border px-2 py-1 rounded hover:bg-neutral-800"
             >
               <Download size={12} /> Download PNG
@@ -172,7 +261,7 @@ function PublicShare({
   );
 }
 
-/* --------------------------- helpers ------------------------------------ */
+/* -------------------------- helpers ------------------------------------ */
 
 function LinkRow({
   label,
@@ -218,12 +307,14 @@ function CopyBar({ value }: { value: string }) {
   );
 }
 
-/** Render the given URL to a PNG (canvas) and trigger a download. */
-function downloadQrPng(url: string) {
-  // Grab the SVG rendered by react-qr-code from the DOM, rasterize to canvas.
-  const svg = document.querySelector<SVGSVGElement>(
-    ".bg-white > svg"
-  );
+function describeMinutes(m: number): string {
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"}`;
+  const h = Math.round(m / 60);
+  return `${h} hour${h === 1 ? "" : "s"}`;
+}
+
+function downloadQrPng() {
+  const svg = document.querySelector<SVGSVGElement>(".bg-white > svg");
   if (!svg) return;
   const xml = new XMLSerializer().serializeToString(svg);
   const img = new Image();
@@ -246,8 +337,5 @@ function downloadQrPng(url: string) {
     });
   };
   img.src =
-    "data:image/svg+xml;base64," +
-    btoa(unescape(encodeURIComponent(xml)));
-  // Silence unused-var warning
-  void url;
+    "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
 }

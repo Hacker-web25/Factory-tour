@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { MenuPosition, Scene, Tour } from "@/lib/types";
+import { publicUrl } from "@/lib/supabase";
+import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 
 /**
  * Corner-docked scene-index menu.
@@ -73,96 +75,155 @@ export default function MenuOverlay({
             No scenes yet.
           </div>
         )}
-        <ul className="space-y-0.5">
-          {scenes.map((s, i) => (
-            <li key={s.id}>
-              <button
-                onClick={() => {
-                  onSelectScene(s.id);
-                  setOpen(false);
-                }}
-                className={`w-full text-left px-2.5 py-2 rounded flex items-center gap-2 text-sm transition ${
-                  s.id === activeSceneId
-                    ? "bg-accent text-black font-medium"
-                    : "hover:bg-white/10 text-neutral-100"
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    s.id === activeSceneId ? "bg-black/70" : "bg-cyan-400"
-                  }`}
-                />
-                <span className="truncate flex-1">
-                  {s.name || `Scene ${i + 1}`}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <SceneList
+          scenes={scenes}
+          activeSceneId={activeSceneId}
+          onSelect={(id) => {
+            onSelectScene(id);
+            setOpen(false);
+          }}
+        />
       </div>
     </div>
   );
 }
 
-/* ------------------------------- Helpers -------------------------------- */
+/* ------------ Scene list with folder grouping + thumbnails ------------ */
+
+function SceneList({
+  scenes,
+  activeSceneId,
+  onSelect,
+}: {
+  scenes: Scene[];
+  activeSceneId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  // Group scenes by folder (preserving encounter order for both folder + item).
+  const groups = useMemo(() => {
+    const map = new Map<string, Scene[]>();
+    for (const s of scenes) {
+      const key = (s.folder ?? "").trim() || "__root__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    return Array.from(map.entries()).map(([key, list]) => ({
+      key,
+      label: key === "__root__" ? null : key,
+      scenes: list,
+    }));
+  }, [scenes]);
+
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  return (
+    <ul className="space-y-0.5">
+      {groups.map((g) => {
+        const isFolder = g.label !== null;
+        const isCollapsed = !!collapsed[g.key];
+        return (
+          <li key={g.key}>
+            {isFolder && (
+              <button
+                onClick={() =>
+                  setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))
+                }
+                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] uppercase tracking-wide text-neutral-300 hover:text-white"
+              >
+                {isCollapsed ? (
+                  <ChevronRight size={12} />
+                ) : (
+                  <ChevronDown size={12} />
+                )}
+                <Folder size={12} />
+                <span className="truncate flex-1 text-left">{g.label}</span>
+                <span className="text-[10px] text-neutral-500">
+                  {g.scenes.length}
+                </span>
+              </button>
+            )}
+            {(!isFolder || !isCollapsed) && (
+              <ul className={isFolder ? "space-y-0.5 pl-3" : "space-y-0.5"}>
+                {g.scenes.map((s, i) => (
+                  <li key={s.id}>
+                    <SceneRow
+                      scene={s}
+                      index={i}
+                      active={s.id === activeSceneId}
+                      onClick={() => onSelect(s.id)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function SceneRow({
+  scene: s,
+  index,
+  active,
+  onClick,
+}: {
+  scene: Scene;
+  index: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const thumbUrl = publicUrl(s.thumbnail_path ?? s.image_path);
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-2 py-1.5 rounded flex items-center gap-2 text-sm transition ${active ? "bg-accent text-black font-medium" : "hover:bg-white/10 text-neutral-100"}`}
+    >
+      {thumbUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumbUrl} alt="" draggable={false} className="w-10 h-6 object-cover rounded border border-white/10 shrink-0" />
+      ) : (
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? "bg-black/70" : "bg-cyan-400"}`} />
+      )}
+      <span className="truncate flex-1">{s.name || `Scene ${index + 1}`}</span>
+    </button>
+  );
+}
 
 function positionOffsets(pos: MenuPosition) {
   switch (pos) {
-    case "top-left":
-      return { top: 16, left: 16 };
-    case "top-right":
-      return { top: 16, right: 16 };
-    case "bottom-left":
-      return { bottom: 96, left: 16 };
-    case "bottom-right":
-      return { bottom: 96, right: 16 };
+    case "top-left": return { top: 16, left: 16 };
+    case "top-right": return { top: 16, right: 16 };
+    case "bottom-left": return { bottom: 96, left: 16 };
+    case "bottom-right": return { bottom: 96, right: 16 };
   }
 }
 
 function anchorForPosition(pos: MenuPosition): React.CSSProperties {
   switch (pos) {
-    case "top-left":
-      return { top: "calc(100% + 8px)", left: 0 };
-    case "top-right":
-      return { top: "calc(100% + 8px)", right: 0 };
-    case "bottom-left":
-      return { bottom: "calc(100% + 8px)", left: 0 };
-    case "bottom-right":
-      return { bottom: "calc(100% + 8px)", right: 0 };
+    case "top-left": return { top: "calc(100% + 8px)", left: 0 };
+    case "top-right": return { top: "calc(100% + 8px)", right: 0 };
+    case "bottom-left": return { bottom: "calc(100% + 8px)", left: 0 };
+    case "bottom-right": return { bottom: "calc(100% + 8px)", right: 0 };
   }
 }
 
 function transformOriginFor(pos: MenuPosition): string {
   switch (pos) {
-    case "top-left":
-      return "top left";
-    case "top-right":
-      return "top right";
-    case "bottom-left":
-      return "bottom left";
-    case "bottom-right":
-      return "bottom right";
+    case "top-left": return "top left";
+    case "top-right": return "top right";
+    case "bottom-left": return "bottom left";
+    case "bottom-right": return "bottom right";
   }
 }
 
-/**
- * Custom list glyph — three dots on the left, three bars on the right.
- * Drawn from scratch (not derived from any copyrighted icon set).
- */
 function MenuGlyph({ size = 24 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* dots */}
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="7" cy="8" r="2.4" fill="currentColor" />
       <circle cx="7" cy="16" r="2.4" fill="currentColor" />
       <circle cx="7" cy="24" r="2.4" fill="currentColor" />
-      {/* bars */}
       <rect x="13" y="6" width="14" height="4" rx="2" fill="currentColor" />
       <rect x="13" y="14" width="14" height="4" rx="2" fill="currentColor" />
       <rect x="13" y="22" width="14" height="4" rx="2" fill="currentColor" />
