@@ -1014,7 +1014,7 @@ function useHotspotFaceTexture(h: Hotspot): {
     };
   }, [url, iconKey, tint]);
 
-  return { tex, failed };
+  return { tex, failed, aspect };
 }
 
 /* --------- Surface (2D wall-attached) image ---------- */
