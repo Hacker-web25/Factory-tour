@@ -176,7 +176,9 @@ export default function TourPlayer({
     const targetIds = new Set(
       outgoing.map((h) => h.target_scene_id as string).filter(Boolean)
     );
-    for (const id of targetIds) {
+    // Array.from() so the loop compiles under the project's TypeScript
+    // target — iterating a Set directly needs ES2015+ / downlevelIteration.
+    for (const id of Array.from(targetIds)) {
       if (preloadedRef.current.has(id)) continue;
       const target = scenes.find((s) => s.id === id);
       if (!target) continue;
