@@ -151,18 +151,198 @@ details > summary::-webkit-details-marker { display: none; }
   to   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1);    }
 }
 
-/* --------- Scene transition (Google-Earth-style stretch/zoom) -------- */
-.scene-transition-out {
-  animation: scene-out 380ms cubic-bezier(0.55, 0, 0.8, 0.35) forwards;
+/* --------- Scene transition (stretch + blur overlay) ------------------
+ * The transition is a CSS-driven overlay of a snapshot of the outgoing
+ * view. On nav-click, TourPlayer:
+ *   1. Grabs a PNG of the current WebGL view (preserveDrawingBuffer)
+ *   2. Renders it as an absolute-positioned div above the canvas
+ *   3. Immediately swaps the WebGL scene underneath (invisible under
+ *      the fully-opaque overlay)
+ *   4. Overlay animates: SCALE grows past the viewport (stretch),
+ *      BLUR ramps up (edges smear), OPACITY fades to 0 (reveals the
+ *      new scene beneath)
+ *   5. onAnimationEnd → overlay unmounts
+ *
+ * Why not WebGL twin-spheres: the CSS approach gives us the actual
+ * "stretch outward + blur → new scene emerges" look. Two synchronized
+ * WebGL spheres with camera dolly always fought OrbitControls and
+ * looked either wobbly or robotic.
+ *
+ * Two modes:
+ *   • CINEMATIC (nav-hotspot / auto-tour) — full 850ms stretch-and-blur
+ *   • QUICK    (scene strip / menu)      — 280ms subtle crossfade */
+/* Street-View-style navigation transition. Two-layer approach that
+ * satisfies the "sharp center + directional edge blur" spec:
+ *
+ *   • sv-layer-sharp  — full snapshot at 100% opacity, no filter.
+ *                       Covers the middle of the viewport crisply.
+ *   • sv-layer-edges  — same snapshot, masked so ONLY the outer 20-25%
+ *                       is visible. Blur animates 0 → 10px → 0 (bell
+ *                       curve). Layered on top of sharp so edges appear
+ *                       to smear while the center stays perfectly clean.
+ *
+ * Both layers scale 1.00 → 1.04 in lockstep (subtle "push forward" that
+ * simulates camera dolly). Container opacity is held at 1 for the first
+ * 70% of the animation, then eases to 0 in the last 30% — that's the
+ * reveal of the incoming scene beneath. Pure transform + tiny masked
+ * filter, no full-screen blur. UI buttons above z-index 20 stay sharp
+ * because the overlay is nested INSIDE the scene container, not above
+ * it in the DOM stacking. */
+
+/* Base overlay — HOLD phase.
+ * Fully opaque, no animation. Mounted while TourPlayer's async pipeline
+ * warms the target texture and moves the WebGL camera to the destination
+ * scene's initial view. Any WebGL activity beneath is invisible. */
+.sv-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 1;
+  background-color: transparent;
 }
-.scene-transition-in {
-  animation: scene-in 500ms cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+
+/* OUT phase — reveal animation. Each effect brings its own container
+ * animation via .sv-fx-<name>.sv-out below. Street View uses the "hold
+ * opacity then fade" pattern because its layer scale + edge blur do the
+ * heavy visual lifting during the first 70%. */
+.sv-overlay.sv-fx-street_view.sv-out {
+  animation: sv-container-reveal 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
-@keyframes scene-out {
-  from { transform: scale(1);    filter: blur(0px);  opacity: 1; }
-  to   { transform: scale(1.35); filter: blur(10px); opacity: 0; }
+.sv-overlay.sv-fx-street_view.sv-out.sv-quick {
+  animation: sv-container-reveal 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
-@keyframes scene-in {
-  from { transform: scale(1.25); filter: blur(14px); opacity: 0; }
-  to   { transform: scale(1);    filter: blur(0px);  opacity: 1; }
+@keyframes sv-container-reveal {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
 }
+
+/* Layers — static during HOLD. Only STREET VIEW animates them; the
+ * other effects animate the container itself so the layers just ride
+ * along without their own transform (otherwise every effect looks like
+ * it has a subtle scale, defeating the point of having options). */
+.sv-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: translate3d(0, 0, 0) scale(1);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* --- STREET VIEW layer scale (scoped to that effect only) --- */
+.sv-overlay.sv-fx-street_view.sv-out .sv-layer {
+  animation: sv-scale 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.sv-overlay.sv-fx-street_view.sv-out.sv-quick .sv-layer {
+  animation: sv-scale-quick 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sv-scale {
+  from { transform: translate3d(0, 0, 0) scale(1);    }
+  to   { transform: translate3d(0, 0, 0) scale(1.04); }
+}
+@keyframes sv-scale-quick {
+  from { transform: translate3d(0, 0, 0) scale(1);    }
+  to   { transform: translate3d(0, 0, 0) scale(1.02); }
+}
+
+/* Edge layer — only used by Street View. Mask restricts blur to the
+ * outer 10-28% of viewport width. Filter bell curve returns to 0 at t=1
+ * so the scene lands perfectly sharp at the end. */
+.sv-layer-edges {
+  will-change: transform, filter;
+  mask-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 0) 28%,
+    rgba(0, 0, 0, 0) 72%,
+    rgba(0, 0, 0, 1) 90%,
+    rgba(0, 0, 0, 1) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 1) 10%,
+    rgba(0, 0, 0, 0) 28%,
+    rgba(0, 0, 0, 0) 72%,
+    rgba(0, 0, 0, 1) 90%,
+    rgba(0, 0, 0, 1) 100%
+  );
+}
+.sv-overlay.sv-fx-street_view.sv-out .sv-layer-edges {
+  animation: sv-scale 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
+             sv-edge-blur-bell 320ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.sv-overlay.sv-fx-street_view.sv-out.sv-quick .sv-layer-edges {
+  animation: sv-scale-quick 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards,
+             sv-edge-blur-bell-quick 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sv-edge-blur-bell {
+  0%   { filter: blur(0);    }
+  50%  { filter: blur(10px); }
+  100% { filter: blur(0);    }
+}
+@keyframes sv-edge-blur-bell-quick {
+  0%   { filter: blur(0);   }
+  50%  { filter: blur(6px); }
+  100% { filter: blur(0);   }
+}
+
+/* =====================================================================
+ * Alternate transition effects. All share the two-phase overlay pattern
+ * (HOLD → OUT) — only the OUT keyframes differ. Selecting one applies
+ * the .sv-fx-<name> class to the overlay so its reveal animation swaps.
+ * Duration is 320ms cinematic / 220ms quick, matching Street View.
+ * ===================================================================== */
+
+/* ---- FADE — pure opacity crossfade, no motion or filter ---- */
+.sv-overlay.sv-fx-fade.sv-out {
+  animation: sv-fade-reveal 320ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.sv-overlay.sv-fx-fade.sv-out.sv-quick {
+  animation: sv-fade-reveal 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sv-fade-reveal {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* ---- ZOOM — outgoing scales up + fades. Feels like camera pushes in. */
+.sv-overlay.sv-fx-zoom.sv-out {
+  animation: sv-zoom-reveal 320ms cubic-bezier(0.55, 0, 0.35, 1) forwards;
+}
+.sv-overlay.sv-fx-zoom.sv-out.sv-quick {
+  animation: sv-zoom-reveal 240ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sv-zoom-reveal {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1);    }
+  to   { opacity: 0; transform: translate3d(0, 0, 0) scale(1.25); }
+}
+
+/* ---- SLIDE — outgoing translates left off-screen, incoming revealed. */
+.sv-overlay.sv-fx-slide.sv-out {
+  animation: sv-slide-reveal 380ms cubic-bezier(0.7, 0, 0.3, 1) forwards;
+}
+.sv-overlay.sv-fx-slide.sv-out.sv-quick {
+  animation: sv-slide-reveal 260ms cubic-bezier(0.55, 0, 0.2, 1) forwards;
+}
+@keyframes sv-slide-reveal {
+  from { opacity: 1; transform: translate3d(0%,    0, 0); }
+  to   { opacity: 1; transform: translate3d(-100%, 0, 0); }
+}
+
+/* Legacy aliases — no-op so any lingering references don't 404. */
+.scene-stretch-overlay { display: none; }
+.scene-stretch-cinematic { }
+.scene-stretch-quick { }
+
+/* Legacy class aliases — kept as no-ops so lingering references don't 404. */
+.scene-warp-overlay { display: none; }
+.scene-warp-in { }
+.scene-transition-out { }
+.scene-transition-in { }
+.scene-motion-blur { }

@@ -97,11 +97,23 @@ export default function DashboardPage() {
       .from("panoramas")
       .upload(path, file, { cacheControl: "3600", upsert: false });
     if (upErr) return alert(`Upload failed: ${upErr.message}`);
-    const { error: updErr } = await supabase
+    // .select() after update confirms the row was actually written —
+    // exposes silent RLS / missing-column failures instead of leaving
+    // us guessing why the thumbnail reverts on refresh.
+    const { data, error: updErr } = await supabase
       .from("tours")
       .update({ thumbnail_path: path })
-      .eq("id", tourId);
-    if (updErr) return alert(`Save failed: ${updErr.message}`);
+      .eq("id", tourId)
+      .select("id, thumbnail_path")
+      .single();
+    if (updErr) {
+      console.error("[thumbnail save]", updErr);
+      return alert(
+        `Thumbnail save failed:\n\n${updErr.message}\n\n` +
+          `If it mentions a missing column, re-run supabase/schema.sql.`
+      );
+    }
+    console.log("[thumbnail save] persisted", data);
     load();
   }
 

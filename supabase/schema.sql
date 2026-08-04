@@ -353,3 +353,20 @@ create policy "recent_uploads write" on public.recent_uploads for all    using (
 
 notify pgrst, 'reload schema';
 
+-- =====================================================================
+-- MIGRATION 018 — per-tour transition effect
+-- =====================================================================
+-- Picks which animation the public viewer uses when switching scenes.
+-- Values: 'street_view' (default), 'fade', 'zoom', 'slide', 'instant'.
+-- Owner sets this in the editor's Photo tab; TourPlayer applies the
+-- matching CSS class to the transition overlay.
+
+alter table public.tours
+  add column if not exists transition_effect text not null default 'street_view';
+
+alter table public.tours drop constraint if exists tours_transition_effect_check;
+alter table public.tours add constraint tours_transition_effect_check
+  check (transition_effect in ('street_view','fade','zoom','slide','instant'));
+
+notify pgrst, 'reload schema';
+

@@ -8,6 +8,7 @@ import type {
   LabelFont,
   Scene,
   Tour,
+  TransitionEffect,
 } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { findIcon } from "@/lib/iconLibrary";
@@ -37,7 +38,7 @@ import {
   EyeOff,
 } from "lucide-react";
 
-type Tab = "photo" | "addon" | "autotour";
+type Tab = "photo" | "addon" | "hotspot" | "autotour";
 
 type Props = {
   tour: Tour;
@@ -97,7 +98,7 @@ export default function RightPanel({
 
   // auto-switch to addon tab when a hotspot is selected
   useEffect(() => {
-    if (selectedHotspot) setTab("addon");
+    if (selectedHotspot) setTab("hotspot");
   }, [selectedHotspot?.id]);
 
   async function handleSave() {
@@ -126,28 +127,36 @@ export default function RightPanel({
       style={hidden ? { display: "none" } : undefined}
       className="w-[340px] shrink-0 bg-panel border-l border-border flex flex-col shadow-panel"
     >
-      <div className="flex items-center border-b border-border bg-chrome">
+      <div className="flex items-center border-b border-border bg-chrome min-w-0">
         <TabBtn active={tab === "photo"} onClick={() => setTab("photo")}>
-          PHOTO
+          Photo
         </TabBtn>
         <TabBtn active={tab === "addon"} onClick={() => setTab("addon")}>
-          ADDON
+          Add
         </TabBtn>
+        {selectedHotspot && (
+          <TabBtn
+            active={tab === "hotspot"}
+            onClick={() => setTab("hotspot")}
+          >
+            Spot
+          </TabBtn>
+        )}
         {tour.auto_tour_enabled && (
           <TabBtn
             active={tab === "autotour"}
             onClick={() => setTab("autotour")}
           >
-            AUTO-TOUR
+            Tour
           </TabBtn>
         )}
-        <div className="flex-1" />
+        <div className="flex-1 min-w-0" />
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-accent hover:bg-accentHover text-black text-[12px] font-semibold tracking-wide px-3 py-1.5 mr-2 my-1.5 rounded disabled:opacity-50 transition-colors"
+          className="shrink-0 bg-accent hover:bg-accentHover text-black text-[11px] font-semibold tracking-wide px-2.5 py-1 mr-1.5 my-1.5 rounded disabled:opacity-50 transition-colors"
         >
-          {saving ? "SAVING…" : "SAVE"}
+          {saving ? "Saving…" : "Save"}
         </button>
       </div>
 
@@ -166,7 +175,10 @@ export default function RightPanel({
             getSnapshot={getSnapshot}
           />
         )}
-        {tab === "addon" && selectedHotspot && (
+        {tab === "addon" && scene && (
+          <AddonsTab onStartAddHotspot={onStartAddHotspot} />
+        )}
+        {tab === "hotspot" && selectedHotspot && (
           <AddonTab
             hotspot={selectedHotspot}
             scenes={scenes}
@@ -175,11 +187,6 @@ export default function RightPanel({
             onReposition={() => onStartReposition(selectedHotspot.id)}
             onTest={() => onTestAction(selectedHotspot)}
           />
-        )}
-        {tab === "addon" && !selectedHotspot && (
-          <div className="text-xs text-neutral-500">
-            Select a hotspot to edit it, or add one from the Photo tab.
-          </div>
         )}
         {tab === "autotour" && tour.auto_tour_enabled && (
           <AutoTourTab
@@ -239,7 +246,7 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2.5 text-[11px] tracking-[0.08em] font-semibold uppercase transition-colors relative ${
+      className={`shrink-0 px-2.5 py-2.5 text-[11px] tracking-wide font-semibold uppercase transition-colors relative ${
         active
           ? "text-white"
           : "text-neutral-500 hover:text-neutral-200"
@@ -247,7 +254,7 @@ function TabBtn({
     >
       {children}
       {active && (
-        <span className="absolute left-2 right-2 bottom-0 h-[2px] bg-accent rounded-t" />
+        <span className="absolute left-1.5 right-1.5 bottom-0 h-[2px] bg-accent rounded-t" />
       )}
     </button>
   );
@@ -374,6 +381,73 @@ function PreviewPanel({
   );
 }
 
+/* ------------------------------- ADDONS TAB ------------------------------ */
+
+/** Just the add-on placement buttons. Selecting one puts the editor into
+ *  "place mode" — user then clicks on the panorama to drop the hotspot. */
+function AddonsTab({
+  onStartAddHotspot,
+}: {
+  onStartAddHotspot: (d: Partial<Hotspot>) => void;
+}) {
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="grid grid-cols-2 gap-2">
+        <AddonBtn
+          icon={<ImageIcon size={16} />}
+          label="Image"
+          onClick={() => setImagePickerOpen(true)}
+        />
+        <AddonBtn
+          icon={<Type size={16} />}
+          label="Text"
+          onClick={() =>
+            onStartAddHotspot({ type: "text", label: "Text" })
+          }
+        />
+        <AddonBtn
+          icon={<Info size={16} />}
+          label="Hotspot"
+          onClick={() => onStartAddHotspot({ type: "icon" })}
+        />
+        <AddonBtn
+          icon={<Pencil size={16} />}
+          label="Polygon"
+          onClick={() =>
+            onStartAddHotspot({
+              type: "polygon",
+              action: "info_popup",
+              polygon_points: [],
+              polygon_fill_color: "#22d3ee",
+              polygon_stroke_color: "#22d3ee",
+              polygon_fill_opacity: 0.15,
+              polygon_stroke_width: 2,
+            })
+          }
+        />
+      </div>
+
+      {imagePickerOpen && (
+        <IconPicker
+          tint="#ffffff"
+          onClose={() => setImagePickerOpen(false)}
+          onPick={(v) => {
+            onStartAddHotspot({
+              type: "image",
+              overlay_mode: "billboard",
+              icon_url: v.icon_url ?? null,
+              icon_key: v.icon_key ?? null,
+              image_url: v.icon_url ?? null,
+            });
+            setImagePickerOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------- PHOTO TAB ------------------------------- */
 function PhotoTab({
   tour,
@@ -394,8 +468,6 @@ function PhotoTab({
   getCurrentAim?: () => { yaw: number; pitch: number } | null;
   getSnapshot?: () => string | null;
 }) {
-  const [imagePickerOpen, setImagePickerOpen] = useState(false);
-
   return (
     <div className="space-y-5 text-sm">
       {/* Scene rename at the top so it's easy to find */}
@@ -420,74 +492,11 @@ function PhotoTab({
         getCurrentAim={getCurrentAim}
       />
 
-      <SceneActions
-        scene={scene}
-        tour={tour}
-        onSceneChange={onSceneChange}
-        getSnapshot={getSnapshot}
-      />
-
-      <div>
-        <div className="text-xs uppercase text-neutral-400 mb-2">Add-ons</div>
-        <div className="grid grid-cols-3 gap-2">
-          <AddonBtn
-            icon={<ImageIcon size={14} />}
-            label="Image"
-            onClick={() => setImagePickerOpen(true)}
-          />
-          <AddonBtn
-            icon={<Type size={14} />}
-            label="Text"
-            onClick={() =>
-              onStartAddHotspot({ type: "text", label: "Text" })
-            }
-          />
-          <AddonBtn
-            icon={<Info size={14} />}
-            label="Hotspot"
-            onClick={() => onStartAddHotspot({ type: "icon" })}
-          />
-          <AddonBtn
-            icon={<Pencil size={14} />}
-            label="Polygon"
-            onClick={() =>
-              onStartAddHotspot({
-                type: "polygon",
-                action: "info_popup",
-                polygon_points: [],
-                polygon_fill_color: "#22d3ee",
-                polygon_stroke_color: "#22d3ee",
-                polygon_fill_opacity: 0.15,
-                polygon_stroke_width: 2,
-              })
-            }
-          />
-        </div>
-        <div className="text-[11px] text-neutral-500 mt-2">
-          Click an add-on. A crosshair will appear — rotate the panorama to
-          aim, then click <span className="text-accent">Place here</span>.
-          <br />
-          <span className="text-cyan-300">Polygon:</span> click multiple points
-          around an object to trace its outline, then finish.
-        </div>
-      </div>
-
-      {imagePickerOpen && (
-        <IconPicker
-          tint="#ffffff"
-          onClose={() => setImagePickerOpen(false)}
-          onPick={(v) => {
-            onStartAddHotspot({
-              type: "image",
-              overlay_mode: "billboard",
-              icon_url: v.icon_url ?? null,
-              icon_key: v.icon_key ?? null,
-              image_url: v.icon_url ?? null,
-            });
-            setImagePickerOpen(false);
-          }}
-        />
-      )}
+      {/* Add-on buttons moved to the dedicated ADDON tab so this panel
+          stays focused on scene / camera settings.
+          SceneActions (thumbnail, replace image, tripod, folder,
+          copy/move) is pushed to the END of the tab — copy/move is a
+          low-priority action so it sits at the very bottom. */}
 
       <div>
         <div className="text-xs uppercase text-neutral-400 mb-1">Tour</div>
@@ -517,6 +526,30 @@ function PhotoTab({
         </button>
       </div>
 
+      <div>
+        <div className="text-xs uppercase text-neutral-400 mb-1">
+          Scene transition
+        </div>
+        <select
+          value={tour.transition_effect ?? "street_view"}
+          onChange={(e) =>
+            onPatchTour({
+              transition_effect: e.target.value as TransitionEffect,
+            })
+          }
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent"
+        >
+          <option value="street_view">Street View — stretch + edge blur</option>
+          <option value="fade">Fade — simple crossfade</option>
+          <option value="zoom">Zoom — target scales in</option>
+          <option value="slide">Slide — outgoing slides off</option>
+          <option value="instant">Instant — no animation</option>
+        </select>
+        <div className="text-[11px] text-neutral-500 mt-1">
+          Applied to every scene switch in the public viewer.
+        </div>
+      </div>
+
       <AmbientAudioSettings
         scene={scene}
         onSceneChange={onSceneChange}
@@ -526,6 +559,17 @@ function PhotoTab({
       <NadirSettings tour={tour} onPatch={onPatchTour} />
       <AutoTourSettings tour={tour} onPatch={onPatchTour} />
       <MenuSettings tour={tour} onPatch={onPatchTour} />
+
+      {/* Rendered LAST — copy/move is a low-priority action per user
+          request and the other scene-scoped controls (thumbnail, tripod
+          hide, replace image) are less frequently touched than camera /
+          tour settings. */}
+      <SceneActions
+        scene={scene}
+        tour={tour}
+        onSceneChange={onSceneChange}
+        getSnapshot={getSnapshot}
+      />
     </div>
   );
 }
@@ -897,7 +941,7 @@ function CameraSettings({
         <button
           onClick={useCurrentView}
           disabled={!getCurrentAim}
-          className="w-full text-xs bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded py-1.5 hover:bg-cyan-500/25 disabled:opacity-40 mb-2"
+          className="w-1/2 text-[11px] bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded py-1 hover:bg-cyan-500/25 disabled:opacity-40 mb-2"
           title="Grab the panorama's current direction as the opening angle"
         >
           Use current view
@@ -920,70 +964,77 @@ function CameraSettings({
         </div>
       </div>
 
-      {/* --- Movement range (Kuula-style single sliders) --- */}
-      <div>
-        <div className="text-[11px] uppercase text-neutral-400 mb-1">
-          Vertical range (pitch)
-        </div>
-        <RangeLabelled
-          left="Locked"
-          right="Full"
-          value={pitchRange}
-          min={0}
-          max={180}
-          suffix="°"
-          onChange={setPitchRange}
-        />
-        <div className="text-[10px] text-neutral-500">
-          How far up/down viewers can look. 0 = locked to horizon, 180 = full.
-        </div>
-      </div>
-
-      <div>
-        <div className="text-[11px] uppercase text-neutral-400 mb-1">
-          Horizontal range (yaw)
-        </div>
-        <RangeLabelled
-          left="Locked"
-          right="Full"
-          value={yawRange}
-          min={0}
-          max={360}
-          suffix="°"
-          onChange={setYawRange}
-        />
-        <div className="text-[10px] text-neutral-500">
-          How far left/right viewers can look. 0 = locked, 360 = full spin.
-        </div>
-      </div>
-
-      {/* --- Level correction --- */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <div className="text-[11px] uppercase text-neutral-400">
-            Level correction
+      {/* Pitch / yaw range + level correction are set once per scene
+          and rarely revisited — collapse them behind a disclosure so
+          the frequently-used Initial view / Zoom controls stay prime. */}
+      <details className="group">
+        <summary className="list-none cursor-pointer flex items-center justify-between text-[11px] uppercase text-neutral-400 hover:text-neutral-200 select-none py-1">
+          <span>Advanced camera range</span>
+          <span className="text-neutral-500 group-open:rotate-90 transition-transform inline-block">
+            ▸
+          </span>
+        </summary>
+        <div className="space-y-4 mt-3">
+          {/* --- Movement range (Kuula-style single sliders) --- */}
+          <div>
+            <div className="text-[11px] uppercase text-neutral-400 mb-1">
+              Vertical range (pitch)
+            </div>
+            <RangeLabelled
+              left="Locked"
+              right="Full"
+              value={pitchRange}
+              min={0}
+              max={180}
+              suffix="°"
+              onChange={setPitchRange}
+            />
           </div>
-          <button
-            onClick={() => set({ level_correction: 0 })}
-            className="text-[10px] text-neutral-400 hover:text-white"
-          >
-            Reset
-          </button>
+
+          <div>
+            <div className="text-[11px] uppercase text-neutral-400 mb-1">
+              Horizontal range (yaw)
+            </div>
+            <RangeLabelled
+              left="Locked"
+              right="Full"
+              value={yawRange}
+              min={0}
+              max={360}
+              suffix="°"
+              onChange={setYawRange}
+            />
+          </div>
+
+          {/* --- Level correction --- */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] uppercase text-neutral-400">
+                Level correction
+              </div>
+              <button
+                onClick={() => set({ level_correction: 0 })}
+                className="text-[10px] text-neutral-400 hover:text-white"
+              >
+                Reset
+              </button>
+            </div>
+            <RangeLabelled
+              left="−30°"
+              right="+30°"
+              value={levelDeg}
+              min={-30}
+              max={30}
+              step={0.5}
+              suffix="°"
+              onChange={(v) => set({ level_correction: degToRad(v) })}
+            />
+            <div className="text-[10px] text-neutral-500">
+              Rotates the horizon to fix a crooked tripod.
+            </div>
+          </div>
         </div>
-        <RangeLabelled
-          left="−30°"
-          right="+30°"
-          value={levelDeg}
-          min={-30}
-          max={30}
-          step={0.5}
-          suffix="°"
-          onChange={(v) => set({ level_correction: degToRad(v) })}
-        />
-        <div className="text-[10px] text-neutral-500">
-          Rotates the horizon to fix a crooked tripod.
-        </div>
-      </div>
+      </details>
 
       {/* --- Zoom controls --- */}
       <div className="pt-3 border-t border-border">
@@ -2089,14 +2140,14 @@ function AddonTab({
       {/* APPEARANCE */}
       <Section title="Appearance">
         <div className="space-y-2">
-          <SliderRow
+          <NumberStepper
             label="Width"
             value={hotspot.width_pct}
-            valueLabel={`${Math.round(hotspot.width_pct)}%`}
             min={4}
             max={500}
+            step={1}
+            suffix="%"
             onChange={setW}
-            allowTyping
           />
           <div className="flex items-center gap-2 -my-1 pl-1">
             <button
@@ -2114,15 +2165,15 @@ function AddonTab({
               {hotspot.link_wh ? "linked" : "independent"}
             </span>
           </div>
-          <SliderRow
+          <NumberStepper
             label="Height"
             value={hotspot.height_pct}
-            valueLabel={`${Math.round(hotspot.height_pct)}%`}
             min={4}
             max={500}
+            step={1}
+            suffix="%"
             onChange={setH}
             disabled={hotspot.link_wh}
-            allowTyping
           />
           <SliderRow
             label="Opacity"
@@ -2139,25 +2190,21 @@ function AddonTab({
       <Section
         title="Rotation"
         trailing={
-          <div className="flex gap-3 text-xs">
-            <button className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
-              <Sliders size={11} /> Advanced
-            </button>
-            <button
-              onClick={() => onChange({ ...hotspot, rotation_deg: 0 })}
-              className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-            >
-              <RotateCcw size={11} /> Reset
-            </button>
-          </div>
+          <button
+            onClick={() => onChange({ ...hotspot, rotation_deg: 0 })}
+            className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
+          >
+            <RotateCcw size={11} /> Reset
+          </button>
         }
       >
-        <SliderRow
+        <NumberStepper
           label="Degrees"
           value={hotspot.rotation_deg}
-          valueLabel={`${Math.round(hotspot.rotation_deg)}°`}
           min={-180}
           max={180}
+          step={1}
+          suffix="°"
           onChange={(v) => onChange({ ...hotspot, rotation_deg: v })}
         />
       </Section>
@@ -2674,15 +2721,23 @@ function VideoConfig({
       <Field label="YouTube URL or paste video URL">
         <input
           value={hotspot.video_url ?? ""}
-          onChange={(e) =>
+          onChange={(e) => {
+            const url = e.target.value;
+            const isYouTube = /youtube\.com|youtu\.be/i.test(url);
             onChange({
               ...hotspot,
-              video_url: e.target.value,
-              video_source: /youtube\.com|youtu\.be/i.test(e.target.value)
-                ? "youtube"
-                : "upload",
-            })
-          }
+              video_url: url,
+              video_source: isYouTube ? "youtube" : "upload",
+              // Auto-enable the inline video card when a YouTube URL is
+              // pasted — this is the "virtual player on the panorama"
+              // experience users almost always want for embedded videos.
+              // Skip if the user has explicitly turned it off before.
+              video_show_thumbnail:
+                isYouTube && url.length > 10
+                  ? hotspot.video_show_thumbnail !== false
+                  : hotspot.video_show_thumbnail,
+            });
+          }}
           placeholder="https://youtube.com/watch?v=… or https://…mp4"
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
         />
@@ -2953,6 +3008,80 @@ function ColorSwatch({
         className="absolute inset-0 opacity-0 cursor-pointer w-4 h-4"
       />
     </label>
+  );
+}
+
+/** Compact number input with ▲/▼ stepper buttons. Replacement for
+ *  slider-based numeric inputs where precise values matter more than
+ *  scrubbing (Width, Height, Rotation). */
+function NumberStepper({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  return (
+    <div
+      className={`flex items-center gap-3 ${disabled ? "opacity-50" : ""}`}
+    >
+      <div className="text-xs text-neutral-400 w-14">{label}</div>
+      <div className="flex-1" />
+      <div className="flex items-stretch border border-border rounded overflow-hidden bg-panelSoft">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={Math.round(value)}
+          onChange={(e) => {
+            const n = parseFloat(e.target.value);
+            if (!isFinite(n)) return;
+            onChange(clamp(n));
+          }}
+          disabled={disabled}
+          className="w-14 bg-transparent text-cyan-400 text-xs text-right py-0.5 px-1 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        {suffix && (
+          <span className="text-[10px] text-neutral-500 self-center pr-1">
+            {suffix}
+          </span>
+        )}
+        <div className="flex flex-col border-l border-border">
+          <button
+            type="button"
+            onClick={() => onChange(clamp(value + step))}
+            disabled={disabled || value >= max}
+            className="px-1.5 flex-1 hover:bg-neutral-700 text-neutral-300 disabled:opacity-40 disabled:hover:bg-transparent leading-none"
+            title="Increase"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(clamp(value - step))}
+            disabled={disabled || value <= min}
+            className="px-1.5 flex-1 hover:bg-neutral-700 text-neutral-300 disabled:opacity-40 disabled:hover:bg-transparent border-t border-border leading-none"
+            title="Decrease"
+          >
+            ▼
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

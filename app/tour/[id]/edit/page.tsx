@@ -20,6 +20,10 @@ import {
   Pencil,
   Download,
   ZoomIn,
+  Cloud,
+  CloudOff,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { exportTourToBlob, downloadBlob } from "@/lib/backup";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
@@ -366,100 +370,257 @@ export default function TourEditPage() {
     }
   }
 
-  // Debounce per-hotspot DB writes so slider drags update the UI at 60fps
-  // without spamming Supabase. The user sees changes instantly (local state
-  // is applied synchronously); the DB catches up ~200ms after they stop.
-  const hotspotWriteTimersRef = useRef<Map<string, number>>(new Map());
+  // ---- Save orchestration ----
+  //
+  // Every edit path (slider drag, dropdown change, button toggle) funnels
+  // through onHotspotChange, which:
+  //   1) updates local React state synchronously (UI stays 60fps),
+  //   2) queues the hotspot in pendingHotspotChangesRef (keyed by id, so
+  //      rapid edits collapse to one write per hotspot),
+  //   3) resets the 200ms debounce timer that fires flushPendingHotspots().
+  //
+  // flushPendingHotspots writes every dirty hotspot to Supabase in parallel
+  // AND checks each result's .error field — any silent PostgREST failure
+  // (missing column, RLS block, type mismatch) is logged and surfaced via
+  // the saveState indicator in the top bar. Save / Open / Preview / tab-
+  // close all call flushPendingHotspots() so the DB matches the visible
+  // state before anyone reads it.
+  const pendingHotspotChangesRef = useRef<Map<string, Hotspot>>(new Map());
+  const hotspotFlushTimerRef = useRef<number | null>(null);
+  const savedIndicatorTimerRef = useRef<number | null>(null);
+
+  /** UI-facing save state — powers the pill in the top bar. */
+  type SaveState = "clean" | "dirty" | "saving" | "saved" | "error";
+  const [saveState, setSaveState] = useState<SaveState>("clean");
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+
+  /** Build the update payload sent to Supabase for one hotspot. Kept as a
+   *  helper so debounced writes and manual flushes stay in lockstep — if a
+   *  column is missing from here, saving via either path will silently drop
+   *  that field. */
+  function hotspotUpdatePayload(h: Hotspot) {
+    return {
+      // Position + owning scene — MUST be included, otherwise a debounced
+      // flush overwrites everything except the position and the user's
+      // drag can silently revert if it hasn't reached the DB yet.
+      yaw: h.yaw,
+      pitch: h.pitch,
+      scene_id: h.scene_id,
+      label: h.label,
+      color: h.color,
+      size: h.size,
+      target_scene_id: h.target_scene_id ?? null,
+      info_title: h.info_title,
+      info_body: h.info_body,
+      image_url: h.image_url,
+      overlay_mode: h.overlay_mode,
+      url: h.url,
+      icon_key: h.icon_key,
+      icon_url: h.icon_url,
+      icon_tint: h.icon_tint,
+      width_pct: h.width_pct,
+      height_pct: h.height_pct,
+      link_wh: h.link_wh,
+      opacity: h.opacity,
+      rotation_deg: h.rotation_deg,
+      label_color: h.label_color,
+      label_size: h.label_size,
+      label_bold: h.label_bold,
+      only_hover: h.only_hover,
+      shadow: h.shadow,
+      action: h.action,
+      is_master: h.is_master,
+      animation: h.animation,
+      label_font: h.label_font,
+      label_bg: h.label_bg,
+      video_url: h.video_url ?? null,
+      video_source: h.video_source ?? null,
+      pdf_url: h.pdf_url ?? null,
+      pdf_name: h.pdf_name ?? null,
+      sound_effect: h.sound_effect,
+      sound_effect_url: h.sound_effect_url,
+      auto_tour_showcase: h.auto_tour_showcase ?? false,
+      auto_tour_showcase_at: h.auto_tour_showcase_at ?? 3,
+      auto_tour_showcase_duration: h.auto_tour_showcase_duration ?? 5,
+      flat_x: h.flat_x ?? 0.5,
+      flat_y: h.flat_y ?? 0.5,
+      scale_on_zoom: h.scale_on_zoom ?? true,
+      wall_tilt_yaw: h.wall_tilt_yaw ?? 0,
+      wall_tilt_pitch: h.wall_tilt_pitch ?? 0,
+      wall_tilt_roll: h.wall_tilt_roll ?? 0,
+      video_show_thumbnail: h.video_show_thumbnail ?? false,
+      video_thumbnail_url: h.video_thumbnail_url ?? null,
+      polygon_points: h.polygon_points ?? null,
+      polygon_fill_color: h.polygon_fill_color ?? "#22d3ee",
+      polygon_stroke_color: h.polygon_stroke_color ?? "#22d3ee",
+      polygon_fill_opacity: h.polygon_fill_opacity ?? 0.15,
+      polygon_stroke_width: h.polygon_stroke_width ?? 2,
+    };
+  }
+
+  /** Cancel the pending debounce, drain the pending map, and write every
+   *  dirty hotspot to Supabase in parallel. Awaitable — callers use it to
+   *  guarantee the DB is current before they navigate / open / reload.
+   *
+   *  Every response is checked for `.error`. A single failed row does not
+   *  swallow the batch: it's re-queued for the next flush, logged to
+   *  console with the exact hotspot id + Supabase message, and surfaced to
+   *  the UI via setSaveState("error") + setLastSaveError(...).
+   *
+   *  Returns a summary so callers (Save / Open) can decide whether to
+   *  proceed or block on failure. */
+  async function flushPendingHotspots(): Promise<{
+    ok: boolean;
+    savedCount: number;
+    error: string | null;
+  }> {
+    if (hotspotFlushTimerRef.current != null) {
+      window.clearTimeout(hotspotFlushTimerRef.current);
+      hotspotFlushTimerRef.current = null;
+    }
+    const pending = Array.from(pendingHotspotChangesRef.current.values());
+    // Optimistically clear — failed rows are re-queued below so a stuck
+    // row doesn't block later edits.
+    pendingHotspotChangesRef.current.clear();
+    if (pending.length === 0) {
+      return { ok: true, savedCount: 0, error: null };
+    }
+
+    setSaveState("saving");
+    setLastSaveError(null);
+
+    // Run all writes in parallel, capture per-row outcome. Each write
+    // uses the same column-fallback retry loop as scene saves, so
+    // missing-migration columns are silently dropped instead of
+    // failing the whole batch.
+    const results = await Promise.all(
+      pending.map(async (h) => {
+        const basePayload = hotspotUpdatePayload(h) as Record<string, unknown>;
+        const working = { ...basePayload };
+        let lastError: { message: string } | null = null;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const { data, error } = await supabase
+            .from("hotspots")
+            .update(working)
+            .eq("id", h.id)
+            .select()
+            .single();
+          if (!error) return { hotspot: h, data, error: null };
+          lastError = error;
+          const match = /Could not find the '([^']+)' column/i.exec(
+            error.message
+          );
+          const missing = match?.[1];
+          if (missing && missing in working) {
+            console.warn(
+              `[hotspot save] skipping unknown column "${missing}" — ` +
+                `DB is behind on migrations.`
+            );
+            delete working[missing];
+            continue;
+          }
+          break;
+        }
+        return { hotspot: h, data: null, error: lastError };
+      })
+    );
+
+    const failed = results.filter((r) => r.error);
+    const okCount = results.length - failed.length;
+
+    if (failed.length > 0) {
+      // Re-queue failed rows so the next flush retries them, and log
+      // exactly what broke — column mismatch, RLS, type issues all show
+      // up here with the Postgres message intact.
+      for (const f of failed) {
+        pendingHotspotChangesRef.current.set(f.hotspot.id, f.hotspot);
+        console.error(
+          `[save] hotspot ${f.hotspot.id} failed:`,
+          f.error?.message,
+          "| full error:",
+          f.error
+        );
+      }
+      const firstErr = failed[0].error?.message ?? "unknown error";
+      const msg =
+        failed.length === 1
+          ? `Save failed: ${firstErr}`
+          : `${failed.length} hotspot(s) failed to save. First: ${firstErr}`;
+      setSaveState("error");
+      setLastSaveError(msg);
+      return { ok: false, savedCount: okCount, error: msg };
+    }
+
+    // Success — flash "Saved" for a couple seconds, then settle to "clean"
+    // (but only if no new edits landed in the interim).
+    console.log(`[save] flushed ${okCount} hotspot(s)`);
+    setSaveState("saved");
+    if (savedIndicatorTimerRef.current != null) {
+      window.clearTimeout(savedIndicatorTimerRef.current);
+    }
+    savedIndicatorTimerRef.current = window.setTimeout(() => {
+      setSaveState((s) => (s === "saved" ? "clean" : s));
+    }, 1800);
+    return { ok: true, savedCount: okCount, error: null };
+  }
+
   function onHotspotChange(h: Hotspot) {
     // 1. UI update — fully synchronous.
     setAllHotspots((list) => list.map((x) => (x.id === h.id ? h : x)));
 
-    // 2. DB update — debounced per hotspot id.
-    const timers = hotspotWriteTimersRef.current;
-    const existing = timers.get(h.id);
-    if (existing) window.clearTimeout(existing);
-    const t = window.setTimeout(() => {
-      timers.delete(h.id);
-      supabase
-        .from("hotspots")
-        .update({
-          label: h.label,
-          color: h.color,
-          size: h.size,
-          target_scene_id: h.target_scene_id ?? null,
-          info_title: h.info_title,
-          info_body: h.info_body,
-          image_url: h.image_url,
-          overlay_mode: h.overlay_mode,
-          url: h.url,
-          icon_key: h.icon_key,
-          icon_url: h.icon_url,
-          icon_tint: h.icon_tint,
-          width_pct: h.width_pct,
-          height_pct: h.height_pct,
-          link_wh: h.link_wh,
-          opacity: h.opacity,
-          rotation_deg: h.rotation_deg,
-          label_color: h.label_color,
-          label_size: h.label_size,
-          label_bold: h.label_bold,
-          only_hover: h.only_hover,
-          shadow: h.shadow,
-          action: h.action,
-          is_master: h.is_master,
-          animation: h.animation,
-          label_font: h.label_font,
-          label_bg: h.label_bg,
-          video_url: h.video_url ?? null,
-          video_source: h.video_source ?? null,
-          pdf_url: h.pdf_url ?? null,
-          pdf_name: h.pdf_name ?? null,
-          sound_effect: h.sound_effect,
-          sound_effect_url: h.sound_effect_url,
-          auto_tour_showcase: h.auto_tour_showcase ?? false,
-          auto_tour_showcase_at: h.auto_tour_showcase_at ?? 3,
-          auto_tour_showcase_duration: h.auto_tour_showcase_duration ?? 5,
-          flat_x: h.flat_x ?? 0.5,
-          flat_y: h.flat_y ?? 0.5,
-          scale_on_zoom: h.scale_on_zoom ?? true,
-          wall_tilt_yaw: h.wall_tilt_yaw ?? 0,
-          wall_tilt_pitch: h.wall_tilt_pitch ?? 0,
-          wall_tilt_roll: h.wall_tilt_roll ?? 0,
-          video_show_thumbnail: h.video_show_thumbnail ?? false,
-          video_thumbnail_url: h.video_thumbnail_url ?? null,
-          polygon_points: h.polygon_points ?? null,
-          polygon_fill_color: h.polygon_fill_color ?? "#22d3ee",
-          polygon_stroke_color: h.polygon_stroke_color ?? "#22d3ee",
-          polygon_fill_opacity: h.polygon_fill_opacity ?? 0.15,
-          polygon_stroke_width: h.polygon_stroke_width ?? 2,
-        })
-        .eq("id", h.id);
+    // 2. Queue the latest version of this hotspot for the next flush.
+    //    Map keying ensures rapid edits collapse to one write per hotspot.
+    pendingHotspotChangesRef.current.set(h.id, h);
+    setSaveState("dirty");
+
+    // 3. Debounce: reset the single global flush timer.
+    if (hotspotFlushTimerRef.current != null) {
+      window.clearTimeout(hotspotFlushTimerRef.current);
+    }
+    hotspotFlushTimerRef.current = window.setTimeout(() => {
+      // Fire-and-forget auto-save. Errors still surface via saveState.
+      flushPendingHotspots();
     }, 200);
-    timers.set(h.id, t);
   }
 
-  const dragThrottleRef = useRef<number>(0);
-  function onHotspotDrag(id: string, yaw: number, pitch: number) {
-    setAllHotspots((list) =>
-      list.map((h) => (h.id === id ? { ...h, yaw, pitch } : h))
-    );
-    const now = performance.now();
-    if (now - dragThrottleRef.current < 200) return;
-    dragThrottleRef.current = now;
-    supabase.from("hotspots").update({ yaw, pitch }).eq("id", id);
-  }
+  // Safety net: if the user closes the tab mid-edit, at least try to fire
+  // the pending writes. beforeunload can't await async work reliably, but
+  // Supabase's PostgREST calls are effectively fire-and-forget over the
+  // wire so the request usually makes it.
   useEffect(() => {
-    function flush() {
-      const sel = hotspots.find((h) => h.id === selectedHotspotId);
-      if (!sel) return;
-      supabase
-        .from("hotspots")
-        .update({ yaw: sel.yaw, pitch: sel.pitch })
-        .eq("id", sel.id);
+    const handler = () => {
+      if (pendingHotspotChangesRef.current.size > 0) {
+        flushPendingHotspots();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Position drag — routes through onHotspotChange so it goes through
+   *  the same queue + debounced flush path as every other edit.
+   *  Previously this fired throttled direct DB writes that could lose
+   *  the drop position if the user clicked Save + Open before the write
+   *  completed. Now the drop position is guaranteed to be part of the
+   *  next flush, and handleSave awaits that flush before opening. */
+  function onHotspotDrag(id: string, yaw: number, pitch: number) {
+    const current = allHotspots.find((h) => h.id === id);
+    if (!current) return;
+    onHotspotChange({ ...current, yaw, pitch });
+  }
+  // Force-flush on pointerup so the final drop position hits the DB
+  // within a single frame — no waiting for the 200ms debounce to expire.
+  useEffect(() => {
+    function onUp() {
+      if (pendingHotspotChangesRef.current.size > 0) {
+        flushPendingHotspots();
+      }
     }
-    window.addEventListener("pointerup", flush);
-    return () => window.removeEventListener("pointerup", flush);
-  }, [hotspots, selectedHotspotId]);
+    window.addEventListener("pointerup", onUp);
+    return () => window.removeEventListener("pointerup", onUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onHotspotDelete(id: string) {
     await supabase.from("hotspots").delete().eq("id", id);
@@ -469,34 +630,76 @@ export default function TourEditPage() {
 
   async function onSceneChange(s: Scene) {
     setScenes((list) => list.map((x) => (x.id === s.id ? s : x)));
-    await supabase
-      .from("scenes")
-      .update({
-        name: s.name,
-        initial_yaw: s.initial_yaw,
-        initial_pitch: s.initial_pitch,
-        ambient_audio_url: s.ambient_audio_url ?? null,
-        ambient_audio_volume: s.ambient_audio_volume ?? 0.5,
-        auto_tour_duration: s.auto_tour_duration ?? null,
-        pitch_min: s.pitch_min,
-        pitch_max: s.pitch_max,
-        yaw_min: s.yaw_min,
-        yaw_max: s.yaw_max,
-        level_correction: s.level_correction ?? 0,
-        zoom_min_fov: s.zoom_min_fov ?? 30,
-        zoom_max_fov: s.zoom_max_fov ?? 90,
-        zoom_initial_fov: s.zoom_initial_fov ?? 75,
-        zoom_sensitivity: s.zoom_sensitivity ?? 1,
-        image_path: s.image_path,
-        thumbnail_path: s.thumbnail_path ?? null,
-        is_flat: s.is_flat ?? false,
-        hide_stitching: s.hide_stitching ?? false,
-        hide_tripod: s.hide_tripod ?? false,
-        tripod_size: s.tripod_size ?? 30,
-        camera_height: s.camera_height ?? 1.6,
-        folder: s.folder ?? null,
-      })
-      .eq("id", s.id);
+    const fullPayload: Record<string, unknown> = {
+      name: s.name,
+      initial_yaw: s.initial_yaw,
+      initial_pitch: s.initial_pitch,
+      ambient_audio_url: s.ambient_audio_url ?? null,
+      ambient_audio_volume: s.ambient_audio_volume ?? 0.5,
+      auto_tour_duration: s.auto_tour_duration ?? null,
+      pitch_min: s.pitch_min,
+      pitch_max: s.pitch_max,
+      yaw_min: s.yaw_min,
+      yaw_max: s.yaw_max,
+      level_correction: s.level_correction ?? 0,
+      zoom_min_fov: s.zoom_min_fov ?? 30,
+      zoom_max_fov: s.zoom_max_fov ?? 90,
+      zoom_initial_fov: s.zoom_initial_fov ?? 75,
+      zoom_sensitivity: s.zoom_sensitivity ?? 1,
+      image_path: s.image_path,
+      thumbnail_path: s.thumbnail_path ?? null,
+      is_flat: s.is_flat ?? false,
+      hide_stitching: s.hide_stitching ?? false,
+      hide_tripod: s.hide_tripod ?? false,
+      tripod_size: s.tripod_size ?? 30,
+      camera_height: s.camera_height ?? 1.6,
+      folder: s.folder ?? null,
+    };
+    await saveWithColumnFallback("scenes", fullPayload, s.id, "[scene save]");
+  }
+
+  /** Self-healing update helper: sends the whole payload, and if
+   *  Supabase returns a "could not find the 'X' column in the schema
+   *  cache" error, drops that column and retries. Loops until success
+   *  or an unrecoverable error. Fixes the "user hasn't run migration
+   *  N" class of bugs without blocking every save behind an alert. */
+  async function saveWithColumnFallback(
+    table: "scenes" | "tours" | "hotspots",
+    payload: Record<string, unknown>,
+    id: string,
+    tag: string
+  ) {
+    const working = { ...payload };
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const { error } = await supabase
+        .from(table)
+        .update(working)
+        .eq("id", id);
+      if (!error) {
+        if (attempt > 0) setSaveState("saved");
+        return;
+      }
+      // Parse missing column from the Postgres / PostgREST message.
+      const match = /Could not find the '([^']+)' column/i.exec(
+        error.message
+      );
+      const missing = match?.[1];
+      if (missing && missing in working) {
+        console.warn(
+          `${tag} skipping unknown column "${missing}" — DB is behind ` +
+            `on migrations. Re-run supabase/schema.sql to restore it.`
+        );
+        delete working[missing];
+        continue;
+      }
+      // Not a missing-column error — surface it.
+      console.error(tag, id, error);
+      setSaveState("error");
+      setLastSaveError(`Save failed: ${error.message}`);
+      return;
+    }
+    // Ran out of retry attempts.
+    console.error(tag, id, "gave up after 20 column-fallback retries");
   }
 
   async function onSceneDelete(id: string) {
@@ -524,10 +727,28 @@ export default function TourEditPage() {
 
   async function handleSave() {
     if (!tour) return;
-    await supabase
+    // Drain any pending debounced hotspot edits FIRST so the DB matches
+    // what the user is looking at before we bump updated_at.
+    const result = await flushPendingHotspots();
+    if (!result.ok) {
+      alert(
+        `Save failed.\n\n${result.error}\n\n` +
+          `Open the browser console (F12) for details. ` +
+          `If the error mentions a missing column, the DB is behind — ` +
+          `run the latest supabase/schema.sql in the Supabase SQL Editor.`
+      );
+      return;
+    }
+    const { error } = await supabase
       .from("tours")
       .update({ title: tour.title, updated_at: new Date().toISOString() })
       .eq("id", tour.id);
+    if (error) {
+      console.error("[save] tour update failed:", error);
+      setSaveState("error");
+      setLastSaveError(`Tour save failed: ${error.message}`);
+      alert(`Tour save failed: ${error.message}`);
+    }
   }
 
   async function createNavHotspotAt(
@@ -548,7 +769,9 @@ export default function TourEditPage() {
       action: "nav",
       target_scene_id: targetSceneId,
       icon_key: "chevron-right",
-      label: target ? `Go to ${target.name}` : "Go",
+      // No auto-label — user adds their own if they want one. Auto-labels
+      // went stale when the scene was renamed (still showed old filename).
+      label: null,
     });
     const { data, error } = await supabase
       .from("hotspots")
@@ -649,7 +872,11 @@ export default function TourEditPage() {
 
         {/* Right: actions */}
         <button
-          onClick={() => {
+          onClick={async () => {
+            // Flush before toggling — Preview reads from local state so
+            // this isn't strictly required, but doing it here means the
+            // user can trust "Preview" as a definitive checkpoint.
+            await flushPendingHotspots();
             setPreviewMode((v) => !v);
             setPendingHotspot(null);
             setRepositioningId(null);
@@ -668,14 +895,26 @@ export default function TourEditPage() {
             </>
           )}
         </button>
-        <Link
-          href={`/tour/${tour.id}?preview=1`}
-          target="_blank"
+        <button
+          onClick={async () => {
+            // Flush pending edits BEFORE opening the new tab. The viewer
+            // fetches fresh from the DB, so if the debounce hasn't fired
+            // yet the new tab would show a stale hotspot state.
+            const result = await flushPendingHotspots();
+            if (!result.ok) {
+              const proceed = confirm(
+                `Some changes couldn't be saved:\n\n${result.error}\n\n` +
+                  `Open anyway? (New tab will show the older DB state.)`
+              );
+              if (!proceed) return;
+            }
+            window.open(`/tour/${tour.id}?preview=1`, "_blank");
+          }}
           className="chip"
           title="Open the viewer (editor preview — bypasses privacy gate)"
         >
           <Eye size={11} /> Open
-        </Link>
+        </button>
         <button
           onClick={handleBackup}
           disabled={backingUp}
@@ -685,6 +924,15 @@ export default function TourEditPage() {
           <Download size={11} />
           {backingUp ? "Packaging…" : "Backup"}
         </button>
+        {/* Live save status — the single source of truth for "did my edits
+            persist". Clicking forces a flush so the user always has a way
+            to trigger + verify a save without hunting for the SAVE button
+            in the right panel. */}
+        <SaveStatePill
+          state={saveState}
+          error={lastSaveError}
+          onForceSave={handleSave}
+        />
         <button
           onClick={() => setShareOpen(true)}
           className="flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-[11px] transition-colors"
@@ -1049,6 +1297,73 @@ export default function TourEditPage() {
       )}
 
     </div>
+  );
+}
+
+/* ------------------------ Save state pill (top bar) --------------------- */
+
+/** Single visual source of truth for "did my edits persist". Colour + icon
+ *  reflect the live save state driven by the edit page's flushPendingHotspots
+ *  results. Clicking always triggers a manual save so the user has a way to
+ *  force + verify a write without hunting for the SAVE button. */
+function SaveStatePill({
+  state,
+  error,
+  onForceSave,
+}: {
+  state: "clean" | "dirty" | "saving" | "saved" | "error";
+  error: string | null;
+  onForceSave: () => void;
+}) {
+  const config = (() => {
+    switch (state) {
+      case "clean":
+        return {
+          icon: <Cloud size={11} />,
+          text: "Saved",
+          cls: "border-border text-neutral-400",
+          title: "All changes saved",
+        };
+      case "dirty":
+        return {
+          icon: <CloudOff size={11} />,
+          text: "Unsaved",
+          cls: "border-amber-500/60 text-amber-300 bg-amber-500/10",
+          title: "You have unsaved edits — click to save now",
+        };
+      case "saving":
+        return {
+          icon: <Loader2 size={11} className="animate-spin" />,
+          text: "Saving…",
+          cls: "border-cyan-500/60 text-cyan-300 bg-cyan-500/10",
+          title: "Writing to database",
+        };
+      case "saved":
+        return {
+          icon: <Check size={11} />,
+          text: "Saved",
+          cls: "border-emerald-500/60 text-emerald-300 bg-emerald-500/10",
+          title: "Save successful",
+        };
+      case "error":
+        return {
+          icon: <AlertTriangle size={11} />,
+          text: "Save failed",
+          cls: "border-red-500/60 text-red-300 bg-red-500/10",
+          title: error ?? "Save failed — click to retry",
+        };
+    }
+  })();
+
+  return (
+    <button
+      onClick={onForceSave}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] transition-colors ${config.cls}`}
+      title={config.title}
+    >
+      {config.icon}
+      <span>{config.text}</span>
+    </button>
   );
 }
 

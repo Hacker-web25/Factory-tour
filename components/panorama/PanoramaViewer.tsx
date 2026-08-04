@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +15,7 @@ import {
   vec3ToSpherical,
 } from "./math";
 import PolygonHotspot from "./PolygonHotspot";
+import SceneTransition from "./SceneTransition";
 
 type Props = {
   imageUrl: string;
@@ -69,6 +70,24 @@ type Props = {
   onHotspotDrag?: (id: string, yaw: number, pitch: number) => void;
   initialYaw?: number;
   initialPitch?: number;
+
+  /** WebGL scene transition. When set, mounts a SceneTransition alongside
+   *  the main sphere that crossfades to `transitionTargetUrl`. Fire-and-
+   *  forget: parent waits for onTransitionComplete before swapping the
+   *  actual scene id. */
+  transitionTargetUrl?: string | null;
+  /** True → cinematic fly-through (dolly + FOV + late SLERP), ~1100ms.
+   *  False → quick crossfade + full-duration SLERP, ~300ms. */
+  transitionCinematic?: boolean;
+  /** Optional dolly direction (nav-hotspot yaw/pitch). Ignored when
+   *  transitionCinematic=false. Null = dolly along camera's forward. */
+  transitionDirection?: { yaw: number; pitch: number } | null;
+  /** Target scene's saved initial view. Camera SLERPs to this aim so the
+   *  swap lands facing the "front" of the new scene, not wherever the
+   *  user was looking. */
+  transitionTargetAim?: { yaw: number; pitch: number } | null;
+  transitionDurationMs?: number;
+  onTransitionComplete?: () => void;
 };
 
 const DRAG_THRESHOLD_PX = 5;
@@ -118,13 +137,40 @@ function Scene({
   onHotspotDrag,
   initialYaw = 0,
   initialPitch = 0,
+  transitionTargetUrl = null,
+  transitionCinematic = false,
+  transitionDirection = null,
+  transitionTargetAim = null,
+  transitionDurationMs = 1100,
+  onTransitionComplete,
 }: Props) {
-  const rawTexture = useLoader(THREE.TextureLoader, imageUrl);
-  rawTexture.mapping = THREE.EquirectangularReflectionMapping;
-  rawTexture.colorSpace = THREE.SRGBColorSpace;
-  // Optional stitching-line blend — creates a smoothed copy of the panorama
-  // where the vertical seam edges cross-fade into each other.
+  // Manual texture loading (not useLoader) so scene swaps don't
+  // Suspense-flash. The previous rawTexture stays in state — and rendered
+  // on the sphere — until the new URL finishes loading. Then setRawTexture
+  // swaps them in one frame. Zero black-frame window during scene changes.
+  const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(imageUrl, (t) => {
+      if (cancelled) {
+        t.dispose();
+        return;
+      }
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      t.colorSpace = THREE.SRGBColorSpace;
+      setRawTexture(t);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl]);
+
+  // Optional stitching-line blend — smooths the equirectangular seam.
+  // Null-safe: returns null until rawTexture loads.
   const texture = useMemo(() => {
+    if (!rawTexture) return null;
     if (!hideStitching) return rawTexture;
     const img = rawTexture.image as HTMLImageElement | undefined;
     if (!img?.width) return rawTexture;
@@ -135,9 +181,7 @@ function Scene({
       const ctx = c.getContext("2d");
       if (!ctx) return rawTexture;
       ctx.drawImage(img, 0, 0);
-      // Feather ~2% of the width from each edge into the opposite edge.
       const featherPx = Math.max(6, Math.round(img.width * 0.02));
-      // Left band = last N pixels of the source, blended over the first N.
       const leftBand = ctx.getImageData(
         img.width - featherPx,
         0,
@@ -149,7 +193,6 @@ function Scene({
       bandCanvas.width = featherPx;
       bandCanvas.height = img.height;
       const bctx = bandCanvas.getContext("2d")!;
-      // Cross-fade: left edge shows original left → blended with right band
       bctx.putImageData(leftBand, 0, 0);
       ctx.globalAlpha = 0.5;
       ctx.drawImage(bandCanvas, 0, 0);
@@ -164,19 +207,23 @@ function Scene({
       return rawTexture;
     }
   }, [rawTexture, hideStitching]);
+
   // Standard mode: horizontally flip the panorama texture UVs so text reads
   // correctly (compensates for BackSide sphere's built-in flip).
   // Mirrored mode: leave texture unmodified (world stays flipped).
-  if (!mirrored) {
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.repeat.x = -1;
-    texture.offset.x = 1;
-  } else {
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.repeat.x = 1;
-    texture.offset.x = 0;
-  }
-  texture.needsUpdate = true;
+  useEffect(() => {
+    if (!texture) return;
+    if (!mirrored) {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.repeat.x = -1;
+      texture.offset.x = 1;
+    } else {
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.repeat.x = 1;
+      texture.offset.x = 0;
+    }
+    texture.needsUpdate = true;
+  }, [texture, mirrored]);
 
   const { camera, gl, raycaster, scene: threeScene } = useThree();
   const sphereRef = useRef<THREE.Mesh>(null!);
@@ -325,12 +372,46 @@ function Scene({
           scale (which culls triangles from inside the sphere).
           The whole panorama is wrapped in a group so we can apply the
           per-scene `level_correction` roll around the world Z axis. */}
-      <group rotation={[0, 0, levelCorrection]}>
-        <mesh ref={sphereRef}>
-          <sphereGeometry args={[SPHERE_RADIUS, 64, 40]} />
-          <meshBasicMaterial map={texture} side={THREE.BackSide} />
-        </mesh>
-      </group>
+      {/* Sphere is only rendered once the first panorama texture is ready.
+          Reason: Three.js compiles the material's shader with a USE_MAP
+          define at CREATION time; if we render the material with map=null
+          and later set map=texture, the shader stays compiled without
+          USE_MAP and ignores the texture (renders solid diffuse color).
+          Gating the mesh on `texture` guarantees the material is always
+          born with a valid map. Subsequent scene swaps just change the
+          texture object under the same shader signature — no recompile,
+          no flash. During the very first load the Canvas shows its
+          default clear color (matches the wrapping bg-black div). */}
+      {texture && (
+        <group rotation={[0, 0, levelCorrection]}>
+          <mesh ref={sphereRef}>
+            <sphereGeometry args={[SPHERE_RADIUS, 64, 40]} />
+            <meshBasicMaterial map={texture} side={THREE.BackSide} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Scene transition — mounted only while a fly-through is in flight.
+          Renders a second BackSide sphere just inside the main one, driving
+          camera dolly + FOV whip + alpha crossfade in a single useFrame
+          loop. OrbitControls is disabled for the duration via
+          setOrbitEnabled so its per-frame update doesn't fight the
+          animation and cause wobble. */}
+      {transitionTargetUrl && onTransitionComplete && (
+        <SceneTransition
+          targetUrl={transitionTargetUrl}
+          durationMs={transitionDurationMs}
+          cinematic={transitionCinematic}
+          direction={transitionDirection}
+          targetAim={transitionTargetAim}
+          mirrored={mirrored}
+          levelCorrection={levelCorrection}
+          setOrbitEnabled={(v) => {
+            if (orbitRef.current) orbitRef.current.enabled = v;
+          }}
+          onComplete={onTransitionComplete}
+        />
+      )}
 
       {/* Nadir patch — circular image at the south pole. Sized as a
           percentage of the viewport's angular height so it feels consistent
@@ -339,7 +420,7 @@ function Scene({
         <NadirPatch url={nadirImageUrl} sizePct={nadirSize} />
       )}
 
-      {hideTripod && (
+      {hideTripod && rawTexture && (
         <TripodPatch
           panoramaImage={rawTexture.image as HTMLImageElement | undefined}
           sizePct={tripodSize}
@@ -524,6 +605,25 @@ function HtmlBillboard({
   const navTarget =
     isNav && h.target_scene_id ? scenesLookup?.get(h.target_scene_id) : null;
 
+  // Video preview: any hotspot that has a video URL AND isn't already
+  // rendered as an inline VideoCard gets a rich hover preview with the
+  // thumbnail + play button + title. Catches all three configurations:
+  //   • type="video"  + video_show_thumbnail=false → small icon, show preview
+  //   • type="video"  + video_show_thumbnail=true  → inline card already visible, no preview
+  //   • type="icon" / other + action="video_popup" + video_url → show preview
+  const hasVideoUrl = !!h.video_url;
+  const rendersAsInlineCard = h.type === "video" && !!h.video_show_thumbnail;
+  const showVideoPreview = hasVideoUrl && !rendersAsInlineCard;
+  const videoYtId = showVideoPreview
+    ? extractYouTubeVideoId(h.video_url ?? "")
+    : null;
+  const videoPreviewThumb = showVideoPreview
+    ? h.video_thumbnail_url ||
+      (videoYtId
+        ? `https://img.youtube.com/vi/${videoYtId}/hqdefault.jpg`
+        : null)
+    : null;
+
   return (
     <Html
       position={pos.toArray()}
@@ -611,6 +711,15 @@ function HtmlBillboard({
               → {navTarget.name}
             </div>
           </div>
+        )}
+
+        {/* Video preview card — floats above the hotspot on hover for
+            any hotspot with a video URL that isn't already rendered as
+            an inline VideoCard. Shows thumbnail + play button + title.
+            Click bubbles up to the hotspot's onClick so the video opens
+            normally (modal or inline). */}
+        {hovered && showVideoPreview && !editable && (
+          <VideoPreviewCard hotspot={h} thumbnail={videoPreviewThumb} />
         )}
 
         {/* Inner: pure content, with a clean outline offset for selection */}
@@ -760,22 +869,243 @@ function IconOrImage({
   );
 }
 
+/* -------- Hover preview card for video hotspots rendered as icons ---------
+ * Mounted only while the user hovers a video hotspot that ISN'T already
+ * showing an inline VideoCard. Renders a full YouTube-style thumbnail
+ * with title + play button — click bubbles up to the underlying hotspot
+ * so the actual video (modal or inline) opens on click. */
+function VideoPreviewCard({
+  hotspot: h,
+  thumbnail,
+}: {
+  hotspot: Hotspot;
+  thumbnail: string | null;
+}) {
+  const [meta, setMeta] = useState<{ title: string; author?: string } | null>(
+    () => (h.video_url ? videoMetaCache.get(h.video_url) ?? null : null)
+  );
+  const ytId = useMemo(
+    () => extractYouTubeVideoId(h.video_url ?? ""),
+    [h.video_url]
+  );
+
+  // Fetch YouTube title/author via oEmbed on mount (cached).
+  useEffect(() => {
+    if (meta || !ytId || !h.video_url) return;
+    const url = h.video_url;
+    let cancelled = false;
+    fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(
+        url
+      )}&format=json`
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        const entry = { title: d.title as string, author: d.author_name };
+        videoMetaCache.set(url, entry);
+        setMeta(entry);
+      })
+      .catch(() => {
+        /* silent — falls back to hotspot label / info_title */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [meta, ytId, h.video_url]);
+
+  const title =
+    meta?.title ||
+    h.info_title ||
+    h.label ||
+    (ytId ? "YouTube video" : "Video");
+  const subtitle = meta?.author ?? (ytId ? "YouTube" : "");
+
+  return (
+    <div
+      className="pointer-events-none"
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 6px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 300,
+        background: "rgba(15, 15, 20, 0.95)",
+        border: "1px solid rgba(220, 20, 20, 0.55)",
+        borderRadius: 8,
+        overflow: "hidden",
+        boxShadow: "0 10px 32px rgba(0,0,0,0.7)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        zIndex: 20,
+        animation: "hs-nav-preview-in 0.18s ease-out",
+      }}
+    >
+      {thumbnail ? (
+        <div style={{ position: "relative", width: "100%", height: 168 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbnail}
+            alt=""
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+          {/* Play button */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background:
+                "linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.55))",
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "rgba(220, 20, 20, 0.92)",
+                border: "3px solid #ffffff",
+                display: "grid",
+                placeItems: "center",
+                boxShadow: "0 6px 20px rgba(0,0,0,0.7)",
+              }}
+            >
+              <div
+                style={{
+                  width: 0,
+                  height: 0,
+                  marginLeft: 5,
+                  borderLeft: "18px solid white",
+                  borderTop: "12px solid transparent",
+                  borderBottom: "12px solid transparent",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            height: 168,
+            background: "#111",
+            display: "grid",
+            placeItems: "center",
+            color: "#666",
+            fontSize: 11,
+          }}
+        >
+          No thumbnail
+        </div>
+      )}
+      <div style={{ padding: "10px 12px" }}>
+        <div
+          style={{
+            color: "#fff",
+            fontSize: 12.5,
+            fontWeight: 600,
+            lineHeight: 1.3,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical" as const,
+            overflow: "hidden",
+          }}
+        >
+          {title}
+        </div>
+        {subtitle && (
+          <div
+            style={{
+              color: "rgba(255,255,255,0.65)",
+              fontSize: 10.5,
+              marginTop: 3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* --------- Inline video card (thumbnail + play, expands to player) ---------- */
+
+/** Module-level cache for oEmbed responses so we don't re-hit the network
+ *  every time the same hotspot renders. */
+const videoMetaCache = new Map<string, { title: string; author?: string }>();
 
 function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
   const [playing, setPlaying] = useState(false);
-  const ytId = useMemo(() => extractYouTubeVideoId(h.video_url ?? ""), [h.video_url]);
+  const [hovered, setHovered] = useState(false);
+  const [meta, setMeta] = useState<{ title: string; author?: string } | null>(
+    () => (h.video_url ? videoMetaCache.get(h.video_url) ?? null : null)
+  );
+  const ytId = useMemo(
+    () => extractYouTubeVideoId(h.video_url ?? ""),
+    [h.video_url]
+  );
   const thumbnail =
     h.video_thumbnail_url ||
     (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null);
 
+  // On hover for a YouTube URL, fetch title/author via oEmbed once.
+  // Cached in the module map so subsequent hovers are instant. Never
+  // blocks the render — silent fallback to hotspot.label if it fails.
+  useEffect(() => {
+    if (!hovered || meta || !ytId || !h.video_url) return;
+    const url = h.video_url;
+    let cancelled = false;
+    fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(
+        url
+      )}&format=json`
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        const entry = { title: d.title as string, author: d.author_name };
+        videoMetaCache.set(url, entry);
+        setMeta(entry);
+      })
+      .catch(() => {
+        /* silent — fall back to hotspot.label */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hovered, meta, ytId, h.video_url]);
+
   const cardW = 260;
   const cardH = 146;
+
+  // Best-effort display title, in priority order.
+  const displayTitle =
+    meta?.title || h.info_title || h.label || (ytId ? "YouTube video" : "Video");
+  const displaySubtitle = meta?.author ?? (ytId ? "YouTube" : "");
 
   if (playing) {
     return (
       <div
-        style={{ width: cardW, height: cardH, background: "#000", borderRadius: 6, overflow: "hidden", pointerEvents: "auto" }}
+        style={{
+          width: cardW,
+          height: cardH,
+          background: "#000",
+          borderRadius: 6,
+          overflow: "hidden",
+          pointerEvents: "auto",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {ytId ? (
@@ -783,7 +1113,7 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
             width={cardW}
             height={cardH}
             src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
-            title=""
+            title={displayTitle}
             allow="autoplay; encrypted-media; picture-in-picture"
             allowFullScreen
             style={{ border: "none", display: "block" }}
@@ -811,6 +1141,8 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
         e.stopPropagation();
         setPlaying(true);
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         width: cardW,
         height: cardH,
@@ -820,7 +1152,11 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
         cursor: "pointer",
         background: "#111",
         border: "1px solid rgba(255,255,255,0.15)",
-        boxShadow: "0 6px 22px rgba(0,0,0,0.55)",
+        boxShadow: hovered
+          ? "0 10px 32px rgba(0,0,0,0.7)"
+          : "0 6px 22px rgba(0,0,0,0.55)",
+        transform: hovered ? "scale(1.03)" : "scale(1)",
+        transition: "transform 180ms ease, box-shadow 180ms ease",
         pointerEvents: "auto",
       }}
     >
@@ -830,10 +1166,16 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
           src={thumbnail}
           alt=""
           draggable={false}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
         />
       )}
-      {/* Play button overlay */}
+      {/* Play button + gradient — always visible so the card reads as
+          "video" from a distance. */}
       <div
         style={{
           position: "absolute",
@@ -841,33 +1183,87 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55))",
+          background: hovered
+            ? "linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.7))"
+            : "linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55))",
+          transition: "background 180ms ease",
         }}
       >
         <div
           style={{
-            width: 56,
-            height: 56,
+            width: hovered ? 64 : 56,
+            height: hovered ? 64 : 56,
             borderRadius: "50%",
-            background: "rgba(0,0,0,0.65)",
-            border: "2px solid rgba(255,255,255,0.9)",
+            background: hovered ? "rgba(220,20,20,0.9)" : "rgba(0,0,0,0.65)",
+            border: hovered
+              ? "2px solid #ffffff"
+              : "2px solid rgba(255,255,255,0.9)",
             display: "grid",
             placeItems: "center",
             boxShadow: "0 4px 14px rgba(0,0,0,0.6)",
+            transition:
+              "width 180ms ease, height 180ms ease, background 180ms ease",
           }}
         >
-          {/* Play triangle */}
           <div
             style={{
               width: 0,
               height: 0,
               marginLeft: 4,
-              borderLeft: "16px solid white",
-              borderTop: "10px solid transparent",
-              borderBottom: "10px solid transparent",
+              borderLeft: `${hovered ? 18 : 16}px solid white`,
+              borderTop: `${hovered ? 12 : 10}px solid transparent`,
+              borderBottom: `${hovered ? 12 : 10}px solid transparent`,
+              transition: "border-width 180ms ease",
             }}
           />
         </div>
+      </div>
+
+      {/* Hover overlay — title + subtitle at the bottom of the card.
+          Slides up + fades in from the bottom. Content set from oEmbed
+          (YouTube) or falls back to hotspot label / info_title. */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          padding: "10px 12px",
+          background:
+            "linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.65) 60%, rgba(0,0,0,0) 100%)",
+          transform: hovered ? "translateY(0)" : "translateY(6px)",
+          opacity: hovered ? 1 : 0,
+          transition: "opacity 200ms ease, transform 200ms ease",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 600,
+            lineHeight: 1.25,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {displayTitle}
+        </div>
+        {displaySubtitle && (
+          <div
+            style={{
+              color: "rgba(255,255,255,0.7)",
+              fontSize: 10,
+              marginTop: 2,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {displaySubtitle}
+          </div>
+        )}
       </div>
     </div>
   );

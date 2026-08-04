@@ -1,5 +1,14 @@
 export type Visibility = "private" | "unlisted" | "public";
 
+/** Which animation the public viewer plays when switching between scenes.
+ *  Set per-tour in the editor's Photo tab. */
+export type TransitionEffect =
+  | "street_view"
+  | "fade"
+  | "zoom"
+  | "slide"
+  | "instant";
+
 export type Tour = {
   id: string;
   title: string;
@@ -38,6 +47,9 @@ export type Tour = {
    *  audio and plays continuously across scene switches without resetting. */
   ambient_audio_url: string | null;
   ambient_audio_volume: number;
+
+  /** Which animation plays when the viewer navigates between scenes. */
+  transition_effect: TransitionEffect;
 
   created_at: string;
   updated_at: string;

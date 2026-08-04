@@ -112,7 +112,8 @@ export default function TourPlayer({
     scenes,
     activeScene: active,
     hotspots,
-    onAdvance: (nextId) => navigateTo(nextId),
+    // Auto-tour advances = cinematic fly-through.
+    onAdvance: (nextId) => navigateTo(nextId, { cinematic: true }),
     onFireHotspot: (h) => {
       onHotspotClick(h);
       const dur = Math.max(1, h.auto_tour_showcase_duration ?? 5) * 1000;
@@ -160,23 +161,183 @@ export default function TourPlayer({
     }
   }, [ambientVolume]);
 
-  // Scene transition state — drives the Google-Earth-style zoom-through
-  // animation when navigating between scenes.
-  const [transitioning, setTransitioning] = useState<
-    "out" | "in" | null
-  >(null);
+  // Preload immediate neighbors — any scene reachable via a nav hotspot
+  // (per-scene or master) from the active scene. Cached in a Set so we
+  // don't refetch. Kills the "black frame" stutter during transition.
+  const preloadedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeSceneId) return;
+    const outgoing = allHotspots.filter(
+      (h) =>
+        (h.scene_id === activeSceneId || h.is_master) &&
+        (h.action === "nav" || h.type === "nav") &&
+        h.target_scene_id
+    );
+    const targetIds = new Set(
+      outgoing.map((h) => h.target_scene_id as string).filter(Boolean)
+    );
+    for (const id of targetIds) {
+      if (preloadedRef.current.has(id)) continue;
+      const target = scenes.find((s) => s.id === id);
+      if (!target) continue;
+      const img = new window.Image();
+      img.src = publicUrl(target.image_path);
+      preloadedRef.current.add(id);
+    }
+  }, [activeSceneId, allHotspots, scenes]);
 
-  function navigateTo(sceneId: string) {
+  // ---- Scene transition (CSS snapshot overlay) ----
+  //
+  // Simple, no-wobble, no-WebGL-camera-fighting approach:
+  //   1. On nav, grab a snapshot of the current WebGL view (returns a
+  //      data-URL PNG via preserveDrawingBuffer).
+  //   2. Render the snapshot as an absolute overlay above the canvas.
+  //   3. Swap activeSceneId immediately — PanoramaViewer's manual
+  //      texture loader keeps the old panorama visible on the main
+  //      sphere until the new one loads, and the initial-view useEffect
+  //      snaps the camera to the target scene's saved initial view.
+  //      Everything under the overlay is invisible to the user.
+  //   4. Overlay animates via CSS keyframe — scale grows past the
+  //      viewport (stretch), blur ramps up (sides smear), opacity fades
+  //      to 0. When it hits 0 the user sees the new scene beneath.
+  //   5. onAnimationEnd → overlay unmounts.
+  //
+  // Cinematic mode = 850ms full stretch-and-blur for nav hotspots.
+  // Quick mode    = 280ms subtle crossfade for scene strip / menu.
+  //
+  // The neighbor-preload effect above warms the browser HTTP cache so
+  // the underlying texture swap almost always finishes before the
+  // overlay reveals it. If it doesn't, the user sees old scene for a
+  // beat under the fading overlay — still smoother than a hard swap.
+
+  const aimGetterRef = useRef<null | (() => {
+    yaw: number;
+    pitch: number;
+  } | null)>(null);
+  const snapshotFnRef = useRef<null | (() => string | null)>(null);
+
+  const [transitionOverlay, setTransitionOverlay] = useState<null | {
+    snapshot: string;
+    cinematic: boolean;
+    /** Which visual effect to play — mirrors tour.transition_effect. */
+    effect: "street_view" | "fade" | "zoom" | "slide" | "instant";
+    /** "hold" = overlay is fully opaque and static, hiding the WebGL
+     *  scene swap underneath. "out" = the reveal animation is running. */
+    phase: "hold" | "out";
+    /** Unique key so React remounts the overlay per navigation. */
+    key: number;
+  }>(null);
+
+  const inFlightRef = useRef(false);
+
+  /** Wait for the browser to actually paint the just-committed DOM. Two
+   *  rAFs = "paint has happened + one full frame elapsed". Reliable across
+   *  browsers for "please show the overlay before I touch WebGL". */
+  function nextPaint(): Promise<void> {
+    return new Promise((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+  }
+
+  async function navigateTo(
+    sceneId: string,
+    opts: {
+      /** True → full cinematic stretch + edge blur (nav / auto-tour).
+       *  False → quick crossfade (scene strip / menu). */
+      cinematic?: boolean;
+    } = {}
+  ) {
     if (sceneId === activeSceneId) return;
-    setTransitioning("out");
-    // Halfway through the "out" animation, actually swap the scene so the
-    // new one is already rendered when we cross-fade in.
-    window.setTimeout(() => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
+    // Resolve per-tour transition effect. Fallback to street_view.
+    const effect = (tour.transition_effect ?? "street_view") as
+      | "street_view"
+      | "fade"
+      | "zoom"
+      | "slide"
+      | "instant";
+
+    try {
+      // INSTANT — skip the overlay entirely, just swap the scene.
+      if (effect === "instant") {
+        // Preload the target texture so the swap doesn't flash blank.
+        const target = scenes.find((s) => s.id === sceneId);
+        if (target) {
+          try {
+            const img = new window.Image();
+            img.src = publicUrl(target.image_path);
+            await img.decode();
+          } catch {
+            /* proceed */
+          }
+        }
+        setActiveSceneId(sceneId);
+        return;
+      }
+
+      // 1. Capture snapshot of the CURRENT WebGL view synchronously.
+      const snapshot = snapshotFnRef.current?.() ?? null;
+
+      // 2. Pre-decode the snapshot so it paints INSTANTLY when the
+      //    overlay mounts. Without this the browser might briefly show
+      //    an empty overlay (background-image still decoding) → user
+      //    sees the WebGL canvas beneath at the new camera pose = the
+      //    "rotation before transition" the user was complaining about.
+      if (snapshot) {
+        try {
+          const img = new window.Image();
+          img.src = snapshot;
+          await img.decode();
+        } catch {
+          /* fall through */
+        }
+      }
+
+      // 3. Mount overlay in HOLD phase — fully opaque, NO animation
+      //    class yet. This is a solid cover over the WebGL canvas.
+      setTransitionOverlay({
+        snapshot: snapshot ?? "",
+        cinematic: !!opts.cinematic,
+        effect,
+        phase: "hold",
+        key: Date.now(),
+      });
+
+      // 4. Wait until the browser has actually painted the overlay.
+      await nextPaint();
+
+      // 5. Warm the browser HTTP cache for the target panorama.
+      const target = scenes.find((s) => s.id === sceneId);
+      if (target) {
+        try {
+          const img = new window.Image();
+          img.src = publicUrl(target.image_path);
+          await img.decode();
+        } catch {
+          /* proceed */
+        }
+      }
+
+      // 6. Now, safely under the opaque overlay, commit the scene swap.
       setActiveSceneId(sceneId);
-      setTransitioning("in");
-      // Clear the "in" state after the enter animation completes.
-      window.setTimeout(() => setTransitioning(null), 520);
-    }, 360);
+
+      // 7. Give the WebGL scene time to render at the new pose with
+      //    the new texture.
+      await nextPaint();
+      await new Promise((r) => window.setTimeout(r, 40));
+
+      // 8. Trigger the reveal animation.
+      setTransitionOverlay((prev) =>
+        prev ? { ...prev, phase: "out" } : null
+      );
+    } finally {
+      const revealMs = opts.cinematic ? 320 : 220;
+      window.setTimeout(() => {
+        inFlightRef.current = false;
+      }, revealMs + 800);
+    }
   }
 
   function onHotspotClick(h: Hotspot) {
@@ -185,7 +346,8 @@ export default function TourPlayer({
 
     const action = h.action && h.action !== "none" ? h.action : legacyAction(h);
     if (action === "nav" && h.target_scene_id) {
-      navigateTo(h.target_scene_id);
+      // Nav hotspot → full cinematic stretch-and-blur overlay.
+      navigateTo(h.target_scene_id, { cinematic: true });
     } else if (action === "url" && h.url) {
       window.open(h.url, "_blank");
     } else if (action === "info_popup" || action === "image_popup") {
@@ -218,21 +380,20 @@ export default function TourPlayer({
     return m;
   }, [scenes]);
 
-  const transitionClass =
-    transitioning === "out"
-      ? "scene-transition-out"
-      : transitioning === "in"
-      ? "scene-transition-in"
-      : "";
-
   return (
     <div className="h-full w-full flex flex-col bg-black">
       <div className="flex-1 relative">
-        <div
-          key={activeSceneId ?? "empty"}
-          className={`absolute inset-0 ${transitionClass}`}
-          style={{ transformOrigin: "center center", willChange: "transform, filter, opacity" }}
-        >
+        {/* Scene container — stays mounted across ALL scene changes.
+            PanoramaViewer's manual texture loader keeps the old panorama
+            visible until the new one finishes loading, so scene swaps
+            don't Suspense-flash a black frame. Removing the key was the
+            fix for the "random-angle blink" the user saw at transition
+            end: previously, key={activeSceneId} destroyed the WebGL
+            Canvas on scene swap and re-created it at the default pose
+            for one frame before the initial-view effect settled the
+            camera. Now the Canvas persists, initialYaw/initialPitch prop
+            changes drive the camera reset silently. */}
+        <div className="absolute inset-0">
         {active.is_flat ? (
           <FlatViewer
             imageUrl={publicUrl(active.image_path)}
@@ -269,10 +430,70 @@ export default function TourPlayer({
           zoomSensitivity={active.zoom_sensitivity ?? 1}
           onProvideZoomReset={(fn) => (zoomResetRef.current = fn)}
           onProvideScreenToYawPitch={(fn) => (screenToYawPitchRef.current = fn)}
+          onProvideSnapshot={(fn) => (snapshotFnRef.current = fn)}
+          onRequestAim={(g) => (aimGetterRef.current = g)}
           onHotspotClick={onHotspotClick}
           initialYaw={active.initial_yaw}
           initialPitch={active.initial_pitch}
+          // WebGL transition props intentionally omitted — we now drive
+          // the transition as a CSS snapshot overlay above the canvas
+          // (see the .scene-stretch-overlay render below). PanoramaViewer
+          // just handles the WebGL scene itself; the "fly-through" visual
+          // is entirely 2D CSS.
         />
+        )}
+
+        {/* Street-View-style transition overlay. Two phases:
+              hold  → fully opaque, no animation, covers the WebGL scene
+                      swap + camera reposition happening beneath.
+              out   → reveal animation runs (scale + edge blur + fade).
+            Nested INSIDE the scene container so UI siblings stay sharp. */}
+        {transitionOverlay && (
+          <div
+            key={transitionOverlay.key}
+            className={[
+              "sv-overlay",
+              `sv-fx-${transitionOverlay.effect}`,
+              transitionOverlay.phase === "out" && "sv-out",
+              !transitionOverlay.cinematic && "sv-quick",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            style={{
+              backgroundColor: transitionOverlay.snapshot ? undefined : "#000",
+            }}
+            onAnimationEnd={(e) => {
+              if (
+                e.target === e.currentTarget &&
+                transitionOverlay.phase === "out"
+              ) {
+                setTransitionOverlay(null);
+              }
+            }}
+          >
+            {transitionOverlay.snapshot && (
+              <>
+                <div
+                  className="sv-layer sv-layer-sharp"
+                  style={{
+                    backgroundImage: `url(${transitionOverlay.snapshot})`,
+                  }}
+                />
+                {/* Edge-blur layer only used by street_view. Other
+                    effects don't need it (mask + blur would just add
+                    overhead), so it's cheaper to keep it dark for the
+                    other modes. */}
+                {transitionOverlay.effect === "street_view" && (
+                  <div
+                    className="sv-layer sv-layer-edges"
+                    style={{
+                      backgroundImage: `url(${transitionOverlay.snapshot})`,
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </div>
         )}
         </div>
 
