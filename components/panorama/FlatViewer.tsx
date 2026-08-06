@@ -20,6 +20,7 @@ export default function FlatViewer({
   hotspots = [],
   editable = false,
   selectedHotspotId,
+  selectedHotspotIds,
   pendingHotspot,
   onPlace,
   onHotspotClick,
@@ -31,6 +32,8 @@ export default function FlatViewer({
   hotspots?: Hotspot[];
   editable?: boolean;
   selectedHotspotId?: string | null;
+  /** Optional multi-select set for bulk highlighting. */
+  selectedHotspotIds?: Set<string> | null;
   /** If non-null, next click on the image will place this draft. */
   pendingHotspot?: unknown;
   onPlace?: (x: number, y: number) => void;
@@ -183,7 +186,10 @@ export default function FlatViewer({
           <FlatHotspot
             key={h.id}
             hotspot={h}
-            selected={selectedHotspotId === h.id}
+            selected={
+              selectedHotspotId === h.id ||
+              (selectedHotspotIds ? selectedHotspotIds.has(h.id) : false)
+            }
             editable={editable}
             onPointerDown={(e) => {
               if (editable) {
