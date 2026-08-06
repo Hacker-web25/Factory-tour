@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   Hotspot,
   HotspotAction,
@@ -36,6 +36,7 @@ import {
   Lock,
   Maximize2,
   EyeOff,
+  Mic,
 } from "lucide-react";
 
 type Tab = "photo" | "addon" | "hotspot" | "autotour";
@@ -60,6 +61,7 @@ type Props = {
   onTestAction: (h: Hotspot) => void;
   onHotspotChange: (h: Hotspot) => void;
   onHotspotDelete: (id: string) => void;
+  onHotspotDuplicate?: (id: string) => void;
   onSceneChange: (s: Scene) => void;
   onSave: () => Promise<void>;
   onPublishToggle: () => Promise<void>;
@@ -85,6 +87,7 @@ export default function RightPanel({
   onTestAction,
   onHotspotChange,
   onHotspotDelete,
+  onHotspotDuplicate,
   onSceneChange,
   onSave,
   onPublishToggle,
@@ -184,6 +187,11 @@ export default function RightPanel({
             scenes={scenes}
             onChange={onHotspotChange}
             onDelete={onHotspotDelete}
+            onDuplicate={
+              onHotspotDuplicate
+                ? () => onHotspotDuplicate(selectedHotspot.id)
+                : undefined
+            }
             onReposition={() => onStartReposition(selectedHotspot.id)}
             onTest={() => onTestAction(selectedHotspot)}
           />
@@ -423,6 +431,17 @@ function AddonsTab({
               polygon_stroke_color: "#22d3ee",
               polygon_fill_opacity: 0.15,
               polygon_stroke_width: 2,
+            })
+          }
+        />
+        <AddonBtn
+          icon={<Mic size={16} />}
+          label="Audio"
+          onClick={() =>
+            onStartAddHotspot({
+              type: "audio",
+              action: "audio_popup",
+              icon_key: "mic",
             })
           }
         />
@@ -2058,6 +2077,7 @@ function AddonTab({
   scenes,
   onChange,
   onDelete,
+  onDuplicate,
   onReposition,
   onTest,
 }: {
@@ -2065,6 +2085,7 @@ function AddonTab({
   scenes: Scene[];
   onChange: (h: Hotspot) => void;
   onDelete: (id: string) => void;
+  onDuplicate?: () => void;
   onReposition: () => void;
   onTest: () => void;
 }) {
@@ -2093,6 +2114,25 @@ function AddonTab({
 
   return (
     <div className="space-y-5 text-sm">
+      {/* NAME — the primary identifier for this hotspot. Shows up in
+          Analytics rankings, the scene-index menu, and (if enabled) as
+          the visible label on the panorama itself. */}
+      <div>
+        <div className="text-xs uppercase text-neutral-400 mb-1">Name</div>
+        <input
+          type="text"
+          value={hotspot.label ?? ""}
+          onChange={(e) =>
+            onChange({ ...hotspot, label: e.target.value || null })
+          }
+          placeholder="e.g. Main entrance, Compressor #3, Safety notice…"
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent"
+        />
+        <div className="text-[11px] text-neutral-500 mt-1">
+          Used in Analytics, menu index and hover tooltips.
+        </div>
+      </div>
+
       {/* ICON */}
       <Section title="Icon" trailing={<button className="text-neutral-500 hover:text-white text-lg leading-none">···</button>}>
         <div className="flex items-center gap-4">
@@ -2396,6 +2436,7 @@ function AddonTab({
           <option value="info_popup">Open info popup</option>
           <option value="image_popup">Open image popup</option>
           <option value="video_popup">Open video (YouTube / upload)</option>
+          <option value="audio_popup">Play audio / voice note</option>
           <option value="pdf_popup">Open document (PDF)</option>
           <option value="url">Open URL</option>
         </select>
@@ -2483,6 +2524,10 @@ function AddonTab({
 
         {hotspot.action === "pdf_popup" && (
           <PdfConfig hotspot={hotspot} onChange={onChange} />
+        )}
+
+        {(hotspot.action === "audio_popup" || hotspot.type === "audio") && (
+          <AudioConfig hotspot={hotspot} onChange={onChange} />
         )}
       </Section>
 
@@ -2627,12 +2672,23 @@ function AddonTab({
           <div className="text-[10px] text-neutral-500">
             yaw {hotspot.yaw.toFixed(2)} · pitch {hotspot.pitch.toFixed(2)}
           </div>
-          <button
-            onClick={() => onDelete(hotspot.id)}
-            className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-          >
-            <Trash2 size={12} /> Delete
-          </button>
+          <div className="flex items-center gap-3">
+            {onDuplicate && (
+              <button
+                onClick={onDuplicate}
+                className="text-xs text-cyan-300 hover:text-cyan-200 flex items-center gap-1"
+                title="Duplicate (Ctrl+D)"
+              >
+                <ImageIcon size={12} /> Duplicate
+              </button>
+            )}
+            <button
+              onClick={() => onDelete(hotspot.id)}
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2784,6 +2840,164 @@ function VideoConfig({
           />
         </Field>
       )}
+    </>
+  );
+}
+
+/* ------------------------------ AudioConfig ---------------------------------
+ * Voice-note / audio hotspot editor. Two ways to attach audio:
+ *   1) Paste a URL (mp3 / wav / m4a / ogg).
+ *   2) Upload a local audio file.
+ *   3) Record in-browser using MediaRecorder — output uploaded as .webm.
+ * The recorder shows a live timer and a stop button while recording.
+ * ------------------------------------------------------------------------- */
+function AudioConfig({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+
+  async function uploadBlob(blob: Blob, ext: string) {
+    setUploading(true);
+    try {
+      const path = `audio/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, blob, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: blob.type || `audio/${ext}`,
+        });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      onChange({ ...hotspot, audio_url: data.publicUrl });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function uploadFile(file: File) {
+    const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
+    await uploadBlob(file, ext);
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime =
+        MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm";
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mime });
+        await uploadBlob(blob, "webm");
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+      setElapsed(0);
+      const t0 = Date.now();
+      timerRef.current = window.setInterval(() => {
+        setElapsed(Math.floor((Date.now() - t0) / 1000));
+      }, 250);
+    } catch (err: any) {
+      alert(
+        "Microphone access denied. Enable it in your browser to record voice notes."
+      );
+    }
+  }
+
+  function stopRecording() {
+    try {
+      recorderRef.current?.stop();
+    } catch {}
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setRecording(false);
+  }
+
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const ss = String(elapsed % 60).padStart(2, "0");
+
+  return (
+    <>
+      <Field label="Audio URL (mp3, wav, m4a, ogg)">
+        <input
+          value={hotspot.audio_url ?? ""}
+          onChange={(e) =>
+            onChange({ ...hotspot, audio_url: e.target.value })
+          }
+          placeholder="https://…/voice-note.mp3"
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        />
+      </Field>
+
+      {hotspot.audio_url ? (
+        <div className="mt-2 rounded border border-border bg-panelSoft p-2">
+          <audio src={hotspot.audio_url} controls className="w-full" />
+          <button
+            onClick={() => onChange({ ...hotspot, audio_url: null })}
+            className="mt-2 text-[11px] text-neutral-400 hover:text-red-400"
+          >
+            Remove audio
+          </button>
+        </div>
+      ) : null}
+
+      <label className="mt-2 block border border-dashed border-border rounded p-3 text-center text-xs cursor-pointer hover:border-accent">
+        <input
+          type="file"
+          accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/*"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
+        />
+        {uploading ? "Uploading…" : "or upload an audio file"}
+      </label>
+
+      <div className="mt-3">
+        {!recording ? (
+          <button
+            type="button"
+            onClick={startRecording}
+            disabled={uploading}
+            className="w-full flex items-center justify-center gap-2 rounded bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm py-1.5"
+          >
+            <span className="inline-block w-2 h-2 rounded-full bg-white" />
+            Record voice note
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={stopRecording}
+            className="w-full flex items-center justify-center gap-2 rounded bg-neutral-700 hover:bg-neutral-600 text-white text-sm py-1.5"
+          >
+            <span className="inline-block w-2 h-2 rounded-sm bg-red-500 animate-pulse" />
+            Recording {mm}:{ss} — click to stop
+          </button>
+        )}
+        <div className="mt-1 text-[10px] text-neutral-500 text-center">
+          Recording uses your browser's microphone and uploads instantly.
+        </div>
+      </div>
     </>
   );
 }

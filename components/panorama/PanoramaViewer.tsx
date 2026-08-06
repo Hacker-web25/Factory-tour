@@ -22,6 +22,10 @@ type Props = {
   hotspots: Hotspot[];
   editable?: boolean;
   selectedHotspotId?: string | null;
+  /** Multi-select ids — visually highlights every hotspot whose id is
+   *  in this Set, in addition to `selectedHotspotId`. Populated by
+   *  the editor when the user Shift/Ctrl-clicks multiple hotspots. */
+  selectedHotspotIds?: Set<string> | null;
   /** When true: BackSide rendering (world appears mirror-imaged).
    *  When false: sphere is x-flipped so text/signs read correctly. Default: false. */
   mirrored?: boolean;
@@ -109,6 +113,7 @@ function Scene({
   hotspots,
   editable,
   selectedHotspotId,
+  selectedHotspotIds,
   mirrored = false,
   nadirImageUrl,
   nadirSize = 25,
@@ -432,7 +437,10 @@ function Scene({
           key={h.id}
           hotspot={h}
           editable={!!editable}
-          selected={selectedHotspotId === h.id}
+          selected={
+            selectedHotspotId === h.id ||
+            !!selectedHotspotIds?.has(h.id)
+          }
           mirrored={mirrored}
           scenesLookup={scenesLookup}
           onClick={() => onHotspotClick?.(h)}

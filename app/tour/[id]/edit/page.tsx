@@ -24,6 +24,10 @@ import {
   CloudOff,
   Loader2,
   AlertTriangle,
+  Undo2,
+  Redo2,
+  Copy,
+  Trash2,
 } from "lucide-react";
 import { exportTourToBlob, downloadBlob } from "@/lib/backup";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
@@ -113,6 +117,12 @@ export default function TourEditPage() {
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(
     null
+  );
+  // Multi-select set — populated by Shift/Ctrl-click. `selectedHotspotId`
+  // is always the "primary" (last-clicked) selection; the Set holds the
+  // full multi-selection for bulk actions.
+  const [selectedHotspotIds, setSelectedHotspotIds] = useState<Set<string>>(
+    () => new Set()
   );
   const [pendingHotspot, setPendingHotspot] = useState<Partial<Hotspot> | null>(
     null
@@ -394,6 +404,167 @@ export default function TourEditPage() {
   const [saveState, setSaveState] = useState<SaveState>("clean");
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
 
+  // ---- Undo / redo (hotspot operations) ----
+  //
+  // Every mutation records an Op onto the undo stack. Ctrl+Z reverses
+  // it (writes to DB + reverts local state); Ctrl+Shift+Z re-applies.
+  // Property-change ops are coalesced when they touch the same hotspot
+  // in quick succession so a slider drag = one undo unit.
+  type HotspotOp =
+    | { type: "update"; id: string; before: Hotspot; after: Hotspot }
+    | { type: "insert"; after: Hotspot }
+    | { type: "delete"; before: Hotspot };
+  const undoStackRef = useRef<HotspotOp[]>([]);
+  const redoStackRef = useRef<HotspotOp[]>([]);
+  const lastOpTimeRef = useRef<number>(0);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const canUndo = undoStackRef.current.length > 0;
+  const canRedo = redoStackRef.current.length > 0;
+
+  function pushOp(op: HotspotOp) {
+    const now = performance.now();
+    const last = undoStackRef.current[undoStackRef.current.length - 1];
+    // Coalesce consecutive updates on the same hotspot within 800ms —
+    // slider drags and typing shouldn't produce 60 undo entries.
+    if (
+      last &&
+      last.type === "update" &&
+      op.type === "update" &&
+      last.id === op.id &&
+      now - lastOpTimeRef.current < 800
+    ) {
+      last.after = op.after;
+    } else {
+      undoStackRef.current.push(op);
+      if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+    }
+    lastOpTimeRef.current = now;
+    redoStackRef.current = [];
+    setHistoryVersion((v) => v + 1);
+  }
+
+  /** Insert a hotspot with the missing-column retry loop so undo of a
+   *  delete doesn't blow up if the DB is behind on migrations. Silent
+   *  on failure — undo is best-effort by design. */
+  async function safeInsertHotspot(h: Hotspot) {
+    const working: Record<string, unknown> = { ...h };
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const { error } = await supabase.from("hotspots").insert(working);
+      if (!error) return;
+      const match = /Could not find the '([^']+)' column/i.exec(
+        error.message
+      );
+      const missing = match?.[1];
+      if (missing && missing in working) {
+        console.warn(
+          `[undo insert] skipping unknown column "${missing}"`
+        );
+        delete working[missing];
+        continue;
+      }
+      console.warn("[undo insert] failed:", error.message);
+      return;
+    }
+  }
+
+  async function undo() {
+    const op = undoStackRef.current.pop();
+    if (!op) return;
+    redoStackRef.current.push(op);
+    try {
+      if (op.type === "update") {
+        setAllHotspots((list) =>
+          list.map((x) => (x.id === op.id ? op.before : x))
+        );
+        await saveWithColumnFallback(
+          "hotspots",
+          hotspotUpdatePayload(op.before),
+          op.id,
+          "[undo]",
+          { silent: true }
+        );
+      } else if (op.type === "insert") {
+        setAllHotspots((list) => list.filter((x) => x.id !== op.after.id));
+        if (selectedHotspotId === op.after.id) setSelectedHotspotId(null);
+        await supabase.from("hotspots").delete().eq("id", op.after.id);
+      } else if (op.type === "delete") {
+        setAllHotspots((list) => [...list, op.before]);
+        await safeInsertHotspot(op.before);
+      }
+    } catch (e) {
+      // Undo is best-effort — never let a DB hiccup show a "Save failed"
+      // banner. Local state was already updated, that's the important bit.
+      console.warn("[undo] db write failed:", e);
+    }
+    setHistoryVersion((v) => v + 1);
+  }
+
+  async function redo() {
+    const op = redoStackRef.current.pop();
+    if (!op) return;
+    undoStackRef.current.push(op);
+    try {
+      if (op.type === "update") {
+        setAllHotspots((list) =>
+          list.map((x) => (x.id === op.id ? op.after : x))
+        );
+        await saveWithColumnFallback(
+          "hotspots",
+          hotspotUpdatePayload(op.after),
+          op.id,
+          "[redo]",
+          { silent: true }
+        );
+      } else if (op.type === "insert") {
+        setAllHotspots((list) => [...list, op.after]);
+        await safeInsertHotspot(op.after);
+      } else if (op.type === "delete") {
+        setAllHotspots((list) => list.filter((x) => x.id !== op.before.id));
+        if (selectedHotspotId === op.before.id) setSelectedHotspotId(null);
+        await supabase.from("hotspots").delete().eq("id", op.before.id);
+      }
+    } catch (e) {
+      console.warn("[redo] db write failed:", e);
+    }
+    setHistoryVersion((v) => v + 1);
+  }
+
+  // Global keyboard shortcuts: Ctrl+Z / Ctrl+Shift+Z / Ctrl+D / Delete.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const inField =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (inField) return;
+      const cmd = e.ctrlKey || e.metaKey;
+      if (cmd && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+      } else if (
+        (cmd && e.shiftKey && e.key.toLowerCase() === "z") ||
+        (cmd && e.key.toLowerCase() === "y")
+      ) {
+        e.preventDefault();
+        redo();
+      } else if (cmd && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (selectedHotspotId) duplicateHotspot(selectedHotspotId);
+      } else if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedHotspotIds.size > 0
+      ) {
+        e.preventDefault();
+        bulkDeleteSelected();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedHotspotId, selectedHotspotIds, historyVersion]);
+
   /** Build the update payload sent to Supabase for one hotspot. Kept as a
    *  helper so debounced writes and manual flushes stay in lockstep — if a
    *  column is missing from here, saving via either path will silently drop
@@ -435,6 +606,7 @@ export default function TourEditPage() {
       label_bg: h.label_bg,
       video_url: h.video_url ?? null,
       video_source: h.video_source ?? null,
+      audio_url: h.audio_url ?? null,
       pdf_url: h.pdf_url ?? null,
       pdf_name: h.pdf_name ?? null,
       sound_effect: h.sound_effect,
@@ -564,12 +736,64 @@ export default function TourEditPage() {
     return { ok: true, savedCount: okCount, error: null };
   }
 
-  function onHotspotChange(h: Hotspot) {
-    // 1. UI update — fully synchronous.
-    setAllHotspots((list) => list.map((x) => (x.id === h.id ? h : x)));
+  /** Keys we NEVER broadcast in a multi-select edit — position and
+   *  ownership. Moving one hotspot shouldn't move every other selected
+   *  hotspot to the same coordinates. */
+  const NO_BROADCAST_KEYS = new Set<keyof Hotspot>([
+    "id",
+    "scene_id",
+    "yaw",
+    "pitch",
+    "created_at",
+    "flat_x",
+    "flat_y",
+    "polygon_points",
+  ]);
 
-    // 2. Queue the latest version of this hotspot for the next flush.
-    //    Map keying ensures rapid edits collapse to one write per hotspot.
+  function onHotspotChange(h: Hotspot) {
+    // 0. Record undo op — capture the previous state of this hotspot
+    //    so Ctrl+Z can revert. Coalescing is handled in pushOp so
+    //    slider drags don't produce 60 undo entries.
+    const before = allHotspots.find((x) => x.id === h.id);
+    if (before && before !== h) {
+      pushOp({ type: "update", id: h.id, before, after: h });
+    }
+
+    // Compute the diff patch — which visual props changed on the
+    // primary. Used below for multi-select broadcast.
+    const patch: Partial<Hotspot> = {};
+    if (before) {
+      for (const k of Object.keys(h) as (keyof Hotspot)[]) {
+        if (NO_BROADCAST_KEYS.has(k)) continue;
+        if ((h as any)[k] !== (before as any)[k]) {
+          (patch as any)[k] = (h as any)[k];
+        }
+      }
+    }
+    const broadcast =
+      selectedHotspotIds.size > 1 &&
+      selectedHotspotIds.has(h.id) &&
+      Object.keys(patch).length > 0;
+
+    // 1. UI update. Broadcast the patch to every other selected hotspot
+    //    when multi-select is active — one edit updates all of them.
+    setAllHotspots((list) =>
+      list.map((x) => {
+        if (x.id === h.id) return h;
+        if (broadcast && selectedHotspotIds.has(x.id)) {
+          const updated = { ...x, ...patch };
+          // Record undo op for the sibling change so a single Ctrl+Z
+          // reverses the entire bulk edit (loops over all siblings).
+          pushOp({ type: "update", id: x.id, before: x, after: updated });
+          pendingHotspotChangesRef.current.set(x.id, updated);
+          return updated;
+        }
+        return x;
+      })
+    );
+
+    // 2. Queue the latest version of the primary for the next flush.
+    //    Sibling queues were pushed inside the map above.
     pendingHotspotChangesRef.current.set(h.id, h);
     setSaveState("dirty");
 
@@ -582,6 +806,55 @@ export default function TourEditPage() {
       flushPendingHotspots();
     }, 200);
   }
+
+  /** Central helper for hotspot selection. Pass modKey=true for
+   *  Shift/Ctrl clicks — toggles the id in the multi-select Set.
+   *  Plain clicks clear the Set and set a single primary selection. */
+  function selectHotspot(id: string | null, modKey = false) {
+    if (id == null) {
+      setSelectedHotspotId(null);
+      setSelectedHotspotIds(new Set());
+      return;
+    }
+    if (modKey) {
+      setSelectedHotspotIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        // Include the current primary so Shift-click extends selection.
+        if (selectedHotspotId && !next.has(selectedHotspotId)) {
+          next.add(selectedHotspotId);
+        }
+        return next;
+      });
+      setSelectedHotspotId(id);
+    } else {
+      setSelectedHotspotId(id);
+      setSelectedHotspotIds(new Set());
+    }
+  }
+
+  // Track modifier keys so hotspot onClick (which is called without an
+  // event object) can detect Shift/Ctrl for multi-select.
+  const modKeyRef = useRef({ shift: false, ctrl: false });
+  useEffect(() => {
+    function down(e: KeyboardEvent) {
+      if (e.key === "Shift") modKeyRef.current.shift = true;
+      if (e.key === "Control" || e.key === "Meta")
+        modKeyRef.current.ctrl = true;
+    }
+    function up(e: KeyboardEvent) {
+      if (e.key === "Shift") modKeyRef.current.shift = false;
+      if (e.key === "Control" || e.key === "Meta")
+        modKeyRef.current.ctrl = false;
+    }
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
 
   // Safety net: if the user closes the tab mid-edit, at least try to fire
   // the pending writes. beforeunload can't await async work reliably, but
@@ -623,9 +896,70 @@ export default function TourEditPage() {
   }, []);
 
   async function onHotspotDelete(id: string) {
+    const before = allHotspots.find((h) => h.id === id);
     await supabase.from("hotspots").delete().eq("id", id);
     setAllHotspots((h) => h.filter((x) => x.id !== id));
     setSelectedHotspotId(null);
+    // Record the delete so it can be undone.
+    if (before) pushOp({ type: "delete", before });
+  }
+
+  /** Delete every hotspot currently in the multi-selection Set (plus
+   *  the primary single selection if it's not already in the Set).
+   *  Confirms once when more than one is affected. */
+  async function bulkDeleteSelected() {
+    const ids = new Set(selectedHotspotIds);
+    if (selectedHotspotId) ids.add(selectedHotspotId);
+    if (ids.size === 0) return;
+    if (
+      ids.size > 1 &&
+      !confirm(`Delete ${ids.size} hotspots? Undo works after.`)
+    ) {
+      return;
+    }
+    const toDelete = allHotspots.filter((h) => ids.has(h.id));
+    // Record ops so bulk delete is undoable (one op per hotspot).
+    for (const h of toDelete) pushOp({ type: "delete", before: h });
+    setAllHotspots((list) => list.filter((h) => !ids.has(h.id)));
+    setSelectedHotspotId(null);
+    setSelectedHotspotIds(new Set());
+    // Fire the DB deletes in parallel.
+    await supabase
+      .from("hotspots")
+      .delete()
+      .in("id", Array.from(ids));
+  }
+
+  /** Duplicate one hotspot — inserts a copy with a small yaw offset so
+   *  it doesn't sit directly on top of the source. New hotspot is
+   *  auto-selected. Op is recorded so Ctrl+Z removes it. */
+  async function duplicateHotspot(id: string) {
+    const src = allHotspots.find((h) => h.id === id);
+    if (!src) return;
+    // Strip id + created_at + apply small yaw offset (0.1 rad ≈ 5.7°)
+    // so the copy is visible next to the original.
+    const {
+      id: _id,
+      created_at: _c,
+      ...rest
+    } = src as Hotspot & { id: string; created_at: string };
+    void _id;
+    void _c;
+    const insert = { ...rest, yaw: (src.yaw ?? 0) + 0.1 };
+    const { data, error } = await supabase
+      .from("hotspots")
+      .insert(insert)
+      .select()
+      .single();
+    if (error) {
+      console.error("[duplicate hotspot]", error);
+      alert(`Duplicate failed: ${error.message}`);
+      return;
+    }
+    const copy = data as Hotspot;
+    setAllHotspots((list) => [...list, copy]);
+    setSelectedHotspotId(copy.id);
+    pushOp({ type: "insert", after: copy });
   }
 
   async function onSceneChange(s: Scene) {
@@ -667,7 +1001,8 @@ export default function TourEditPage() {
     table: "scenes" | "tours" | "hotspots",
     payload: Record<string, unknown>,
     id: string,
-    tag: string
+    tag: string,
+    opts: { silent?: boolean } = {}
   ) {
     const working = { ...payload };
     for (let attempt = 0; attempt < 20; attempt++) {
@@ -676,7 +1011,7 @@ export default function TourEditPage() {
         .update(working)
         .eq("id", id);
       if (!error) {
-        if (attempt > 0) setSaveState("saved");
+        if (attempt > 0 && !opts.silent) setSaveState("saved");
         return;
       }
       // Parse missing column from the Postgres / PostgREST message.
@@ -692,10 +1027,14 @@ export default function TourEditPage() {
         delete working[missing];
         continue;
       }
-      // Not a missing-column error — surface it.
+      // Not a missing-column error — surface it unless caller asked us
+      // to stay quiet (undo/redo is best-effort and shouldn't set the
+      // top-bar Save Failed banner).
       console.error(tag, id, error);
-      setSaveState("error");
-      setLastSaveError(`Save failed: ${error.message}`);
+      if (!opts.silent) {
+        setSaveState("error");
+        setLastSaveError(`Save failed: ${error.message}`);
+      }
       return;
     }
     // Ran out of retry attempts.
@@ -924,6 +1263,48 @@ export default function TourEditPage() {
           <Download size={11} />
           {backingUp ? "Packaging…" : "Backup"}
         </button>
+        {/* Undo / redo / duplicate — history for hotspot edits.
+            Ctrl+Z, Ctrl+Shift+Z (or Ctrl+Y), Ctrl+D keyboard shortcuts
+            also work. Buttons show enabled/disabled state from the
+            stacks. */}
+        <button
+          onClick={() => undo()}
+          disabled={!canUndo}
+          className="chip disabled:opacity-30"
+          title="Undo (Ctrl+Z)"
+        >
+          <Undo2 size={11} />
+        </button>
+        <button
+          onClick={() => redo()}
+          disabled={!canRedo}
+          className="chip disabled:opacity-30"
+          title="Redo (Ctrl+Shift+Z)"
+        >
+          <Redo2 size={11} />
+        </button>
+        <button
+          onClick={() =>
+            selectedHotspotId && duplicateHotspot(selectedHotspotId)
+          }
+          disabled={!selectedHotspotId}
+          className="chip disabled:opacity-30"
+          title="Duplicate selected hotspot (Ctrl+D)"
+        >
+          <Copy size={11} />
+        </button>
+        {/* Multi-select bulk-delete. Compact icon-plus-count chip so it
+            doesn't push against the centered "Factory Tour" brand. */}
+        {selectedHotspotIds.size > 1 && (
+          <button
+            onClick={() => bulkDeleteSelected()}
+            className="shrink-0 flex items-center gap-1 px-1.5 py-1 rounded border border-red-500/50 bg-red-500/15 text-red-300 text-[11px] font-medium hover:bg-red-500/25 transition-colors"
+            title={`Delete ${selectedHotspotIds.size} selected hotspots (Delete key)`}
+          >
+            <Trash2 size={11} />
+            {selectedHotspotIds.size}
+          </button>
+        )}
         {/* Live save status — the single source of truth for "did my edits
             persist". Clicking forces a flush so the user always has a way
             to trigger + verify a save without hunting for the SAVE button
@@ -976,6 +1357,9 @@ export default function TourEditPage() {
               hotspots={hotspots}
               editable={!previewMode}
               selectedHotspotId={previewMode ? null : selectedHotspotId}
+              selectedHotspotIds={
+                previewMode ? null : selectedHotspotIds
+              }
               pendingHotspot={pendingHotspot}
               onPlace={(x, y) => {
                 if (!pendingHotspot || !activeSceneId) return;
@@ -1003,7 +1387,10 @@ export default function TourEditPage() {
                 if (previewMode) {
                   fireHotspotAction(h);
                 } else {
-                  setSelectedHotspotId(h.id);
+                  selectHotspot(
+                    h.id,
+                    modKeyRef.current.shift || modKeyRef.current.ctrl
+                  );
                 }
               }}
               onHotspotDoubleClick={(h) => fireHotspotAction(h)}
@@ -1035,6 +1422,9 @@ export default function TourEditPage() {
               hotspots={hotspots}
               editable={!previewMode}
               selectedHotspotId={previewMode ? null : selectedHotspotId}
+              selectedHotspotIds={
+                previewMode ? null : selectedHotspotIds
+              }
               mirrored={tour.mirrored ?? false}
               hideStitching={activeScene.hide_stitching ?? false}
               hideTripod={activeScene.hide_tripod ?? false}
@@ -1072,7 +1462,10 @@ export default function TourEditPage() {
                 if (previewMode) {
                   fireHotspotAction(h);
                 } else {
-                  setSelectedHotspotId(h.id);
+                  selectHotspot(
+                    h.id,
+                    modKeyRef.current.shift || modKeyRef.current.ctrl
+                  );
                 }
               }}
               onHotspotDoubleClick={(h) => {
@@ -1226,6 +1619,7 @@ export default function TourEditPage() {
           onTestAction={fireHotspotAction}
           onHotspotChange={onHotspotChange}
           onHotspotDelete={onHotspotDelete}
+          onHotspotDuplicate={duplicateHotspot}
           onSceneChange={onSceneChange}
           onSave={handleSave}
           onPublishToggle={togglePublish}

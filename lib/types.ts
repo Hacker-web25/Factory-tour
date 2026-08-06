@@ -9,10 +9,20 @@ export type TransitionEffect =
   | "slide"
   | "instant";
 
+export type Folder = {
+  id: string;
+  name: string;
+  /** SHA-256 hash of the password, or null if the folder is open. */
+  password_hash: string | null;
+  created_at: string;
+};
+
 export type Tour = {
   id: string;
   title: string;
   description: string | null;
+  /** Optional folder membership. null/undefined = "Unfiled". */
+  folder_id?: string | null;
   cover_scene_id: string | null;
   /** Legacy — kept in sync with visibility for backward compat. Use visibility. */
   published: boolean;
@@ -120,7 +130,8 @@ export type HotspotType =
   | "url"
   | "video"
   | "pdf"
-  | "polygon";
+  | "polygon"
+  | "audio";
 
 /** what happens on click */
 export type HotspotAction =
@@ -130,7 +141,8 @@ export type HotspotAction =
   | "url"
   | "image_popup"
   | "video_popup"
-  | "pdf_popup";
+  | "pdf_popup"
+  | "audio_popup";
 
 export type SoundEffect =
   | "none"
@@ -223,6 +235,9 @@ export type Hotspot = {
 
   // video / pdf hotspots
   video_url?: string | null;
+  /** Voice-note / narration audio (mp3/wav/m4a). Clicking the hotspot
+   *  opens a small floating audio player over the panorama. */
+  audio_url?: string | null;
   video_source?: "youtube" | "upload" | null;
   pdf_url?: string | null;
   pdf_name?: string | null;

@@ -10,6 +10,7 @@ import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
 import { Play, Pause, Minimize2, ZoomIn, Ruler } from "lucide-react";
 import MeasureTool from "@/components/viewer/MeasureTool";
+import { trackEvent } from "@/lib/analytics";
 
 type Props = {
   tour: Tour;
@@ -40,6 +41,7 @@ export default function TourPlayer({
   const [infoModal, setInfoModal] = useState<Hotspot | null>(null);
   const [videoModal, setVideoModal] = useState<Hotspot | null>(null);
   const [pdfModal, setPdfModal] = useState<Hotspot | null>(null);
+  const [audioPopup, setAudioPopup] = useState<Hotspot | null>(null);
   // Ref for the panorama viewer's zoom-reset function.
   const zoomResetRef = useRef<null | (() => void)>(null);
   // Measure tool state + click-capture promise handoff
@@ -72,6 +74,37 @@ export default function TourPlayer({
   const isFullscreenTab =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("fullscreen") === "1";
+  // Don't count editor previews as real analytics events — otherwise
+  // the owner's own testing inflates the numbers.
+  const isEditorPreview =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("preview") === "1";
+  const analyticsOn = !isEditorPreview;
+
+  // Session boundaries — fires once per tab lifetime.
+  useEffect(() => {
+    if (!analyticsOn) return;
+    trackEvent(tour.id, "session_start");
+    const onLeave = () => trackEvent(tour.id, "session_end");
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      onLeave();
+      window.removeEventListener("beforeunload", onLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour.id, analyticsOn]);
+
+  // scene_view — debounced 300ms so auto-tour rapid-fire scene switches
+  // collapse into a single event per scene.
+  useEffect(() => {
+    if (!analyticsOn || !activeSceneId) return;
+    trackEvent(
+      tour.id,
+      "scene_view",
+      { scene_id: activeSceneId },
+      300
+    );
+  }, [tour.id, activeSceneId, analyticsOn]);
   const [autoPlaying, setAutoPlaying] = useState(
     autoplay || (tour.auto_tour_enabled ?? false)
   );
@@ -121,6 +154,7 @@ export default function TourPlayer({
         setInfoModal(null);
         setVideoModal(null);
         setPdfModal(null);
+        setAudioPopup(null);
       }, dur);
     },
   });
@@ -343,6 +377,13 @@ export default function TourPlayer({
   }
 
   function onHotspotClick(h: Hotspot) {
+    // Analytics — record every hotspot click regardless of action type.
+    if (analyticsOn) {
+      trackEvent(tour.id, "hotspot_click", {
+        scene_id: h.scene_id,
+        hotspot_id: h.id,
+      });
+    }
     // Play sound effect regardless of action
     playHotspotSound(h.sound_effect, h.sound_effect_url);
 
@@ -358,6 +399,8 @@ export default function TourPlayer({
       setVideoModal(h);
     } else if (action === "pdf_popup") {
       setPdfModal(h);
+    } else if (action === "audio_popup") {
+      setAudioPopup(h);
     }
   }
 
@@ -675,6 +718,14 @@ export default function TourPlayer({
       {pdfModal && (
         <PdfModal hotspot={pdfModal} onClose={() => setPdfModal(null)} />
       )}
+
+      {/* Audio / voice-note mini-player — non-modal, floats bottom-center */}
+      {audioPopup && (
+        <AudioPlayerPopup
+          hotspot={audioPopup}
+          onClose={() => setAudioPopup(null)}
+        />
+      )}
     </div>
   );
 }
@@ -748,7 +799,47 @@ function extractYouTubeId(url: string): string | null {
   return null;
 }
 
-function legacyAction(h: Hotspot): "none" | "nav" | "info_popup" | "url" | "image_popup" | "video_popup" | "pdf_popup" {
+/** Floating audio player. Doesn't block the panorama — visitors can still
+ *  pan and click other hotspots while a voice note plays. Sits pinned to
+ *  the bottom center with a slim glass card and a small close X. */
+function AudioPlayerPopup({
+  hotspot,
+  onClose,
+}: {
+  hotspot: Hotspot;
+  onClose: () => void;
+}) {
+  const url = hotspot.audio_url ?? "";
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+      <div className="pointer-events-auto flex items-center gap-3 bg-black/80 backdrop-blur-md border border-white/10 rounded-full pl-4 pr-2 py-2 shadow-2xl">
+        <div className="text-sm text-white/90 max-w-[240px] truncate">
+          {hotspot.label || hotspot.info_title || "Voice note"}
+        </div>
+        {url ? (
+          <audio
+            src={url}
+            autoPlay
+            controls
+            className="h-8"
+            style={{ minWidth: 260 }}
+          />
+        ) : (
+          <div className="text-xs text-red-300 px-2">No audio attached</div>
+        )}
+        <button
+          onClick={onClose}
+          className="ml-1 w-7 h-7 grid place-items-center rounded-full bg-white/10 hover:bg-white/20 text-white text-sm"
+          aria-label="Close audio player"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function legacyAction(h: Hotspot): "none" | "nav" | "info_popup" | "url" | "image_popup" | "video_popup" | "pdf_popup" | "audio_popup" {
   switch (h.type) {
     case "nav": return "nav";
     case "url": return "url";
@@ -756,6 +847,7 @@ function legacyAction(h: Hotspot): "none" | "nav" | "info_popup" | "url" | "imag
     case "image": return "image_popup";
     case "video": return "video_popup";
     case "pdf": return "pdf_popup";
+    case "audio": return "audio_popup";
     default: return "none";
   }
 }

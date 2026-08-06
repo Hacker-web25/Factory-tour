@@ -21,6 +21,8 @@ import {
   HelpCircle,
   AlertCircle,
   Wrench,
+  Mic,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,6 +47,8 @@ export const ICON_LIBRARY: IconEntry[] = [
   { key: "camera",       label: "Camera",       Icon: Camera },
   { key: "video",        label: "Video",        Icon: Video },
   { key: "play",         label: "Play",         Icon: Play },
+  { key: "mic",          label: "Microphone",   Icon: Mic },
+  { key: "speaker",      label: "Speaker",      Icon: Volume2 },
   { key: "diamond",      label: "Diamond",      Icon: Diamond },
   { key: "arrow-up",     label: "Arrow up",     Icon: ArrowUp },
   { key: "arrow-down",   label: "Arrow down",   Icon: ArrowDown },

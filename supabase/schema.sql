@@ -370,3 +370,90 @@ alter table public.tours add constraint tours_transition_effect_check
 
 notify pgrst, 'reload schema';
 
+-- =====================================================================
+-- MIGRATION 019 — analytics events
+-- =====================================================================
+-- Every viewer interaction in the public tour player writes a row here.
+-- Owners' /analytics/[id] page rolls these into KPIs, time series, top
+-- scenes and top hotspots. All writes are fire-and-forget; failures
+-- must never block the viewer.
+
+create table if not exists public.tour_events (
+  id          uuid primary key default gen_random_uuid(),
+  tour_id     uuid not null references public.tours(id) on delete cascade,
+  scene_id    uuid references public.scenes(id) on delete set null,
+  hotspot_id  uuid references public.hotspots(id) on delete set null,
+  event_type  text not null,
+  session_id  uuid not null,
+  viewport_w  int,
+  viewport_h  int,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.tour_events drop constraint if exists tour_events_type_check;
+alter table public.tour_events add constraint tour_events_type_check
+  check (event_type in ('scene_view', 'hotspot_click', 'session_start', 'session_end'));
+
+create index if not exists tour_events_tour_created_idx
+  on public.tour_events(tour_id, created_at desc);
+create index if not exists tour_events_tour_type_idx
+  on public.tour_events(tour_id, event_type);
+create index if not exists tour_events_session_idx
+  on public.tour_events(session_id);
+
+alter table public.tour_events enable row level security;
+
+drop policy if exists "tour_events insert" on public.tour_events;
+drop policy if exists "tour_events read"   on public.tour_events;
+
+-- Public insert so unauthenticated viewers can write. Public read to
+-- match current permissive posture; tighten to owner-only once auth exists.
+create policy "tour_events insert" on public.tour_events for insert with check (true);
+create policy "tour_events read"   on public.tour_events for select using (true);
+
+notify pgrst, 'reload schema';
+
+-- =====================================================================
+-- MIGRATION 020 — audio hotspots
+-- =====================================================================
+-- Voice-note / narration hotspots. Owner uploads or records an audio
+-- clip; viewers click the hotspot to hear it play inline. Same storage
+-- bucket as everything else; audio files land under audio/*.
+
+alter table public.hotspots add column if not exists audio_url text;
+
+-- Allow 'audio' as a hotspot type and 'audio_popup' as an action.
+alter table public.hotspots drop constraint if exists hotspots_type_check;
+alter table public.hotspots add constraint hotspots_type_check
+  check (type in ('nav','info','image','url','video','icon','text','pdf','polygon','audio'));
+
+notify pgrst, 'reload schema';
+
+-- =====================================================================
+-- MIGRATION 021 — folders + password protection
+-- =====================================================================
+-- Simple flat folder system. Every tour can belong to at most one
+-- folder; folders can be password-protected (client-side SHA-256 gate,
+-- not real crypto — sufficient to keep tours from casual co-workers
+-- browsing the dashboard).
+
+create table if not exists public.folders (
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null default 'New folder',
+  password_hash text,   -- null = open folder, non-null = locked
+  created_at    timestamptz not null default now()
+);
+
+alter table public.tours
+  add column if not exists folder_id uuid references public.folders(id) on delete set null;
+
+create index if not exists tours_folder_idx on public.tours(folder_id);
+
+alter table public.folders enable row level security;
+drop policy if exists "folders read"  on public.folders;
+drop policy if exists "folders write" on public.folders;
+create policy "folders read"  on public.folders for select using (true);
+create policy "folders write" on public.folders for all    using (true) with check (true);
+
+notify pgrst, 'reload schema';
+
