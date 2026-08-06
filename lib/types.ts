@@ -131,7 +131,8 @@ export type HotspotType =
   | "video"
   | "pdf"
   | "polygon"
-  | "audio";
+  | "audio"
+  | "person";
 
 /** what happens on click */
 export type HotspotAction =
@@ -217,6 +218,9 @@ export type Hotspot = {
 
   // appears in every scene of the tour at the same yaw/pitch
   is_master: boolean;
+  /** When is_master and this array is non-empty, the master only appears in
+   *  these scenes (allowlist). Empty/null = every scene in the tour. */
+  master_scene_ids?: string[] | null;
 
   // subtle animation on hover
   animation: HotspotAnimation;
@@ -275,6 +279,14 @@ export type Hotspot = {
   /** In-place video card. */
   video_show_thumbnail: boolean;
   video_thumbnail_url: string | null;
+
+  /** Popup / player card size as % of viewport (video player, image popup).
+   *  20-100. Defaults to 80 when unset. */
+  card_size_pct?: number | null;
+  /** Thumbnail / hover preview / inline card size as % of default. 50-300.
+   *  Applies to the on-panorama VideoCard thumbnail and the hover
+   *  VideoPreviewCard. Defaults to 100. */
+  thumbnail_size_pct?: number | null;
 
   created_at: string;
 };

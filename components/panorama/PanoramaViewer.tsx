@@ -492,6 +492,27 @@ function HotspotMarker(props: {
 }) {
   const { hotspot: h } = props;
 
+  // TEXT hotspots always render as HTML billboards — the "text" of a text
+  // hotspot IS the payload, and the 3D-plane renderers only know how to
+  // paint an image/icon texture (they'd render the default icon_key instead
+  // of the text, which is why 2D/Floor/Wall previously showed a mystery
+  // circle for text hotspots). Overlay modes don't apply to text.
+  if (h.type === "text") return <HtmlBillboard {...props} />;
+
+  // PERSON hotspots (human tags) get their own compact renderer — pulsing
+  // dot that expands to a name pill on hover/click.
+  if (h.type === "person") return <PersonTag {...props} />;
+
+  // INFO hotspots — premium i-in-circle marker with breathing pulse ring.
+  // Overrides the generic icon renderer to guarantee the classic "info"
+  // affordance every visitor recognises instantly.
+  if (h.type === "info") return <InfoHotspot {...props} />;
+
+  // IMAGE hotspots — blue circle that morphs into a card with a blue
+  // header and white image/caption body. Skips the 3D-plane router so
+  // overlay modes don't apply here (they don't make sense for this UI).
+  if (h.type === "image") return <MediaHotspot {...props} />;
+
   // 3D-plane overlay modes (only when we actually have an image).
   // Overlay modes are available for every hotspot kind. They need a texture
   // to paint on the plane — use image_url, icon_url, or (last resort) a
@@ -741,13 +762,13 @@ function HtmlBillboard({
             background: "transparent",
             border: "none",
             borderRadius: 0,
-            outline: selected
-              ? "2px solid rgb(34,211,238)"
-              : hovered && editable
-              ? "1.5px solid rgba(255,255,255,0.6)"
-              : "none",
+            // Only draw the selection outline. Hover no longer paints one —
+            // it was leaving persistent-looking borders on hotspots the user
+            // had hovered past. Selection state remains the only visual
+            // "this hotspot is active" indicator.
+            outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 4,
-            transform: hovered && editable ? "scale(1.05)" : "none",
+            transform: hovered && editable ? "scale(1.03)" : "none",
             transition: "transform 0.15s",
           }}
         >
@@ -929,6 +950,10 @@ function VideoPreviewCard({
     (ytId ? "YouTube video" : "Video");
   const subtitle = meta?.author ?? (ytId ? "YouTube" : "");
 
+  const thumbScale = (h.thumbnail_size_pct ?? 100) / 100;
+  const cardW = Math.round(300 * thumbScale);
+  const thumbH = Math.round(168 * thumbScale);
+
   return (
     <div
       className="pointer-events-none"
@@ -937,7 +962,7 @@ function VideoPreviewCard({
         bottom: "calc(100% + 6px)",
         left: "50%",
         transform: "translateX(-50%)",
-        width: 300,
+        width: cardW,
         background: "rgba(15, 15, 20, 0.95)",
         border: "1px solid rgba(220, 20, 20, 0.55)",
         borderRadius: 8,
@@ -950,7 +975,7 @@ function VideoPreviewCard({
       }}
     >
       {thumbnail ? (
-        <div style={{ position: "relative", width: "100%", height: 168 }}>
+        <div style={{ position: "relative", width: "100%", height: thumbH }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={thumbnail}
@@ -1095,8 +1120,9 @@ function VideoCard({ hotspot: h }: { hotspot: Hotspot }) {
     };
   }, [hovered, meta, ytId, h.video_url]);
 
-  const cardW = 260;
-  const cardH = 146;
+  const thumbScale = (h.thumbnail_size_pct ?? 100) / 100;
+  const cardW = Math.round(260 * thumbScale);
+  const cardH = Math.round(146 * thumbScale);
 
   // Best-effort display title, in priority order.
   const displayTitle =
@@ -1419,6 +1445,502 @@ function useHotspotFaceTexture(h: Hotspot): {
   }, [url, iconKey, tint]);
 
   return { tex, failed, aspect };
+}
+
+/* ---------- Info hotspot (premium state-driven marker) ------------------
+ *
+ * State machine:
+ *   IDLE      – just the marker; subtle idle breathe
+ *   HOVER     – marker scales, pulse ring appears
+ *   COMPACT   – small card next to the marker (title + first line)
+ *   EXPANDED  – full panel (title + full body + close ×)
+ *   CLOSING   – running the collapse animation
+ *
+ * The panel is spatially anchored to the marker via transform-origin so it
+ * appears to grow OUT of the dot rather than dropping in from nowhere. All
+ * children reveal in a staggered sequence via the .hs-stage class.
+ *
+ * Coordination: uses the shared hotspot bus so opening this closes any
+ * other open hotspot. Escape and click-outside also close via the bus. */
+type InfoPhase = "idle" | "hover" | "compact" | "expanded" | "closing";
+
+function InfoHotspot({
+  hotspot: h,
+  editable,
+  selected,
+  onClick,
+  onDoubleClick,
+  onDragStart,
+}: {
+  hotspot: Hotspot;
+  editable: boolean;
+  selected: boolean;
+  mirrored: boolean;
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  onDragStart: () => void;
+  setOrbitEnabled?: (v: boolean) => void;
+}) {
+  // Two states: hover (pill morph) and open (body panel unfolded).
+  // The `closing` flag runs the reverse animation before the panel
+  // actually unmounts, so the fold-back is visible.
+  const [hovered, setHovered] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const pos = useMemo(
+    () => sphericalToVec3(h.yaw, h.pitch),
+    [h.yaw, h.pitch]
+  );
+  const lastClickRef = useRef(0);
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!editable) return;
+    e.stopPropagation();
+    const sx = e.clientX,
+      sy = e.clientY;
+    let dragged = false;
+    const move = (ev: PointerEvent) => {
+      if (dragged) return;
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > DRAG_THRESHOLD_PX) {
+        dragged = true;
+        onDragStart();
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (dragged) return;
+      const now = performance.now();
+      if (now - lastClickRef.current < 350) {
+        onDoubleClick();
+      } else {
+        onClick();
+      }
+      lastClickRef.current = now;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // Public-mode click: toggle the body panel with a graceful close if it
+  // was already open (so the fold-back animation plays before unmount).
+  function togglePublicClick() {
+    if (open) {
+      setClosing(true);
+      window.setTimeout(() => {
+        setOpen(false);
+        setClosing(false);
+      }, 260); // matches info-body-fold duration
+    } else {
+      setOpen(true);
+    }
+  }
+
+  // Pill title = info_title from the info config (the "Title" a visitor
+  // sees inside the pill). label is a SEPARATE caption rendered below the
+  // pill (like a signpost saying "Info about the boiler room").
+  const title = h.info_title || "Info";
+  const body = h.info_body || "";
+  const caption = h.label || null;
+  // When the body panel is open, we keep the pill in its hovered/pill
+  // state so the title stays visible — closing the panel snaps back to
+  // idle if the cursor has left.
+  const pillOpen = hovered || open;
+
+  return (
+    <Html
+      position={pos.toArray()}
+      center
+      distanceFactor={400}
+      zIndexRange={[10, 0]}
+      style={{ pointerEvents: "auto" }}
+    >
+      <div
+        style={
+          {
+            position: "relative",
+            filter: "drop-shadow(0 3px 8px rgba(0,0,0,0.55))",
+            // Pill height is driven by width_pct so the existing Width
+            // slider in the panel controls icon size. Default width_pct
+            // is 80 → 42px pill; 160 → 84px; 40 → 21px.
+            "--pill-h": `${Math.max(22, Math.min(96, (h.width_pct ?? 80) * 0.525))}px`,
+          } as React.CSSProperties
+        }
+      >
+        {/* The morphing pill — click anywhere on it (icon or title) to
+            toggle the body panel. Hovering just expands the pill. */}
+        <div
+          className={`info-pill ${pillOpen ? "is-hovered" : ""} ${open ? "is-open" : ""}`}
+          style={{
+            outline: selected ? "2px solid rgb(34,211,238)" : "none",
+            outlineOffset: 3,
+          }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onPointerDown={handlePointerDown}
+          onClick={(e) => {
+            if (!editable) {
+              e.stopPropagation();
+              togglePublicClick();
+            }
+          }}
+        >
+          <div className="info-pill__icon">i</div>
+          <div className="info-pill__title-cell">
+            <div className="info-pill__title">{title}</div>
+          </div>
+        </div>
+
+        {/* Caption line — the "Label" field, rendered as a signpost text
+            under the icon so it always identifies what this dot represents,
+            even before the pill is expanded. Styled from the Label panel
+            (color / size / font / bold / background). */}
+        {caption && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(var(--pill-h, 42px) + 6px)",
+              left: "50%",
+              transform: "translateX(-50%)",
+              color: h.label_color ?? "#ffffff",
+              fontSize: h.label_size ?? 12,
+              fontWeight: h.label_bold ? 700 : 500,
+              fontFamily: fontFor(h.label_font),
+              background: h.label_bg ?? "transparent",
+              padding: h.label_bg ? "2px 8px" : 0,
+              borderRadius: h.label_bg ? 4 : 0,
+              whiteSpace: "nowrap",
+              textShadow: h.label_bg ? "none" : "0 1px 3px rgba(0,0,0,0.7)",
+              pointerEvents: "none",
+              userSelect: "none",
+            }}
+          >
+            {caption}
+          </div>
+        )}
+
+        {/* Body panel — unfolds down from behind the pill, sits at z-index
+            -1 relative to the pill so its top edge tucks under the pill.
+            Resizable via CSS `resize: both` handle in the corner. */}
+        {open && (
+          <div className={`info-body ${closing ? "is-closing" : ""}`}>
+            <button
+              className="info-body__close"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePublicClick();
+              }}
+              aria-label="Close info"
+            >
+              ×
+            </button>
+            <div className="info-body__scroll">
+              {body || (
+                <div style={{ opacity: 0.55, fontStyle: "italic" }}>
+                  No description added yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Html>
+  );
+}
+
+/* ---------- Person tag (human-tag hotspot renderer) --------------------
+ * Compact "who is this" marker for tagging people in a scene. Reads:
+ *   label      → person's name (main line)
+ *   info_body  → role / caption (sub-line, optional)
+ *   icon_url   → optional avatar photo (round crop)
+ * Renders a small dot with a pulsing halo. On hover it expands into a
+ * name pill; on click the full card stays open with an optional caption.
+ * Small footprint on the panorama, big visual reward on interaction. */
+function PersonTag({
+  hotspot: h,
+  editable,
+  selected,
+  onClick,
+  onDoubleClick,
+  onDragStart,
+}: {
+  hotspot: Hotspot;
+  editable: boolean;
+  selected: boolean;
+  mirrored: boolean;
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  onDragStart: () => void;
+  setOrbitEnabled?: (v: boolean) => void;
+}) {
+  // Two states: hover (expands balloon) and pinned (stays open after click)
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const pos = useMemo(
+    () => sphericalToVec3(h.yaw, h.pitch),
+    [h.yaw, h.pitch]
+  );
+  const lastClickRef = useRef(0);
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!editable) return;
+    e.stopPropagation();
+    const sx = e.clientX,
+      sy = e.clientY;
+    let dragged = false;
+    const move = (ev: PointerEvent) => {
+      if (dragged) return;
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > DRAG_THRESHOLD_PX) {
+        dragged = true;
+        onDragStart();
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (dragged) return;
+      const now = performance.now();
+      if (now - lastClickRef.current < 350) onDoubleClick();
+      else onClick();
+      lastClickRef.current = now;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  const name = h.label || "Person";
+  const desc = h.info_body || null;
+  const bg = h.color || "rgba(45,47,52,0.94)";
+  const fg = h.label_color || "#ffffff";
+  // Card size uses width_pct for the mini pill scale; card_size_pct for
+  // the opened balloon.
+  const miniScale = (h.width_pct ?? 80) / 80;
+  const bigScale = (h.card_size_pct ?? 80) / 80;
+  const miniW = Math.round(96 * miniScale);
+  const miniH = Math.round(38 * miniScale);
+  const bigW = Math.round(240 * bigScale);
+  const bigH = Math.round(240 * bigScale);
+
+  // Public-mode: hover opens; click pins. Editable-mode: stays mini so
+  // authors can see and drag the marker.
+  const open = !editable && (hovered || pinned);
+
+  return (
+    <Html
+      position={pos.toArray()}
+      center
+      distanceFactor={400}
+      zIndexRange={[10, 0]}
+      style={{ pointerEvents: "auto" }}
+    >
+      <div
+        className={`human-hs ${open ? "is-open" : ""}`}
+        style={
+          {
+            "--hs-bg": bg,
+            "--hs-fg": fg,
+            "--hs-mini-w": `${miniW}px`,
+            "--hs-mini-h": `${miniH}px`,
+            "--hs-big-w": `${bigW}px`,
+            "--hs-big-h": `${bigH}px`,
+            outline: selected ? "2px solid rgb(34,211,238)" : "none",
+            outlineOffset: 6,
+            borderRadius: "50%",
+          } as React.CSSProperties
+        }
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div
+          className="human-hs__bubble"
+          onPointerDown={handlePointerDown}
+          onClick={(e) => {
+            if (editable) return;
+            e.stopPropagation();
+            setPinned((p) => !p);
+          }}
+        >
+          <div className="human-hs__name">{name}</div>
+          <svg
+            className="human-hs__figure"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden
+          >
+            <circle cx="12" cy="7.5" r="4.2" />
+            <path d="M4 22c0-4.4 3.6-8 8-8s8 3.6 8 8H4z" />
+          </svg>
+          {desc && <div className="human-hs__desc">{desc}</div>}
+        </div>
+        {/* Speech-bubble tail — sits outside the overflow-hidden bubble
+            so it shows only when closed. Uses the same bg colour. */}
+        <div className="human-hs__tail" />
+      </div>
+    </Html>
+  );
+}
+
+/* ---------- Media hotspot (circle → card morph) -----------------------
+ * Idle: blue circle with camera glyph.
+ * Hover / click: morphs into a card — blue header keeps the icon, white
+ * body reveals the image and (optional) caption. Unhover collapses back
+ * to the circle unless the user has clicked (which "pins" it open).
+ * Icon size + card size are both driven by data (width_pct / card_size_pct)
+ * so the size sliders in the panel work out of the box.
+ * --------------------------------------------------------------------- */
+function MediaHotspot({
+  hotspot: h,
+  editable,
+  selected,
+  onClick,
+  onDoubleClick,
+  onDragStart,
+}: {
+  hotspot: Hotspot;
+  editable: boolean;
+  selected: boolean;
+  mirrored: boolean;
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
+  onClick: () => void;
+  onDoubleClick: () => void;
+  onDragStart: () => void;
+  setOrbitEnabled?: (v: boolean) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const pos = useMemo(
+    () => sphericalToVec3(h.yaw, h.pitch),
+    [h.yaw, h.pitch]
+  );
+  const lastClickRef = useRef(0);
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (!editable) return;
+    e.stopPropagation();
+    const sx = e.clientX,
+      sy = e.clientY;
+    let dragged = false;
+    const move = (ev: PointerEvent) => {
+      if (dragged) return;
+      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > DRAG_THRESHOLD_PX) {
+        dragged = true;
+        onDragStart();
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (dragged) return;
+      const now = performance.now();
+      if (now - lastClickRef.current < 350) onDoubleClick();
+      else onClick();
+      lastClickRef.current = now;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // Size mapping — reuse the existing width_pct (icon size, 40-200%)
+  // and card_size_pct (opened card size, 40-200%).
+  const iconSize = Math.max(36, Math.min(140, (h.width_pct ?? 80) * 0.7));
+  const cardScale = (h.card_size_pct ?? 80) / 80; // 80% → 1.0
+  const cardW = Math.round(240 * cardScale);
+  const cardH = Math.round(300 * cardScale);
+  const headerH = Math.max(48, Math.min(80, iconSize));
+
+  const caption = h.info_body || null;
+  const imageUrl = h.image_url || null;
+
+  // Public-mode: hover opens; click pins. In editable mode, the card
+  // never auto-opens — authors need to see the marker while editing.
+  const open = !editable && (hovered || pinned);
+
+  return (
+    <Html
+      position={pos.toArray()}
+      center
+      distanceFactor={400}
+      zIndexRange={[10, 0]}
+      style={{ pointerEvents: "auto" }}
+    >
+      <div
+        className={`media-hs ${open ? "is-open" : ""} ${
+          pinned ? "is-pinned" : ""
+        }`}
+        style={
+          {
+            "--media-icon": `${iconSize}px`,
+            "--media-w": `${cardW}px`,
+            "--media-h": `${cardH}px`,
+            "--media-header": `${headerH}px`,
+            outline: selected ? "2px solid rgb(34,211,238)" : "none",
+            outlineOffset: 4,
+          } as React.CSSProperties
+        }
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div
+          className="media-hs__card"
+          onPointerDown={handlePointerDown}
+          onClick={(e) => {
+            if (editable) return;
+            e.stopPropagation();
+            setPinned((p) => !p);
+          }}
+        >
+          <div className="media-hs__header">
+            {/* Inline camera SVG — no extra import; scales with the card */}
+            <svg
+              className="media-hs__icon-svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </div>
+          <div className="media-hs__body">
+            <div className="media-hs__image">
+              {imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="" draggable={false} />
+              ) : (
+                <span
+                  style={{
+                    color: "#8a8f96",
+                    fontSize: 12,
+                    fontStyle: "italic",
+                  }}
+                >
+                  Add an image URL
+                </span>
+              )}
+            </div>
+            {caption && <div className="media-hs__caption">{caption}</div>}
+          </div>
+          <button
+            className="media-hs__close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPinned(false);
+              setHovered(false);
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </Html>
+  );
 }
 
 /* --------- Surface (2D wall-attached) image ---------- */

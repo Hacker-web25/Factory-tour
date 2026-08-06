@@ -28,10 +28,12 @@ import {
   Redo2,
   Copy,
   Trash2,
+  Folder as FolderIcon,
 } from "lucide-react";
 import { exportTourToBlob, downloadBlob } from "@/lib/backup";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import FlatViewer from "@/components/panorama/FlatViewer";
+import FolderResourcesModal from "@/components/builder/FolderResourcesModal";
 import { useAutoTour } from "@/lib/useAutoTour";
 
 const HOTSPOT_DEFAULTS = {
@@ -143,15 +145,21 @@ export default function TourEditPage() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      // Don't hijack ESC if a text input has focus
+      // If a text input has focus, blur it first — then unselect on the
+      // next ESC press. But if the user is placing/repositioning a hotspot,
+      // let ESC cancel immediately regardless of focus.
       const t = e.target as HTMLElement | null;
-      if (
+      const isTyping =
         t &&
-        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)
-      ) {
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable);
+      if (isTyping && !pendingHotspot && !repositioningId) {
+        (t as HTMLElement).blur();
         return;
       }
       setSelectedHotspotId(null);
+      setSelectedHotspotIds(new Set());
       setPendingHotspot(null);
       setRepositioningId(null);
     }
@@ -175,6 +183,8 @@ export default function TourEditPage() {
   const zoomResetRef = useRef<null | (() => void)>(null);
   const snapshotFnRef = useRef<null | (() => string | null)>(null);
   const [dragOverPanorama, setDragOverPanorama] = useState(false);
+  const [folderResourcesOpen, setFolderResourcesOpen] = useState(false);
+  const [folderName, setFolderName] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -189,6 +199,16 @@ export default function TourEditPage() {
       setTour(t as Tour);
       setScenes((s ?? []) as Scene[]);
       if (s && s.length) setActiveSceneId(s[0].id);
+      // Fetch the folder's name so the resources modal has a nice title.
+      const folderId = (t as any)?.folder_id;
+      if (folderId) {
+        const { data: f } = await supabase
+          .from("folders")
+          .select("name")
+          .eq("id", folderId)
+          .maybeSingle();
+        if (f?.name) setFolderName(f.name);
+      }
     })();
   }, [tourId]);
 
@@ -622,6 +642,9 @@ export default function TourEditPage() {
       wall_tilt_roll: h.wall_tilt_roll ?? 0,
       video_show_thumbnail: h.video_show_thumbnail ?? false,
       video_thumbnail_url: h.video_thumbnail_url ?? null,
+      card_size_pct: h.card_size_pct ?? 80,
+      thumbnail_size_pct: h.thumbnail_size_pct ?? 100,
+      master_scene_ids: h.master_scene_ids ?? null,
       polygon_points: h.polygon_points ?? null,
       polygon_fill_color: h.polygon_fill_color ?? "#22d3ee",
       polygon_stroke_color: h.polygon_stroke_color ?? "#22d3ee",
@@ -1095,21 +1118,33 @@ export default function TourEditPage() {
     clientX: number,
     clientY: number
   ) {
-    if (!activeSceneId || !screenToYawPitchRef.current) return;
+    if (!activeSceneId) {
+      alert("No active scene — drop failed.");
+      return;
+    }
     if (targetSceneId === activeSceneId) {
       alert("That's the current scene — can't nav to itself.");
       return;
     }
-    const yp = screenToYawPitchRef.current(clientX, clientY);
-    if (!yp) return;
-    const target = scenes.find((s) => s.id === targetSceneId);
-    const insert = buildInsert(activeSceneId, yp.yaw, yp.pitch, {
+    // Prefer exact drop-point projection; fall back to the current camera aim
+    // if the panorama hasn't provided a screen→yaw/pitch function yet (e.g.
+    // during a scene transition). This guarantees the hotspot lands somewhere
+    // sensible instead of the drop silently failing.
+    let yaw = 0, pitch = 0;
+    const proj = screenToYawPitchRef.current?.(clientX, clientY) ?? null;
+    if (proj) {
+      yaw = proj.yaw;
+      pitch = proj.pitch;
+    } else if (aimGetterRef.current) {
+      const aim = aimGetterRef.current();
+      yaw = aim.yaw;
+      pitch = aim.pitch;
+    }
+    const insert = buildInsert(activeSceneId, yaw, pitch, {
       type: "icon",
       action: "nav",
       target_scene_id: targetSceneId,
       icon_key: "chevron-right",
-      // No auto-label — user adds their own if they want one. Auto-labels
-      // went stale when the scene was renamed (still showed old filename).
       label: null,
     });
     const { data, error } = await supabase
@@ -1117,7 +1152,10 @@ export default function TourEditPage() {
       .insert(insert)
       .select()
       .single();
-    if (error) return alert(error.message);
+    if (error) {
+      alert(`Nav hotspot create failed: ${error.message}`);
+      return;
+    }
     setAllHotspots((h) => [...h, data as Hotspot]);
     setSelectedHotspotId((data as Hotspot).id);
   }
@@ -1197,15 +1235,6 @@ export default function TourEditPage() {
             {scenes.length} scene{scenes.length === 1 ? "" : "s"}
           </div>
         </div>
-
-        {/* Center: brand mark */}
-        <Link
-          href="/"
-          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 font-semibold text-[15px] tracking-tight text-white hover:opacity-90"
-        >
-          <Pencil size={14} className="text-accent" />
-          Factory Tour
-        </Link>
 
         <div className="flex-1" />
 
@@ -1293,6 +1322,18 @@ export default function TourEditPage() {
         >
           <Copy size={11} />
         </button>
+        {/* Folder resources — browse every image / video / audio / PDF used
+            across every tour in this folder. Only shown when the tour lives
+            in a folder. */}
+        {tour?.folder_id && (
+          <button
+            onClick={() => setFolderResourcesOpen(true)}
+            className="chip"
+            title="Browse every asset used across this folder"
+          >
+            <FolderIcon size={11} /> Resources
+          </button>
+        )}
         {/* Multi-select bulk-delete. Compact icon-plus-count chip so it
             doesn't push against the centered "Factory Tour" brand. */}
         {selectedHotspotIds.size > 1 && (
@@ -1690,6 +1731,14 @@ export default function TourEditPage() {
         />
       )}
 
+      {folderResourcesOpen && tour?.folder_id && (
+        <FolderResourcesModal
+          folderId={tour.folder_id}
+          folderName={folderName || "Folder"}
+          onClose={() => setFolderResourcesOpen(false)}
+        />
+      )}
+
     </div>
   );
 }
@@ -1751,7 +1800,18 @@ function SaveStatePill({
 
   return (
     <button
-      onClick={onForceSave}
+      onClick={() => {
+        // In error state, first show the actual failure so the user can
+        // report it (or paste it back). Then retry so a schema fix picks up
+        // on the next click without a page reload.
+        if (state === "error" && error) {
+          alert(
+            `Save failed:\n\n${error}\n\nWill retry now — if this keeps happening, ` +
+              `re-run supabase/schema.sql on your Supabase project.`
+          );
+        }
+        onForceSave();
+      }}
       className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] transition-colors ${config.cls}`}
       title={config.title}
     >

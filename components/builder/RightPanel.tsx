@@ -10,7 +10,7 @@ import type {
   Tour,
   TransitionEffect,
 } from "@/lib/types";
-import { supabase } from "@/lib/supabase";
+import { supabase, publicUrl } from "@/lib/supabase";
 import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
@@ -37,6 +37,7 @@ import {
   Maximize2,
   EyeOff,
   Mic,
+  UserCircle2,
 } from "lucide-react";
 
 type Tab = "photo" | "addon" | "hotspot" | "autotour";
@@ -405,7 +406,14 @@ function AddonsTab({
         <AddonBtn
           icon={<ImageIcon size={16} />}
           label="Image"
-          onClick={() => setImagePickerOpen(true)}
+          onClick={() =>
+            onStartAddHotspot({
+              type: "image",
+              action: "none",
+              // Blue circle → morphing card renderer handles this type.
+              // User fills in image_url and optional caption in the panel.
+            })
+          }
         />
         <AddonBtn
           icon={<Type size={16} />}
@@ -418,6 +426,31 @@ function AddonsTab({
           icon={<Info size={16} />}
           label="Hotspot"
           onClick={() => onStartAddHotspot({ type: "icon" })}
+        />
+        <AddonBtn
+          icon={<Info size={16} />}
+          label="Info"
+          onClick={() =>
+            onStartAddHotspot({
+              type: "info",
+              action: "info_popup",
+              icon_key: "info",
+              info_title: "Info",
+              info_body: "Add details here…",
+            })
+          }
+        />
+        <AddonBtn
+          icon={<UserCircle2 size={16} />}
+          label="Person"
+          onClick={() =>
+            onStartAddHotspot({
+              type: "person",
+              action: "none",
+              label: "Person name",
+              info_body: "Role · Details",
+            })
+          }
         />
         <AddonBtn
           icon={<Pencil size={16} />}
@@ -695,9 +728,14 @@ function AutoTourTab({
               index={i}
               scene={s}
               tour={tour}
-              hotspotsInScene={allHotspots.filter(
-                (h) => h.scene_id === s.id || h.is_master
-              )}
+              hotspotsInScene={allHotspots.filter((h) => {
+                if (h.scene_id === s.id) return true;
+                if (!h.is_master) return false;
+                // Master with an allowlist → only show in those scenes
+                const allow = h.master_scene_ids;
+                if (allow && allow.length > 0) return allow.includes(s.id);
+                return true;
+              })}
               onSceneChange={onSceneChange}
               onHotspotChange={onHotspotChange}
             />
@@ -2133,7 +2171,10 @@ function AddonTab({
         </div>
       </div>
 
-      {/* ICON */}
+      {/* ICON — hidden for text / image / person hotspots. Text has no
+          icon, image has a dedicated Image section, person uses a built-in
+          figure whose colour is set via the bubble Color picker instead. */}
+      {hotspot.type !== "text" && hotspot.type !== "image" && hotspot.type !== "person" && (
       <Section title="Icon" trailing={<button className="text-neutral-500 hover:text-white text-lg leading-none">···</button>}>
         <div className="flex items-center gap-4">
           <div
@@ -2176,80 +2217,239 @@ function AddonTab({
           </div>
         </div>
       </Section>
+      )}
 
-      {/* APPEARANCE */}
-      <Section title="Appearance">
-        <div className="space-y-2">
-          <NumberStepper
-            label="Width"
-            value={hotspot.width_pct}
-            min={4}
-            max={500}
-            step={1}
-            suffix="%"
-            onChange={setW}
-          />
-          <div className="flex items-center gap-2 -my-1 pl-1">
-            <button
-              onClick={() =>
-                onChange({ ...hotspot, link_wh: !hotspot.link_wh })
-              }
-              className={`text-xs ${
-                hotspot.link_wh ? "text-cyan-400" : "text-neutral-500"
-              }`}
-              title="Link width & height"
-            >
-              <Link size={12} />
-            </button>
-            <span className="text-[10px] text-neutral-500">
-              {hotspot.link_wh ? "linked" : "independent"}
-            </span>
-          </div>
-          <NumberStepper
-            label="Height"
-            value={hotspot.height_pct}
-            min={4}
-            max={500}
-            step={1}
-            suffix="%"
-            onChange={setH}
-            disabled={hotspot.link_wh}
-          />
+      {/* APPEARANCE — info & image hotspots have their own simplified size
+          controls; other types keep the generic width/height/rotation set. */}
+      {hotspot.type === "info" ? (
+        <Section title="Pill size">
           <SliderRow
-            label="Opacity"
-            value={hotspot.opacity * 100}
-            valueLabel={`${Math.round(hotspot.opacity * 100)}%`}
-            min={0}
-            max={100}
-            onChange={(v) => onChange({ ...hotspot, opacity: v / 100 })}
+            label="Size"
+            value={hotspot.width_pct ?? 80}
+            valueLabel={`${Math.round(hotspot.width_pct ?? 80)}%`}
+            min={40}
+            max={200}
+            onChange={(v) =>
+              onChange({ ...hotspot, width_pct: v, height_pct: v })
+            }
           />
-        </div>
-      </Section>
+          <div className="text-[10px] text-neutral-500 mt-1">
+            Scales the whole pill (icon and text). 80% is the default.
+          </div>
+          <div className="mt-3">
+            <SliderRow
+              label="Opacity"
+              value={hotspot.opacity * 100}
+              valueLabel={`${Math.round(hotspot.opacity * 100)}%`}
+              min={0}
+              max={100}
+              onChange={(v) => onChange({ ...hotspot, opacity: v / 100 })}
+            />
+          </div>
+        </Section>
+      ) : hotspot.type === "image" ? (
+        <>
+          <Section title="Image">
+            <ImageSourceField hotspot={hotspot} onChange={onChange} />
+            <Field label="Caption / heading (optional)">
+              <textarea
+                value={hotspot.info_body ?? ""}
+                onChange={(e) =>
+                  onChange({ ...hotspot, info_body: e.target.value })
+                }
+                placeholder="Shown below the image. Leave blank to let the image fill more space."
+                rows={2}
+                className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm resize-none"
+              />
+            </Field>
+          </Section>
+          <Section title="Sizing">
+            <SliderRow
+              label="Icon size"
+              value={hotspot.width_pct ?? 80}
+              valueLabel={`${Math.round(hotspot.width_pct ?? 80)}%`}
+              min={40}
+              max={200}
+              onChange={(v) => onChange({ ...hotspot, width_pct: v })}
+            />
+            <div className="mt-3">
+              <SliderRow
+                label="Card size"
+                value={hotspot.card_size_pct ?? 80}
+                valueLabel={`${Math.round(hotspot.card_size_pct ?? 80)}%`}
+                min={40}
+                max={200}
+                onChange={(v) =>
+                  onChange({ ...hotspot, card_size_pct: v })
+                }
+              />
+            </div>
+            <div className="mt-3">
+              <SliderRow
+                label="Opacity"
+                value={hotspot.opacity * 100}
+                valueLabel={`${Math.round(hotspot.opacity * 100)}%`}
+                min={0}
+                max={100}
+                onChange={(v) =>
+                  onChange({ ...hotspot, opacity: v / 100 })
+                }
+              />
+            </div>
+            <div className="text-[10px] text-neutral-500 mt-2">
+              Icon size = the blue circle at rest. Card size = the opened
+              card on hover. Card is also drag-resizable in the viewer.
+            </div>
+          </Section>
+        </>
+      ) : hotspot.type === "person" ? (
+        <>
+          <Section title="Bubble">
+            <Field label="Details (shown inside the balloon)">
+              <textarea
+                value={hotspot.info_body ?? ""}
+                onChange={(e) =>
+                  onChange({ ...hotspot, info_body: e.target.value })
+                }
+                placeholder="Role, short bio, or any details you want to appear under the figure."
+                rows={3}
+                className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm resize-none"
+              />
+            </Field>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Field label="Bubble color">
+                <ColorSwatch
+                  value={hotspot.color}
+                  onChange={(c) => onChange({ ...hotspot, color: c })}
+                />
+              </Field>
+              <Field label="Text / icon color">
+                <ColorSwatch
+                  value={hotspot.label_color}
+                  onChange={(c) => onChange({ ...hotspot, label_color: c })}
+                />
+              </Field>
+            </div>
+          </Section>
+          <Section title="Sizing">
+            <SliderRow
+              label="Bubble size"
+              value={hotspot.width_pct ?? 80}
+              valueLabel={`${Math.round(hotspot.width_pct ?? 80)}%`}
+              min={40}
+              max={200}
+              onChange={(v) =>
+                onChange({ ...hotspot, width_pct: v, height_pct: v })
+              }
+            />
+            <div className="mt-3">
+              <SliderRow
+                label="Balloon size"
+                value={hotspot.card_size_pct ?? 80}
+                valueLabel={`${Math.round(hotspot.card_size_pct ?? 80)}%`}
+                min={40}
+                max={200}
+                onChange={(v) =>
+                  onChange({ ...hotspot, card_size_pct: v })
+                }
+              />
+            </div>
+            <div className="mt-3">
+              <SliderRow
+                label="Opacity"
+                value={hotspot.opacity * 100}
+                valueLabel={`${Math.round(hotspot.opacity * 100)}%`}
+                min={0}
+                max={100}
+                onChange={(v) =>
+                  onChange({ ...hotspot, opacity: v / 100 })
+                }
+              />
+            </div>
+            <div className="text-[10px] text-neutral-500 mt-2">
+              Bubble size = the small speech pill at rest. Balloon size =
+              the expanded circle on hover.
+            </div>
+          </Section>
+        </>
+      ) : (
+        <>
+          <Section title="Appearance">
+            <div className="space-y-2">
+              <NumberStepper
+                label="Width"
+                value={hotspot.width_pct}
+                min={4}
+                max={500}
+                step={1}
+                suffix="%"
+                onChange={setW}
+              />
+              <div className="flex items-center gap-2 -my-1 pl-1">
+                <button
+                  onClick={() =>
+                    onChange({ ...hotspot, link_wh: !hotspot.link_wh })
+                  }
+                  className={`text-xs ${
+                    hotspot.link_wh ? "text-cyan-400" : "text-neutral-500"
+                  }`}
+                  title="Link width & height"
+                >
+                  <Link size={12} />
+                </button>
+                <span className="text-[10px] text-neutral-500">
+                  {hotspot.link_wh ? "linked" : "independent"}
+                </span>
+              </div>
+              <NumberStepper
+                label="Height"
+                value={hotspot.height_pct}
+                min={4}
+                max={500}
+                step={1}
+                suffix="%"
+                onChange={setH}
+                disabled={hotspot.link_wh}
+              />
+              <SliderRow
+                label="Opacity"
+                value={hotspot.opacity * 100}
+                valueLabel={`${Math.round(hotspot.opacity * 100)}%`}
+                min={0}
+                max={100}
+                onChange={(v) => onChange({ ...hotspot, opacity: v / 100 })}
+              />
+            </div>
+          </Section>
 
-      {/* ROTATION */}
-      <Section
-        title="Rotation"
-        trailing={
-          <button
-            onClick={() => onChange({ ...hotspot, rotation_deg: 0 })}
-            className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
+          {/* ROTATION */}
+          <Section
+            title="Rotation"
+            trailing={
+              <button
+                onClick={() => onChange({ ...hotspot, rotation_deg: 0 })}
+                className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-xs"
+              >
+                <RotateCcw size={11} /> Reset
+              </button>
+            }
           >
-            <RotateCcw size={11} /> Reset
-          </button>
-        }
-      >
-        <NumberStepper
-          label="Degrees"
-          value={hotspot.rotation_deg}
-          min={-180}
-          max={180}
-          step={1}
-          suffix="°"
-          onChange={(v) => onChange({ ...hotspot, rotation_deg: v })}
-        />
-      </Section>
+            <NumberStepper
+              label="Degrees"
+              value={hotspot.rotation_deg}
+              min={-180}
+              max={180}
+              step={1}
+              suffix="°"
+              onChange={(v) => onChange({ ...hotspot, rotation_deg: v })}
+            />
+          </Section>
+        </>
+      )}
 
-      {/* LABEL */}
+      {/* LABEL — hidden for person hotspots. Person uses its own Details
+          field inside the Bubble section instead. */}
+      {hotspot.type !== "person" && (
       <Section title="Label">
         <div className="border border-border rounded bg-panelSoft">
           <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border text-xs">
@@ -2370,8 +2570,12 @@ function AddonTab({
           />
         </div>
       </Section>
+      )}
 
-      {/* ANIMATION */}
+      {/* ANIMATION — hidden for info & person hotspots; both ship with a
+          fixed hover choreography that overrides these generic
+          per-hotspot animations. */}
+      {hotspot.type !== "info" && hotspot.type !== "person" && (
       <Section
         title="Animation"
         trailing={<Sparkles size={12} className="text-cyan-400" />}
@@ -2397,6 +2601,7 @@ function AddonTab({
           Plays continuously while the user hovers the hotspot.
         </div>
       </Section>
+      )}
 
       {/* MASTER LAYER */}
       <Section
@@ -2420,9 +2625,20 @@ function AddonTab({
             </div>
           </div>
         </label>
+
+        {/* When master is on, let the user restrict which scenes it appears in */}
+        {hotspot.is_master && (
+          <MasterScenePicker
+            hotspot={hotspot}
+            scenes={scenes}
+            onChange={onChange}
+          />
+        )}
       </Section>
 
-      {/* ACTION */}
+      {/* ACTION — hidden for person hotspots (they're pure info bubbles,
+          no click action needed). */}
+      {hotspot.type !== "person" && (
       <Section title="Action">
         <select
           value={hotspot.action}
@@ -2434,7 +2650,6 @@ function AddonTab({
           <option value="none">No action</option>
           <option value="nav">Navigate to another scene</option>
           <option value="info_popup">Open info popup</option>
-          <option value="image_popup">Open image popup</option>
           <option value="video_popup">Open video (YouTube / upload)</option>
           <option value="audio_popup">Play audio / voice note</option>
           <option value="pdf_popup">Open document (PDF)</option>
@@ -2504,6 +2719,7 @@ function AddonTab({
                 className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
               />
             </Field>
+            <CardSizeField hotspot={hotspot} onChange={onChange} />
           </>
         )}
 
@@ -2530,15 +2746,19 @@ function AddonTab({
           <AudioConfig hotspot={hotspot} onChange={onChange} />
         )}
       </Section>
+      )}
 
-      {/* SOUND EFFECT */}
+      {/* SOUND EFFECT — hidden for person hotspots (no click action). */}
+      {hotspot.type !== "person" && (
       <Section title="Click sound">
         <SoundEffectPicker hotspot={hotspot} onChange={onChange} />
       </Section>
+      )}
 
-      {/* Overlay mode picker — offered for every hotspot type, not just
-          images. Non-image hotspots use icon_url / icon_key as texture. */}
-      {true && (
+      {/* Overlay mode picker — offered for every hotspot type EXCEPT text.
+          Text hotspots always render as HTML billboards (their label is the
+          payload — nothing to paint on a 3D plane). */}
+      {hotspot.type !== "text" && hotspot.type !== "person" && (
         <Section title="Overlay mode">
           <div className="grid grid-cols-2 gap-2">
             <ModeBtn
@@ -2810,22 +3030,15 @@ function VideoConfig({
 
       {/* Inline video card — renders as a playable thumbnail card on the
           panorama instead of a small icon. */}
-      <label className="mt-3 flex items-start gap-2 text-xs cursor-pointer">
+      <label className="mt-3 flex items-center gap-2 text-xs cursor-pointer">
         <input
           type="checkbox"
           checked={hotspot.video_show_thumbnail ?? false}
           onChange={(e) =>
             onChange({ ...hotspot, video_show_thumbnail: e.target.checked })
           }
-          className="mt-0.5"
         />
-        <span>
-          Show as inline video card
-          <div className="text-[10px] text-neutral-400">
-            Displays the video's thumbnail with a play button — plays in place
-            on click instead of opening a modal.
-          </div>
-        </span>
+        <span>Virtual card</span>
       </label>
 
       {hotspot.video_show_thumbnail && (
@@ -2840,7 +3053,222 @@ function VideoConfig({
           />
         </Field>
       )}
+
+      {/* Thumbnail (hover / inline card) size — 50-300% of default */}
+      <ThumbnailSizeField hotspot={hotspot} onChange={onChange} />
+      {/* Player size — 20-150% of viewer, applied to the floating video window */}
+      <PlayerSizeField hotspot={hotspot} onChange={onChange} />
     </>
+  );
+}
+
+/** Slider for the popup player window size (20-150% of viewer). Applies
+ *  to the floating video window and image popup. */
+function PlayerSizeField({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const val = hotspot.card_size_pct ?? 80;
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs uppercase text-neutral-400">Player size</div>
+        <div className="text-[11px] text-neutral-400">{val}% of viewer</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={20}
+          max={150}
+          step={5}
+          value={val}
+          onChange={(e) =>
+            onChange({ ...hotspot, card_size_pct: Number(e.target.value) })
+          }
+          className="flex-1 accent-accent"
+        />
+        <input
+          type="number"
+          min={20}
+          max={150}
+          step={5}
+          value={val}
+          onChange={(e) =>
+            onChange({
+              ...hotspot,
+              card_size_pct: Math.max(20, Math.min(150, Number(e.target.value) || 80)),
+            })
+          }
+          className="w-16 bg-panelSoft border border-border rounded px-2 py-1 text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Slider for the inline / hover thumbnail card size (50-300% of default). */
+function ThumbnailSizeField({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const val = hotspot.thumbnail_size_pct ?? 100;
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs uppercase text-neutral-400">
+          Thumbnail size
+        </div>
+        <div className="text-[11px] text-neutral-400">{val}%</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="range"
+          min={50}
+          max={300}
+          step={10}
+          value={val}
+          onChange={(e) =>
+            onChange({
+              ...hotspot,
+              thumbnail_size_pct: Number(e.target.value),
+            })
+          }
+          className="flex-1 accent-accent"
+        />
+        <input
+          type="number"
+          min={50}
+          max={300}
+          step={10}
+          value={val}
+          onChange={(e) =>
+            onChange({
+              ...hotspot,
+              thumbnail_size_pct: Math.max(
+                50,
+                Math.min(300, Number(e.target.value) || 100)
+              ),
+            })
+          }
+          className="w-16 bg-panelSoft border border-border rounded px-2 py-1 text-xs"
+        />
+      </div>
+      <div className="text-[10px] text-neutral-500 mt-1">
+        Controls the inline video card and the hover preview thumbnail.
+      </div>
+    </div>
+  );
+}
+
+/** Back-compat alias — image config still calls this. Same as PlayerSize. */
+function CardSizeField(props: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  return <PlayerSizeField {...props} />;
+}
+
+/** Scoped scene picker for master hotspots.
+ *  - Empty list = "all scenes" (default master behavior).
+ *  - Any picked = allowlist; the master only shows in ticked scenes.
+ *  Renders as a compact draggable-list of scene thumbs with checkboxes,
+ *  plus quick "Select all / Clear" buttons. */
+function MasterScenePicker({
+  hotspot,
+  scenes,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  scenes: Scene[];
+  onChange: (h: Hotspot) => void;
+}) {
+  const ids = new Set<string>(hotspot.master_scene_ids ?? []);
+  const allSelected = ids.size === 0; // empty = every scene
+  function toggle(sceneId: string) {
+    const next = new Set(ids);
+    if (next.has(sceneId)) next.delete(sceneId);
+    else next.add(sceneId);
+    onChange({
+      ...hotspot,
+      master_scene_ids: next.size === 0 ? null : Array.from(next),
+    });
+  }
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400">
+          Show in these scenes
+        </div>
+        <div className="flex gap-2 text-[11px]">
+          <button
+            onClick={() =>
+              onChange({ ...hotspot, master_scene_ids: null })
+            }
+            className={`hover:text-white ${
+              allSelected ? "text-accent" : "text-neutral-500"
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() =>
+              onChange({
+                ...hotspot,
+                master_scene_ids: scenes.map((s) => s.id),
+              })
+            }
+            className="text-neutral-500 hover:text-white"
+          >
+            Every
+          </button>
+        </div>
+      </div>
+      <div className="max-h-56 overflow-y-auto panel-scroll rounded border border-border bg-panelSoft p-1.5 space-y-1">
+        {scenes.length === 0 ? (
+          <div className="text-[11px] text-neutral-500 text-center py-2">
+            No scenes in this tour yet.
+          </div>
+        ) : (
+          scenes.map((s) => {
+            const checked = allSelected || ids.has(s.id);
+            return (
+              <label
+                key={s.id}
+                className="flex items-center gap-2 text-[12px] hover:bg-white/5 rounded px-1.5 py-1 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(s.id)}
+                  className="shrink-0"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={publicUrl(s.thumbnail_path ?? s.image_path) ?? ""}
+                  alt=""
+                  className="w-8 h-6 object-cover rounded bg-black shrink-0"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+                <span className="truncate flex-1">{s.name}</span>
+              </label>
+            );
+          })
+        )}
+      </div>
+      <div className="text-[10px] text-neutral-500 mt-1">
+        {allSelected
+          ? "Master appears in every scene."
+          : `Master appears in ${ids.size} scene${
+              ids.size === 1 ? "" : "s"
+            }.`}
+      </div>
+    </div>
   );
 }
 
@@ -2998,6 +3426,85 @@ function AudioConfig({
           Recording uses your browser's microphone and uploads instantly.
         </div>
       </div>
+    </>
+  );
+}
+
+/** Unified image source picker for image hotspots. One URL field + one
+ *  upload button, both writing to the same `image_url` field. Preview
+ *  + Remove button shown when a URL is set so the user can start over. */
+function ImageSourceField({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  async function upload(file: File) {
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
+      const path = `images/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      onChange({ ...hotspot, image_url: data.publicUrl });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const has = !!hotspot.image_url;
+
+  return (
+    <>
+      <Field label="Image URL">
+        <input
+          value={hotspot.image_url ?? ""}
+          onChange={(e) =>
+            onChange({ ...hotspot, image_url: e.target.value })
+          }
+          placeholder="https://…jpg"
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        />
+      </Field>
+
+      {has && (
+        <div className="mt-2 rounded border border-border bg-panelSoft p-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={hotspot.image_url ?? ""}
+            alt=""
+            className="w-full max-h-40 object-contain rounded"
+          />
+          <button
+            onClick={() => onChange({ ...hotspot, image_url: null })}
+            className="mt-2 text-[11px] text-neutral-400 hover:text-red-400"
+          >
+            Remove image
+          </button>
+        </div>
+      )}
+
+      <label className="mt-2 block border border-dashed border-border rounded p-3 text-center text-xs cursor-pointer hover:border-accent">
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif,image/*"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+        />
+        {uploading
+          ? "Uploading…"
+          : has
+          ? "or upload a different image"
+          : "or upload an image file"}
+      </label>
     </>
   );
 }

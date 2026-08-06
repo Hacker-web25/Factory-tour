@@ -126,9 +126,14 @@ export default function TourPlayer({
 
   const hotspots = useMemo(
     () =>
-      allHotspots.filter(
-        (h) => h.scene_id === activeSceneId || h.is_master
-      ),
+      allHotspots.filter((h) => {
+        if (h.scene_id === activeSceneId) return true;
+        if (!h.is_master) return false;
+        const allow = h.master_scene_ids;
+        if (allow && allow.length > 0)
+          return activeSceneId ? allow.includes(activeSceneId) : false;
+        return true;
+      }),
     [allHotspots, activeSceneId]
   );
 
@@ -396,7 +401,18 @@ export default function TourPlayer({
     } else if (action === "info_popup" || action === "image_popup") {
       setInfoModal(h);
     } else if (action === "video_popup") {
-      setVideoModal(h);
+      // Virtual card checkbox controls the destination:
+      //   checked  → play as a floating window inside the tour (non-blocking)
+      //   unchecked → open the source URL in a new browser tab (e.g. YouTube)
+      if (h.video_show_thumbnail && h.video_url) {
+        setVideoModal(h);
+      } else if (h.video_url) {
+        window.open(h.video_url, "_blank");
+      } else {
+        // No URL configured — fall back to the in-tour player so the
+        // author sees "no video" rather than nothing happening.
+        setVideoModal(h);
+      }
     } else if (action === "pdf_popup") {
       setPdfModal(h);
     } else if (action === "audio_popup") {
@@ -679,7 +695,11 @@ export default function TourPlayer({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-panel border border-border rounded-lg p-5 max-w-md w-[90%]"
+            className="bg-panel border border-border rounded-lg p-5"
+            style={{
+              width: `${infoModal.card_size_pct ?? 80}%`,
+              maxWidth: "1200px",
+            }}
           >
             <h3 className="font-semibold mb-2">
               {infoModal.info_title || infoModal.label || "Info"}
@@ -691,7 +711,8 @@ export default function TourPlayer({
                 <img
                   src={infoModal.image_url}
                   alt=""
-                  className="mb-2 max-h-64 mx-auto rounded"
+                  className="mb-2 mx-auto rounded object-contain"
+                  style={{ maxHeight: "70vh", width: "100%" }}
                 />
               )}
             {infoModal.info_body && (
@@ -732,6 +753,17 @@ export default function TourPlayer({
 
 /* --------------------------- Media popups -------------------------------- */
 
+/** Floating in-tour video player.
+ *
+ *  Design change (Nov 2026): the video used to be a full-screen modal with
+ *  a dark backdrop that blocked all interaction with the tour underneath.
+ *  Now it's a compact, draggable, non-blocking window positioned in the
+ *  lower-right by default — the panorama stays fully clickable and the
+ *  visitor can keep panning / clicking other hotspots while the video plays.
+ *
+ *  - `card_size_pct` controls the window width as % of viewport (20-150).
+ *  - Drag the header to move it around.
+ *  - Header × closes; header ⛶ jumps back to the default corner. */
 function VideoModal({
   hotspot,
   onClose,
@@ -742,43 +774,114 @@ function VideoModal({
   const url = hotspot.video_url ?? "";
   const isYouTube = /youtube\.com|youtu\.be/i.test(url);
   const ytId = isYouTube ? extractYouTubeId(url) : null;
+  const sizePct = Math.max(20, Math.min(150, hotspot.card_size_pct ?? 60));
+
+  // Position — offset from bottom-right corner. Persisted per instance only.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+
+  function beginDrag(e: React.PointerEvent) {
+    const start = pos ?? { x: 24, y: 24 };
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: start.x,
+      origY: start.y,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+  function onDrag(e: React.PointerEvent) {
+    const d = dragRef.current;
+    if (!d) return;
+    // Note: origin is bottom-right → invert deltas so dragging feels natural.
+    setPos({
+      x: Math.max(0, d.origX - (e.clientX - d.startX)),
+      y: Math.max(0, d.origY - (e.clientY - d.startY)),
+    });
+  }
+  function endDrag(e: React.PointerEvent) {
+    dragRef.current = null;
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+  }
+
+  const currentPos = pos ?? { x: 24, y: 24 };
+
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-30 bg-black/85 grid place-items-center p-6"
+      // Container is a size-0 anchor so it doesn't intercept clicks on the
+      // rest of the tour. Only the video card itself accepts pointer events.
+      className="fixed inset-0 z-30 pointer-events-none"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-black rounded-lg overflow-hidden shadow-2xl w-[min(880px,80vw)] aspect-video relative"
+        className="absolute pointer-events-auto bg-black rounded-lg overflow-hidden shadow-2xl border border-white/10"
+        style={{
+          right: currentPos.x,
+          bottom: currentPos.y,
+          width: `${sizePct}vw`,
+          maxWidth: "min(1600px, 95vw)",
+        }}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 z-10 bg-black/60 text-white text-xs rounded-full w-8 h-8 grid place-items-center hover:bg-black/80"
+        {/* Draggable header */}
+        <div
+          onPointerDown={beginDrag}
+          onPointerMove={onDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          className="flex items-center justify-between bg-black/85 border-b border-white/10 px-3 py-1.5 cursor-move select-none"
         >
-          ✕
-        </button>
-        {ytId ? (
-          <iframe
-            src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
-            className="w-full h-full"
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-            allowFullScreen
-          />
-        ) : (
-          <video
-            src={url}
-            controls
-            autoPlay
-            controlsList="download"
-            className="w-full h-full bg-black"
-          />
-        )}
-      </div>
-      {hotspot.label && (
-        <div className="absolute bottom-4 left-4 right-4 text-white text-sm bg-black/70 px-3 py-2 rounded backdrop-blur-sm">
-          {hotspot.label}
+          <div className="text-[12px] text-white/85 truncate flex-1">
+            {hotspot.label || hotspot.info_title || "Video"}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPos(null);
+              }}
+              className="text-white/70 hover:text-white p-1 rounded hover:bg-white/10"
+              title="Reset position"
+            >
+              ⛶
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="text-white/70 hover:text-white p-1 rounded hover:bg-white/10"
+              title="Close video"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-      )}
+        <div className="aspect-video bg-black">
+          {ytId ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
+              className="w-full h-full"
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              src={url}
+              controls
+              autoPlay
+              controlsList="download"
+              className="w-full h-full bg-black"
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

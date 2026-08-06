@@ -145,6 +145,582 @@ details > summary::-webkit-details-marker { display: none; }
 .hs-anim-spin   { animation: hs-spin   2s   linear      infinite; }
 .hs-anim-shake  { animation: hs-shake  0.5s ease-in-out infinite; }
 
+/* --------- Premium pulse ring (breathing double-ring around hotspots) ----
+ * Layered behind info & person hotspots. Two rings expand outward and
+ * fade — one lagging the other — so the effect feels continuous and
+ * organic instead of a strobing single ring. */
+@keyframes hs-pulse-ring {
+  0%   { transform: scale(0.85); opacity: 0.85; }
+  70%  { transform: scale(1.9);  opacity: 0;    }
+  100% { transform: scale(1.9);  opacity: 0;    }
+}
+.hs-pulse-ring, .hs-pulse-ring-2 {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.85);
+  animation: hs-pulse-ring 2s cubic-bezier(0.25, 0.6, 0.3, 1) infinite;
+}
+.hs-pulse-ring-2 { animation-delay: 1s; }
+
+/* Click ripple — a single expanding ring triggered on click, added and
+ * removed by JS. Two seconds ease out. */
+@keyframes hs-ripple {
+  0%   { transform: scale(0.4); opacity: 0.7; }
+  100% { transform: scale(3.0); opacity: 0;   }
+}
+.hs-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.55);
+  animation: hs-ripple 0.65s ease-out forwards;
+  pointer-events: none;
+}
+
+/* Info-card entrance — used by the info popup so it expands from the
+ * hotspot instead of appearing instantly. */
+@keyframes hs-card-in {
+  from { opacity: 0; transform: scale(0.85) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+.hs-card-in { animation: hs-card-in 0.22s cubic-bezier(0.2, 0.9, 0.35, 1.05) both; }
+
+/* Person tag pill — expanding pill label used by human-tag hotspots.
+ * Enters from a small circle and stretches to reveal the name. */
+@keyframes hs-tag-expand {
+  from { max-width: 0;   opacity: 0; }
+  to   { max-width: 260px; opacity: 1; }
+}
+.hs-tag-expand {
+  animation: hs-tag-expand 0.28s cubic-bezier(0.2, 0.9, 0.35, 1.05) both;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ---------- Premium hotspot expansion system --------------------------
+ * Spatially-anchored card growth. The container grows from a small point
+ * (transform-origin controlled inline per-hotspot so it grows out of the
+ * marker) and its children reveal in a staged sequence:
+ *   0ms      container starts expanding
+ *   90ms     header/icon settles
+ *   150ms    image reveals
+ *   220ms    title fades in
+ *   300ms    body text fades in
+ * Everything uses transform+opacity for GPU compositing. Reverse plays on
+ * close via applied classes.
+ */
+@keyframes hs-container-grow {
+  0%   { opacity: 0; transform: scale(0.35); filter: blur(4px); }
+  55%  { opacity: 1;                          filter: blur(0);  }
+  100% { opacity: 1; transform: scale(1);     filter: blur(0);  }
+}
+@keyframes hs-container-shrink {
+  0%   { opacity: 1; transform: scale(1);    }
+  100% { opacity: 0; transform: scale(0.35); }
+}
+.hs-open    { animation: hs-container-grow 0.36s cubic-bezier(0.2, 0.85, 0.3, 1.05) both; }
+.hs-closing { animation: hs-container-shrink 0.22s cubic-bezier(0.55, 0, 0.85, 0.15) both; }
+
+@keyframes hs-child-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+@keyframes hs-image-in {
+  from { opacity: 0; transform: scale(1.06);   filter: blur(6px); }
+  to   { opacity: 1; transform: scale(1);      filter: blur(0);   }
+}
+.hs-stage > * {
+  opacity: 0;
+  animation: hs-child-in 0.28s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.hs-stage > *:nth-child(1) { animation-delay: 90ms;  }
+.hs-stage > *:nth-child(2) { animation-delay: 150ms; }
+.hs-stage > *:nth-child(3) { animation-delay: 220ms; }
+.hs-stage > *:nth-child(4) { animation-delay: 300ms; }
+.hs-stage > *:nth-child(5) { animation-delay: 360ms; }
+.hs-stage > *:nth-child(6) { animation-delay: 420ms; }
+.hs-stage-image {
+  opacity: 0;
+  animation: hs-image-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1) 150ms forwards;
+}
+
+/* ---------- Info pill (morphing hover pill + expandable body) ---------
+ * Design intent — the pill and body form ONE continuous physical object:
+ *   IDLE      pill is exactly the icon (perfect circle)
+ *   HOVERED   pill morphs right, revealing the title alongside the icon
+ *   OPEN      a body panel unfolds down from behind the pill's back edge
+ *
+ * All motion uses the same premium ease so the object reads as unified.
+ * Transitions are on max-width / max-height / opacity / transform — all
+ * GPU-friendly. No layout thrash. */
+
+.info-pill {
+  /* --pill-h is provided inline via React so the size slider drives it.
+   * Fallback of 42px keeps things sane if the inline var is missing. */
+  --pill-radius: 999px;
+  --ease-premium: cubic-bezier(0.22, 1, 0.32, 1);
+  display: inline-flex;
+  align-items: center;
+  height: var(--pill-h, 42px);
+  background: rgba(15, 18, 26, 0.78);
+  color: #fff;
+  border-radius: var(--pill-radius);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  /* The pill's whole rectangle animates when the title area opens/closes. */
+  transition: box-shadow 400ms var(--ease-premium),
+    background 300ms var(--ease-premium);
+  will-change: box-shadow;
+}
+.info-pill:hover,
+.info-pill.is-open {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.09) inset;
+}
+.info-pill__icon {
+  flex: 0 0 auto;
+  width: var(--pill-h, 42px);
+  height: var(--pill-h, 42px);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: calc(var(--pill-h, 42px) * 0.5);
+  line-height: 1;
+  /* Sits centered in the circle at all sizes so idle = a perfect circle. */
+}
+/* Title cell — max-width transition. Idle = 0 width (clipped by
+ * overflow:hidden on the pill). Hover/open = up to 420px, revealing
+ * the title. Padding animates in tandem for a natural feel. */
+.info-pill__title-cell {
+  display: flex;
+  align-items: center;
+  max-width: 0;
+  padding-right: 0;
+  transition: max-width 460ms var(--ease-premium),
+    padding-right 460ms var(--ease-premium);
+}
+.info-pill.is-hovered .info-pill__title-cell,
+.info-pill.is-open .info-pill__title-cell {
+  max-width: 420px;
+  padding-right: 18px;
+}
+.info-pill__title {
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: #fff;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 320ms var(--ease-premium) 120ms,
+    transform 380ms var(--ease-premium) 120ms;
+}
+.info-pill.is-hovered .info-pill__title,
+.info-pill.is-open .info-pill__title {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* --------- Info body panel (unfolds down from behind the pill) --------- */
+.info-body {
+  position: absolute;
+  top: calc(var(--pill-h, 42px) - 8px); /* Overlap so it looks tucked in */
+  left: 0;
+  width: 300px;   /* Initial size — user can drag to resize */
+  height: 240px;
+  min-width: 220px;
+  min-height: 120px;
+  max-width: 720px;
+  max-height: 600px;
+  background: rgba(20, 24, 32, 0.9);
+  color: #fff;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.55);
+  /* z-index 1 keeps the body interactive; the pill sits at z-index 2 so
+   * it visually overlaps the body's top edge without blocking clicks. */
+  z-index: 1;
+  transform-origin: top left;
+  overflow: hidden; /* required so `resize` handle renders */
+  resize: both;     /* native drag-to-resize (bottom-right corner) */
+  padding-top: 8px;
+  animation: info-body-unfold 520ms var(--ease-premium, cubic-bezier(0.22, 1, 0.32, 1)) both;
+}
+/* Custom visible resize grip — the browser default handle is a small
+ * subtle triangle that's easy to miss. Overlay a two-line grip so users
+ * see immediately they can drag it. Pointer-events: none so the native
+ * resize behaviour still triggers on the underlying corner. */
+.info-body::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.55) 62%, rgba(255,255,255,0.55) 66%, transparent 68%),
+    linear-gradient(135deg, transparent 78%, rgba(255,255,255,0.55) 80%, rgba(255,255,255,0.55) 84%, transparent 86%);
+}
+.info-pill { z-index: 2; }
+@keyframes info-body-unfold {
+  0%   { opacity: 0; transform: translateY(-14px) scaleY(0.55); }
+  55%  { opacity: 1; transform: translateY(-6px)  scaleY(0.55); }
+  100% { opacity: 1; transform: translateY(0)     scaleY(1);    }
+}
+.info-body.is-closing {
+  animation: info-body-fold 260ms cubic-bezier(0.55, 0, 0.85, 0.15) both;
+}
+@keyframes info-body-fold {
+  0%   { opacity: 1; transform: translateY(0)     scaleY(1);    }
+  100% { opacity: 0; transform: translateY(-14px) scaleY(0.55); }
+}
+.info-body__scroll {
+  padding: 16px 18px 14px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  animation: hs-child-in 360ms var(--ease-premium, cubic-bezier(0.22, 1, 0.32, 1)) 220ms both;
+}
+.info-body__scroll::-webkit-scrollbar { width: 6px; }
+.info-body__scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+}
+.info-body__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  z-index: 2;
+  transition: background 180ms, color 180ms;
+}
+.info-body__close:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+
+/* ---------- Media hotspot (circle → card morph) -----------------------
+ *
+ * Idle: a solid blue circle with a white camera icon.
+ * Hover: the whole circle morphs into a rounded card with a blue header
+ *        strip (icon anchored in the header) and a white body that reveals
+ *        an image + optional caption.
+ * All properties transition with the same premium ease so the object reads
+ * as ONE physical thing growing, not two elements swapping.
+ * --------------------------------------------------------------------- */
+
+.media-hs {
+  --media-icon: 56px;       /* idle circle diameter */
+  --media-w: 240px;         /* opened card width */
+  --media-h: 300px;         /* opened card height */
+  --media-header: 56px;     /* opened header strip height */
+  --media-blue: #29b6f6;
+  --ease-premium: cubic-bezier(0.22, 1, 0.32, 1);
+  position: relative;
+  display: inline-block;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.4));
+}
+.media-hs__card {
+  position: relative;
+  width: var(--media-icon);
+  height: var(--media-icon);
+  border-radius: 50%;
+  background: #ffffff;
+  overflow: hidden;
+  cursor: pointer;
+  transition: width 520ms var(--ease-premium),
+    height 520ms var(--ease-premium),
+    border-radius 520ms var(--ease-premium);
+  will-change: width, height, border-radius;
+}
+.media-hs.is-open .media-hs__card {
+  width: var(--media-w);
+  height: var(--media-h);
+  border-radius: 14px;
+}
+.media-hs__header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--media-icon);
+  background: var(--media-blue);
+  display: grid;
+  place-items: center;
+  transition: height 520ms var(--ease-premium);
+}
+.media-hs.is-open .media-hs__header {
+  height: var(--media-header);
+}
+.media-hs__icon-svg {
+  width: calc(var(--media-icon) * 0.42);
+  height: calc(var(--media-icon) * 0.42);
+  color: #fff;
+  transition: width 400ms var(--ease-premium),
+    height 400ms var(--ease-premium);
+}
+.media-hs.is-open .media-hs__icon-svg {
+  width: 24px;
+  height: 24px;
+}
+.media-hs__body {
+  position: absolute;
+  top: var(--media-icon); /* starts at bottom of collapsed header */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 340ms var(--ease-premium) 240ms,
+    transform 340ms var(--ease-premium) 240ms,
+    top 520ms var(--ease-premium);
+  pointer-events: none;
+}
+.media-hs.is-open .media-hs__body {
+  opacity: 1;
+  transform: translateY(0);
+  top: var(--media-header);
+  pointer-events: auto;
+}
+.media-hs__image {
+  flex: 1;
+  min-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f2f4f7;
+  display: grid;
+  place-items: center;
+}
+.media-hs__image img {
+  width: 100%;
+  height: 100%;
+  /* `contain` keeps the whole image visible regardless of orientation —
+   * portraits and landscapes both fit the frame without cropping. Any
+   * unused area shows the frame's background colour. */
+  object-fit: contain;
+  display: block;
+}
+.media-hs__caption {
+  color: #202124;
+  font-size: 13.5px;
+  line-height: 1.4;
+  padding: 2px 4px 4px;
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow-y: auto;
+}
+.media-hs__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 200ms 320ms, background 180ms;
+}
+.media-hs.is-open .media-hs__close { opacity: 1; }
+.media-hs__close:hover { background: rgba(0, 0, 0, 0.5); }
+/* Resize grip in bottom-right when open (uses native CSS resize on card) */
+.media-hs.is-pinned .media-hs__card {
+  resize: both;
+  min-width: 180px;
+  min-height: 200px;
+  max-width: 640px;
+  max-height: 720px;
+}
+.media-hs.is-pinned .media-hs__card::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 60%, rgba(0, 0, 0, 0.35) 62%, rgba(0, 0, 0, 0.35) 66%, transparent 68%),
+    linear-gradient(135deg, transparent 78%, rgba(0, 0, 0, 0.35) 80%, rgba(0, 0, 0, 0.35) 84%, transparent 86%);
+}
+
+/* ---------- Human hotspot (speech bubble → balloon morph) --------------
+ *
+ * Idle: a small speech-bubble pill with a downward tail, containing the
+ *       person's name.
+ * Hover: bubble morphs into a large circular "balloon" — name shifts to
+ *        the top, person icon fades in centre, italic description reveals
+ *        at the bottom.
+ * All motion driven by width/height/border-radius transitions plus staged
+ * opacity/transform reveals on the content — same premium ease used across
+ * the rest of the hotspot system. Colours are data-driven via CSS vars so
+ * the editor can theme each bubble independently.
+ * --------------------------------------------------------------------- */
+
+.human-hs {
+  --hs-bg: rgba(45, 47, 52, 0.94);
+  --hs-fg: #ffffff;
+  --hs-mini-w: 96px;
+  --hs-mini-h: 38px;
+  --hs-big-w: 260px;
+  --hs-big-h: 260px;
+  --ease-premium: cubic-bezier(0.22, 1, 0.32, 1);
+  position: relative;
+  display: inline-block;
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+}
+
+.human-hs__bubble {
+  position: relative;
+  width: var(--hs-mini-w);
+  height: var(--hs-mini-h);
+  background: var(--hs-bg);
+  color: var(--hs-fg);
+  border-radius: 999px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: width 540ms var(--ease-premium),
+    height 540ms var(--ease-premium),
+    border-radius 540ms var(--ease-premium);
+  will-change: width, height, border-radius;
+}
+.human-hs.is-open .human-hs__bubble {
+  width: var(--hs-big-w);
+  height: var(--hs-big-h);
+  border-radius: 50%;
+}
+
+/* Little speech-bubble tail that hangs below the mini pill and fades
+ * away as soon as we start morphing into the big balloon. */
+.human-hs__tail {
+  position: absolute;
+  bottom: -6px;
+  left: 22%;
+  width: 12px;
+  height: 12px;
+  background: var(--hs-bg);
+  transform: rotate(45deg);
+  opacity: 1;
+  transition: opacity 200ms var(--ease-premium);
+  z-index: -1;
+}
+.human-hs.is-open .human-hs__tail { opacity: 0; }
+
+/* Name — vertical-centred in the mini pill, drifts to the top when
+ * the balloon opens (so the icon has room in the middle). */
+.human-hs__name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--hs-fg);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 14px;
+  text-overflow: ellipsis;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: top 540ms var(--ease-premium),
+    font-size 400ms var(--ease-premium),
+    padding 400ms var(--ease-premium);
+}
+.human-hs.is-open .human-hs__name {
+  top: 20%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  font-weight: 500;
+  padding: 0 24px;
+}
+
+/* Person figure — hidden in the mini state, fades in centrally when
+ * the balloon opens. Uses currentColor so it picks up --hs-fg. */
+.human-hs__figure {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: 34%;
+  height: 34%;
+  color: var(--hs-fg);
+  opacity: 0;
+  transition: opacity 320ms var(--ease-premium) 240ms,
+    transform 400ms var(--ease-premium) 200ms;
+  pointer-events: none;
+}
+.human-hs.is-open .human-hs__figure {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Description — italic caption at the bottom of the balloon, staged
+ * reveal after the icon so the eye lands on face → name → detail. */
+.human-hs__desc {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 16%;
+  text-align: center;
+  color: var(--hs-fg);
+  opacity: 0;
+  font-size: 12.5px;
+  font-style: italic;
+  line-height: 1.35;
+  transform: translateY(6px);
+  transition: opacity 340ms var(--ease-premium) 320ms,
+    transform 340ms var(--ease-premium) 320ms;
+  pointer-events: none;
+  max-height: 26%;
+  overflow-y: auto;
+}
+.human-hs.is-open .human-hs__desc {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+/* Two-stage marker: idle dot subtly breathes so it reads as "interactive"
+ * without a full pulse ring competing for attention. Applied only when
+ * marker is at rest — never during expansion. */
+@keyframes hs-idle-breathe {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 0 0     rgba(255,255,255,0.35); }
+  50%      { transform: scale(1.05); box-shadow: 0 0 0 3px   rgba(255,255,255,0);    }
+}
+.hs-idle-breathe { animation: hs-idle-breathe 2.4s ease-in-out infinite; }
+
 /* Nav-hotspot hover preview card entrance */
 @keyframes hs-nav-preview-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.94); }
