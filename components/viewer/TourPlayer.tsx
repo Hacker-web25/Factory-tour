@@ -754,6 +754,11 @@ export default function TourPlayer({
           onClose={() => setAudioPopup(null)}
         />
       )}
+
+      {/* Polygon fullscreen viewer is now mounted at the root layout
+          (components/PolygonFullscreenViewer) so it works everywhere,
+          including the editor's Preview mode which doesn't use
+          TourPlayer. Nothing needed here. */}
     </div>
   );
 }

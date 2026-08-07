@@ -791,6 +791,66 @@ export default function TourEditPage() {
     "polygon_points",
   ]);
 
+  // Live polygon-vertex drag — PolygonHotspot dispatches
+  // `factour:polygon-point` while the user drags a corner, and
+  // `factour:polygon-point-commit` on release. We patch the hotspot's
+  // polygon_points in local state on every move (so the shape follows
+  // the cursor 1:1), and only run onHotspotChange on release so the
+  // save/undo path fires once per drag, not 60 times a second.
+  const dragBeforeRef = useRef<Hotspot | null>(null);
+  useEffect(() => {
+    function onMove(e: Event) {
+      const d = (e as CustomEvent).detail as {
+        hotspotId: string;
+        idx: number;
+        yaw: number;
+        pitch: number;
+      };
+      setAllHotspots((list) =>
+        list.map((h) => {
+          if (h.id !== d.hotspotId || !h.polygon_points) return h;
+          if (!dragBeforeRef.current) dragBeforeRef.current = h;
+          const next = h.polygon_points.map((p, i) =>
+            i === d.idx ? { yaw: d.yaw, pitch: d.pitch } : p
+          );
+          return { ...h, polygon_points: next };
+        })
+      );
+    }
+    function onCommit(e: Event) {
+      const d = (e as CustomEvent).detail as { hotspotId: string };
+      // Run the standard save path with the FINAL point set so RLS,
+      // self-heal, undo/redo all behave normally.
+      setAllHotspots((list) => {
+        const final = list.find((h) => h.id === d.hotspotId);
+        if (final && dragBeforeRef.current) {
+          // Push a single undo op capturing the pre-drag state.
+          pushOp({
+            type: "update",
+            id: final.id,
+            before: dragBeforeRef.current,
+            after: final,
+          });
+          void saveWithColumnFallback(
+            "hotspots",
+            hotspotUpdatePayload(final),
+            final.id,
+            "[polygon vertex drag]"
+          );
+        }
+        dragBeforeRef.current = null;
+        return list;
+      });
+    }
+    window.addEventListener("factour:polygon-point", onMove);
+    window.addEventListener("factour:polygon-point-commit", onCommit);
+    return () => {
+      window.removeEventListener("factour:polygon-point", onMove);
+      window.removeEventListener("factour:polygon-point-commit", onCommit);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function onHotspotChange(h: Hotspot) {
     // 0. Record undo op — capture the previous state of this hotspot
     //    so Ctrl+Z can revert. Coalescing is handled in pushOp so

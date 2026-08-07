@@ -2555,7 +2555,7 @@ function AddonTab({
 
       {/* LABEL — hidden for person hotspots. Person uses its own Details
           field inside the Bubble section instead. */}
-      {hotspot.type !== "person" && (
+      {hotspot.type !== "person" && hotspot.type !== "polygon" && (
       <Section title="Label">
         <div className="border border-border rounded bg-panelSoft">
           <div className="flex items-center gap-2 px-2 py-1.5 border-b border-border text-xs">
@@ -2681,7 +2681,7 @@ function AddonTab({
       {/* ANIMATION — hidden for info & person hotspots; both ship with a
           fixed hover choreography that overrides these generic
           per-hotspot animations. */}
-      {hotspot.type !== "info" && hotspot.type !== "person" && (
+      {hotspot.type !== "info" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
       <Section
         title="Animation"
         trailing={<Sparkles size={12} className="text-cyan-400" />}
@@ -2744,7 +2744,7 @@ function AddonTab({
 
       {/* ACTION — hidden for person hotspots (they're pure info bubbles,
           no click action needed). */}
-      {hotspot.type !== "person" && (
+      {hotspot.type !== "person" && hotspot.type !== "polygon" && (
       <Section title="Action">
         <select
           value={hotspot.action}
@@ -2855,7 +2855,7 @@ function AddonTab({
       )}
 
       {/* SOUND EFFECT — hidden for person hotspots (no click action). */}
-      {hotspot.type !== "person" && (
+      {hotspot.type !== "person" && hotspot.type !== "polygon" && (
       <Section title="Click sound">
         <SoundEffectPicker hotspot={hotspot} onChange={onChange} />
       </Section>
@@ -2864,7 +2864,7 @@ function AddonTab({
       {/* Overlay mode picker — offered for every hotspot type EXCEPT text.
           Text hotspots always render as HTML billboards (their label is the
           payload — nothing to paint on a 3D plane). */}
-      {hotspot.type !== "text" && hotspot.type !== "person" && (
+      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
         <Section title="Overlay mode">
           <div className="grid grid-cols-2 gap-2">
             <ModeBtn
@@ -3551,13 +3551,16 @@ function PolygonMediaConfig({
   hotspot: Hotspot;
   onChange: (h: Hotspot) => void;
 }) {
-  const isVideo = !!hotspot.video_url && !hotspot.image_url;
-  const isImage = !!hotspot.image_url && !hotspot.video_url;
-  // Default the mode to video if neither is set (so the picker isn't blank).
-  const mode: "video" | "image" = isImage ? "image" : "video";
+  // Track the picker mode in local state so switching to "Image" sticks
+  // even before the user pastes an image URL. If the hotspot already has
+  // one of the URLs set, seed the mode from that.
+  const [mode, setMode] = useState<"video" | "image">(() =>
+    hotspot.image_url && !hotspot.video_url ? "image" : "video"
+  );
   const [uploading, setUploading] = useState(false);
 
-  function setMode(next: "video" | "image") {
+  function pickMode(next: "video" | "image") {
+    setMode(next);
     if (next === "video") {
       onChange({ ...hotspot, image_url: null });
     } else {
@@ -3607,7 +3610,7 @@ function PolygonMediaConfig({
       <div className="grid grid-cols-2 gap-2 mb-3">
         <button
           type="button"
-          onClick={() => setMode("video")}
+          onClick={() => pickMode("video")}
           className={`rounded border px-2 py-1.5 text-xs font-medium ${
             mode === "video"
               ? "bg-accent/15 border-accent/60 text-accent"
@@ -3618,7 +3621,7 @@ function PolygonMediaConfig({
         </button>
         <button
           type="button"
-          onClick={() => setMode("image")}
+          onClick={() => pickMode("image")}
           className={`rounded border px-2 py-1.5 text-xs font-medium ${
             mode === "image"
               ? "bg-accent/15 border-accent/60 text-accent"

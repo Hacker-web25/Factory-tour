@@ -3,8 +3,10 @@
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Html } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import type { Hotspot } from "@/lib/types";
-import { HOTSPOT_RADIUS, sphericalToVec3 } from "./math";
+import { HOTSPOT_RADIUS, SPHERE_RADIUS, sphericalToVec3 } from "./math";
 
 /**
  * A polygon-shaped hotspot: user traces the outline of an object (e.g. a TV,
@@ -141,6 +143,14 @@ export default function PolygonHotspot({
 
   return (
     <group onPointerDown={handlePointerDown}>
+      {/* Draggable vertex handles — visible only in edit mode when this
+          polygon is selected. Grab and move any corner to nudge the
+          traced shape into place. Fires a window custom event on drag
+          which the edit page listens for and persists. */}
+      {editable && selected && worldPoints.length > 0 && (
+        <PolygonVertexHandles hotspotId={h.id} points={h.polygon_points ?? []} />
+      )}
+
       {isMediaQuad ? (
         <MediaQuad
           hotspot={h}
@@ -207,7 +217,6 @@ function MediaQuad({
   editable: boolean;
   selected: boolean;
 }) {
-  const [fullscreen, setFullscreen] = useState(false);
   const [muted, setMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -271,31 +280,51 @@ function MediaQuad({
     };
   }, [videoUrl]);
 
-  // Image: standard TextureLoader.
+  // Image: load via our own <img> element so we can retry on failure
+  // and force `needsUpdate = true` after the pixels arrive. The naive
+  // TextureLoader path sometimes produces a plain-white quad because
+  // the texture's image is still empty when the material first samples
+  // it — happens on cold cache / slow network. This version guarantees
+  // the material re-renders once the image really is ready.
   const imageUrl = h.image_url ?? null;
   const [imageTex, setImageTex] = useState<THREE.Texture | null>(null);
   useEffect(() => {
     if (!imageUrl) return;
     let cancelled = false;
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin("anonymous");
-    loader.load(
-      imageUrl,
-      (tex) => {
-        if (cancelled) {
-          tex.dispose();
-          return;
-        }
-        tex.colorSpace = THREE.SRGBColorSpace;
+    let attempts = 0;
+    const maxAttempts = 3;
+    const tex = new THREE.Texture();
+    tex.colorSpace = THREE.SRGBColorSpace;
+
+    function load() {
+      attempts++;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        if (cancelled) return;
+        tex.image = img;
+        tex.needsUpdate = true;
         setImageTex(tex);
-      },
-      undefined,
-      () => {
-        /* load error — leave texture null; quad will render dim */
-      }
-    );
+      };
+      img.onerror = () => {
+        if (cancelled) return;
+        if (attempts < maxAttempts) {
+          // Backoff: 400ms, 1200ms. Bust cache with a query param so a
+          // stale 4xx doesn't keep coming back.
+          const delay = 400 * Math.pow(3, attempts - 1);
+          window.setTimeout(load, delay);
+        } else {
+          console.warn("[polygon-image] load failed after 3 attempts:", imageUrl);
+        }
+      };
+      // First attempt uses the URL as-is so the browser cache can help.
+      // Later attempts bust cache to force a fresh fetch.
+      img.src = attempts === 1 ? imageUrl! : `${imageUrl}?r=${Date.now()}`;
+    }
+    load();
     return () => {
       cancelled = true;
+      tex.dispose();
     };
   }, [imageUrl]);
 
@@ -304,16 +333,61 @@ function MediaQuad({
   function onQuadClick(e: any) {
     e.stopPropagation?.();
     if (editable) return;
-    if (videoUrl && videoRef.current) {
-      // Unmute on first click so visitors can hear the video.
-      const v = videoRef.current;
-      v.muted = !v.muted;
-      setMuted(v.muted);
-      v.play().catch(() => {});
+    // Fire a window event so TourPlayer (which lives outside the R3F
+    // Canvas and can render <video>/<img> without R3F trying to
+    // reconcile them as THREE objects) shows the fullscreen viewer.
+    if (videoUrl) {
+      window.dispatchEvent(
+        new CustomEvent("factour:polygon-fullscreen", {
+          detail: { kind: "video", url: videoUrl },
+        })
+      );
     } else if (imageUrl) {
-      setFullscreen(true);
+      window.dispatchEvent(
+        new CustomEvent("factour:polygon-fullscreen", {
+          detail: { kind: "image", url: imageUrl },
+        })
+      );
     }
   }
+
+  // Keyboard shortcuts on the polygon video:
+  //   M       → toggle mute
+  //   Space   → toggle play / pause
+  // Only registered when there IS a video and we're not editing (author
+  // may be typing) or focused in an input/textarea.
+  useEffect(() => {
+    if (editable || !videoUrl) return;
+    function onKey(e: KeyboardEvent) {
+      const isM = e.key === "m" || e.key === "M";
+      const isSpace = e.key === " " || e.code === "Space";
+      if (!isM && !isSpace) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      const v = videoRef.current;
+      if (!v) return;
+      if (isSpace) {
+        // Prevent the browser's default space = scroll behaviour while
+        // the visitor is intentionally using the shortcut.
+        e.preventDefault();
+        if (v.paused) v.play().catch(() => {});
+        else v.pause();
+      } else {
+        v.muted = !v.muted;
+        setMuted(v.muted);
+        v.play().catch(() => {});
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editable, videoUrl]);
 
   return (
     <>
@@ -346,35 +420,122 @@ function MediaQuad({
           />
         </lineSegments>
       )}
-      {/* Fullscreen image viewer — portalled to body so it escapes any
-          transform ancestor (the WebGL canvas). */}
-      {fullscreen &&
-        imageUrl &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="media-hs__fullscreen"
-            onClick={() => setFullscreen(false)}
+      {/* Fullscreen viewer moved to TourPlayer.
+       *  We can't render DOM elements (especially <video>) inline here —
+       *  even inside a createPortal — because the surrounding tree is
+       *  reconciled by @react-three/fiber, which tries to construct a
+       *  THREE.Video object from the <video> tag and blows up.
+       *  Instead, on click we fire a window event and TourPlayer (which
+       *  lives OUTSIDE the Canvas) renders the fullscreen overlay in a
+       *  plain React DOM tree. See TourPlayer's PolygonFullscreenViewer. */}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------------ *
+ *  PolygonVertexHandles — draggable dot at each polygon vertex.
+ *
+ *  Renders a small circular marker via drei's <Html> so the DOM handles
+ *  hover / cursor / pointer-capture. On drag, we cast a ray from the
+ *  mouse position onto the sphere at HOTSPOT_RADIUS and read back
+ *  yaw/pitch. Each frame of drag dispatches a `factour:polygon-point`
+ *  window event; the tour editor listens and updates the polygon_points
+ *  array live. Drop = final event with `commit: true` for the editor's
+ *  persistence layer.
+ * ------------------------------------------------------------------------ */
+function PolygonVertexHandles({
+  hotspotId,
+  points,
+}: {
+  hotspotId: string;
+  points: { yaw: number; pitch: number }[];
+}) {
+  const { camera, gl, raycaster } = useThree();
+  // Reusable sphere used only for the drag hit test — bigger than the
+  // panorama sphere so drag stays smooth even when the user pulls
+  // slightly past the visible surface.
+  const dragSphere = useMemo(
+    () => new THREE.Sphere(new THREE.Vector3(0, 0, 0), HOTSPOT_RADIUS),
+    []
+  );
+  const dragIdx = useRef<number | null>(null);
+
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      if (dragIdx.current == null) return;
+      const rect = gl.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const hit = new THREE.Vector3();
+      const didHit = raycaster.ray.intersectSphere(dragSphere, hit);
+      if (!didHit) return;
+      // Convert world position → (yaw, pitch). Matches the inverse of
+      // sphericalToVec3: yaw = atan2(x, z), pitch = asin(y / R).
+      const yaw = Math.atan2(hit.x, hit.z);
+      const pitch = Math.asin(Math.max(-1, Math.min(1, hit.y / hit.length())));
+      window.dispatchEvent(
+        new CustomEvent("factour:polygon-point", {
+          detail: { hotspotId, idx: dragIdx.current, yaw, pitch },
+        })
+      );
+    }
+    function onUp() {
+      if (dragIdx.current == null) return;
+      window.dispatchEvent(
+        new CustomEvent("factour:polygon-point-commit", {
+          detail: { hotspotId, idx: dragIdx.current },
+        })
+      );
+      dragIdx.current = null;
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [hotspotId, camera, gl, raycaster, dragSphere]);
+
+  return (
+    <>
+      {points.map((p, i) => {
+        const pos = sphericalToVec3(p.yaw, p.pitch);
+        // Nudge the handle *inside* the sphere so it hovers slightly
+        // above the fill and doesn't get z-clipped by the pano.
+        pos.setLength(HOTSPOT_RADIUS - 3);
+        return (
+          <Html
+            key={i}
+            position={pos.toArray()}
+            center
+            distanceFactor={400}
+            zIndexRange={[100, 90]}
+            style={{ pointerEvents: "auto" }}
           >
-            <button
-              className="media-hs__fullscreen-close"
-              onClick={(e) => {
+            <div
+              onPointerDown={(e) => {
                 e.stopPropagation();
-                setFullscreen(false);
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                dragIdx.current = i;
               }}
-              aria-label="Close"
-            >
-              ×
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageUrl}
-              alt=""
-              onClick={(e) => e.stopPropagation()}
+              title={`Vertex ${i + 1} — drag to reposition`}
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                background: "#22d3ee",
+                border: "2px solid #fff",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+                cursor: "grab",
+                touchAction: "none",
+              }}
             />
-          </div>,
-          document.body
-        )}
+          </Html>
+        );
+      })}
     </>
   );
 }
