@@ -1,9 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Next 14 App Router requires useSearchParams() consumers to live inside
+// a Suspense boundary at prerender time. We wrap the real page in one.
+export const dynamic = "force-dynamic";
+
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ensureProfile, getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+
+export default function OAuthCallbackPageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen grid place-items-center bg-black text-white p-6">
+          <div className="text-sm text-neutral-400">Signing you in…</div>
+        </div>
+      }
+    >
+      <OAuthCallbackPage />
+    </Suspense>
+  );
+}
 
 /**
  * OAuth callback landing page.
@@ -14,7 +32,7 @@ import { supabase } from "@/lib/supabase";
  * (creates one on first Google login), then honour ?next= or send
  * the user to /.
  */
-export default function OAuthCallbackPage() {
+function OAuthCallbackPage() {
   const router = useRouter();
   const params = useSearchParams();
   const nextRaw = params.get("next") || "/";

@@ -1,5 +1,10 @@
 "use client";
 
+// Skips static prerender so useSearchParams() doesn't demand a Suspense
+// boundary at build time. The page is inherently dynamic anyway (live
+// analytics queries).
+export const dynamic = "force-dynamic";
+
 /**
  * Per-tour analytics dashboard. Reads aggregated event data from
  * lib/analytics.ts (which queries public.tour_events) and renders:
