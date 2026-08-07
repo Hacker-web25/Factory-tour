@@ -392,6 +392,13 @@ export default function TourPlayer({
     // Play sound effect regardless of action
     playHotspotSound(h.sound_effect, h.sound_effect_url);
 
+    // Polygon short-circuit — polygons project video/image ONTO the
+    // traced quad. Their MediaQuad has its own click handling (unmute
+    // video, fullscreen image). Never open the generic video/image
+    // modal for a polygon — that opens a separate window and defeats
+    // the "embedded in the scene" effect.
+    if (h.type === "polygon") return;
+
     const action = h.action && h.action !== "none" ? h.action : legacyAction(h);
     if (action === "nav" && h.target_scene_id) {
       // Nav hotspot → full cinematic stretch-and-blur overlay.

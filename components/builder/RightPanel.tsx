@@ -2174,7 +2174,7 @@ function AddonTab({
       {/* ICON — hidden for text / image / person hotspots. Text has no
           icon, image has a dedicated Image section, person uses a built-in
           figure whose colour is set via the bubble Color picker instead. */}
-      {hotspot.type !== "text" && hotspot.type !== "image" && hotspot.type !== "person" && (
+      {hotspot.type !== "text" && hotspot.type !== "image" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
       <Section title="Icon" trailing={<button className="text-neutral-500 hover:text-white text-lg leading-none">···</button>}>
         <div className="flex items-center gap-4">
           <div
@@ -2316,6 +2316,8 @@ function AddonTab({
             </div>
           </Section>
         </>
+      ) : hotspot.type === "polygon" ? (
+        <PolygonMediaConfig hotspot={hotspot} onChange={onChange} />
       ) : hotspot.type === "person" ? (
         <>
           <Section title="Bubble">
@@ -3537,6 +3539,141 @@ function AudioConfig({
 /** Unified image source picker for image hotspots. One URL field + one
  *  upload button, both writing to the same `image_url` field. Preview
  *  + Remove button shown when a URL is set so the user can start over. */
+/** Dedicated media source picker for polygon hotspots. Two modes:
+ *   • video — writes to h.video_url, image_url cleared
+ *   • image — writes to h.image_url, video_url cleared
+ *  Setting the URL (paste or upload) makes the polygon render as a
+ *  textured quad instead of an outlined region. */
+function PolygonMediaConfig({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const isVideo = !!hotspot.video_url && !hotspot.image_url;
+  const isImage = !!hotspot.image_url && !hotspot.video_url;
+  // Default the mode to video if neither is set (so the picker isn't blank).
+  const mode: "video" | "image" = isImage ? "image" : "video";
+  const [uploading, setUploading] = useState(false);
+
+  function setMode(next: "video" | "image") {
+    if (next === "video") {
+      onChange({ ...hotspot, image_url: null });
+    } else {
+      onChange({ ...hotspot, video_url: null });
+    }
+  }
+
+  async function upload(file: File) {
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() ?? "").toLowerCase() || (
+        mode === "video" ? "mp4" : "jpg"
+      );
+      const folder = mode === "video" ? "videos" : "images";
+      const path = `${folder}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      if (mode === "video") {
+        onChange({ ...hotspot, video_url: data.publicUrl, image_url: null });
+      } else {
+        onChange({ ...hotspot, image_url: data.publicUrl, video_url: null });
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const currentUrl = mode === "video" ? hotspot.video_url : hotspot.image_url;
+  const missing = hotspot.polygon_points?.length ?? 0;
+
+  return (
+    <Section title="Media surface">
+      {missing < 4 && (
+        <div className="text-[11px] text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded px-2 py-1.5 mb-3">
+          Trace all 4 corners of the surface first ({missing} of 4 placed).
+          The media projects onto the traced quad.
+        </div>
+      )}
+
+      {/* Mode toggle */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setMode("video")}
+          className={`rounded border px-2 py-1.5 text-xs font-medium ${
+            mode === "video"
+              ? "bg-accent/15 border-accent/60 text-accent"
+              : "bg-panelSoft border-border text-neutral-300 hover:border-neutral-500"
+          }`}
+        >
+          Video
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("image")}
+          className={`rounded border px-2 py-1.5 text-xs font-medium ${
+            mode === "image"
+              ? "bg-accent/15 border-accent/60 text-accent"
+              : "bg-panelSoft border-border text-neutral-300 hover:border-neutral-500"
+          }`}
+        >
+          Image
+        </button>
+      </div>
+
+      <Field
+        label={mode === "video" ? "Video URL (mp4 / webm)" : "Image URL"}
+      >
+        <input
+          value={currentUrl ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (mode === "video")
+              onChange({ ...hotspot, video_url: v, image_url: null });
+            else
+              onChange({ ...hotspot, image_url: v, video_url: null });
+          }}
+          placeholder={mode === "video" ? "https://…mp4" : "https://…jpg"}
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        />
+      </Field>
+
+      <label className="mt-2 block border border-dashed border-border rounded p-3 text-center text-xs cursor-pointer hover:border-accent">
+        <input
+          type="file"
+          accept={mode === "video" ? "video/*" : "image/*"}
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+        />
+        {uploading
+          ? "Uploading…"
+          : currentUrl
+          ? `or upload a different ${mode}`
+          : `or upload a ${mode}`}
+      </label>
+
+      <div className="text-[10px] text-neutral-500 mt-3 space-y-1">
+        <div>
+          <b>Video</b> — plays inline on the polygon surface, muted at
+          first. Click to unmute.
+        </div>
+        <div>
+          <b>Image</b> — displayed on the polygon. Click to open at full
+          size inside the tour.
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function ImageSourceField({
   hotspot,
   onChange,
