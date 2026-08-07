@@ -1239,6 +1239,11 @@ export default function TourEditPage() {
   }
 
   function fireHotspotAction(h: Hotspot) {
+    // Polygons handle their own click (media quads dispatch the
+    // fullscreen event; plain outlines do nothing). Never route a
+    // polygon through the generic action dispatcher — its default
+    // action=info_popup would pop an empty "Info" modal.
+    if (h.type === "polygon") return;
     // Fire sound effect from Web Audio / custom URL
     import("@/lib/soundEffects").then(({ playHotspotSound }) =>
       playHotspotSound(h.sound_effect, h.sound_effect_url)

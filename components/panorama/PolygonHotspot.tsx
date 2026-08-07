@@ -103,16 +103,44 @@ export default function PolygonHotspot({
     g.quaternion.setFromRotationMatrix(m);
   }, [centroid, basis]);
 
-  // Simple click handler (no dragging — polygon points are edited via the
-  // Right panel or a separate draw mode).
+  // Click handler with drag-vs-click discrimination.
+  //
+  // A polygon can cover a large area (a whole wall, the floor, a machine
+  // face). If we treated every pointerdown → pointerup as a click, the
+  // user could never grab the middle of the polygon to rotate the 360°
+  // view — the drag would fire onClick() at release and pop the info
+  // modal / fullscreen viewer.
+  //
+  // Rules:
+  //   • Only lock orbit controls once the pointer has moved less than the
+  //     click threshold at release — i.e. it really was a click. If the
+  //     user drags past DRAG_THRESHOLD_PX we keep orbit enabled and never
+  //     fire onClick.
+  //   • For public (non-editable) viewers we don't need to touch orbit
+  //     at all — OrbitControls already handles its own drag internally.
   const lastClickRef = useRef(0);
+  const DRAG_THRESHOLD_PX = 6;
   function handlePointerDown(e: any) {
-    e.stopPropagation?.();
-    (e.nativeEvent as PointerEvent | undefined)?.stopImmediatePropagation?.();
-    if (editable) setOrbitEnabled(false);
+    const startX = (e.nativeEvent as PointerEvent | undefined)?.clientX ?? 0;
+    const startY = (e.nativeEvent as PointerEvent | undefined)?.clientY ?? 0;
+    let dragged = false;
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+        dragged = true;
+      }
+    };
     const onUp = () => {
       window.removeEventListener("pointerup", onUp);
-      setOrbitEnabled(true);
+      window.removeEventListener("pointermove", onMove);
+      if (dragged) {
+        // Treat as pan/rotate — swallow, don't open the hotspot.
+        return;
+      }
+      // Real click — stop the pano from also handling it.
+      e.stopPropagation?.();
+      (e.nativeEvent as PointerEvent | undefined)?.stopImmediatePropagation?.();
       const now = performance.now();
       if (editable && now - lastClickRef.current < 350) {
         onDoubleClick();
@@ -122,6 +150,7 @@ export default function PolygonHotspot({
         lastClickRef.current = now;
       }
     };
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
 
