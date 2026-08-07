@@ -27,6 +27,34 @@ export type TourEventType =
 
 const SESSION_KEY = "ft-session-id";
 
+/**
+ * Attribution context — set once by /present/[token] or /v/[token] on
+ * mount. Every subsequent trackEvent() call within the same tab picks up
+ * these values so events attribute back to the right share link + user
+ * (presenter) or fingerprint (public viewer). Stored on window rather
+ * than in React context to avoid threading props through every child.
+ */
+export type AttributionContext = {
+  share_link_id?: string | null;
+  presenter_user_id?: string | null;
+  viewer_fingerprint?: string | null;
+  viewer_email?: string | null;
+};
+
+const ATTR_KEY = "__factour_attr__";
+export function setAttribution(ctx: AttributionContext) {
+  if (typeof window === "undefined") return;
+  (window as unknown as Record<string, unknown>)[ATTR_KEY] = ctx;
+}
+function getAttribution(): AttributionContext {
+  if (typeof window === "undefined") return {};
+  return (
+    ((window as unknown as Record<string, unknown>)[ATTR_KEY] as
+      | AttributionContext
+      | undefined) ?? {}
+  );
+}
+
 function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "server";
   try {
@@ -64,6 +92,7 @@ export function trackEvent(
   const key = `${event_type}:${extras.scene_id ?? ""}:${extras.hotspot_id ?? ""}`;
 
   const fire = () => {
+    const attr = getAttribution();
     supabase
       .from("tour_events")
       .insert({
@@ -74,6 +103,12 @@ export function trackEvent(
         session_id,
         viewport_w,
         viewport_h,
+        // Attribution — attached to every event so per-presenter and
+        // per-viewer analytics segments can be computed later.
+        share_link_id: attr.share_link_id ?? null,
+        presenter_user_id: attr.presenter_user_id ?? null,
+        viewer_fingerprint: attr.viewer_fingerprint ?? null,
+        viewer_email: attr.viewer_email ?? null,
       })
       .then(({ error }) => {
         if (error) console.warn("[analytics]", error.message);
@@ -103,10 +138,12 @@ export type ViewsPerDay = { day: string; count: number };
 export type SceneRank = { scene_id: string; count: number };
 export type HotspotRank = { hotspot_id: string; count: number };
 
-/** Roll up the last N days of events into the shape the dashboard renders. */
+/** Roll up the last N days of events into the shape the dashboard renders.
+ *  Optional `presenterId` filters to a single presenter's sessions. */
 export async function loadDashboardData(
   tour_id: string,
-  days = 30
+  days = 30,
+  opts: { presenterId?: string | null } = {}
 ): Promise<{
   kpis: KpiSummary;
   viewsPerDay: ViewsPerDay[];
@@ -114,11 +151,15 @@ export async function loadDashboardData(
   topHotspots: HotspotRank[];
 }> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const { data: events, error } = await supabase
+  let query = supabase
     .from("tour_events")
     .select("event_type, scene_id, hotspot_id, session_id, created_at")
     .eq("tour_id", tour_id)
-    .gte("created_at", since)
+    .gte("created_at", since);
+  if (opts.presenterId) {
+    query = query.eq("presenter_user_id", opts.presenterId);
+  }
+  const { data: events, error } = await query
     .order("created_at", { ascending: true })
     .limit(50000);
 

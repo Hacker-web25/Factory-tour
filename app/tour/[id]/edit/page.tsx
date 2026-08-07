@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { getMyProfile } from "@/lib/auth";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
@@ -111,6 +112,21 @@ function buildInsert(
 export default function TourEditPage() {
   const params = useParams<{ id: string }>();
   const tourId = params.id;
+  const router = useRouter();
+
+  // Owner-only page. Non-owners get bounced to their role's home so no
+  // one but you can reach the editor. Runs before any tour data is
+  // fetched so we don't leak scene info via network requests either.
+  const [roleChecked, setRoleChecked] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) return router.replace("/login?next=/tour/" + tourId + "/edit");
+      if (p.role === "org_admin") return router.replace("/client");
+      if (p.role === "presenter") return router.replace("/presenter");
+      setRoleChecked(true);
+    })();
+  }, [router, tourId]);
 
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -644,6 +660,8 @@ export default function TourEditPage() {
       video_thumbnail_url: h.video_thumbnail_url ?? null,
       card_size_pct: h.card_size_pct ?? 80,
       thumbnail_size_pct: h.thumbnail_size_pct ?? 100,
+      ripple_color: h.ripple_color ?? null,
+      ripple_size_pct: h.ripple_size_pct ?? 100,
       master_scene_ids: h.master_scene_ids ?? null,
       polygon_points: h.polygon_points ?? null,
       polygon_fill_color: h.polygon_fill_color ?? "#22d3ee",

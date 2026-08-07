@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import { supabase } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
@@ -25,6 +25,7 @@ import {
   type SceneRank,
   type HotspotRank,
 } from "@/lib/analytics";
+import { getMyProfile, type Profile } from "@/lib/auth";
 import {
   Eye,
   Users,
@@ -35,6 +36,8 @@ import {
 
 export default function AnalyticsPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const initialPresenter = searchParams?.get("presenter") ?? "";
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
@@ -44,16 +47,40 @@ export default function AnalyticsPage() {
   const [topHotspots, setTopHotspots] = useState<HotspotRank[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<7 | 30 | 90>(30);
+  // Per-presenter filter — populated when the current user can see team
+  // analytics (owner or org_admin). Selecting one narrows every metric
+  // on the page to that presenter's attributed sessions only.
+  const [presenters, setPresenters] = useState<Profile[]>([]);
+  const [selectedPresenter, setSelectedPresenter] =
+    useState<string>(initialPresenter);
+  const [me, setMe] = useState<Profile | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
+      const profile = await getMyProfile();
+      setMe(profile);
+
       const { data: t } = await supabase
         .from("tours")
         .select("*")
         .eq("id", id)
         .single();
       setTour((t as Tour) ?? null);
+
+      // Load presenters this user can see — org's team for org_admin,
+      // everyone for owner. Others don't get the filter at all.
+      if (profile?.role === "owner" || profile?.role === "org_admin") {
+        let q = supabase
+          .from("profiles")
+          .select("*")
+          .eq("role", "presenter");
+        if (profile.role === "org_admin" && profile.org_id) {
+          q = q.eq("org_id", profile.org_id);
+        }
+        const { data: pr } = await q.order("email");
+        setPresenters((pr ?? []) as Profile[]);
+      }
 
       const { data: s } = await supabase
         .from("scenes")
@@ -75,7 +102,9 @@ export default function AnalyticsPage() {
         setHotspots((h as Hotspot[]) ?? []);
       }
 
-      const dash = await loadDashboardData(id, range);
+      const dash = await loadDashboardData(id, range, {
+        presenterId: selectedPresenter || null,
+      });
       setKpis(dash.kpis);
       setViewsPerDay(dash.viewsPerDay);
       setTopScenes(dash.topScenes);
@@ -83,7 +112,7 @@ export default function AnalyticsPage() {
       setLoading(false);
     }
     load();
-  }, [id, range]);
+  }, [id, range, selectedPresenter]);
 
   const sceneName = (sid: string) =>
     scenes.find((s) => s.id === sid)?.name ?? sid.slice(0, 8);
@@ -182,7 +211,26 @@ export default function AnalyticsPage() {
               {tour?.title ?? "…"}
             </h1>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
+            {/* Presenter filter — visible only when the current user can
+                see team analytics (owner or org_admin). Selecting a
+                presenter narrows every metric to their sessions only. */}
+            {(me?.role === "owner" || me?.role === "org_admin") &&
+              presenters.length > 0 && (
+                <select
+                  value={selectedPresenter}
+                  onChange={(e) => setSelectedPresenter(e.target.value)}
+                  className="bg-panelSoft border border-border rounded px-2 py-1 text-xs min-w-[160px] mr-2"
+                  title="Filter analytics by presenter"
+                >
+                  <option value="">All presenters</option>
+                  {presenters.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name || p.email}
+                    </option>
+                  ))}
+                </select>
+              )}
             {[7, 30, 90].map((d) => (
               <button
                 key={d}
@@ -192,13 +240,15 @@ export default function AnalyticsPage() {
                 {d}d
               </button>
             ))}
-            <Link
-              href={`/tour/${id}/edit`}
-              className="chip ml-2"
-              title="Open editor"
-            >
-              Open editor →
-            </Link>
+            {me?.role === "owner" && (
+              <Link
+                href={`/tour/${id}/edit`}
+                className="chip ml-2"
+                title="Open editor"
+              >
+                Open editor →
+              </Link>
+            )}
           </div>
         </div>
 

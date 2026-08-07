@@ -647,8 +647,10 @@ details > summary::-webkit-details-marker { display: none; }
   right: 0;
   text-align: center;
   color: var(--hs-fg);
-  font-size: 14px;
-  font-weight: 500;
+  font-family: var(--hs-font, inherit);
+  font-size: var(--hs-name-size, 14px);
+  font-weight: var(--hs-name-weight, 500);
+  font-style: var(--hs-name-style, normal);
   white-space: nowrap;
   overflow: hidden;
   padding: 0 14px;
@@ -662,8 +664,7 @@ details > summary::-webkit-details-marker { display: none; }
 .human-hs.is-open .human-hs__name {
   top: 20%;
   transform: translateY(-50%);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: calc(var(--hs-name-size, 14px) * 1.15);
   padding: 0 24px;
 }
 
@@ -697,19 +698,95 @@ details > summary::-webkit-details-marker { display: none; }
   text-align: center;
   color: var(--hs-fg);
   opacity: 0;
-  font-size: 12.5px;
-  font-style: italic;
+  font-family: var(--hs-font, inherit);
+  font-size: var(--hs-desc-size, 12.5px);
+  font-weight: var(--hs-desc-weight, 400);
+  font-style: var(--hs-desc-style, italic);
   line-height: 1.35;
   transform: translateY(6px);
   transition: opacity 340ms var(--ease-premium) 320ms,
     transform 340ms var(--ease-premium) 320ms;
-  pointer-events: none;
-  max-height: 26%;
+  pointer-events: auto;
+  max-height: 30%;
   overflow-y: auto;
 }
 .human-hs.is-open .human-hs__desc {
   opacity: 0.9;
   transform: translateY(0);
+}
+
+/* ---------- Hover ripple (one-shot) -----------------------------------
+ * Fires once each time the cursor enters a hotspot. Colour and max
+ * radius are both data-driven via CSS vars set inline per marker. */
+@keyframes hs-hover-ripple {
+  0%   { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(var(--hs-ripple-scale, 1.8)); opacity: 0; }
+}
+.hs-hover-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--hs-ripple-color, rgba(255, 255, 255, 0.55));
+  pointer-events: none;
+  animation: hs-hover-ripple 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 0;
+  transform-origin: center;
+}
+
+/* ---------- Media hotspot: fullscreen image viewer --------------------
+ * When the user clicks the image inside a media card, we open an
+ * in-tour fullscreen overlay (not a browser tab). Backdrop dims the
+ * scene behind, image scales up from the click origin. */
+.media-hs__fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: hs-fullscreen-in 260ms cubic-bezier(0.22, 1, 0.32, 1) both;
+  cursor: zoom-out;
+  overflow: hidden;
+}
+/* Sizing uses viewport units directly — 100% would be relative to the
+ * image's own grid/flex cell, which auto-sizes to the image and makes
+ * the cap meaningless (that's why the bottom used to get clipped for
+ * tall images). vw/vh guarantee the image never exceeds the viewport
+ * regardless of orientation. */
+.media-hs__fullscreen img {
+  max-width: 94vw;
+  max-height: 94vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+  display: block;
+}
+.media-hs__fullscreen-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 2;
+}
+.media-hs__fullscreen-close:hover { background: rgba(255, 255, 255, 0.2); }
+@keyframes hs-fullscreen-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.media-hs__image {
+  cursor: zoom-in;
 }
 
 /* Two-stage marker: idle dot subtly breathes so it reads as "interactive"

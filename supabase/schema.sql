@@ -177,6 +177,8 @@ alter table public.hotspots add column if not exists video_thumbnail_url        
 alter table public.hotspots add column if not exists card_size_pct               int              default 80;
 alter table public.hotspots add column if not exists thumbnail_size_pct          int              default 100;
 alter table public.hotspots add column if not exists master_scene_ids            uuid[];
+alter table public.hotspots add column if not exists ripple_color                text;
+alter table public.hotspots add column if not exists ripple_size_pct             int              default 100;
 
 create index if not exists hotspots_master_idx on public.hotspots(is_master) where is_master = true;
 
@@ -239,6 +241,75 @@ create policy "panoramas read"   on storage.objects for select using (bucket_id 
 create policy "panoramas insert" on storage.objects for insert with check (bucket_id = 'panoramas');
 create policy "panoramas update" on storage.objects for update using (bucket_id = 'panoramas') with check (bucket_id = 'panoramas');
 create policy "panoramas delete" on storage.objects for delete using (bucket_id = 'panoramas');
+
+-- ============================================================================
+-- MIGRATION — Organizations, profiles, extended share links, viewer analytics
+-- Adds the auth model for Case 1 (sales teams with attributed presenters)
+-- and Case 2 (public viewer links with password / email gate / expiry).
+-- Safe to re-run.
+-- ============================================================================
+
+create table if not exists public.organizations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Profiles table extends auth.users with role + org.
+-- Roles: owner (you), org_admin (client boss), presenter (salesperson).
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  full_name text,
+  role text not null default 'presenter' check (role in ('owner','org_admin','presenter')),
+  org_id uuid references public.organizations(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists profiles_org_idx on public.profiles(org_id);
+
+-- Link tours to organizations so an org_admin only sees their own tours.
+alter table public.tours
+  add column if not exists org_id uuid references public.organizations(id) on delete set null;
+create index if not exists tours_org_idx on public.tours(org_id);
+
+-- Extend existing share_links table (kept from migration 010).
+alter table public.share_links add column if not exists kind text default 'viewer'
+  check (kind in ('presenter','viewer'));
+alter table public.share_links add column if not exists owner_user_id uuid references public.profiles(id) on delete set null;
+alter table public.share_links add column if not exists label text;
+alter table public.share_links add column if not exists password_hash text;
+alter table public.share_links add column if not exists require_email boolean default false;
+alter table public.share_links add column if not exists expires_at timestamptz;
+alter table public.share_links add column if not exists view_limit int;
+alter table public.share_links add column if not exists view_count int not null default 0;
+alter table public.share_links add column if not exists revoked_at timestamptz;
+create index if not exists share_links_kind_idx on public.share_links(kind);
+create index if not exists share_links_owner_idx on public.share_links(owner_user_id);
+
+-- Attribution columns on tour_events. All nullable so old events still work.
+alter table public.tour_events add column if not exists share_link_id uuid references public.share_links(id) on delete set null;
+alter table public.tour_events add column if not exists presenter_user_id uuid references public.profiles(id) on delete set null;
+alter table public.tour_events add column if not exists viewer_fingerprint text;
+alter table public.tour_events add column if not exists viewer_email text;
+alter table public.tour_events add column if not exists country text;
+alter table public.tour_events add column if not exists device_type text;
+create index if not exists tour_events_link_idx on public.tour_events(share_link_id);
+create index if not exists tour_events_presenter_idx on public.tour_events(presenter_user_id);
+create index if not exists tour_events_fingerprint_idx on public.tour_events(viewer_fingerprint);
+
+-- RLS — open for MVP to match the existing pattern. Tighten later.
+alter table public.organizations enable row level security;
+alter table public.profiles      enable row level security;
+
+drop policy if exists "orgs read"     on public.organizations;
+drop policy if exists "orgs write"    on public.organizations;
+drop policy if exists "profiles read" on public.profiles;
+drop policy if exists "profiles write" on public.profiles;
+
+create policy "orgs read"      on public.organizations for select using (true);
+create policy "orgs write"     on public.organizations for all    using (true) with check (true);
+create policy "profiles read"  on public.profiles      for select using (true);
+create policy "profiles write" on public.profiles      for all    using (true) with check (true);
 
 -- Force PostgREST to reload the schema cache so new columns are visible immediately
 notify pgrst, 'reload schema';

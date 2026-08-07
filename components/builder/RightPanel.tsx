@@ -2262,6 +2262,20 @@ function AddonTab({
                 className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm resize-none"
               />
             </Field>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <Field label="Bubble color">
+                <ColorSwatch
+                  value={hotspot.color}
+                  onChange={(c) => onChange({ ...hotspot, color: c })}
+                />
+              </Field>
+              <Field label="Icon color">
+                <ColorSwatch
+                  value={hotspot.label_color}
+                  onChange={(c) => onChange({ ...hotspot, label_color: c })}
+                />
+              </Field>
+            </div>
           </Section>
           <Section title="Sizing">
             <SliderRow
@@ -2329,6 +2343,53 @@ function AddonTab({
                   onChange={(c) => onChange({ ...hotspot, label_color: c })}
                 />
               </Field>
+            </div>
+          </Section>
+          <Section title="Text formatting">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Name size (px)">
+                <NumberStepper
+                  label=""
+                  value={hotspot.label_size ?? 14}
+                  min={8}
+                  max={40}
+                  step={1}
+                  onChange={(v) => onChange({ ...hotspot, label_size: v })}
+                />
+              </Field>
+              <Field label="Font">
+                <select
+                  value={hotspot.label_font ?? "sans"}
+                  onChange={(e) =>
+                    onChange({
+                      ...hotspot,
+                      label_font: e.target.value as LabelFont,
+                    })
+                  }
+                  className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+                >
+                  {FONT_OPTIONS.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <label className="mt-2 flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!hotspot.label_bold}
+                onChange={(e) =>
+                  onChange({ ...hotspot, label_bold: e.target.checked })
+                }
+              />
+              <span>Bold name</span>
+            </label>
+            <div className="text-[10px] text-neutral-500 mt-2">
+              Details text scales at ~85% of the name size and inherits the
+              same font. Change the name size and everything stays in
+              proportion.
             </div>
           </Section>
           <Section title="Sizing">
@@ -2443,6 +2504,49 @@ function AddonTab({
               suffix="°"
               onChange={(v) => onChange({ ...hotspot, rotation_deg: v })}
             />
+          </Section>
+          {/* HOVER RIPPLE — controls the one-shot ripple that fires on
+              pointer-enter. Colour and max radius are independent from
+              the hotspot's own colour so authors can tune the feedback
+              flourish separately from the icon. */}
+          <Section title="Hover ripple">
+            <div className="grid grid-cols-2 gap-3 items-start">
+              <Field label="Colour">
+                <ColorSwatch
+                  value={hotspot.ripple_color ?? hotspot.color}
+                  onChange={(c) =>
+                    onChange({ ...hotspot, ripple_color: c })
+                  }
+                />
+                {hotspot.ripple_color && (
+                  <button
+                    onClick={() =>
+                      onChange({ ...hotspot, ripple_color: null })
+                    }
+                    className="text-[10px] text-neutral-500 hover:text-white mt-1"
+                    title="Reset to follow the hotspot colour"
+                  >
+                    reset
+                  </button>
+                )}
+              </Field>
+              <Field label="Radius">
+                <SliderRow
+                  label=""
+                  value={hotspot.ripple_size_pct ?? 100}
+                  valueLabel={`${Math.round(hotspot.ripple_size_pct ?? 100)}%`}
+                  min={30}
+                  max={300}
+                  onChange={(v) =>
+                    onChange({ ...hotspot, ripple_size_pct: v })
+                  }
+                />
+              </Field>
+            </div>
+            <div className="text-[10px] text-neutral-500 mt-2">
+              100% is the default outward wave. Drop to 50% for a tight
+              tap-back; push to 300% for a wider halo.
+            </div>
           </Section>
         </>
       )}

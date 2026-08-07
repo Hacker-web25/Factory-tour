@@ -25,6 +25,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { importTourFromFile } from "@/lib/backup";
+import { getMyProfile, type Organization } from "@/lib/auth";
 import {
   listFolders,
   createFolder,
@@ -41,6 +42,32 @@ type TourWithCover = Tour & { cover_path: string | null; scene_count: number };
 type Layout = "grid" | "list";
 
 export default function DashboardPage() {
+  const router = useRouter();
+  // Role guard — this page is the OWNER editor dashboard. Anyone else
+  // gets redirected to the appropriate view-only home. Logged-out users
+  // go to the login screen. We block render until the check settles so
+  // clients never see even a flash of the editor.
+  const [roleChecked, setRoleChecked] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) {
+        router.replace("/login");
+        return;
+      }
+      if (p.role === "org_admin") {
+        router.replace("/client");
+        return;
+      }
+      if (p.role === "presenter") {
+        router.replace("/presenter");
+        return;
+      }
+      // p.role === "owner" — allow through.
+      setRoleChecked(true);
+    })();
+  }, [router]);
+
   const [tours, setTours] = useState<TourWithCover[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "published" | "draft">("all");
@@ -260,6 +287,16 @@ export default function DashboardPage() {
       return true;
     });
   }, [tours, q, filter, activeFolderId]);
+
+  // Block render entirely until the role guard settles — so clients never
+  // see even a millisecond of the owner editor before being redirected.
+  if (!roleChecked) {
+    return (
+      <div className="min-h-screen bg-black grid place-items-center text-neutral-500 text-sm">
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">

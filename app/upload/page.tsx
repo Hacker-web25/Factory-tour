@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { getMyProfile } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
 import {
   UploadCloud,
@@ -40,6 +41,19 @@ function UploadPage() {
   const router = useRouter();
   const params = useSearchParams();
   const preselectedTourId = params.get("tour");
+
+  // Owner-only. Non-owners get sent to their role home so they never see
+  // the upload UI. Runs before any tours are fetched.
+  const [roleChecked, setRoleChecked] = useState(false);
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) return router.replace("/login?next=/upload");
+      if (p.role === "org_admin") return router.replace("/client");
+      if (p.role === "presenter") return router.replace("/presenter");
+      setRoleChecked(true);
+    })();
+  }, [router]);
 
   const [tours, setTours] = useState<Tour[]>([]);
   const [tourId, setTourId] = useState<string>(preselectedTourId ?? "");

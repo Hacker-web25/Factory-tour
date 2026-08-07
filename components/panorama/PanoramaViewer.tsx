@@ -5,6 +5,7 @@ import { OrbitControls, Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createPortal } from "react-dom";
 import type { Hotspot } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { fontFor } from "@/lib/fonts";
@@ -554,6 +555,10 @@ function HtmlBillboard({
   setOrbitEnabled?: (v: boolean) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  // Hover ripple — increments each time the pointer enters, forcing the
+  // ripple <div> to remount and re-run its keyframe animation. Color is
+  // driven by the hotspot's own colour so authors can tune it per marker.
+  const [rippleKey, setRippleKey] = useState(0);
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -678,7 +683,11 @@ function HtmlBillboard({
           transition: "opacity 0.15s",
           boxSizing: "content-box",
         }}
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={() => {
+          setHovered(true);
+          // Fire a fresh ripple each time the pointer enters.
+          setRippleKey((k) => k + 1);
+        }}
         onMouseLeave={() => setHovered(false)}
         onPointerDown={handlePointerDown}
         onClick={(e) => {
@@ -688,6 +697,24 @@ function HtmlBillboard({
           }
         }}
       >
+        {/* One-shot hover ripple. Keyed so React remounts it and the
+            keyframe animation re-runs. Color + max radius both driven by
+            data (ripple_color / ripple_size_pct), falling back to the
+            hotspot's own color and a subtle default radius. */}
+        {rippleKey > 0 && (
+          <div
+            key={rippleKey}
+            className="hs-hover-ripple"
+            style={
+              {
+                "--hs-ripple-color": h.ripple_color || h.color,
+                // 100% → scale 1.8 (default). 50% → 0.9. 300% → 5.4.
+                "--hs-ripple-scale": `${((h.ripple_size_pct ?? 100) / 100) * 1.8}`,
+              } as React.CSSProperties
+            }
+          />
+        )}
+
         {/* Nav preview card — floats above the hotspot on hover, shows
             where this hotspot takes you. */}
         {hovered && navTarget && !editable && (
@@ -1583,6 +1610,9 @@ function InfoHotspot({
             if (!editable) {
               e.stopPropagation();
               togglePublicClick();
+              // Fire the parent onClick so hotspot_click analytics
+              // events attribute to this hotspot.
+              onClick();
             }
           }}
         >
@@ -1745,6 +1775,12 @@ function PersonTag({
             "--hs-mini-h": `${miniH}px`,
             "--hs-big-w": `${bigW}px`,
             "--hs-big-h": `${bigH}px`,
+            // Text formatting from the panel — name uses label_size/bold/font,
+            // details scales at ~85% of the name so they read as a hierarchy.
+            "--hs-font": fontFor(h.label_font),
+            "--hs-name-size": `${h.label_size ?? 14}px`,
+            "--hs-name-weight": h.label_bold ? 700 : 500,
+            "--hs-desc-size": `${Math.round((h.label_size ?? 14) * 0.85)}px`,
             outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 6,
             borderRadius: "50%",
@@ -1760,6 +1796,9 @@ function PersonTag({
             if (editable) return;
             e.stopPropagation();
             setPinned((p) => !p);
+            // Fire the parent onClick so hotspot_click analytics
+            // events attribute to this hotspot.
+            onClick();
           }}
         >
           <div className="human-hs__name">{name}</div>
@@ -1810,6 +1849,9 @@ function MediaHotspot({
 }) {
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(false);
+  // Fullscreen image viewer — clicking the image inside the card opens
+  // a full-viewport overlay INSIDE the tour (never a new browser tab).
+  const [fullscreen, setFullscreen] = useState(false);
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -1852,6 +1894,9 @@ function MediaHotspot({
 
   const caption = h.info_body || null;
   const imageUrl = h.image_url || null;
+  // Bubble colour comes from h.color; falls back to the default blue.
+  const bubbleColor = h.color && h.color !== "#22c55e" ? h.color : "#29b6f6";
+  const iconColor = h.label_color || "#ffffff";
 
   // Public-mode: hover opens; click pins. In editable mode, the card
   // never auto-opens — authors need to see the marker while editing.
@@ -1875,6 +1920,7 @@ function MediaHotspot({
             "--media-w": `${cardW}px`,
             "--media-h": `${cardH}px`,
             "--media-header": `${headerH}px`,
+            "--media-blue": bubbleColor,
             outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 4,
           } as React.CSSProperties
@@ -1889,6 +1935,9 @@ function MediaHotspot({
             if (editable) return;
             e.stopPropagation();
             setPinned((p) => !p);
+            // Fire the parent onClick so hotspot_click analytics
+            // events attribute to this hotspot.
+            onClick();
           }}
         >
           <div className="media-hs__header">
@@ -1897,7 +1946,7 @@ function MediaHotspot({
               className="media-hs__icon-svg"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="currentColor"
+              stroke={iconColor}
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1908,7 +1957,18 @@ function MediaHotspot({
             </svg>
           </div>
           <div className="media-hs__body">
-            <div className="media-hs__image">
+            <div
+              className="media-hs__image"
+              onClick={(e) => {
+                // Click the image → open a fullscreen viewer INSIDE the
+                // tour (no browser tab). Stops propagation so we don't
+                // also toggle the pinned state on the parent card.
+                if (imageUrl && !editable) {
+                  e.stopPropagation();
+                  setFullscreen(true);
+                }
+              }}
+            >
               {imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imageUrl} alt="" draggable={false} />
@@ -1938,6 +1998,41 @@ function MediaHotspot({
             ×
           </button>
         </div>
+
+        {/* Fullscreen viewer — must be portalled to document.body because
+            our parent is inside drei's <Html>, which applies a matrix3d
+            transform. A `position: fixed` element with a transformed
+            ancestor is contained by that ancestor instead of the
+            viewport, which is why the "fullscreen" image previously
+            rendered at card size. Portalling escapes the transform
+            stack entirely so it truly fills the viewport. */}
+        {fullscreen &&
+          imageUrl &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <div
+              className="media-hs__fullscreen"
+              onClick={() => setFullscreen(false)}
+            >
+              <button
+                className="media-hs__fullscreen-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFullscreen(false);
+                }}
+                aria-label="Close fullscreen"
+              >
+                ×
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl}
+                alt=""
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>,
+            document.body
+          )}
       </div>
     </Html>
   );

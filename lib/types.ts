@@ -287,6 +287,12 @@ export type Hotspot = {
    *  Applies to the on-panorama VideoCard thumbnail and the hover
    *  VideoPreviewCard. Defaults to 100. */
   thumbnail_size_pct?: number | null;
+  /** Hover ripple colour — overrides `color` for the on-hover ripple
+   *  effect if set. Leave null to fall back to `color`. */
+  ripple_color?: string | null;
+  /** Hover ripple max scale, expressed as %. 100 = default (~1.8×
+   *  outward). 50 = tighter, 300 = huge wave. */
+  ripple_size_pct?: number | null;
 
   created_at: string;
 };
