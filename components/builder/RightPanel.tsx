@@ -2369,7 +2369,7 @@ function AddonTab({
                   className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
                 >
                   {FONT_OPTIONS.map((f) => (
-                    <option key={f.value} value={f.value}>
+                    <option key={f.key} value={f.key}>
                       {f.label}
                     </option>
                   ))}
