@@ -23,6 +23,10 @@ export type Tour = {
   description: string | null;
   /** Optional folder membership. null/undefined = "Unfiled". */
   folder_id?: string | null;
+  /** Which organization this tour is assigned to. null = unassigned
+   *  (only visible in the owner's editor + admin panel). Owner sets
+   *  this via /admin/tours. */
+  org_id?: string | null;
   cover_scene_id: string | null;
   /** Legacy — kept in sync with visibility for backward compat. Use visibility. */
   published: boolean;
