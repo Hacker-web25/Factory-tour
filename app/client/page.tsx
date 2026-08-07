@@ -59,15 +59,7 @@ export default function ClientDashboardPage() {
         if (o) setOrg(o as Organization);
       }
 
-      const { data: tourRows } = await supabase
-        .from("tours")
-        .select("*")
-        // Owner sees all tours; org_admin sees only their org's tours.
-        .apply?.((qb) => (p.role === "owner" ? qb : qb.eq("org_id", p.org_id)))
-        ?? { data: [] };
-
-      // The .apply pattern above isn't standard on the supabase builder,
-      // so fall back to a plain filter chain below.
+      // Owner sees all tours; org_admin sees only their org's tours.
       const q = supabase
         .from("tours")
         .select("*")
