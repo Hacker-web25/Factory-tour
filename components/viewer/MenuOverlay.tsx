@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { MenuPosition, Scene, Tour } from "@/lib/types";
 import { publicUrl } from "@/lib/supabase";
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import { useT } from "@/lib/TranslationContext";
 
 /**
  * Corner-docked scene-index menu.
@@ -174,6 +175,7 @@ function SceneRow({
   active: boolean;
   onClick: () => void;
 }) {
+  const { t } = useT();
   const thumbUrl = publicUrl(s.thumbnail_path ?? s.image_path);
   return (
     <button
@@ -186,7 +188,7 @@ function SceneRow({
       ) : (
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? "bg-black/70" : "bg-cyan-400"}`} />
       )}
-      <span className="truncate flex-1">{s.name || `Scene ${index + 1}`}</span>
+      <span className="truncate flex-1">{t(s.name) || `Scene ${index + 1}`}</span>
     </button>
   );
 }

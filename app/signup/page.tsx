@@ -25,6 +25,7 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sentConfirmation, setSentConfirmation] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +42,49 @@ export default function SignupPage() {
       setError((res.error as Error).message);
       return;
     }
+    // Email confirmation is enabled — user isn't logged in yet. Show
+    // "check your email" screen instead of redirecting.
+    if ("needsEmailConfirmation" in res && res.needsEmailConfirmation) {
+      setSentConfirmation(true);
+      return;
+    }
     router.push("/");
+  }
+
+  if (sentConfirmation) {
+    return (
+      <AuthShell>
+        <div className="text-center py-4">
+          <div className="mx-auto w-14 h-14 rounded-full bg-violet-500/20 grid place-items-center mb-4">
+            <Mail size={22} className="text-violet-300" />
+          </div>
+          <h1 className="text-[26px] font-semibold tracking-tight mb-2">
+            Check your email
+          </h1>
+          <p className="text-[13px] text-white/60 mb-6">
+            We sent a confirmation link to
+            <br />
+            <span className="text-white font-medium">{email}</span>
+          </p>
+          <p className="text-[12px] text-white/40 mb-8">
+            Click the link in that email to finish creating your account.
+            Once confirmed, you&apos;ll be able to sign in and your{" "}
+            <span className="text-white/70">{orgName}</span> workspace will
+            be ready.
+          </p>
+          <div className="text-[12px] text-white/50">
+            Wrong email?{" "}
+            <button
+              type="button"
+              onClick={() => setSentConfirmation(false)}
+              className="text-violet-300 hover:text-violet-200 font-medium"
+            >
+              Go back
+            </button>
+          </div>
+        </div>
+      </AuthShell>
+    );
   }
 
   return (

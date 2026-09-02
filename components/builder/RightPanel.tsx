@@ -15,6 +15,9 @@ import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
 import IconPicker from "./IconPicker";
+import BeautifyModal from "@/components/BeautifyModal";
+import TranslationsSection from "@/components/builder/TranslationsSection";
+import SubtitlesSection from "@/components/builder/SubtitlesSection";
 import {
   Image as ImageIcon,
   Type,
@@ -40,7 +43,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 
-type Tab = "photo" | "addon" | "hotspot" | "autotour";
+type Tab = "photo" | "addon" | "lang" | "hotspot" | "autotour";
 
 type Props = {
   tour: Tour;
@@ -138,6 +141,9 @@ export default function RightPanel({
         <TabBtn active={tab === "addon"} onClick={() => setTab("addon")}>
           Add
         </TabBtn>
+        <TabBtn active={tab === "lang"} onClick={() => setTab("lang")}>
+          🌐 Lang
+        </TabBtn>
         {selectedHotspot && (
           <TabBtn
             active={tab === "hotspot"}
@@ -181,6 +187,14 @@ export default function RightPanel({
         )}
         {tab === "addon" && scene && (
           <AddonsTab onStartAddHotspot={onStartAddHotspot} />
+        )}
+        {tab === "lang" && scene && (
+          <LangTab
+            tour={tour}
+            scene={scene}
+            onPatchTour={onPatchTour}
+            onSceneChange={onSceneChange}
+          />
         )}
         {tab === "hotspot" && selectedHotspot && (
           <AddonTab
@@ -387,6 +401,43 @@ function PreviewPanel({
         </div>
       </div>
     </aside>
+  );
+}
+
+/* --------------------------- LANG & SUBTITLES TAB --------------------------- */
+
+/** Combined language + subtitles panel. Owns both static-text translation
+ *  (Phase 1: MyMemory) and audio/video subtitle generation (Phase 2:
+ *  Whisper). Kept together because both features share the same purpose:
+ *  making the tour accessible in multiple languages. */
+function LangTab({
+  tour,
+  scene,
+  onPatchTour,
+  onSceneChange,
+}: {
+  tour: Tour;
+  scene: Scene;
+  onPatchTour: (fields: Partial<Tour>) => Promise<void>;
+  onSceneChange: (s: Scene) => void;
+}) {
+  return (
+    <div className="space-y-5 text-sm">
+      {/* Ambient audio at the TOP — this is the audio that gets
+          subtitled, so it belongs with the language tools. */}
+      <AmbientAudioSettings
+        scene={scene}
+        onSceneChange={onSceneChange}
+        tour={tour}
+        onPatchTour={onPatchTour}
+      />
+      <div className="border-t border-border pt-4">
+        <TranslationsSection tour={tour} onTourChange={onPatchTour} />
+      </div>
+      <div className="border-t border-border pt-4">
+        <SubtitlesSection tour={tour} onPatchTour={onPatchTour} />
+      </div>
+    </div>
   );
 }
 
@@ -602,15 +653,13 @@ function PhotoTab({
         </div>
       </div>
 
-      <AmbientAudioSettings
-        scene={scene}
-        onSceneChange={onSceneChange}
-        tour={tour}
-        onPatchTour={onPatchTour}
-      />
+      {/* Ambient audio moved to Lang tab so it sits with subtitles. */}
       <NadirSettings tour={tour} onPatch={onPatchTour} />
       <AutoTourSettings tour={tour} onPatch={onPatchTour} />
       <MenuSettings tour={tour} onPatch={onPatchTour} />
+
+      {/* Translations + Subtitles moved to their own "Lang" tab so
+          this panel stays focused on scene/tour visuals. */}
 
       {/* Rendered LAST — copy/move is a low-priority action per user
           request and the other scene-scoped controls (thumbnail, tripod
@@ -1314,6 +1363,7 @@ function SceneActions({
   getSnapshot?: () => string | null;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [beautifyOpen, setBeautifyOpen] = useState(false);
   const [otherTours, setOtherTours] = useState<
     { id: string; title: string }[]
   >([]);
@@ -1326,6 +1376,24 @@ function SceneActions({
       .order("updated_at", { ascending: false })
       .then(({ data }) => setOtherTours((data ?? []) as { id: string; title: string }[]));
   }, [tour.id]);
+
+  // Upload the healed panorama and swap the scene's image_path.
+  // Keeps the same tour folder as the original so RLS / paths stay tidy.
+  async function saveBeautified(blob: Blob) {
+    const path = `${tour.id}/${crypto.randomUUID()}.jpg`;
+    const { error } = await supabase.storage
+      .from("panoramas")
+      .upload(path, blob, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: "image/jpeg",
+      });
+    if (error) {
+      alert(`Save failed: ${error.message}`);
+      throw error;
+    }
+    onSceneChange({ ...scene, image_path: path });
+  }
 
   async function setFromCurrentView() {
     setBusy("thumb");
@@ -1642,6 +1710,34 @@ function SceneActions({
         Replacing the image keeps all hotspots + settings intact.
       </div>
 
+      {/* Beautify — clean up damage, stains, unwanted objects using
+          on-device inpainting. Zero backend, blends with surrounding
+          texture so the fix looks like the real wall, not an AI paint. */}
+      <button
+        onClick={() => setBeautifyOpen(true)}
+        disabled={!scene.image_path}
+        className="w-full text-xs bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium rounded py-2 hover:brightness-110 disabled:opacity-50"
+        title="Paint over damage, pipes, stains — heal them with nearby texture"
+      >
+        ✨ Beautify scene
+      </button>
+      <div className="text-[10px] text-neutral-500 -mt-2">
+        Erase damage, cables, stains. The result replaces this scene&apos;s
+        image while keeping hotspots.
+      </div>
+
+      {beautifyOpen && scene.image_path && (
+        <BeautifyModal
+          imageUrl={
+            supabase.storage
+              .from("panoramas")
+              .getPublicUrl(scene.image_path).data.publicUrl
+          }
+          onSave={saveBeautified}
+          onClose={() => setBeautifyOpen(false)}
+        />
+      )}
+
       {/* Copy / Move */}
       {otherTours.length > 0 && (
         <div>
@@ -1842,7 +1938,7 @@ function AmbientAudioSettings({
         <label className="block border border-dashed border-border rounded p-3 text-center text-xs cursor-pointer hover:border-accent">
           <input
             type="file"
-            accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg"
+            accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac,audio/flac,audio/*"
             className="hidden"
             onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
           />
@@ -3870,7 +3966,7 @@ function SoundEffectPicker({
           <label className="flex-1 text-xs bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 rounded px-2 py-1 text-center cursor-pointer">
             <input
               type="file"
-              accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg"
+              accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac,audio/flac,audio/*"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
             />

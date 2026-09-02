@@ -78,32 +78,45 @@ export async function signInWithGoogle(next: string = "/") {
   return { error };
 }
 
-/** Idempotently ensure a profiles row exists for the current auth user.
- *  Needed for OAuth sign-ins (Google), where our signUp() flow doesn't
- *  run and no profile is auto-created. Safe to call every login. */
+/** Idempotently ensure a profiles row exists AND has an org for the
+ *  current auth user. Handles three scenarios:
+ *   1. Google OAuth first login — profile might not exist yet (some
+ *      Supabase setups skip the trigger for OAuth).
+ *   2. Email/password signup with confirmation — trigger created a
+ *      base profile but org_id is still null; if user_metadata has a
+ *      pending_org_name from signup, create the org now.
+ *   3. Any subsequent login — no-op fast path. */
 export async function ensureProfile(opts?: {
   orgName?: string;
 }): Promise<Profile | null> {
   const session = await getSession();
   if (!session) return null;
   const uid = session.user.id;
-  // Already have a profile? Done.
+  const meta = (session.user.user_metadata ?? {}) as Record<string, unknown>;
+  const pendingOrgFromSignup =
+    (meta.pending_org_name as string | undefined) ?? undefined;
+  const orgNameToCreate = opts?.orgName ?? pendingOrgFromSignup;
+
   const { data: existing } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", uid)
     .maybeSingle();
-  if (existing) return existing as Profile;
 
-  // No profile yet — create one. If orgName is provided, spin up a
-  // fresh org and mark them as its admin; otherwise register as an
-  // unassigned presenter (an admin can move them to an org later).
-  let orgId: string | null = null;
-  let role: Role = "presenter";
-  if (opts?.orgName) {
+  // Fast path — profile exists AND already has an org (or user
+  // explicitly signed up without one). Nothing to do.
+  if (existing && (existing.org_id || !orgNameToCreate)) {
+    return existing as Profile;
+  }
+
+  // Need to create the org (either brand-new profile OR existing
+  // profile from trigger that hasn't been linked to an org yet).
+  let orgId: string | null = existing?.org_id ?? null;
+  let role: Role = existing?.role ?? "presenter";
+  if (!orgId && orgNameToCreate) {
     const { data: org } = await supabase
       .from("organizations")
-      .insert({ name: opts.orgName.trim() })
+      .insert({ name: orgNameToCreate.trim() })
       .select()
       .single();
     if (org) {
@@ -111,22 +124,30 @@ export async function ensureProfile(opts?: {
       role = "org_admin";
     }
   }
+
   const email = session.user.email ?? "";
   const fullName =
-    (session.user.user_metadata?.full_name as string | undefined) ??
-    (session.user.user_metadata?.name as string | undefined) ??
+    (meta.full_name as string | undefined) ??
+    (meta.name as string | undefined) ??
     null;
-  const { data: created } = await supabase
+
+  // Upsert — inserts if trigger didn't fire (OAuth in some configs),
+  // updates if the trigger already created a base row.
+  const { data: upserted } = await supabase
     .from("profiles")
-    .insert({
-      id: uid,
-      email,
-      full_name: fullName,
-      role,
-      org_id: orgId,
-    })
+    .upsert(
+      {
+        id: uid,
+        email,
+        full_name: fullName ?? existing?.full_name ?? null,
+        role,
+        org_id: orgId,
+      },
+      { onConflict: "id" }
+    )
     .select()
     .single();
+  const created = upserted;
   return (created as Profile) ?? null;
 }
 
@@ -141,17 +162,38 @@ export async function signUp(opts: {
   orgName?: string;
 }) {
   const email = opts.email.trim().toLowerCase();
+  // Pass the full name + org name as user_metadata so the DB trigger
+  // (handle_new_user) can pick them up. Direct client-side profile
+  // insert races with the auth.users insert when email confirmation is
+  // enabled — the trigger runs in the same transaction so there's no
+  // FK-violates-profiles_id_fkey race.
   const { data: authData, error: authErr } = await supabase.auth.signUp({
     email,
     password: opts.password,
+    options: {
+      data: {
+        full_name: opts.fullName ?? null,
+        pending_org_name: opts.orgName?.trim() ?? null,
+      },
+    },
   });
   if (authErr) return { error: authErr };
   const userId = authData.user?.id;
-  if (!userId) return { error: new Error("No user id returned from signUp") };
 
+  // If Supabase requires email confirmation, authData.session is null.
+  // We can't touch profiles/organizations yet (user isn't logged in).
+  // The trigger has already created a base profile row; the org will
+  // be created on first login via ensureProfile(). Signal the caller
+  // to show a "check your email" screen.
+  if (!authData.session) {
+    return { needsEmailConfirmation: true, userId: userId ?? null };
+  }
+
+  // Email confirmation is disabled — we have a live session. Create
+  // the org + patch the auto-created profile now.
   let orgId: string | null = null;
   let role: Role = "presenter";
-  if (opts.orgName) {
+  if (opts.orgName && userId) {
     const { data: org, error: orgErr } = await supabase
       .from("organizations")
       .insert({ name: opts.orgName.trim() })
@@ -161,17 +203,18 @@ export async function signUp(opts: {
     orgId = org.id;
     role = "org_admin";
   }
+  if (userId) {
+    await supabase
+      .from("profiles")
+      .update({
+        full_name: opts.fullName ?? null,
+        role,
+        org_id: orgId,
+      })
+      .eq("id", userId);
+  }
 
-  const { error: profileErr } = await supabase.from("profiles").insert({
-    id: userId,
-    email,
-    full_name: opts.fullName ?? null,
-    role,
-    org_id: orgId,
-  });
-  if (profileErr) return { error: profileErr };
-
-  return { userId, orgId, role };
+  return { userId: userId ?? null, orgId, role };
 }
 
 /** Invite a new presenter to an existing org. Only `org_admin` should call

@@ -65,6 +65,18 @@ export type Tour = {
   /** Which animation plays when the viewer navigates between scenes. */
   transition_effect: TransitionEffect;
 
+  /** Languages the tour has been translated INTO. Source language is
+   *  implicit (always available). Populated by the editor's Translations
+   *  panel; consumed by the viewer's LanguagePicker. */
+  available_languages?: string[] | null;
+  /** BCP-47 primary tag of the source content. Defaults to 'en'. */
+  default_language?: string | null;
+
+  /** Subtitle overlay style for the ambient-audio transcript. Shape:
+   *  { enabled, position, fontSize, opacity, bgColor, textColor,
+   *    maxWidthPct }. See SubtitlesSection for defaults. */
+  subtitle_settings?: Record<string, unknown> | null;
+
   created_at: string;
   updated_at: string;
 };

@@ -7,6 +7,9 @@ import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
+import { TranslationProvider } from "@/lib/TranslationContext";
+import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
+import LanguagePicker from "@/components/viewer/LanguagePicker";
 import RightPanel from "@/components/builder/RightPanel";
 import SceneStrip from "@/components/builder/SceneStrip";
 import ShareModal from "@/components/builder/ShareModal";
@@ -300,8 +303,19 @@ export default function TourEditPage() {
     a.loop = true;
     a.volume = Math.max(0, Math.min(1, ambientVolume));
     ambientAudioRef.current = a;
+    // Emit time events so SubtitleOverlay (mounted below) picks up the
+    // right segment while the audio loops across scene switches.
+    const onTime = () => {
+      window.dispatchEvent(
+        new CustomEvent("factour:audio-time", {
+          detail: { url: ambientUrl, currentTime: a.currentTime },
+        })
+      );
+    };
+    a.addEventListener("timeupdate", onTime);
     a.play().catch(() => {});
     return () => {
+      a.removeEventListener("timeupdate", onTime);
       a.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1302,6 +1316,11 @@ export default function TourEditPage() {
   const inPlacementMode = pendingHotspot != null || repositioningId != null;
 
   return (
+    <TranslationProvider
+      tour={tour}
+      scenes={scenes}
+      hotspots={hotspots}
+    >
     <div className="h-screen flex flex-col overflow-hidden bg-chrome">
       <header className="h-12 bg-chrome border-b border-border flex items-center px-3 gap-2 text-[13px] relative">
         {/* Left: nav */}
@@ -1822,7 +1841,22 @@ export default function TourEditPage() {
         />
       )}
 
+      {/* Preview-mode language picker + live subtitles so authors can
+          test the multilingual experience without leaving the editor. */}
+      {previewMode && (
+        <>
+          <LanguagePicker position="top-right" />
+          <SubtitleOverlay
+            settings={
+              (tour as unknown as { subtitle_settings?: any })
+                .subtitle_settings
+            }
+            tourId={tour.id}
+          />
+        </>
+      )}
     </div>
+    </TranslationProvider>
   );
 }
 

@@ -11,6 +11,9 @@ import { useAutoTour } from "@/lib/useAutoTour";
 import { Play, Pause, Minimize2, ZoomIn, Ruler } from "lucide-react";
 import MeasureTool from "@/components/viewer/MeasureTool";
 import { trackEvent } from "@/lib/analytics";
+import { TranslationProvider, useT } from "@/lib/TranslationContext";
+import LanguagePicker from "@/components/viewer/LanguagePicker";
+import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 
 type Props = {
   tour: Tour;
@@ -19,12 +22,44 @@ type Props = {
   autoplay?: boolean;
 };
 
-export default function TourPlayer({
+/**
+ * Public entry — hosts the TranslationProvider so every child can
+ * synchronously translate strings via useT(). We fetch hotspots for
+ * the whole tour just once (for translation coverage), then hand the
+ * inner player its own hotspot state as usual.
+ */
+export default function TourPlayer(props: Props) {
+  const [tourHotspots, setTourHotspots] = useState<Hotspot[]>([]);
+  useEffect(() => {
+    (async () => {
+      const sceneIds = props.scenes.map((s) => s.id);
+      if (sceneIds.length === 0) return;
+      const { data } = await supabase
+        .from("hotspots")
+        .select("label, info_title, info_body, pdf_name")
+        .in("scene_id", sceneIds);
+      setTourHotspots((data ?? []) as unknown as Hotspot[]);
+    })();
+  }, [props.scenes]);
+
+  return (
+    <TranslationProvider
+      tour={props.tour}
+      scenes={props.scenes}
+      hotspots={tourHotspots}
+    >
+      <TourPlayerInner {...props} />
+    </TranslationProvider>
+  );
+}
+
+function TourPlayerInner({
   tour,
   scenes,
   hideControls = false,
   autoplay = false,
 }: Props) {
+  const { t } = useT();
   const [activeSceneId, setActiveSceneId] = useState<string | null>(
     scenes[0]?.id ?? null
   );
@@ -184,10 +219,21 @@ export default function TourPlayer({
     a.loop = true;
     a.volume = Math.max(0, Math.min(1, ambientVolume));
     audioRef.current = a;
+    // Broadcast time updates so the SubtitleOverlay (mounted below)
+    // can pick the current segment. Fires ~4×/sec while playing.
+    const onTime = () => {
+      window.dispatchEvent(
+        new CustomEvent("factour:audio-time", {
+          detail: { currentTime: a.currentTime, url: ambientUrl },
+        })
+      );
+    };
+    a.addEventListener("timeupdate", onTime);
     a.play().catch(() => {
       /* browsers may block autoplay until user interaction — silently ignore */
     });
     return () => {
+      a.removeEventListener("timeupdate", onTime);
       a.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -450,6 +496,18 @@ export default function TourPlayer({
 
   return (
     <div className="h-full w-full flex flex-col bg-black">
+      {/* Floating language dropdown — hides itself when the tour has
+          only one language configured. */}
+      <LanguagePicker position="top-right" />
+      {/* Live-translated subtitles — attaches to whichever source
+          (ambient audio, audio hotspot, video hotspot) is currently
+          firing time-update events. */}
+      <SubtitleOverlay
+        settings={
+          (tour as unknown as { subtitle_settings?: any }).subtitle_settings
+        }
+        tourId={tour.id}
+      />
       <div className="flex-1 relative">
         {/* Scene container — stays mounted across ALL scene changes.
             PanoramaViewer's manual texture loader keeps the old panorama
@@ -709,7 +767,7 @@ export default function TourPlayer({
             }}
           >
             <h3 className="font-semibold mb-2">
-              {infoModal.info_title || infoModal.label || "Info"}
+              {t(infoModal.info_title || infoModal.label) || t("Info")}
             </h3>
             {(infoModal.action === "image_popup" ||
               infoModal.type === "image") &&
@@ -724,7 +782,7 @@ export default function TourPlayer({
               )}
             {infoModal.info_body && (
               <p className="text-sm text-neutral-300 whitespace-pre-wrap">
-                {infoModal.info_body}
+                {t(infoModal.info_body)}
               </p>
             )}
             <button
@@ -783,6 +841,7 @@ function VideoModal({
   hotspot: Hotspot;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const url = hotspot.video_url ?? "";
   const isYouTube = /youtube\.com|youtu\.be/i.test(url);
   const ytId = isYouTube ? extractYouTubeId(url) : null;
@@ -849,7 +908,7 @@ function VideoModal({
           className="flex items-center justify-between bg-black/85 border-b border-white/10 px-3 py-1.5 cursor-move select-none"
         >
           <div className="text-[12px] text-white/85 truncate flex-1">
-            {hotspot.label || hotspot.info_title || "Video"}
+            {t(hotspot.label || hotspot.info_title) || t("Video")}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -890,6 +949,14 @@ function VideoModal({
               autoPlay
               controlsList="download"
               className="w-full h-full bg-black"
+              onTimeUpdate={(e) => {
+                const el = e.currentTarget;
+                window.dispatchEvent(
+                  new CustomEvent("factour:audio-time", {
+                    detail: { url, currentTime: el.currentTime },
+                  })
+                );
+              }}
             />
           )}
         </div>
@@ -924,12 +991,13 @@ function AudioPlayerPopup({
   hotspot: Hotspot;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const url = hotspot.audio_url ?? "";
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-3 bg-black/80 backdrop-blur-md border border-white/10 rounded-full pl-4 pr-2 py-2 shadow-2xl">
         <div className="text-sm text-white/90 max-w-[240px] truncate">
-          {hotspot.label || hotspot.info_title || "Voice note"}
+          {t(hotspot.label || hotspot.info_title) || t("Voice note")}
         </div>
         {url ? (
           <audio
@@ -937,6 +1005,14 @@ function AudioPlayerPopup({
             autoPlay
             controls
             className="h-8"
+            onTimeUpdate={(e) => {
+              const el = e.currentTarget;
+              window.dispatchEvent(
+                new CustomEvent("factour:audio-time", {
+                  detail: { url, currentTime: el.currentTime },
+                })
+              );
+            }}
             style={{ minWidth: 260 }}
           />
         ) : (

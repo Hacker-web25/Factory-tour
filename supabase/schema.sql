@@ -311,5 +311,77 @@ create policy "orgs write"     on public.organizations for all    using (true) w
 create policy "profiles read"  on public.profiles      for select using (true);
 create policy "profiles write" on public.profiles      for all    using (true) with check (true);
 
+-- ============================================================================
+-- MIGRATION — Translations (Phase 1: static UI/hotspot text)
+-- Owner clicks "Translate to Spanish/Hindi/…" in the editor. We collect every
+-- translatable string from the tour, ship it to MyMemory (free public API),
+-- and cache the result in this table keyed by (source_hash, target_lang).
+-- Viewer requests with ?lang=xx look up each rendered string; missing rows
+-- fall back to the source string.
+-- ============================================================================
+
+create table if not exists public.translations (
+  source_hash text not null,     -- SHA-1 hex of source_text
+  target_lang text not null,     -- BCP-47 primary tag (e.g. 'es', 'hi', 'zh')
+  source_text text not null,     -- kept for debugging / manual re-translation
+  translated_text text not null,
+  tour_id uuid,                  -- optional — helps admins scope/inspect
+  created_at timestamptz not null default now(),
+  primary key (source_hash, target_lang)
+);
+create index if not exists translations_lang_idx on public.translations(target_lang);
+create index if not exists translations_tour_idx on public.translations(tour_id);
+
+-- Which languages a tour has been translated INTO. Viewer reads this to
+-- build the language-picker dropdown; the source language is always
+-- included implicitly.
+alter table public.tours
+  add column if not exists available_languages text[] default array[]::text[];
+alter table public.tours
+  add column if not exists default_language text default 'en';
+
+-- Open RLS for MVP (matches the rest of the app).
+alter table public.translations enable row level security;
+drop policy if exists "translations read"  on public.translations;
+drop policy if exists "translations write" on public.translations;
+create policy "translations read"  on public.translations for select using (true);
+create policy "translations write" on public.translations for all    using (true) with check (true);
+
+-- ============================================================================
+-- MIGRATION — Phase 2: audio → subtitles (Whisper transcripts + style)
+-- Owner clicks "Generate subtitles" on an audio source; we transcribe in-
+-- browser with Whisper (via @xenova/transformers) and cache the result
+-- keyed by the audio URL's SHA-1. Viewer displays the segment matching
+-- the current audio playhead, live-translated to the viewer's language.
+-- ============================================================================
+
+create table if not exists public.audio_transcripts (
+  audio_url_hash text primary key,        -- SHA-1 hex of the audio URL
+  audio_url text not null,
+  source_lang text,                       -- Whisper's detected language ('en', 'hi', …)
+  segments jsonb not null,                -- [{start:number, end:number, text:string}, ...]
+  duration_sec numeric,
+  tour_id uuid,                           -- optional — helps admins scope/inspect
+  created_at timestamptz not null default now()
+);
+create index if not exists audio_transcripts_tour_idx on public.audio_transcripts(tour_id);
+
+alter table public.tours
+  add column if not exists subtitle_settings jsonb default '{
+    "enabled": true,
+    "position": "bottom-center",
+    "fontSize": 20,
+    "opacity": 0.85,
+    "bgColor": "rgba(0,0,0,0.7)",
+    "textColor": "#ffffff",
+    "maxWidthPct": 80
+  }'::jsonb;
+
+alter table public.audio_transcripts enable row level security;
+drop policy if exists "audio_transcripts read"  on public.audio_transcripts;
+drop policy if exists "audio_transcripts write" on public.audio_transcripts;
+create policy "audio_transcripts read"  on public.audio_transcripts for select using (true);
+create policy "audio_transcripts write" on public.audio_transcripts for all    using (true) with check (true);
+
 -- Force PostgREST to reload the schema cache so new columns are visible immediately
 notify pgrst, 'reload schema';

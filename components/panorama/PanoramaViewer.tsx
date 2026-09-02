@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createPortal } from "react-dom";
 import type { Hotspot } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
+import { useT } from "@/lib/TranslationContext";
 import { fontFor } from "@/lib/fonts";
 import {
   SPHERE_RADIUS,
@@ -554,6 +555,7 @@ function HtmlBillboard({
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
+  const { t } = useT();
   const [hovered, setHovered] = useState(false);
   // Hover ripple — increments each time the pointer enters, forcing the
   // ripple <div> to remount and re-run its keyframe animation. Color is
@@ -836,7 +838,7 @@ function HtmlBillboard({
                   whiteSpace: "nowrap",
                 }}
               >
-                {h.label}
+                {t(h.label)}
               </span>
             )}
           </div>
@@ -970,10 +972,14 @@ function VideoPreviewCard({
     };
   }, [meta, ytId, h.video_url]);
 
+  const { t: tVid } = useT();
+  // meta.title comes from YouTube's own API — don't push that through
+  // MyMemory (would waste a round-trip). Only translate the fields the
+  // tour author entered.
   const title =
     meta?.title ||
-    h.info_title ||
-    h.label ||
+    tVid(h.info_title) ||
+    tVid(h.label) ||
     (ytId ? "YouTube video" : "Video");
   const subtitle = meta?.author ?? (ytId ? "YouTube" : "");
 
@@ -1567,9 +1573,10 @@ function InfoHotspot({
   // Pill title = info_title from the info config (the "Title" a visitor
   // sees inside the pill). label is a SEPARATE caption rendered below the
   // pill (like a signpost saying "Info about the boiler room").
-  const title = h.info_title || "Info";
-  const body = h.info_body || "";
-  const caption = h.label || null;
+  const { t } = useT();
+  const title = t(h.info_title) || t("Info");
+  const body = t(h.info_body) || "";
+  const caption = t(h.label) || null;
   // When the body panel is open, we keep the pill in its hovered/pill
   // state so the title stays visible — closing the panel snaps back to
   // idle if the cursor has left.
@@ -1609,10 +1616,11 @@ function InfoHotspot({
           onClick={(e) => {
             if (!editable) {
               e.stopPropagation();
+              // Pill click ONLY toggles the inline body dropdown.
+              // The parent's onClick (which pops the full-screen modal)
+              // now fires from the body-panel click below, so users
+              // don't get a big modal just from tapping the title.
               togglePublicClick();
-              // Fire the parent onClick so hotspot_click analytics
-              // events attribute to this hotspot.
-              onClick();
             }
           }}
         >
@@ -1652,9 +1660,21 @@ function InfoHotspot({
 
         {/* Body panel — unfolds down from behind the pill, sits at z-index
             -1 relative to the pill so its top edge tucks under the pill.
-            Resizable via CSS `resize: both` handle in the corner. */}
+            Clicking anywhere on the body opens the full-screen modal
+            (that's the parent's onClick path). The × button just closes
+            the inline dropdown and does NOT open the modal. */}
         {open && (
-          <div className={`info-body ${closing ? "is-closing" : ""}`}>
+          <div
+            className={`info-body ${closing ? "is-closing" : ""}`}
+            onClick={(e) => {
+              if (editable) return;
+              e.stopPropagation();
+              onClick();
+            }}
+            role="button"
+            title="Open full view"
+            style={{ cursor: editable ? "default" : "zoom-in" }}
+          >
             <button
               className="info-body__close"
               onClick={(e) => {
@@ -1740,8 +1760,9 @@ function PersonTag({
     window.addEventListener("pointerup", up);
   }
 
-  const name = h.label || "Person";
-  const desc = h.info_body || null;
+  const { t: tPerson } = useT();
+  const name = tPerson(h.label) || tPerson("Person");
+  const desc = tPerson(h.info_body) || null;
   const bg = h.color || "rgba(45,47,52,0.94)";
   const fg = h.label_color || "#ffffff";
   // Card size uses width_pct for the mini pill scale; card_size_pct for
@@ -1892,7 +1913,8 @@ function MediaHotspot({
   const cardH = Math.round(300 * cardScale);
   const headerH = Math.max(48, Math.min(80, iconSize));
 
-  const caption = h.info_body || null;
+  const { t: tImg } = useT();
+  const caption = tImg(h.info_body) || null;
   const imageUrl = h.image_url || null;
   // Bubble colour comes from h.color; falls back to the default blue.
   const bubbleColor = h.color && h.color !== "#22c55e" ? h.color : "#29b6f6";
