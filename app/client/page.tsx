@@ -29,6 +29,7 @@ import {
   UserPlus,
   X,
   Plus,
+  Check,
 } from "lucide-react";
 
 /**
