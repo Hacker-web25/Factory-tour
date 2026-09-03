@@ -56,6 +56,14 @@ export default function DashboardPage() {
         router.replace("/login");
         return;
       }
+      // Super-owner (that's you, NITIN) — allow through to the internal
+      // cross-org tour editor. MUST come before the org_id check —
+      // owners don't belong to any single org, so an empty org_id is
+      // normal for them and shouldn't bounce to /setup.
+      if (p.role === "owner") {
+        setRoleChecked(true);
+        return;
+      }
       // Signed up but never picked a role / joined an org → send them
       // to the role picker. This is the post-email-confirmation path.
       if (!p.org_id) {
@@ -75,9 +83,9 @@ export default function DashboardPage() {
         router.replace(`/${slug}/${seg}`);
         return;
       }
-      // p.role === "owner" (that's you, NITIN) — allow through to the
-      // internal cross-org tour editor.
-      setRoleChecked(true);
+      // Unknown role — safest is to bounce to /setup, which will
+      // re-check and route appropriately.
+      router.replace("/setup");
     })();
   }, [router]);
 
