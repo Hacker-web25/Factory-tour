@@ -167,10 +167,18 @@ export async function signUp(opts: {
   // insert races with the auth.users insert when email confirmation is
   // enabled — the trigger runs in the same transaction so there's no
   // FK-violates-profiles_id_fkey race.
+  // Tell Supabase where to send the user AFTER they click the email
+  // confirmation link. Without this, Supabase falls back to the project's
+  // Site URL, which lands them on `/` instead of the role picker.
+  const emailRedirectTo =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback?next=%2Fsetup`
+      : undefined;
   const { data: authData, error: authErr } = await supabase.auth.signUp({
     email,
     password: opts.password,
     options: {
+      emailRedirectTo,
       data: {
         full_name: opts.fullName ?? null,
         pending_org_name: opts.orgName?.trim() ?? null,

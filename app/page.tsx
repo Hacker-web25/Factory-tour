@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { importTourFromFile } from "@/lib/backup";
 import { getMyProfile, type Organization } from "@/lib/auth";
+import { slugForOrgId } from "@/lib/orgSlug";
 import {
   listFolders,
   createFolder,
@@ -55,15 +56,27 @@ export default function DashboardPage() {
         router.replace("/login");
         return;
       }
-      if (p.role === "org_admin") {
-        router.replace("/client");
+      // Signed up but never picked a role / joined an org → send them
+      // to the role picker. This is the post-email-confirmation path.
+      if (!p.org_id) {
+        router.replace("/setup");
         return;
       }
-      if (p.role === "presenter") {
-        router.replace("/presenter");
+      // Route org members to their slug-based dashboards. The legacy
+      // /client and /presenter aliases still work but the canonical
+      // URL is /{slug}/{owner|sales}.
+      if (p.role === "org_admin" || p.role === "presenter") {
+        const slug = await slugForOrgId(p.org_id);
+        if (!slug) {
+          router.replace("/setup");
+          return;
+        }
+        const seg = p.role === "presenter" ? "sales" : "owner";
+        router.replace(`/${slug}/${seg}`);
         return;
       }
-      // p.role === "owner" — allow through.
+      // p.role === "owner" (that's you, NITIN) — allow through to the
+      // internal cross-org tour editor.
       setRoleChecked(true);
     })();
   }, [router]);
