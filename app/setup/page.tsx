@@ -46,6 +46,11 @@ export default function SetupPage() {
         return;
       }
       setUserEmail(p.email);
+      // Super-owner (you, NITIN) → cross-org tour editor at /.
+      if (p.role === "owner") {
+        router.replace("/");
+        return;
+      }
       // Already onboarded — jump straight to the right dashboard.
       if (p.org_id) {
         const slug = await slugForOrgId(p.org_id);

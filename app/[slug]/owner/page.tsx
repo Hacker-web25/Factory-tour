@@ -25,6 +25,12 @@ export default function OwnerDashboardBySlug() {
         router.replace(`/login?next=/${params.slug}/owner`);
         return;
       }
+      // Super-owner (that's you, NITIN) always goes to the cross-org
+      // tour editor at /, regardless of which slug URL they typed.
+      if (p.role === "owner") {
+        router.replace("/");
+        return;
+      }
       if (!p.org_id) {
         router.replace("/setup");
         return;

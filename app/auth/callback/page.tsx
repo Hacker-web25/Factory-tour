@@ -70,9 +70,14 @@ function OAuthCallbackPage() {
       const profile = await getMyProfile();
 
       // Route intelligently:
+      //   • Super-owner (you) → always / (cross-org editor)
       //   • Explicit ?next=/setup or any other path → honour it
       //   • No profile OR no role+org yet → send to /setup
       //   • Has org → /{slug}/{owner|sales}
+      if (profile?.role === "owner") {
+        router.replace("/");
+        return;
+      }
       if (nextRaw && nextRaw !== "/") {
         router.replace(nextRaw);
         return;

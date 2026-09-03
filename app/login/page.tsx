@@ -38,6 +38,11 @@ export default function LoginPage() {
       return;
     }
     const profile = await getMyProfile();
+    // Super-owner (you, NITIN) → cross-org tour editor at /.
+    if (profile?.role === "owner") {
+      router.push("/");
+      return;
+    }
     if (!profile || !profile.org_id) {
       router.push("/setup");
       return;
