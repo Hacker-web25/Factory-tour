@@ -204,14 +204,22 @@ export async function signUp(opts: {
     role = "org_admin";
   }
   if (userId) {
+    // Upsert — the DB trigger has already created a base profile row,
+    // but if for any reason it didn't (or if an older client bundle
+    // tried to insert), upsert handles both paths without ever raising
+    // duplicate-key or missing-row errors.
     await supabase
       .from("profiles")
-      .update({
-        full_name: opts.fullName ?? null,
-        role,
-        org_id: orgId,
-      })
-      .eq("id", userId);
+      .upsert(
+        {
+          id: userId,
+          email,
+          full_name: opts.fullName ?? null,
+          role,
+          org_id: orgId,
+        },
+        { onConflict: "id" }
+      );
   }
 
   return { userId: userId ?? null, orgId, role };
@@ -239,13 +247,18 @@ export async function invitePresenter(opts: {
   const userId = authData.user?.id;
   if (!userId) return { error: new Error("No user id returned") };
 
-  const { error: profileErr } = await supabase.from("profiles").insert({
-    id: userId,
-    email,
-    full_name: opts.fullName ?? null,
-    role: "presenter",
-    org_id: opts.orgId,
-  });
+  // Upsert — the DB trigger auto-created a base profile row already;
+  // we just need to patch in role + org_id + any name provided here.
+  const { error: profileErr } = await supabase.from("profiles").upsert(
+    {
+      id: userId,
+      email,
+      full_name: opts.fullName ?? null,
+      role: "presenter",
+      org_id: opts.orgId,
+    },
+    { onConflict: "id" }
+  );
   if (profileErr) return { error: profileErr };
 
   return { userId, tempPassword: temp };

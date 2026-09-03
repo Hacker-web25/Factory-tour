@@ -14,10 +14,17 @@ import {
   ArrowRight,
   Building2,
   User,
+  Factory,
+  Users2,
+  ChevronLeft,
 } from "lucide-react";
+
+type RoleChoice = "org" | "team" | null;
 
 export default function SignupPage() {
   const router = useRouter();
+  // Role picker moved to /setup (post-auth) so signup stays a single
+  // step. We always start users as email/google → then /setup.
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [orgName, setOrgName] = useState("");
@@ -27,6 +34,12 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [sentConfirmation, setSentConfirmation] = useState(false);
 
+  // Role picker — first thing the user sees. Splits the funnel into
+  // "org_admin" (creates a new org) vs "presenter" (joins an existing
+  // team via invite from their admin). Both paths call signUp, only
+  // difference is whether orgName is submitted.
+  // Role picker moved to /setup — no early return here anymore.
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -35,7 +48,8 @@ export default function SignupPage() {
       email,
       password,
       fullName: fullName || undefined,
-      orgName,
+      // Org creation moved to /setup post-auth — signup is now a pure
+      // account-creation step and doesn't need orgName up front.
     });
     setBusy(false);
     if ("error" in res && res.error) {
@@ -48,7 +62,9 @@ export default function SignupPage() {
       setSentConfirmation(true);
       return;
     }
-    router.push("/");
+    // No email confirmation — session is live, send them to the role
+    // picker to finish setup.
+    router.push("/setup");
   }
 
   if (sentConfirmation) {
@@ -94,30 +110,9 @@ export default function SignupPage() {
           Create your account
         </h1>
         <p className="text-[13px] text-white/50 mb-8">
-          You&apos;ll be the admin — invite presenters after signing in.
+          One step. We&apos;ll ask if you&apos;re the factory owner or a
+          sales-team member right after.
         </p>
-
-        {/* Org name */}
-        <div className="mb-3">
-          <label className="block text-[11px] uppercase tracking-wider text-white/40 mb-1.5">
-            Organization
-          </label>
-          <div className="relative">
-            <Building2
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
-            />
-            <input
-              type="text"
-              required
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Acme Manufacturing"
-              autoFocus
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-[14px] outline-none focus:border-violet-400/60 focus:bg-white/[0.05]"
-            />
-          </div>
-        </div>
 
         {/* Full name */}
         <div className="mb-3">
@@ -223,18 +218,12 @@ export default function SignupPage() {
           <div className="flex-1 h-px bg-white/10" />
         </div>
 
-        {/* Google — requires org name so we can create the org on
-            callback via the ?org= param. */}
+        {/* Google — always redirects to /setup after callback so the
+            user picks their role there. Same flow as email/password. */}
         <button
           type="button"
           onClick={async () => {
-            if (!orgName.trim()) {
-              setError("Please enter an organization name first.");
-              return;
-            }
-            const redirectTo = `${window.location.origin}/auth/callback?next=/&org=${encodeURIComponent(
-              orgName.trim()
-            )}`;
+            const redirectTo = `${window.location.origin}/auth/callback?next=/setup`;
             await supabase.auth.signInWithOAuth({
               provider: "google",
               options: { redirectTo },

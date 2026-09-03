@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signIn, signInWithGoogle } from "@/lib/auth";
+import { signIn, signInWithGoogle, getMyProfile } from "@/lib/auth";
+import { slugForOrgId } from "@/lib/orgSlug";
 import AuthShell from "@/components/AuthShell";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -26,11 +27,28 @@ export default function LoginPage() {
       setError(error.message);
       return;
     }
+    // If caller supplied ?next=, honour it. Otherwise route based on
+    // profile: no org yet → /setup, has org → /{slug}/{owner|sales}.
     const next =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("next")
         : null;
-    router.push(next || "/");
+    if (next) {
+      router.push(next);
+      return;
+    }
+    const profile = await getMyProfile();
+    if (!profile || !profile.org_id) {
+      router.push("/setup");
+      return;
+    }
+    const slug = await slugForOrgId(profile.org_id);
+    if (!slug) {
+      router.push("/setup");
+      return;
+    }
+    const role = profile.role === "presenter" ? "sales" : "owner";
+    router.push(`/${slug}/${role}`);
   }
 
   return (

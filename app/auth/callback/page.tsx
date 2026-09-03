@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ensureProfile, getSession } from "@/lib/auth";
+import { ensureProfile, getSession, getMyProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { slugForOrgId } from "@/lib/orgSlug";
 
 export default function OAuthCallbackPageWrapper() {
   return (
@@ -56,22 +57,37 @@ function OAuthCallbackPage() {
         return;
       }
 
-      const profile = await ensureProfile(
-        orgName ? { orgName } : undefined
-      );
+      // Only ensure profile if the caller passed an orgName (legacy
+      // OAuth signup flow). The new flow doesn't pass one — we let
+      // /setup handle role + org.
+      if (orgName) {
+        await ensureProfile({ orgName });
+      }
       if (cancelled) return;
-      if (!profile) {
-        setMessage("Could not create your account. Try again.");
+
+      // Refetch the profile (may have been created by the trigger or
+      // ensureProfile above).
+      const profile = await getMyProfile();
+
+      // Route intelligently:
+      //   • Explicit ?next=/setup or any other path → honour it
+      //   • No profile OR no role+org yet → send to /setup
+      //   • Has org → /{slug}/{owner|sales}
+      if (nextRaw && nextRaw !== "/") {
+        router.replace(nextRaw);
         return;
       }
-
-      // Route based on role, unless caller supplied an explicit next.
-      let target = nextRaw;
-      if (target === "/") {
-        if (profile.role === "org_admin") target = "/client";
-        else if (profile.role === "presenter") target = "/presenter";
+      if (!profile || !profile.org_id) {
+        router.replace("/setup");
+        return;
       }
-      router.replace(target);
+      const slug = await slugForOrgId(profile.org_id);
+      if (!slug) {
+        router.replace("/setup");
+        return;
+      }
+      const role = profile.role === "presenter" ? "sales" : "owner";
+      router.replace(`/${slug}/${role}`);
     })();
     return () => {
       cancelled = true;
