@@ -224,33 +224,6 @@ export default function TourEditPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Ctrl+A / Cmd+A — select every hotspot in the current scene so the
-  // user can bulk-edit size / colour / icon in one go via the existing
-  // multi-select broadcast in onHotspotChange. Blocked while a text
-  // input is focused (otherwise it would hijack the browser's "select
-  // all text" shortcut inside titles / captions).
-  useEffect(() => {
-    function onSelectAll(e: KeyboardEvent) {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key !== "a" && e.key !== "A") return;
-      const t = e.target as HTMLElement | null;
-      const isTyping =
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.isContentEditable);
-      if (isTyping) return;
-      if (previewMode) return;
-      if (hotspots.length === 0) return;
-      e.preventDefault();
-      const ids = hotspots.map((h) => h.id);
-      setSelectedHotspotIds(new Set(ids));
-      setSelectedHotspotId(ids[0]);
-    }
-    window.addEventListener("keydown", onSelectAll);
-    return () => window.removeEventListener("keydown", onSelectAll);
-  }, [hotspots, previewMode]);
-
   const [backingUp, setBackingUp] = useState(false);
   // Fullscreen is now handled by opening the public viewer in a new tab
   // (?fullscreen=1). No in-page state = no chrome-hiding bugs.
@@ -325,6 +298,33 @@ export default function TourEditPage() {
       ),
     [allHotspots, activeSceneId]
   );
+
+  // Ctrl+A / Cmd+A — select every hotspot in the current scene so the
+  // user can bulk-edit size / colour / icon in one go via the existing
+  // multi-select broadcast in onHotspotChange. Blocked while a text
+  // input is focused (otherwise it would hijack the browser's "select
+  // all text" shortcut inside titles / captions).
+  useEffect(() => {
+    function onSelectAll(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== "a" && e.key !== "A") return;
+      const t = e.target as HTMLElement | null;
+      const isTyping =
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable);
+      if (isTyping) return;
+      if (previewMode) return;
+      if (hotspots.length === 0) return;
+      e.preventDefault();
+      const ids = hotspots.map((h) => h.id);
+      setSelectedHotspotIds(new Set(ids));
+      setSelectedHotspotId(ids[0]);
+    }
+    window.addEventListener("keydown", onSelectAll);
+    return () => window.removeEventListener("keydown", onSelectAll);
+  }, [hotspots, previewMode]);
 
   const activeScene = useMemo(
     () => scenes.find((s) => s.id === activeSceneId) ?? null,
