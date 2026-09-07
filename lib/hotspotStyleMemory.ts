@@ -25,6 +25,8 @@ import type { Hotspot } from "@/lib/types";
 export const STICKY_STYLE_KEYS = [
   "color",
   "size",
+  "icon_key",
+  "icon_url",
   "icon_tint",
   "width_pct",
   "height_pct",
@@ -63,6 +65,12 @@ export const STYLE_GROUPS: {
   hint: string;
   keys: readonly (typeof STICKY_STYLE_KEYS)[number][];
 }[] = [
+  {
+    key: "icon_shape",
+    label: "Icon (shape)",
+    hint: "The icon itself — built-in shape (star, chevron, …) or a custom uploaded image",
+    keys: ["icon_key", "icon_url"],
+  },
   {
     key: "color",
     label: "Colour & tint",
