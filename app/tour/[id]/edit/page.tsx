@@ -35,6 +35,7 @@ import {
   Folder as FolderIcon,
 } from "lucide-react";
 import { exportTourToBlob, downloadBlob } from "@/lib/backup";
+import { loadStickyStyle, saveStickyStyle } from "@/lib/hotspotStyleMemory";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import FlatViewer from "@/components/panorama/FlatViewer";
 import FolderResourcesModal from "@/components/builder/FolderResourcesModal";
@@ -70,16 +71,27 @@ const HOTSPOT_DEFAULTS = {
   sound_effect_url: null as string | null,
 };
 
-/** Merge draft into defaults with draft winning for keys it defines (including nulls). */
+/** Merge draft into defaults with draft winning for keys it defines (including nulls).
+ *
+ *  Layering order (later beats earlier):
+ *    1. HOTSPOT_DEFAULTS   — factory defaults, shipped in this file.
+ *    2. sticky (optional)  — last-used style for this tour from
+ *                            localStorage. Lets "customise once, reuse
+ *                            everywhere" work with zero UI.
+ *    3. draft              — anything the caller explicitly passed for
+ *                            this specific placement.
+ */
 function buildInsert(
   sceneId: string,
   yaw: number,
   pitch: number,
-  draft: Partial<Hotspot>
+  draft: Partial<Hotspot>,
+  sticky: Partial<Hotspot> = {}
 ) {
   // draft overrides defaults for any key it explicitly sets
   const merged: Record<string, any> = {
     ...HOTSPOT_DEFAULTS,
+    ...sticky,
     scene_id: sceneId,
     yaw,
     pitch,
@@ -87,7 +99,7 @@ function buildInsert(
     label: draft.label ?? null,
     info_title: draft.info_title ?? null,
     info_body: draft.info_body ?? null,
-    overlay_mode: draft.overlay_mode ?? null,
+    overlay_mode: draft.overlay_mode ?? sticky.overlay_mode ?? null,
     image_url: draft.image_url ?? null,
     url: draft.url ?? null,
   };
@@ -375,7 +387,13 @@ export default function TourEditPage() {
       pts.reduce((s, p) => s + p.yaw, 0) / pts.length;
     const cp =
       pts.reduce((s, p) => s + p.pitch, 0) / pts.length;
-    const insert = buildInsert(activeSceneId, cy, cp, pendingHotspot);
+    const insert = buildInsert(
+      activeSceneId,
+      cy,
+      cp,
+      pendingHotspot,
+      loadStickyStyle(tourId)
+    );
     (insert as any).polygon_points = pts;
     (insert as any).polygon_fill_color = pendingHotspot.polygon_fill_color ?? "#22d3ee";
     (insert as any).polygon_stroke_color = pendingHotspot.polygon_stroke_color ?? "#22d3ee";
@@ -417,7 +435,13 @@ export default function TourEditPage() {
     }
 
     if (pendingHotspot && activeSceneId) {
-      const insert = buildInsert(activeSceneId, yaw, pitch, pendingHotspot);
+      const insert = buildInsert(
+        activeSceneId,
+        yaw,
+        pitch,
+        pendingHotspot,
+        loadStickyStyle(tourId)
+      );
       const { data, error } = await supabase
         .from("hotspots")
         .insert(insert)
@@ -912,6 +936,15 @@ export default function TourEditPage() {
     pendingHotspotChangesRef.current.set(h.id, h);
     setSaveState("dirty");
 
+    // 2a. Remember this hotspot's VISUAL style as the sticky default
+    //     for any hotspot placed after this in the same tour. Only the
+    //     whitelisted style fields are stored (see hotspotStyleMemory);
+    //     position, text content, media URLs stay unique per hotspot.
+    //     Zero UI — future placements just inherit these values.
+    if (Object.keys(patch).length > 0) {
+      saveStickyStyle(tourId, h);
+    }
+
     // 3. Debounce: reset the single global flush timer.
     if (hotspotFlushTimerRef.current != null) {
       window.clearTimeout(hotspotFlushTimerRef.current);
@@ -1232,13 +1265,19 @@ export default function TourEditPage() {
       yaw = aim.yaw;
       pitch = aim.pitch;
     }
-    const insert = buildInsert(activeSceneId, yaw, pitch, {
-      type: "icon",
-      action: "nav",
-      target_scene_id: targetSceneId,
-      icon_key: "chevron-right",
-      label: null,
-    });
+    const insert = buildInsert(
+      activeSceneId,
+      yaw,
+      pitch,
+      {
+        type: "icon",
+        action: "nav",
+        target_scene_id: targetSceneId,
+        icon_key: "chevron-right",
+        label: null,
+      },
+      loadStickyStyle(tourId)
+    );
     const { data, error } = await supabase
       .from("hotspots")
       .insert(insert)
@@ -1510,7 +1549,8 @@ export default function TourEditPage() {
                   activeSceneId,
                   0,
                   0,
-                  pendingHotspot
+                  pendingHotspot,
+                  loadStickyStyle(tourId)
                 );
                 (insert as Record<string, unknown>).flat_x = x;
                 (insert as Record<string, unknown>).flat_y = y;
