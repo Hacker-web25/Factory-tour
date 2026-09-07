@@ -981,7 +981,6 @@ export default function TourEditPage() {
     }, 200);
   }
 
-  /** Central helper for hotspot selection. Pass modKey=true for
   // ---- Style toolbar handlers ----------------------------------------
   //
   // handleToggleSticky: flips the global "auto-match new hotspots to
