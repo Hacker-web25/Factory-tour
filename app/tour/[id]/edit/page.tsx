@@ -223,6 +223,34 @@ export default function TourEditPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Ctrl+A / Cmd+A — select every hotspot in the current scene so the
+  // user can bulk-edit size / colour / icon in one go via the existing
+  // multi-select broadcast in onHotspotChange. Blocked while a text
+  // input is focused (otherwise it would hijack the browser's "select
+  // all text" shortcut inside titles / captions).
+  useEffect(() => {
+    function onSelectAll(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== "a" && e.key !== "A") return;
+      const t = e.target as HTMLElement | null;
+      const isTyping =
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable);
+      if (isTyping) return;
+      if (previewMode) return;
+      if (hotspots.length === 0) return;
+      e.preventDefault();
+      const ids = hotspots.map((h) => h.id);
+      setSelectedHotspotIds(new Set(ids));
+      setSelectedHotspotId(ids[0]);
+    }
+    window.addEventListener("keydown", onSelectAll);
+    return () => window.removeEventListener("keydown", onSelectAll);
+  }, [hotspots, previewMode]);
+
   const [backingUp, setBackingUp] = useState(false);
   // Fullscreen is now handled by opening the public viewer in a new tab
   // (?fullscreen=1). No in-page state = no chrome-hiding bugs.
@@ -1011,6 +1039,19 @@ export default function TourEditPage() {
     if (!selectedHotspotId && selectedHotspotIds.size === 0) return;
     setPasteModalOpen(true);
   }
+  // Select every hotspot currently visible on the active scene (plus
+  // any masters that render on it). Uses the existing multi-select
+  // broadcast — one edit on the primary now patches every sibling.
+  function selectAllInScene() {
+    if (previewMode) return;
+    const ids = hotspots.map((h) => h.id);
+    if (ids.length === 0) return;
+    setSelectedHotspotIds(new Set(ids));
+    // Primary = first hotspot so the RightPanel has something to bind
+    // to. The user can still click any other selected marker to change
+    // which one is "primary" — the Set stays the same.
+    setSelectedHotspotId(ids[0]);
+  }
   function handleApplyPaste(updated: Hotspot[]) {
     // Route each updated hotspot through onHotspotChange so it hits
     // the save queue, records an undo op, and broadcasts to siblings
@@ -1610,9 +1651,22 @@ export default function TourEditPage() {
                 !!selectedHotspotId || selectedHotspotIds.size > 0
               }
               hasClipboard={!!clipboardStyle}
+              // Effective count: prefer the multi-select Set (may be
+              // several), fall back to 1 when only a single primary is
+              // active, 0 when nothing is picked. Powers the "3"
+              // pill on the Select-all button.
+              selectionCount={
+                selectedHotspotIds.size > 0
+                  ? selectedHotspotIds.size
+                  : selectedHotspotId
+                    ? 1
+                    : 0
+              }
+              hasHotspotsInScene={hotspots.length > 0}
               onToggleSticky={handleToggleSticky}
               onCopyStyle={handleCopyStyle}
               onOpenPaste={handleOpenPaste}
+              onSelectAll={selectAllInScene}
             />
           )}
           {activeScene && activeScene.is_flat ? (

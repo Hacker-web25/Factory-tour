@@ -12,24 +12,34 @@
  * no changes to RightPanel and no risk of regressing the settings UI.
  */
 
-import { Copy, ClipboardPaste, Sparkles } from "lucide-react";
+import { Copy, ClipboardPaste, Sparkles, LayoutList } from "lucide-react";
 
 type Props = {
   stickyEnabled: boolean;
   hasSelection: boolean;
   hasClipboard: boolean;
+  /** Total selection count. Shown as a chip when > 1 so the user has
+   *  visual confirmation that a bulk edit will hit N hotspots. */
+  selectionCount: number;
+  /** Whether the current scene has any hotspots at all — disables the
+   *  Select all button on empty scenes. */
+  hasHotspotsInScene: boolean;
   onToggleSticky: () => void;
   onCopyStyle: () => void;
   onOpenPaste: () => void;
+  onSelectAll: () => void;
 };
 
 export default function HotspotStyleToolbar({
   stickyEnabled,
   hasSelection,
   hasClipboard,
+  selectionCount,
+  hasHotspotsInScene,
   onToggleSticky,
   onCopyStyle,
   onOpenPaste,
+  onSelectAll,
 }: Props) {
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
@@ -61,6 +71,24 @@ export default function HotspotStyleToolbar({
               }`}
             />
           </span>
+        </button>
+
+        <div className="w-px h-4 bg-white/10 mx-0.5" />
+
+        {/* Select all in scene */}
+        <button
+          onClick={onSelectAll}
+          disabled={!hasHotspotsInScene}
+          title="Select every hotspot in this scene (Ctrl+A / ⌘A). Edits then apply to all of them at once."
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+        >
+          <LayoutList size={12} />
+          Select all
+          {selectionCount > 1 && (
+            <span className="ml-0.5 bg-accent/30 text-accent text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
+              {selectionCount}
+            </span>
+          )}
         </button>
 
         <div className="w-px h-4 bg-white/10 mx-0.5" />
