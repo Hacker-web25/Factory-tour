@@ -35,7 +35,17 @@ import {
   Folder as FolderIcon,
 } from "lucide-react";
 import { exportTourToBlob, downloadBlob } from "@/lib/backup";
-import { loadStickyStyle, saveStickyStyle } from "@/lib/hotspotStyleMemory";
+import {
+  loadStickyStyle,
+  saveStickyStyle,
+  isStickyStyleEnabled,
+  setStickyStyleEnabled,
+  writeClipboardStyle,
+  readClipboardStyle,
+  type StickyStyle,
+} from "@/lib/hotspotStyleMemory";
+import HotspotStyleToolbar from "@/components/builder/HotspotStyleToolbar";
+import PasteStyleModal from "@/components/builder/PasteStyleModal";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import FlatViewer from "@/components/panorama/FlatViewer";
 import FolderResourcesModal from "@/components/builder/FolderResourcesModal";
@@ -170,6 +180,22 @@ export default function TourEditPage() {
   const [infoModal, setInfoModal] = useState<Hotspot | null>(null);
   const [videoModal, setVideoModal] = useState<Hotspot | null>(null);
   const [pdfModal, setPdfModal] = useState<Hotspot | null>(null);
+
+  // ---- Hotspot style toolbar state (auto-match toggle + clipboard) ----
+  // stickyEnabled mirrors the global localStorage flag so the UI can
+  // reflect the switch immediately without re-reading storage on every
+  // render. clipboardStyle is null when the clipboard is empty.
+  const [stickyEnabled, setStickyEnabledState] = useState<boolean>(true);
+  const [clipboardStyle, setClipboardStyle] = useState<StickyStyle | null>(
+    null
+  );
+  const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  // On mount, sync from localStorage (SSR-safe — hooks always run in the
+  // browser here because the whole page is "use client").
+  useEffect(() => {
+    setStickyEnabledState(isStickyStyleEnabled());
+    setClipboardStyle(readClipboardStyle());
+  }, []);
 
   // ESC clears any pending selection / placement / reposition so the user has
   // one universal "get me out of this" key.
@@ -956,6 +982,47 @@ export default function TourEditPage() {
   }
 
   /** Central helper for hotspot selection. Pass modKey=true for
+  // ---- Style toolbar handlers ----------------------------------------
+  //
+  // handleToggleSticky: flips the global "auto-match new hotspots to
+  // last-used style" toggle. Persists to localStorage so a refresh
+  // remembers the choice, AND is respected across every project.
+  //
+  // handleCopyStyle: snapshots the currently-selected hotspot's visual
+  // props to a cross-tour clipboard. The Copy button is disabled when
+  // there is no selection.
+  //
+  // handleApplyPaste: called by PasteStyleModal after the user picks
+  // groups. Applies the patched hotspots through onHotspotChange so
+  // undo/redo, save queue, and multi-select broadcast all "just work".
+  function handleToggleSticky() {
+    const next = !stickyEnabled;
+    setStickyStyleEnabled(next);
+    setStickyEnabledState(next);
+  }
+  function handleCopyStyle() {
+    if (!selectedHotspotId) return;
+    const source = allHotspots.find((h) => h.id === selectedHotspotId);
+    if (!source) return;
+    writeClipboardStyle(source);
+    setClipboardStyle(readClipboardStyle());
+  }
+  function handleOpenPaste() {
+    if (!clipboardStyle) return;
+    if (!selectedHotspotId && selectedHotspotIds.size === 0) return;
+    setPasteModalOpen(true);
+  }
+  function handleApplyPaste(updated: Hotspot[]) {
+    // Route each updated hotspot through onHotspotChange so it hits
+    // the save queue, records an undo op, and broadcasts to siblings
+    // in multi-select — all identical to a manual edit.
+    for (const h of updated) {
+      onHotspotChange(h);
+    }
+    setPasteModalOpen(false);
+  }
+
+  /**
    *  Shift/Ctrl clicks — toggles the id in the multi-select Set.
    *  Plain clicks clear the Set and set a single primary selection. */
   function selectHotspot(id: string | null, modKey = false) {
@@ -1533,6 +1600,22 @@ export default function TourEditPage() {
             createNavHotspotAt(sceneId, e.clientX, e.clientY);
           }}
         >
+          {/* Style toolbar — floats above the panorama while a hotspot
+              is selected (and we're not in preview). Auto-match toggle
+              is always visible so the user can turn it off without a
+              selection first. */}
+          {!previewMode && (
+            <HotspotStyleToolbar
+              stickyEnabled={stickyEnabled}
+              hasSelection={
+                !!selectedHotspotId || selectedHotspotIds.size > 0
+              }
+              hasClipboard={!!clipboardStyle}
+              onToggleSticky={handleToggleSticky}
+              onCopyStyle={handleCopyStyle}
+              onOpenPaste={handleOpenPaste}
+            />
+          )}
           {activeScene && activeScene.is_flat ? (
             <FlatViewer
               imageUrl={publicUrl(activeScene.image_path)}
@@ -1820,6 +1903,24 @@ export default function TourEditPage() {
 
       {shareOpen && (
         <ShareModal tour={tour} onClose={() => setShareOpen(false)} />
+      )}
+
+      {/* Paste-style picker — targets = current multi-select if any,
+          otherwise the single primary selection. Fires after the user
+          ticks which groups (colour / size / label / …) to copy over. */}
+      {pasteModalOpen && clipboardStyle && (
+        <PasteStyleModal
+          clipboard={clipboardStyle}
+          targets={
+            selectedHotspotIds.size > 0
+              ? allHotspots.filter((h) => selectedHotspotIds.has(h.id))
+              : selectedHotspotId
+                ? allHotspots.filter((h) => h.id === selectedHotspotId)
+                : []
+          }
+          onApply={handleApplyPaste}
+          onCancel={() => setPasteModalOpen(false)}
+        />
       )}
 
       {infoModal && (
