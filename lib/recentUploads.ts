@@ -191,7 +191,7 @@ export async function evictIfOverCap(): Promise<void> {
       .limit(overflow);
     victims = fallback.data;
   }
-  const ids = (victims ?? []).map((v) => (v as { id: string }).id);
+  const ids = ((victims ?? []) as { id: string }[]).map((v) => v.id);
   if (ids.length) {
     await supabase.from("recent_uploads").delete().in("id", ids);
   }
