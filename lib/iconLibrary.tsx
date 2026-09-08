@@ -47,10 +47,11 @@ const TargetRing: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
       strokeLinejoin="round"
       {...rest}
     >
-      {/* Outer ring — noticeably thicker & wider than CircleDot */}
+      {/* Outer ring — thick stroke, plenty of gap before the centre disc */}
       <circle cx="12" cy="12" r="9" />
-      {/* Solid centre dot — filled to match stroke colour */}
-      <circle cx="12" cy="12" r="2.5" fill={color} stroke="none" />
+      {/* Big solid inner disc — sized so a clear ring of empty space
+          shows between it and the outer ring, matching the reference. */}
+      <circle cx="12" cy="12" r="4.5" fill={color} stroke="none" />
     </svg>
   )
 ) as LucideIcon;
