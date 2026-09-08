@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import {
   Circle,
   CircleDot,
@@ -24,7 +25,36 @@ import {
   Mic,
   Volume2,
   type LucideIcon,
+  type LucideProps,
 } from "lucide-react";
+
+/** Custom "target ring" — thick outer stroke ring with a small filled
+ *  centre dot, with clear space between. Matches the "Admin Block"
+ *  style marker used across the sample tours. Wrapped so it accepts
+ *  the same props as any Lucide icon (color, size, strokeWidth). */
+const TargetRing: LucideIcon = forwardRef<SVGSVGElement, LucideProps>(
+  ({ size = 24, color = "currentColor", strokeWidth = 2, ...rest }, ref) => (
+    <svg
+      ref={ref}
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={Number(strokeWidth) + 0.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...rest}
+    >
+      {/* Outer ring — noticeably thicker & wider than CircleDot */}
+      <circle cx="12" cy="12" r="9" />
+      {/* Solid centre dot — filled to match stroke colour */}
+      <circle cx="12" cy="12" r="2.5" fill={color} stroke="none" />
+    </svg>
+  )
+) as LucideIcon;
+TargetRing.displayName = "TargetRing";
 
 export type IconEntry = {
   key: string;
@@ -34,6 +64,7 @@ export type IconEntry = {
 
 /** Ordered library of built-in icons. Add more here to expand the picker. */
 export const ICON_LIBRARY: IconEntry[] = [
+  { key: "target-ring",  label: "Target ring",  Icon: TargetRing },
   { key: "circle",       label: "Circle",       Icon: Circle },
   { key: "circle-dot",   label: "Target",       Icon: CircleDot },
   { key: "info",         label: "Info",         Icon: Info },

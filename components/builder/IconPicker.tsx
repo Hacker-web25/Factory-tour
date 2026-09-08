@@ -8,9 +8,10 @@ import {
   recordUpload,
   bumpUse,
   removeTracking,
+  setPinned,
   type RecentUpload,
 } from "@/lib/recentUploads";
-import { X, Upload, Clock, Trash2, ImagePlus } from "lucide-react";
+import { X, Upload, Clock, Trash2, ImagePlus, Star } from "lucide-react";
 
 type Tab = "recent" | "library" | "upload";
 
@@ -85,6 +86,12 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
 
   async function removeRecent(r: RecentUpload, e: React.MouseEvent) {
     e.stopPropagation();
+    if (r.pinned) {
+      alert(
+        "This icon is saved (pinned). Un-pin it first — the star badge in the top-left of the tile — then remove."
+      );
+      return;
+    }
     if (
       !confirm(
         "Remove from Recent? The file stays in storage (hotspots using it keep working)."
@@ -93,6 +100,40 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
       return;
     await removeTracking(r.id);
     setRecent((prev) => prev?.filter((x) => x.id !== r.id) ?? null);
+  }
+
+  // Pin / unpin — the "save this icon forever" toggle. Pinned uploads
+  // are exempt from the MAX_RECENT eviction and float to the top of
+  // the Recent grid. Cross-project because it's just a DB flag.
+  async function togglePinned(r: RecentUpload, e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !r.pinned;
+    // Optimistic UI: flip the flag locally, re-sort so pinned floats
+    // to the front. Any error rolls the local list back.
+    setRecent((prev) =>
+      prev
+        ? [...prev.map((x) => (x.id === r.id ? { ...x, pinned: next } : x))]
+            .sort((a, b) => {
+              const pa = a.pinned ? 1 : 0;
+              const pb = b.pinned ? 1 : 0;
+              if (pa !== pb) return pb - pa;
+              return b.use_count - a.use_count;
+            })
+        : prev
+    );
+    try {
+      await setPinned(r.id, next);
+    } catch (err) {
+      // Revert UI + tell the user (usually the migration message).
+      setRecent((prev) =>
+        prev
+          ? prev.map((x) =>
+              x.id === r.id ? { ...x, pinned: r.pinned } : x
+            )
+          : prev
+      );
+      alert((err as Error).message);
+    }
   }
 
   return (
@@ -162,13 +203,24 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
                       recent={r}
                       onPick={() => pickRecent(r)}
                       onRemove={(e) => removeRecent(r, e)}
+                      onTogglePinned={(e) => togglePinned(r, e)}
                     />
                   ))}
                 </div>
                 <div className="text-3xs text-neutral-500 mt-3">
-                  Sorted by most used. Anything you never re-use eventually
-                  drops off — cap is {40} images. Deleting from Recent
-                  doesn&rsquo;t affect hotspots already using it.
+                  <div className="mb-1">
+                    <Star
+                      size={9}
+                      className="inline text-accent -mt-0.5 mr-1"
+                      fill="currentColor"
+                    />
+                    Click the star to save an icon forever — pinned icons
+                    stay across every project and never get pushed out by
+                    the {40}-image cap.
+                  </div>
+                  Sorted: pinned first, then most used. Un-pinned images you
+                  never re-use eventually drop off. Deleting doesn&rsquo;t
+                  affect hotspots already using an icon.
                 </div>
               </>
             )}
@@ -261,16 +313,23 @@ function RecentThumb({
   recent,
   onPick,
   onRemove,
+  onTogglePinned,
 }: {
   recent: RecentUpload;
   onPick: () => void;
   onRemove: (e: React.MouseEvent) => void;
+  onTogglePinned: (e: React.MouseEvent) => void;
 }) {
+  const pinned = !!recent.pinned;
   return (
     <button
       onClick={onPick}
-      title={`${recent.filename ?? "image"} · used ${recent.use_count}×`}
-      className="aspect-square bg-panelSoft border border-border rounded overflow-hidden hover:border-accent transition-colors relative group"
+      title={`${recent.filename ?? "image"} · used ${recent.use_count}× ${
+        pinned ? "· saved forever" : ""
+      }`}
+      className={`aspect-square bg-panelSoft border rounded overflow-hidden transition-colors relative group ${
+        pinned ? "border-accent/70" : "border-border hover:border-accent"
+      }`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -279,8 +338,30 @@ function RecentThumb({
         className="w-full h-full object-contain p-1.5"
         loading="lazy"
       />
+      {/* Pin / save-forever toggle — top-left. Always visible when
+          pinned (as a state indicator); appears on hover otherwise so
+          the grid stays clean. */}
+      <button
+        onClick={onTogglePinned}
+        title={
+          pinned
+            ? "Un-pin — allow this icon to be pushed out of Recent"
+            : "Save forever — pin this icon so it never gets removed"
+        }
+        className={`absolute top-0.5 left-0.5 p-1 rounded transition-opacity ${
+          pinned
+            ? "bg-accent/85 text-black opacity-100"
+            : "bg-black/70 text-neutral-300 hover:text-accent opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        <Star size={10} fill={pinned ? "currentColor" : "none"} />
+      </button>
       {recent.use_count > 1 && (
-        <span className="absolute top-0.5 left-0.5 bg-accent/85 text-black text-3xs font-semibold px-1 rounded">
+        <span
+          className={`absolute ${
+            pinned ? "top-0.5 left-6" : "bottom-0.5 left-0.5"
+          } bg-accent/85 text-black text-3xs font-semibold px-1 rounded`}
+        >
           {recent.use_count}×
         </span>
       )}

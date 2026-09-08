@@ -36,24 +36,58 @@ export type RecentUpload = {
   first_used_at: string;
   last_used_at: string;
   use_count: number;
+  /** True when the user has "starred" this upload — it stays in the
+   *  Recent list forever (excluded from the MAX_RECENT eviction). */
+  pinned?: boolean;
 };
 
-/** Return the most-valuable recent uploads first: highest use_count then
- *  most recently touched. */
+/** Return the most-valuable recent uploads first: pinned items on top,
+ *  then highest use_count, then most recently touched. */
 export async function listRecent(limit = MAX_RECENT): Promise<RecentUpload[]> {
   const { data, error } = await supabase
     .from("recent_uploads")
     .select("*")
+    .order("pinned", { ascending: false, nullsFirst: false })
     .order("use_count", { ascending: false })
     .order("last_used_at", { ascending: false })
     .limit(limit);
   if (error) {
-    // Table may not exist yet if the migration hasn't been run. Fail
-    // gracefully — the picker will just show an empty Recent tab.
+    // Table may not exist yet if the migration hasn't been run. Retry
+    // once without the `pinned` sort — handles the pre-migration state
+    // where the column doesn't exist yet so the picker still works.
+    if (/pinned/.test(error.message)) {
+      const fallback = await supabase
+        .from("recent_uploads")
+        .select("*")
+        .order("use_count", { ascending: false })
+        .order("last_used_at", { ascending: false })
+        .limit(limit);
+      return (fallback.data ?? []) as RecentUpload[];
+    }
     console.warn("listRecent:", error.message);
     return [];
   }
   return (data ?? []) as RecentUpload[];
+}
+
+/** Toggle whether this upload is "saved forever" — pinned rows are
+ *  never evicted by the MAX_RECENT cap and always show at the top of
+ *  the Recent grid with a filled star badge. */
+export async function setPinned(id: string, pinned: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("recent_uploads")
+    .update({ pinned })
+    .eq("id", id);
+  if (error) {
+    // Column missing → user hasn't run the migration yet. Surface a
+    // clean explanation rather than the raw Postgres error.
+    if (/pinned/.test(error.message)) {
+      throw new Error(
+        "Pinning needs a one-time DB migration — add the 'pinned' column to recent_uploads. See supabase/schema.sql."
+      );
+    }
+    throw error;
+  }
 }
 
 /** Record a brand-new upload — or, if the same storage_path is already
@@ -134,12 +168,29 @@ export async function evictIfOverCap(): Promise<void> {
   if (count == null || count <= MAX_RECENT) return;
 
   const overflow = count - MAX_RECENT;
-  const { data: victims } = await supabase
+  // Pinned rows are exempt from eviction — the whole point of pinning
+  // is "save this forever". We filter them out with `.eq("pinned", false)`
+  // and fall back to `.is("pinned", null)` when the column doesn't
+  // exist yet (older DBs), so eviction still works during migration.
+  const query = supabase
     .from("recent_uploads")
     .select("id")
     .order("use_count", { ascending: true })
     .order("last_used_at", { ascending: true })
     .limit(overflow);
+  let { data: victims, error } = await (query.or(
+    "pinned.is.null,pinned.eq.false"
+  ) as any);
+  if (error && /pinned/.test(error.message)) {
+    // Pinned column doesn't exist yet — evict without the filter.
+    const fallback = await supabase
+      .from("recent_uploads")
+      .select("id")
+      .order("use_count", { ascending: true })
+      .order("last_used_at", { ascending: true })
+      .limit(overflow);
+    victims = fallback.data;
+  }
   const ids = (victims ?? []).map((v) => (v as { id: string }).id);
   if (ids.length) {
     await supabase.from("recent_uploads").delete().in("id", ids);
