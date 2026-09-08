@@ -862,7 +862,46 @@ function IconOrImage({
   const url = h.icon_url ?? (h.type === "image" ? h.image_url : null);
 
   if (url) {
-    // Force strict rectangular rendering — no clipping, no border-radius, no mask
+    // Tint an uploaded icon:
+    //   • For type === "image" (a photo card) — never tint, always show
+    //     the original.
+    //   • For an icon upload (icon_url) — apply the user's tint by
+    //     rendering the image as a CSS mask over a solid-colour box.
+    //     This treats the image's alpha as a silhouette so any hex
+    //     tint just "colours the shape", exactly like the built-in
+    //     Lucide icons already do. Skip the mask when tint is white
+    //     (the default) so untouched uploads still render in their
+    //     natural colours.
+    const tint = h.icon_tint ?? "#ffffff";
+    const isPhotoCard = h.type === "image" && !!h.image_url;
+    const tintable =
+      !isPhotoCard &&
+      !!h.icon_url &&
+      tint.toLowerCase() !== "#ffffff" &&
+      tint.toLowerCase() !== "#fff";
+    if (tintable) {
+      return (
+        <div
+          role="img"
+          aria-label=""
+          style={{
+            display: "block",
+            width: `${width}px`,
+            height: `${height}px`,
+            backgroundColor: tint,
+            WebkitMaskImage: `url(${url})`,
+            maskImage: `url(${url})`,
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            maskPosition: "center",
+            WebkitMaskSize: "contain",
+            maskSize: "contain",
+          }}
+        />
+      );
+    }
+    // Fallthrough — original untinted <img> render (unchanged).
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
