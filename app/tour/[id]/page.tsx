@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
+import { loadOfflineTour } from "@/lib/offlineTourData";
 
 type Status =
   | "loading"
@@ -34,12 +35,31 @@ export default function PublicTourPage() {
     // still gets the normal access flow.
     const isEditorPreview = params.get("preview") === "1";
 
-    // 1) Fetch tour
-    const { data: t } = await supabase
-      .from("tours")
-      .select("*")
-      .eq("id", id)
-      .single();
+    // 1) Fetch tour — with an offline-snapshot fallback. If the network
+    //    fails (presenter is on-site with no wifi) or Supabase returns
+    //    nothing, we fall back to the localStorage snapshot saved by
+    //    "Download for offline" earlier. This makes the entire tour
+    //    playable end-to-end from cached data.
+    let t: any = null;
+    let usingOfflineSnapshot = false;
+    try {
+      const res = await supabase
+        .from("tours")
+        .select("*")
+        .eq("id", id)
+        .single();
+      t = res.data;
+    } catch {
+      // network error swallowed — fall through to snapshot
+    }
+    if (!t) {
+      const snap = loadOfflineTour(id);
+      if (snap) {
+        t = snap.tour;
+        usingOfflineSnapshot = true;
+        console.info("[offline] serving tour from local snapshot");
+      }
+    }
     if (!t) {
       setStatus("not_found");
       return;
@@ -110,12 +130,32 @@ export default function PublicTourPage() {
 
     setTour(t as Tour);
 
-    const { data: s } = await supabase
-      .from("scenes")
-      .select("*")
-      .eq("tour_id", id)
-      .order("order_index");
-    setScenes((s ?? []) as Scene[]);
+    // Scenes — same offline-fallback pattern. When online, hit Supabase;
+    // if that fails or returns nothing, use the saved snapshot.
+    let sceneRows: Scene[] = [];
+    if (!usingOfflineSnapshot) {
+      try {
+        const res = await supabase
+          .from("scenes")
+          .select("*")
+          .eq("tour_id", id)
+          .order("order_index");
+        sceneRows = (res.data ?? []) as Scene[];
+      } catch {
+        // fall through to snapshot
+      }
+    }
+    if (sceneRows.length === 0) {
+      const snap = loadOfflineTour(id);
+      if (snap) {
+        sceneRows = snap.scenes;
+        console.info(
+          "[offline] serving scenes from local snapshot:",
+          sceneRows.length
+        );
+      }
+    }
+    setScenes(sceneRows);
     setStatus("ok");
   }
 

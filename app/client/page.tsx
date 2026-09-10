@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Tour } from "@/lib/types";
+import OfflineControls from "@/components/sales/OfflineControls";
 import {
   getMyProfile,
   signOut,
@@ -375,6 +376,12 @@ export default function ClientDashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white flex">
+      {/* Offline mode cockpit — same UI as sales presenters get.
+          Org admins can pre-download tours before a client visit or
+          before travelling to a spot with bad wifi. */}
+      <OfflineControls
+        tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+      />
       {/* SIDEBAR */}
       <Sidebar
         me={me}

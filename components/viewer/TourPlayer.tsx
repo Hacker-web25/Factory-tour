@@ -8,7 +8,16 @@ import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
-import { Play, Pause, Minimize2, ZoomIn, Ruler } from "lucide-react";
+import {
+  Play,
+  Pause,
+  Minimize2,
+  ZoomIn,
+  Ruler,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { loadOfflineTour } from "@/lib/offlineTourData";
 import MeasureTool from "@/components/viewer/MeasureTool";
 import { trackEvent } from "@/lib/analytics";
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
@@ -34,13 +43,27 @@ export default function TourPlayer(props: Props) {
     (async () => {
       const sceneIds = props.scenes.map((s) => s.id);
       if (sceneIds.length === 0) return;
-      const { data } = await supabase
-        .from("hotspots")
-        .select("label, info_title, info_body, pdf_name")
-        .in("scene_id", sceneIds);
-      setTourHotspots((data ?? []) as unknown as Hotspot[]);
+      let rows: Hotspot[] = [];
+      try {
+        const { data } = await supabase
+          .from("hotspots")
+          .select("label, info_title, info_body, pdf_name")
+          .in("scene_id", sceneIds);
+        rows = (data ?? []) as unknown as Hotspot[];
+      } catch {
+        // network error — fall through to snapshot
+      }
+      if (rows.length === 0) {
+        const snap = loadOfflineTour(props.tour.id);
+        if (snap) {
+          rows = snap.hotspots.filter((h) =>
+            sceneIds.includes(h.scene_id)
+          ) as unknown as Hotspot[];
+        }
+      }
+      setTourHotspots(rows);
     })();
-  }, [props.scenes]);
+  }, [props.scenes, props.tour.id]);
 
   return (
     <TranslationProvider
@@ -152,12 +175,36 @@ function TourPlayerInner({
   useEffect(() => {
     if (!scenes.length) return;
     const sceneIds = scenes.map((s) => s.id);
-    supabase
-      .from("hotspots")
-      .select("*")
-      .in("scene_id", sceneIds)
-      .then(({ data }) => setAllHotspots((data ?? []) as Hotspot[]));
-  }, [scenes]);
+    (async () => {
+      // Try Supabase first. On any failure OR empty result, fall back
+      // to the offline snapshot saved by "Download for offline". This
+      // is what makes info popups, video hotspots, audio hotspots and
+      // every interactive marker keep working end-to-end offline.
+      let rows: Hotspot[] = [];
+      try {
+        const { data } = await supabase
+          .from("hotspots")
+          .select("*")
+          .in("scene_id", sceneIds);
+        rows = (data ?? []) as Hotspot[];
+      } catch {
+        // network error — fall through to snapshot
+      }
+      if (rows.length === 0) {
+        const snap = loadOfflineTour(tour.id);
+        if (snap) {
+          rows = snap.hotspots.filter((h) => sceneIds.includes(h.scene_id));
+          if (rows.length > 0) {
+            console.info(
+              "[offline] serving hotspots from local snapshot:",
+              rows.length
+            );
+          }
+        }
+      }
+      setAllHotspots(rows);
+    })();
+  }, [scenes, tour.id]);
 
   const hotspots = useMemo(
     () =>
@@ -207,6 +254,10 @@ function TourPlayerInner({
   const ambientVolume = tour.ambient_audio_url
     ? tour.ambient_audio_volume ?? 0.5
     : active?.ambient_audio_volume ?? 0.5;
+  // Global mute — pauses ambient audio AND hides subtitles. Presenter
+  // clicks the speaker icon to silence everything (e.g. during a live
+  // walkthrough where they want to talk over the tour instead).
+  const [audioMuted, setAudioMuted] = useState(false);
 
   // Effect 1: create/destroy the audio element only when URL changes.
   useEffect(() => {
@@ -245,6 +296,17 @@ function TourPlayerInner({
       audioRef.current.volume = Math.max(0, Math.min(1, ambientVolume));
     }
   }, [ambientVolume]);
+
+  // Effect 3: react to the mute toggle. Pause on mute, resume on unmute.
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (audioMuted) {
+      a.pause();
+    } else {
+      a.play().catch(() => {});
+    }
+  }, [audioMuted]);
 
   // Preload immediate neighbors — any scene reachable via a nav hotspot
   // (per-scene or master) from the active scene. Cached in a Set so we
@@ -501,13 +563,16 @@ function TourPlayerInner({
       <LanguagePicker position="top-right" />
       {/* Live-translated subtitles — attaches to whichever source
           (ambient audio, audio hotspot, video hotspot) is currently
-          firing time-update events. */}
-      <SubtitleOverlay
-        settings={
-          (tour as unknown as { subtitle_settings?: any }).subtitle_settings
-        }
-        tourId={tour.id}
-      />
+          firing time-update events. Hidden when the presenter mutes
+          audio via the speaker button below. */}
+      {!audioMuted && (
+        <SubtitleOverlay
+          settings={
+            (tour as unknown as { subtitle_settings?: any }).subtitle_settings
+          }
+          tourId={tour.id}
+        />
+      )}
       <div className="flex-1 relative">
         {/* Scene container — stays mounted across ALL scene changes.
             PanoramaViewer's manual texture loader keeps the old panorama
@@ -665,12 +730,14 @@ function TourPlayerInner({
           {tour.title} · {active.name}
         </div>
 
-        {/* Auto-tour play/pause */}
+        {/* Auto-tour play/pause — sits BELOW the language picker at
+            top-right so the two never overlap (previously the language
+            dropdown was covering this button). */}
         {scenes.length > 1 && (
           <button
             onClick={() => setAutoPlaying((v) => !v)}
             className={`absolute right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
-              isFullscreenTab ? "top-16" : "top-3"
+              isFullscreenTab ? "top-28" : "top-14"
             }`}
             title={autoPlaying ? "Pause walkthrough" : "Start walkthrough"}
           >
@@ -681,6 +748,40 @@ function TourPlayerInner({
             ) : (
               <>
                 <Play size={12} /> Auto-tour
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Mute / unmute — pauses ambient audio AND hides subtitles when
+            active. Sits below the Auto-tour button, still on the right. */}
+        {(ambientUrl ||
+          (tour as unknown as { subtitle_settings?: any })
+            .subtitle_settings) && (
+          <button
+            onClick={() => setAudioMuted((v) => !v)}
+            className={`absolute right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
+              scenes.length > 1
+                ? isFullscreenTab
+                  ? "top-40"
+                  : "top-24"
+                : isFullscreenTab
+                  ? "top-28"
+                  : "top-14"
+            }`}
+            title={
+              audioMuted
+                ? "Turn audio & subtitles back on"
+                : "Mute audio & hide subtitles"
+            }
+          >
+            {audioMuted ? (
+              <>
+                <VolumeX size={12} /> Muted
+              </>
+            ) : (
+              <>
+                <Volume2 size={12} /> Sound
               </>
             )}
           </button>
@@ -706,8 +807,11 @@ function TourPlayerInner({
           <ZoomIn size={12} /> Reset zoom
         </button>
 
-        {/* Measure tool toggle */}
-        {!active.is_flat && (
+        {/* Measure tool toggle — hidden for now (will be reintroduced
+            when the calibration UX is finished). The MeasureTool
+            component + state are intentionally left in place so we can
+            unhide with a single line change. */}
+        {false && !active.is_flat && (
           <button
             onClick={() => setMeasureOn((v) => !v)}
             className={`absolute bottom-3 right-32 border text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${

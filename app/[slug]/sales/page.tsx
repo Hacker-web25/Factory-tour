@@ -12,6 +12,7 @@ import {
   type Organization,
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
+import OfflineControls from "@/components/sales/OfflineControls";
 import {
   Box,
   Bell,
@@ -221,6 +222,12 @@ export default function SalesDashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white flex">
+      {/* Offline mode cockpit — floating status pill + prep modal +
+          top banner when the network drops. Presenters can pre-download
+          every tour they need before heading into a factory with poor wifi. */}
+      <OfflineControls
+        tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+      />
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black border-r border-white/[0.06] flex flex-col">
         <div className="px-6 pt-7 pb-8">
