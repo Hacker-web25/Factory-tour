@@ -3393,12 +3393,30 @@ function MasterScenePicker({
   const ids = new Set<string>(hotspot.master_scene_ids ?? []);
   const allSelected = ids.size === 0; // empty = every scene
   function toggle(sceneId: string) {
-    const next = new Set(ids);
+    // Bug fix: when starting from the implicit "all selected" state
+    // (master_scene_ids = null), un-ticking a scene should REMOVE just
+    // that scene, keeping every other one. Previously we started from
+    // an empty set and only added the clicked scene — which flipped
+    // the meaning to "show ONLY in this scene". Materialize the full
+    // list first, then apply the toggle.
+    const next = allSelected
+      ? new Set<string>(scenes.map((s) => s.id))
+      : new Set<string>(ids);
     if (next.has(sceneId)) next.delete(sceneId);
     else next.add(sceneId);
+    // If the user ends up with every scene ticked again, collapse back
+    // to null (the "all" sentinel) so future scenes automatically get
+    // the master too. Only nullify when scenes list is non-empty —
+    // otherwise a fresh tour would look like "shown nowhere".
+    const collapseToAll =
+      scenes.length > 0 && next.size === scenes.length;
     onChange({
       ...hotspot,
-      master_scene_ids: next.size === 0 ? null : Array.from(next),
+      master_scene_ids: collapseToAll
+        ? null
+        : next.size === 0
+          ? []
+          : Array.from(next),
     });
   }
   return (
