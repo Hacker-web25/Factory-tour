@@ -811,7 +811,7 @@ function TourPlayerInner({
             when the calibration UX is finished). The MeasureTool
             component + state are intentionally left in place so we can
             unhide with a single line change. */}
-        {false && active && !active.is_flat && (
+        {false && !active?.is_flat && (
           <button
             onClick={() => setMeasureOn((v) => !v)}
             className={`absolute bottom-3 right-32 border text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
