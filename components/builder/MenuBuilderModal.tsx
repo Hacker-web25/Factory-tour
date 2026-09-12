@@ -86,8 +86,11 @@ export default function MenuBuilderModal({
   const rows = Math.max(1, Math.ceil(picked.length / Math.max(1, columns)));
 
   // ---- Icon ----------------------------------------------------------
-  const stickyIconKey = (sticky as any).icon_key as string | undefined;
-  const [iconKey, setIconKey] = useState<string>(stickyIconKey ?? "target-ring");
+  // Default to "target-ring" so wizard results are predictable even
+  // when sticky style holds a nav-arrow icon (which was the previous
+  // default and produced surprising red-arrow menus). Users can pick
+  // any other icon in the Icon tab.
+  const [iconKey, setIconKey] = useState<string>("target-ring");
   const [iconSizePct, setIconSizePct] = useState<number>(
     (sticky as any).width_pct ?? 80
   );

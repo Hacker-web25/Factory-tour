@@ -1062,12 +1062,56 @@ export default function TourEditPage() {
   async function handleGenerateMenu(drafts: Partial<Hotspot>[]) {
     if (!activeSceneId) return;
     const inserted: Hotspot[] = [];
+    // Fields that buildInsert's whitelist loop doesn't apply — but that
+    // the menu-builder wizard cares deeply about (label styling, size,
+    // colour, animation, effects). Anything the wizard sets on the draft
+    // gets copied onto the final insert so text hotspots render with
+    // the exact colour / size / bold / background the user configured
+    // in the preview.
+    const WIZARD_EXTRA_FIELDS = [
+      "label_color",
+      "label_size",
+      "label_bold",
+      "label_font",
+      "label_bg",
+      "color",
+      "size",
+      "shadow",
+      "animation",
+      "only_hover",
+      "scale_on_zoom",
+      "polygon_fill_color",
+      "polygon_stroke_color",
+      "polygon_fill_opacity",
+      "polygon_stroke_width",
+      "card_size_pct",
+      "thumbnail_size_pct",
+      "ripple_color",
+      "ripple_size_pct",
+      "link_wh",
+      "overlay_mode",
+      "sound_effect",
+      "sound_effect_url",
+    ] as const;
+
     for (const d of drafts) {
       // Yaw/pitch are ignored on flat scenes but required by NOT NULL
       // constraints on the DB column — safe to just pass 0.
-      const insert = buildInsert(activeSceneId, 0, 0, d, loadStickyStyle(tourId));
-      (insert as Record<string, unknown>).flat_x = (d as any).flat_x ?? 0.5;
-      (insert as Record<string, unknown>).flat_y = (d as any).flat_y ?? 0.5;
+      const insert = buildInsert(
+        activeSceneId,
+        0,
+        0,
+        d,
+        loadStickyStyle(tourId)
+      );
+      const insertObj = insert as Record<string, unknown>;
+      insertObj.flat_x = (d as any).flat_x ?? 0.5;
+      insertObj.flat_y = (d as any).flat_y ?? 0.5;
+      // Copy every wizard-controlled style field the loop skipped.
+      for (const key of WIZARD_EXTRA_FIELDS) {
+        const val = (d as any)[key];
+        if (val !== undefined) insertObj[key] = val;
+      }
       const { data, error } = await supabase
         .from("hotspots")
         .insert(insert)
