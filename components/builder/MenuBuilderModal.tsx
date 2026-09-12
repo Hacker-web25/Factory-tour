@@ -77,6 +77,12 @@ export default function MenuBuilderModal({
   // ---- Layout ---------------------------------------------------------
   const [columns, setColumns] = useState<number>(2);
   const [padPct, setPadPct] = useState<number>(8);
+  /** Row spacing multiplier: 0.4 = rows cluster tightly around the
+   *  vertical centre, 1.0 = evenly distributed across the padding
+   *  band (default), 1.6 = spread apart with air between them.
+   *  Values >1 may push rows into the padding — that's intentional so
+   *  presenters can tune the "look" without editing padding too. */
+  const [rowSpacing, setRowSpacing] = useState<number>(1);
   const rows = Math.max(1, Math.ceil(picked.length / Math.max(1, columns)));
 
   // ---- Icon ----------------------------------------------------------
@@ -144,10 +150,17 @@ export default function MenuBuilderModal({
     const bandTop = pad;
     const bandBottom = 1 - pad;
     const colSlot = (bandRight - bandLeft) / colsInRow;
-    const rowSlot = (bandBottom - bandTop) / rows;
+    // Row spacing: start from the natural even-distribution rowSlot,
+    // then scale by the user-controlled multiplier. Centre the whole
+    // block vertically so tightening rows keeps them balanced rather
+    // than dragging them all to the top.
+    const naturalRowSlot = (bandBottom - bandTop) / rows;
+    const rowSlot = naturalRowSlot * rowSpacing;
+    const yCentre = (bandTop + bandBottom) / 2;
+    const y = yCentre + (row - (rows - 1) / 2) * rowSlot;
     return {
       x: bandLeft + colSlot * (colInRow + 0.5),
-      y: bandTop + rowSlot * (row + 0.5),
+      y: Math.max(0.02, Math.min(0.98, y)),
     };
   }
 
@@ -332,33 +345,35 @@ export default function MenuBuilderModal({
               </span>
               <span>columns {columns} · {rows} row{rows === 1 ? "" : "s"}</span>
             </div>
-            <div className="relative flex-1 min-h-0 grid place-items-center overflow-hidden p-2">
-              {/* Inner box constrained to the IMAGE's own aspect ratio.
-                  Percentage-positioned hotspots then align with the
-                  image, not the (larger) preview container — no more
-                  hotspots hanging in the black band above / below. */}
-              <div
-                className="relative max-w-full max-h-full"
-                style={{
-                  aspectRatio: imgAspect ? `${imgAspect}` : "16 / 9",
-                  width: imgAspect ? "auto" : "100%",
-                  height: imgAspect ? "auto" : "100%",
-                }}
-              >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={publicUrl(activeScene.image_path) ?? ""}
-                alt=""
-                className="absolute inset-0 w-full h-full"
-                draggable={false}
-                onLoad={(e) => {
-                  const el = e.currentTarget;
-                  if (el.naturalWidth && el.naturalHeight) {
-                    setImgAspect(el.naturalWidth / el.naturalHeight);
-                  }
-                }}
-              />
-              {picked.map((s, i) => {
+            <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden p-2">
+              {/* The <img> is the sizing element — max-w/h:100% shrinks
+                  it to fit while preserving its natural aspect ratio.
+                  The wrapper (inline-block via flex child) shrinks to
+                  the img's rendered size. The absolute-positioned
+                  hotspot layer sits exactly on top of the image, so
+                  percentage positions align with the actual scene. */}
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={publicUrl(activeScene.image_path) ?? ""}
+                  alt=""
+                  className="block"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    // Fallback while the natural dimensions haven't
+                    // arrived yet — keeps the preview area non-empty.
+                    minHeight: imgAspect ? undefined : 200,
+                  }}
+                  draggable={false}
+                  onLoad={(e) => {
+                    const el = e.currentTarget;
+                    if (el.naturalWidth && el.naturalHeight) {
+                      setImgAspect(el.naturalWidth / el.naturalHeight);
+                    }
+                  }}
+                />
+                {picked.map((s, i) => {
                 const { x, y } = iconPos(i, picked.length);
                 const iconPx = Math.max(16, iconSizePct * 0.6);
                 // Anchor label using CSS relative to icon so preview
@@ -496,6 +511,33 @@ export default function MenuBuilderModal({
                       className="w-full accent-accent"
                     />
                   </Field>
+
+                  {rows > 1 && (
+                    <Field
+                      label="Row spacing"
+                      trailing={
+                        <span className="text-white/70">
+                          {Math.round(rowSpacing * 100)}%
+                        </span>
+                      }
+                    >
+                      <input
+                        type="range"
+                        min={40}
+                        max={180}
+                        value={Math.round(rowSpacing * 100)}
+                        onChange={(e) =>
+                          setRowSpacing(Number(e.target.value) / 100)
+                        }
+                        className="w-full accent-accent"
+                      />
+                      <div className="text-[10.5px] text-neutral-500 mt-1">
+                        Distance between rows. 100% = evenly distributed.
+                        Lower = clustered near centre. Higher = pushed
+                        toward top &amp; bottom edges.
+                      </div>
+                    </Field>
+                  )}
                 </>
               )}
 
