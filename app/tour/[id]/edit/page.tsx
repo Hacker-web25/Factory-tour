@@ -46,6 +46,7 @@ import {
 } from "@/lib/hotspotStyleMemory";
 import HotspotStyleToolbar from "@/components/builder/HotspotStyleToolbar";
 import PasteStyleModal from "@/components/builder/PasteStyleModal";
+import MenuBuilderModal from "@/components/builder/MenuBuilderModal";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import FlatViewer from "@/components/panorama/FlatViewer";
 import FolderResourcesModal from "@/components/builder/FolderResourcesModal";
@@ -190,6 +191,7 @@ export default function TourEditPage() {
     null
   );
   const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  const [menuBuilderOpen, setMenuBuilderOpen] = useState(false);
   // On mount, sync from localStorage (SSR-safe — hooks always run in the
   // browser here because the whole page is "use client").
   useEffect(() => {
@@ -1052,6 +1054,37 @@ export default function TourEditPage() {
     // which one is "primary" — the Set stays the same.
     setSelectedHotspotId(ids[0]);
   }
+  // Menu builder — takes N draft hotspots (already positioned in the
+  // grid the wizard computed) and inserts them all in one shot. Each
+  // draft carries flat_x/flat_y and a target_scene_id; we plug in
+  // scene_id + yaw/pitch defaults, spread over the shared sticky style,
+  // and use safeInsertHotspot (already handles column-mismatch retries).
+  async function handleGenerateMenu(drafts: Partial<Hotspot>[]) {
+    if (!activeSceneId) return;
+    const inserted: Hotspot[] = [];
+    for (const d of drafts) {
+      // Yaw/pitch are ignored on flat scenes but required by NOT NULL
+      // constraints on the DB column — safe to just pass 0.
+      const insert = buildInsert(activeSceneId, 0, 0, d, loadStickyStyle(tourId));
+      (insert as Record<string, unknown>).flat_x = (d as any).flat_x ?? 0.5;
+      (insert as Record<string, unknown>).flat_y = (d as any).flat_y ?? 0.5;
+      const { data, error } = await supabase
+        .from("hotspots")
+        .insert(insert)
+        .select()
+        .single();
+      if (error) {
+        console.warn("[menu builder] insert failed:", error.message);
+        continue;
+      }
+      if (data) inserted.push(data as Hotspot);
+    }
+    if (inserted.length) {
+      setAllHotspots((h) => [...h, ...inserted]);
+    }
+    setMenuBuilderOpen(false);
+  }
+
   function handleApplyPaste(updated: Hotspot[]) {
     // Route each updated hotspot through onHotspotChange so it hits
     // the save queue, records an undo op, and broadcasts to siblings
@@ -1640,6 +1673,34 @@ export default function TourEditPage() {
             createNavHotspotAt(sceneId, e.clientX, e.clientY);
           }}
         >
+          {/* Menu builder launcher — only on FLAT scenes in edit mode.
+              One click opens the wizard to bulk-place nav hotspots for
+              every other scene in a grid. */}
+          {!previewMode && activeScene?.is_flat && scenes.length > 1 && (
+            <button
+              onClick={() => setMenuBuilderOpen(true)}
+              className="absolute bottom-4 left-4 z-30 bg-accent text-black hover:bg-accentHover font-semibold text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 shadow-panel"
+              title="Auto-lay out nav hotspots for every scene in a grid — no manual placement needed"
+            >
+              <svg
+                width={12}
+                height={12}
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+              </svg>
+              Build menu
+            </button>
+          )}
+
           {/* Style toolbar — floats above the panorama while a hotspot
               is selected (and we're not in preview). Auto-match toggle
               is always visible so the user can turn it off without a
@@ -1723,7 +1784,11 @@ export default function TourEditPage() {
               }}
               onHotspotDragEnd={(id, x, y) => {
                 // Force-persist the FINAL position on release so nothing is
-                // lost to a throttle window.
+                // lost to a throttle window. Awaited (with `.then`) so the
+                // Postgrest builder actually fires — an un-awaited query
+                // is lazy and silently drops the update, which was
+                // manifesting as "I moved the label, saved, refreshed,
+                // and it snapped back."
                 setAllHotspots((list) =>
                   list.map((h) =>
                     h.id === id ? { ...h, flat_x: x, flat_y: y } : h
@@ -1732,7 +1797,15 @@ export default function TourEditPage() {
                 supabase
                   .from("hotspots")
                   .update({ flat_x: x, flat_y: y })
-                  .eq("id", id);
+                  .eq("id", id)
+                  .then(({ error }) => {
+                    if (error) {
+                      console.warn(
+                        "[flat drag] persist failed:",
+                        error.message
+                      );
+                    }
+                  });
               }}
             />
           ) : activeScene ? (
@@ -1956,6 +2029,18 @@ export default function TourEditPage() {
 
       {shareOpen && (
         <ShareModal tour={tour} onClose={() => setShareOpen(false)} />
+      )}
+
+      {/* Menu builder — bulk-create nav hotspots on a flat "dashboard"
+          scene from a scene picker + grid layout. */}
+      {menuBuilderOpen && activeScene && (
+        <MenuBuilderModal
+          activeScene={activeScene}
+          scenes={scenes}
+          tourId={tourId}
+          onGenerate={handleGenerateMenu}
+          onCancel={() => setMenuBuilderOpen(false)}
+        />
       )}
 
       {/* Paste-style picker — targets = current multi-select if any,
