@@ -46,6 +46,16 @@ export default function FlatViewer({
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  // Reset viewport whenever the underlying image (scene) changes.
+  // Without this, switching to another scene and coming back leaves
+  // stale pan/zoom values from the previous visit, which shifts every
+  // absolutely-positioned hotspot (labels included) by a few pixels —
+  // exactly the "text moves a little" bug reported by presenters.
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, [imageUrl]);
   const [dragging, setDragging] = useState<null | {
     startX: number;
     startY: number;
