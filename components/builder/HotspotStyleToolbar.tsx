@@ -1,28 +1,31 @@
 "use client";
 
 /**
- * Floating pill toolbar shown while a hotspot is selected.
+ * Floating pill toolbar for hotspot style actions.
  *
- * Collapse behavior
- * -----------------
- * Idle: only Copy Style and Paste Style are visible — those are the
- * "action" buttons the presenter reaches for most often.
+ * Design points
+ * -------------
+ * • Compact — small text (10px), tight padding (py-1 px-1), so it
+ *   doesn't cover the panorama chrome. Was previously twice this size
+ *   which cluttered the top of flat "menu" scenes.
  *
- * Hover (or focus): the pill expands smoothly to reveal Auto-match
- * toggle and Select all. Animation uses opacity + translateX +
- * max-width transitions on a fixed 300ms cubic-bezier curve so the
- * expansion stays crisp at 60fps and doesn't cause layout jank.
+ * • Draggable — grab any empty spot on the pill (not on a button) and
+ *   drop it anywhere in the panorama pane. Position is saved in
+ *   localStorage under a global key so it survives page reloads AND
+ *   applies across every tour.
  *
- * The trigger area is the whole pill so a presenter can hover
- * anywhere on it and see everything unfurl instantly.
+ * • Collapsible — idle state shows only Copy Style + Paste Style.
+ *   Hover expands to reveal Auto-match + Select all. Runs on GPU-
+ *   composited properties (max-width, opacity, transform) for 60fps.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Copy,
   ClipboardPaste,
   Sparkles,
   LayoutList,
+  GripVertical,
 } from "lucide-react";
 
 type Props = {
@@ -37,6 +40,34 @@ type Props = {
   onSelectAll: () => void;
 };
 
+/** localStorage key for the toolbar's drag position. Global (not
+ *  per-tour) — the presenter learns where they want the pill once
+ *  and it stays there forever. */
+const POS_KEY = "factour:toolbarPos";
+
+type Pos = { x: number; y: number };
+
+/** Read a stored position, defaulting to the top-centre of the parent. */
+function loadPos(): Pos | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(POS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (typeof p?.x === "number" && typeof p?.y === "number") return p;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function savePos(p: Pos): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(POS_KEY, JSON.stringify(p));
+  } catch {}
+}
+
 export default function HotspotStyleToolbar({
   stickyEnabled,
   hasSelection,
@@ -48,11 +79,94 @@ export default function HotspotStyleToolbar({
   onOpenPaste,
   onSelectAll,
 }: Props) {
-  // Manual open/close so we can also expand on focus (keyboard users)
-  // and pin it open briefly after a click so the user's next action
-  // has time to land without the toolbar collapsing mid-motion.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+
+  // Position — null until we've measured, then either a saved value
+  // or a computed top-centre default. Stored as absolute px inside the
+  // parent (which is the panorama's `.relative` container).
+  const [pos, setPos] = useState<Pos | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragOffsetRef = useRef<Pos>({ x: 0, y: 0 });
+
   const [expanded, setExpanded] = useState(false);
   const pinTimerRef = useRef<number | null>(null);
+
+  // Snap the pill inside the parent's bounds so it can't escape when
+  // the viewport shrinks or after a saved position is stale.
+  const clampToParent = useCallback((raw: Pos): Pos => {
+    const parent = wrapRef.current?.parentElement;
+    const pill = pillRef.current;
+    if (!parent || !pill) return raw;
+    const parentRect = parent.getBoundingClientRect();
+    const pillRect = pill.getBoundingClientRect();
+    const maxX = Math.max(0, parentRect.width - pillRect.width - 4);
+    const maxY = Math.max(0, parentRect.height - pillRect.height - 4);
+    return {
+      x: Math.max(4, Math.min(maxX, raw.x)),
+      y: Math.max(4, Math.min(maxY, raw.y)),
+    };
+  }, []);
+
+  // On mount: pick up saved position or default to top-centre.
+  useEffect(() => {
+    const parent = wrapRef.current?.parentElement;
+    const pill = pillRef.current;
+    if (!parent || !pill) return;
+    const saved = loadPos();
+    if (saved) {
+      setPos(clampToParent(saved));
+      return;
+    }
+    const parentRect = parent.getBoundingClientRect();
+    const pillRect = pill.getBoundingClientRect();
+    setPos({
+      x: Math.max(4, (parentRect.width - pillRect.width) / 2),
+      y: 12,
+    });
+  }, [clampToParent]);
+
+  // Global pointer handlers while dragging — attach on window so the
+  // pill keeps following the cursor even if it leaves the parent.
+  useEffect(() => {
+    if (!dragging) return;
+    function onMove(e: PointerEvent) {
+      const parent = wrapRef.current?.parentElement;
+      if (!parent) return;
+      const parentRect = parent.getBoundingClientRect();
+      const rawX = e.clientX - parentRect.left - dragOffsetRef.current.x;
+      const rawY = e.clientY - parentRect.top - dragOffsetRef.current.y;
+      setPos(clampToParent({ x: rawX, y: rawY }));
+    }
+    function onUp() {
+      setDragging(false);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragging, clampToParent]);
+
+  // Persist the position after each drag ends.
+  useEffect(() => {
+    if (dragging) return;
+    if (pos) savePos(pos);
+  }, [dragging, pos]);
+
+  function startDrag(e: React.PointerEvent) {
+    const pill = pillRef.current;
+    if (!pill) return;
+    const rect = pill.getBoundingClientRect();
+    dragOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+    setDragging(true);
+  }
 
   function pinOpen(ms = 800) {
     setExpanded(true);
@@ -70,52 +184,77 @@ export default function HotspotStyleToolbar({
     []
   );
 
+  // Hide until we've measured a position — prevents a one-frame flash
+  // at (0,0) on mount.
+  const visible = pos != null;
+
   return (
     <div
-      className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
+      ref={wrapRef}
+      className="absolute z-30 pointer-events-auto"
+      style={{
+        left: pos ? pos.x : 0,
+        top: pos ? pos.y : 0,
+        opacity: visible ? 1 : 0,
+        // No CSS transition on left/top so drag stays 1:1 with cursor;
+        // opacity fades in when the initial position is set.
+        transition: "opacity 120ms ease",
+      }}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => {
-        // Only collapse if we're not currently pinned by a click.
         if (pinTimerRef.current == null) setExpanded(false);
       }}
       onFocus={() => setExpanded(true)}
       onBlur={() => setExpanded(false)}
     >
-      <div className="bg-black/75 backdrop-blur-md border border-white/10 rounded-full pl-1 pr-1 py-1 flex items-center gap-1 shadow-panel">
+      <div
+        ref={pillRef}
+        className={`bg-black/75 backdrop-blur-md border border-white/10 rounded-full pl-0.5 pr-1 py-0.5 flex items-center gap-0.5 shadow-panel ${
+          dragging ? "cursor-grabbing" : ""
+        }`}
+      >
+        {/* Drag handle — the ONLY spot with grab cursor so button
+            hover doesn't feel confusing. */}
+        <button
+          onPointerDown={startDrag}
+          title="Drag to reposition"
+          className="p-1 text-white/40 hover:text-white/80 cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical size={11} />
+        </button>
+
         {/* --- Collapsible left group: Auto-match + Select all --- */}
         <CollapsibleGroup expanded={expanded}>
-          {/* Auto-match toggle */}
           <button
             onClick={onToggleSticky}
             title={
               stickyEnabled
-                ? "Auto-match style is ON — new hotspots inherit your last-used look. Click to turn off."
-                : "Auto-match style is OFF — new hotspots use factory defaults. Click to turn on."
+                ? "Auto-match ON — new hotspots inherit your last-used look"
+                : "Auto-match OFF — new hotspots use defaults"
             }
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-colors ${
+            className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10.5px] font-medium transition-colors whitespace-nowrap ${
               stickyEnabled
                 ? "bg-accent/20 text-accent hover:bg-accent/30"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
-            <Sparkles size={12} />
+            <Sparkles size={11} />
             Auto-match
             <span
-              className={`ml-0.5 w-6 h-3 rounded-full flex items-center transition-colors ${
+              className={`ml-0.5 w-5 h-2.5 rounded-full flex items-center transition-colors ${
                 stickyEnabled ? "bg-accent" : "bg-white/20"
               }`}
             >
               <span
-                className={`w-2.5 h-2.5 rounded-full bg-white shadow transform transition-transform ${
-                  stickyEnabled ? "translate-x-3" : "translate-x-0.5"
+                className={`w-2 h-2 rounded-full bg-white shadow transform transition-transform ${
+                  stickyEnabled ? "translate-x-2.5" : "translate-x-0.5"
                 }`}
               />
             </span>
           </button>
 
-          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <div className="w-px h-3 bg-white/10 mx-0.5" />
 
-          {/* Select all */}
           <button
             onClick={() => {
               onSelectAll();
@@ -123,18 +262,18 @@ export default function HotspotStyleToolbar({
             }}
             disabled={!hasHotspotsInScene}
             title="Select every hotspot in this scene (Ctrl+A / ⌘A)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 rounded-full text-[10.5px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
           >
-            <LayoutList size={12} />
+            <LayoutList size={11} />
             Select all
             {selectionCount > 1 && (
-              <span className="ml-0.5 bg-accent/30 text-accent text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
+              <span className="ml-0.5 bg-accent/30 text-accent text-[9.5px] font-semibold px-1 py-0.5 rounded-full leading-none">
                 {selectionCount}
               </span>
             )}
           </button>
 
-          <div className="w-px h-4 bg-white/10 mx-0.5" />
+          <div className="w-px h-3 bg-white/10 mx-0.5" />
         </CollapsibleGroup>
 
         {/* --- Always-visible right group: Copy + Paste --- */}
@@ -145,10 +284,10 @@ export default function HotspotStyleToolbar({
           }}
           disabled={!hasSelection}
           title="Copy this hotspot's style"
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
+          className="flex items-center gap-1 px-2 py-1 rounded-full text-[10.5px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
         >
-          <Copy size={12} />
-          Copy style
+          <Copy size={11} />
+          Copy
         </button>
 
         <button
@@ -156,13 +295,13 @@ export default function HotspotStyleToolbar({
           disabled={!hasSelection || !hasClipboard}
           title={
             !hasClipboard
-              ? "Clipboard is empty — copy a style from another hotspot first"
+              ? "Clipboard empty — copy a style first"
               : "Paste style — pick which properties to apply"
           }
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
+          className="flex items-center gap-1 px-2 py-1 rounded-full text-[10.5px] font-medium text-neutral-300 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:pointer-events-none transition-colors whitespace-nowrap"
         >
-          <ClipboardPaste size={12} />
-          Paste style
+          <ClipboardPaste size={11} />
+          Paste
         </button>
       </div>
     </div>
@@ -170,9 +309,9 @@ export default function HotspotStyleToolbar({
 }
 
 /** Wraps left-side controls. Collapsed = zero-width slot with the
- *  children faded / slid off to the left. Expanded = full width with
- *  children snapped into place. Animation runs off transform + opacity
- *  + max-width which are all GPU-composited → 60fps on modest laptops. */
+ *  children faded / slid off to the left. All transitions on
+ *  GPU-composited props so drag remains smooth alongside hover
+ *  expansion. */
 function CollapsibleGroup({
   expanded,
   children,
@@ -184,26 +323,17 @@ function CollapsibleGroup({
     <div
       className="flex items-center overflow-hidden"
       style={{
-        // A generous max-width when expanded — enough to hold both
-        // buttons plus the two dividers. Transitioning max-width (not
-        // width) means we don't need to measure the content first,
-        // and the browser can smoothly interpolate on the composite
-        // thread.
         maxWidth: expanded ? 320 : 0,
         opacity: expanded ? 1 : 0,
         transform: expanded ? "translateX(0px)" : "translateX(-8px)",
         transition:
-          "max-width 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+          "max-width 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
         willChange: "max-width, opacity, transform",
       }}
     >
-      {/* Disable pointer + keyboard interaction while collapsed so a
-          click on the (invisible) slot doesn't trigger a hidden button. */}
       <div
-        className="flex items-center gap-1"
-        style={{
-          pointerEvents: expanded ? "auto" : "none",
-        }}
+        className="flex items-center gap-0.5"
+        style={{ pointerEvents: expanded ? "auto" : "none" }}
         aria-hidden={!expanded}
       >
         {children}
