@@ -109,6 +109,12 @@ export default function MenuBuilderModal({
   const [tab, setTab] = useState<"layout" | "icon" | "label">("layout");
   const [busy, setBusy] = useState(false);
 
+  // Image aspect ratio for the preview — measured on load so the
+  // preview panel can shrink to match, eliminating the black bars
+  // above/below that were making the hotspots look like they were
+  // floating in space instead of sitting on the actual image.
+  const [imgAspect, setImgAspect] = useState<number | null>(null);
+
   function toggle(id: string) {
     setPickedIds((s) => {
       const next = new Set(s);
@@ -326,13 +332,31 @@ export default function MenuBuilderModal({
               </span>
               <span>columns {columns} · {rows} row{rows === 1 ? "" : "s"}</span>
             </div>
-            <div className="relative flex-1 min-h-0">
+            <div className="relative flex-1 min-h-0 grid place-items-center overflow-hidden p-2">
+              {/* Inner box constrained to the IMAGE's own aspect ratio.
+                  Percentage-positioned hotspots then align with the
+                  image, not the (larger) preview container — no more
+                  hotspots hanging in the black band above / below. */}
+              <div
+                className="relative max-w-full max-h-full"
+                style={{
+                  aspectRatio: imgAspect ? `${imgAspect}` : "16 / 9",
+                  width: imgAspect ? "auto" : "100%",
+                  height: imgAspect ? "auto" : "100%",
+                }}
+              >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={publicUrl(activeScene.image_path) ?? ""}
                 alt=""
-                className="absolute inset-0 w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full"
                 draggable={false}
+                onLoad={(e) => {
+                  const el = e.currentTarget;
+                  if (el.naturalWidth && el.naturalHeight) {
+                    setImgAspect(el.naturalWidth / el.naturalHeight);
+                  }
+                }}
               />
               {picked.map((s, i) => {
                 const { x, y } = iconPos(i, picked.length);
@@ -393,6 +417,7 @@ export default function MenuBuilderModal({
                   </div>
                 );
               })}
+              </div>
             </div>
           </div>
 
