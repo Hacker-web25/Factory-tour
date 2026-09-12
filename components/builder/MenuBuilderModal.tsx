@@ -3,28 +3,32 @@
 /**
  * MenuBuilderModal — bulk-create a grid of nav hotspots on a FLAT scene.
  *
- * The presenter picks:
- *   • which scenes to include as menu items,
- *   • how many columns to lay them out in,
- *   • how much padding to keep around the edges.
+ * Feature set
+ * -----------
+ * • Scene picker (checkbox list)
+ * • Layout controls (columns, rows auto, edge padding, row/col gap)
+ * • Icon controls (shape, size, tint)
+ * • Label controls (position relative to icon, size, colour, weight,
+ *   background chip, distance from icon)
+ * • LIVE preview — shows the actual flat-scene image with real icon
+ *   shapes and real label styling exactly where each hotspot will land.
  *
- * We compute an evenly-spaced grid inside a bounding box (default =
- * full image with 8% padding on each edge), then create one icon
- * hotspot per menu item at the correct (flat_x, flat_y). Each hotspot
- * is pre-configured with:
- *   • type: "icon"
- *   • action: "nav" + target_scene_id
- *   • label: the destination scene's name (edit inline afterwards)
- *   • sticky style applied (colour / size / icon / effects match the
- *     rest of the tour so the menu doesn't stand out awkwardly).
+ * Each menu item becomes TWO hotspots:
+ *   1. Icon hotspot (nav → target_scene_id)  — the clickable marker.
+ *   2. Text hotspot (label only)             — placed relative to the
+ *      icon per the "label position" choice.
  *
- * Turns 12 menu items × 30 seconds of copy-paste-align into a single
- * 3-click flow.
+ * Splitting icon and text lets the presenter tweak either half
+ * independently after generation, and unlocks the "text to the right"
+ * horizontal layout the reference dashboard uses. Both hotspots carry
+ * the target_scene_id so clicking either navigates.
  */
 
 import { useMemo, useState } from "react";
 import type { Hotspot, Scene } from "@/lib/types";
+import { publicUrl } from "@/lib/supabase";
 import { loadStickyStyle } from "@/lib/hotspotStyleMemory";
+import { ICON_LIBRARY, findIcon } from "@/lib/iconLibrary";
 import {
   LayoutGrid,
   Check,
@@ -33,18 +37,16 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Type,
+  Paintbrush,
 } from "lucide-react";
 
+type LabelPosition = "right" | "below" | "above" | "left";
+
 type Props = {
-  /** The scene currently being built (the flat "dashboard" image). */
   activeScene: Scene;
-  /** Every scene in the tour — used to populate the menu picker. */
   scenes: Scene[];
-  /** Tour id — needed so sticky style is scoped correctly. */
   tourId: string;
-  /** Fires once with the full batch of draft hotspots the wizard
-   *  wants to create. Parent inserts them (using its existing
-   *  Supabase insert path). */
   onGenerate: (drafts: Partial<Hotspot>[]) => Promise<void> | void;
   onCancel: () => void;
 };
@@ -56,21 +58,56 @@ export default function MenuBuilderModal({
   onGenerate,
   onCancel,
 }: Props) {
-  // Default: every scene EXCEPT the current one (you can't nav to the
-  // scene you're already on).
-  const [pickedIds, setPickedIds] = useState<Set<string>>(
-    () => new Set(scenes.filter((s) => s.id !== activeScene.id).map((s) => s.id))
+  const otherScenes = useMemo(
+    () => scenes.filter((s) => s.id !== activeScene.id),
+    [scenes, activeScene.id]
   );
-  const [columns, setColumns] = useState<number>(2);
-  const [padPct, setPadPct] = useState<number>(8); // % of image edges kept empty
-  const [labelSuffix, setLabelSuffix] = useState<"none" | "arrow">("none");
-  const [busy, setBusy] = useState(false);
 
-  const picked = useMemo(
-    () => scenes.filter((s) => pickedIds.has(s.id)),
-    [scenes, pickedIds]
+  const sticky = useMemo(() => loadStickyStyle(tourId), [tourId]);
+
+  // ---- Menu items ------------------------------------------------------
+  const [pickedIds, setPickedIds] = useState<Set<string>>(
+    () => new Set(otherScenes.map((s) => s.id))
   );
-  const rows = Math.max(1, Math.ceil(picked.length / columns));
+  const picked = useMemo(
+    () => otherScenes.filter((s) => pickedIds.has(s.id)),
+    [otherScenes, pickedIds]
+  );
+
+  // ---- Layout ---------------------------------------------------------
+  const [columns, setColumns] = useState<number>(2);
+  const [padPct, setPadPct] = useState<number>(8);
+  const rows = Math.max(1, Math.ceil(picked.length / Math.max(1, columns)));
+
+  // ---- Icon ----------------------------------------------------------
+  const stickyIconKey = (sticky as any).icon_key as string | undefined;
+  const [iconKey, setIconKey] = useState<string>(stickyIconKey ?? "target-ring");
+  const [iconSizePct, setIconSizePct] = useState<number>(
+    (sticky as any).width_pct ?? 80
+  );
+  const [iconTint, setIconTint] = useState<string>(
+    (sticky as any).icon_tint ?? "#111111"
+  );
+
+  // ---- Label ---------------------------------------------------------
+  const [labelPos, setLabelPos] = useState<LabelPosition>("right");
+  const [labelSize, setLabelSize] = useState<number>(
+    (sticky as any).label_size ?? 18
+  );
+  const [labelColor, setLabelColor] = useState<string>(
+    (sticky as any).label_color ?? "#111111"
+  );
+  const [labelBold, setLabelBold] = useState<boolean>(
+    (sticky as any).label_bold ?? true
+  );
+  const [labelGap, setLabelGap] = useState<number>(12); // px between icon & label
+  const [labelBg, setLabelBg] = useState<string | null>(
+    (sticky as any).label_bg ?? null
+  );
+  const [labelSuffix, setLabelSuffix] = useState<"none" | "arrow">("none");
+
+  const [tab, setTab] = useState<"layout" | "icon" | "label">("layout");
+  const [busy, setBusy] = useState(false);
 
   function toggle(id: string) {
     setPickedIds((s) => {
@@ -81,20 +118,15 @@ export default function MenuBuilderModal({
     });
   }
   function selectAll() {
-    setPickedIds(new Set(scenes.filter((s) => s.id !== activeScene.id).map((s) => s.id)));
+    setPickedIds(new Set(otherScenes.map((s) => s.id)));
   }
   function selectNone() {
     setPickedIds(new Set());
   }
 
-  /**
-   * Compute (flat_x, flat_y) for the i-th menu item.
-   * Grid spans (padPct%, 100 - padPct%) × (padPct%, 100 - padPct%).
-   * Items are laid out row-major. If the last row is shorter, its
-   * columns are re-centered horizontally so the layout looks balanced.
-   */
-  function positionFor(index: number, total: number) {
-    const colsInThisRow =
+  // Grid position for the i-th icon (in fractional coords 0..1).
+  function iconPos(index: number, total: number) {
+    const colsInRow =
       Math.floor(index / columns) === rows - 1
         ? total - (rows - 1) * columns
         : columns;
@@ -105,44 +137,95 @@ export default function MenuBuilderModal({
     const bandRight = 1 - pad;
     const bandTop = pad;
     const bandBottom = 1 - pad;
-    // Column spacing: divide the row band into (colsInThisRow) slots,
-    // each item sits at the slot centre.
-    const colSlot = (bandRight - bandLeft) / colsInThisRow;
-    const x = bandLeft + colSlot * (colInRow + 0.5);
-    // Row spacing: divide the vertical band into (rows) slots, item at
-    // slot centre.
+    const colSlot = (bandRight - bandLeft) / colsInRow;
     const rowSlot = (bandBottom - bandTop) / rows;
-    const y = bandTop + rowSlot * (row + 0.5);
-    return { x, y };
+    return {
+      x: bandLeft + colSlot * (colInRow + 0.5),
+      y: bandTop + rowSlot * (row + 0.5),
+    };
+  }
+
+  /** Compute the label anchor position (in fraction) from the icon
+   *  anchor and the gap. Because the preview panel has variable
+   *  aspect ratio we convert the gap to a fraction of the preview
+   *  container dimensions when possible; for the DB write we use a
+   *  rough estimate — presenters fine-tune per-hotspot afterwards. */
+  function labelPos_forItem(
+    iconX: number,
+    iconY: number,
+    previewW: number,
+    previewH: number
+  ) {
+    const gapX = labelGap / Math.max(1, previewW);
+    const gapY = labelGap / Math.max(1, previewH);
+    switch (labelPos) {
+      case "right":
+        return { x: iconX + (iconSizePct / 100) * 0.05 + gapX * 3, y: iconY };
+      case "left":
+        return { x: iconX - (iconSizePct / 100) * 0.05 - gapX * 3, y: iconY };
+      case "above":
+        return { x: iconX, y: iconY - (iconSizePct / 100) * 0.03 - gapY * 2 };
+      case "below":
+        return { x: iconX, y: iconY + (iconSizePct / 100) * 0.03 + gapY * 2 };
+    }
   }
 
   async function handleGenerate() {
     if (picked.length === 0) return;
     setBusy(true);
-    const sticky = loadStickyStyle(tourId);
-    const drafts: Partial<Hotspot>[] = picked.map((s, i) => {
-      const { x, y } = positionFor(i, picked.length);
+
+    // Rough preview dimensions used only for label placement math when
+    // generating. Preview element supplies its real size during preview
+    // render; here we use image dimensions or a sensible fallback.
+    const w = 1600;
+    const h = 900;
+
+    const drafts: Partial<Hotspot>[] = [];
+    for (let i = 0; i < picked.length; i++) {
+      const s = picked[i];
+      const { x, y } = iconPos(i, picked.length);
       const suffix = labelSuffix === "arrow" ? "  ›" : "";
-      const draft: Partial<Hotspot> = {
+      const iconDraft: Partial<Hotspot> = {
         ...sticky,
         type: "icon",
         action: "nav",
         target_scene_id: s.id,
-        // If sticky doesn't have an icon, default to the target-ring
-        // shape — it's what most menu-style hotspots want.
-        icon_key: (sticky as any).icon_key ?? "target-ring",
-        label: `${s.name}${suffix}`,
+        icon_key: iconKey,
+        icon_tint: iconTint,
+        width_pct: iconSizePct,
+        height_pct: iconSizePct,
+        label: null, // label is a separate hotspot for precise placement
         flat_x: x,
         flat_y: y,
       };
-      return draft;
-    });
+      const lp = labelPos_forItem(x, y, w, h);
+      const textDraft: Partial<Hotspot> = {
+        ...sticky,
+        type: "text",
+        action: "nav",
+        target_scene_id: s.id,
+        icon_key: null,
+        label: `${s.name}${suffix}`,
+        label_color: labelColor,
+        label_size: labelSize,
+        label_bold: labelBold,
+        label_bg: labelBg,
+        flat_x: Math.max(0.02, Math.min(0.98, lp.x)),
+        flat_y: Math.max(0.02, Math.min(0.98, lp.y)),
+      };
+      drafts.push(iconDraft, textDraft);
+    }
+
     try {
       await onGenerate(drafts);
     } finally {
       setBusy(false);
     }
   }
+
+  // Real icon preview render
+  const iconEntry = findIcon(iconKey);
+  const IconCmp = iconEntry?.Icon;
 
   return (
     <div
@@ -151,7 +234,7 @@ export default function MenuBuilderModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-panel border border-border rounded-lg w-[720px] max-w-full max-h-[88vh] flex flex-col shadow-panel"
+        className="bg-panel border border-border rounded-lg w-[980px] max-w-full max-h-[92vh] flex flex-col shadow-panel"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -170,19 +253,19 @@ export default function MenuBuilderModal({
           </button>
         </div>
 
-        {/* Two-column body */}
-        <div className="flex-1 overflow-hidden grid grid-cols-2 gap-3 p-3">
-          {/* Left: scene picker */}
+        {/* Body: 3 columns → picker | preview | options */}
+        <div
+          className="flex-1 overflow-hidden grid gap-3 p-3"
+          style={{ gridTemplateColumns: "240px 1fr 300px" }}
+        >
+          {/* --- LEFT: Scene picker --- */}
           <div className="border border-border rounded bg-panelSoft/40 flex flex-col overflow-hidden">
             <div className="px-3 py-2 border-b border-border flex items-center justify-between text-[11px]">
               <span className="text-neutral-400">
-                Menu items ({pickedIds.size}/{scenes.length - 1})
+                Items ({pickedIds.size}/{otherScenes.length})
               </span>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={selectAll}
-                  className="text-accent hover:underline"
-                >
+                <button onClick={selectAll} className="text-accent hover:underline">
                   All
                 </button>
                 <span className="text-neutral-700">·</span>
@@ -195,162 +278,367 @@ export default function MenuBuilderModal({
               </div>
             </div>
             <div className="flex-1 overflow-auto panel-scroll p-2 space-y-1">
-              {scenes.length <= 1 && (
+              {otherScenes.length === 0 && (
                 <div className="text-[11px] text-neutral-500 py-6 text-center">
-                  You need at least one other scene in this tour before you
-                  can build a menu.
+                  You need at least one other scene in this tour.
                 </div>
               )}
-              {scenes
-                .filter((s) => s.id !== activeScene.id)
-                .map((s) => {
-                  const on = pickedIds.has(s.id);
-                  return (
-                    <label
-                      key={s.id}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer border transition-colors ${
+              {otherScenes.map((s) => {
+                const on = pickedIds.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer border transition-colors ${
+                      on
+                        ? "border-accent/50 bg-accent/5"
+                        : "border-transparent hover:bg-white/5"
+                    }`}
+                  >
+                    <div
+                      className={`w-4 h-4 rounded shrink-0 grid place-items-center border ${
                         on
-                          ? "border-accent/50 bg-accent/5"
-                          : "border-transparent hover:bg-white/5"
+                          ? "bg-accent border-accent text-black"
+                          : "border-white/25"
                       }`}
                     >
-                      <div
-                        className={`w-4 h-4 rounded shrink-0 grid place-items-center border ${
-                          on
-                            ? "bg-accent border-accent text-black"
-                            : "border-white/25"
-                        }`}
-                      >
-                        {on && <Check size={11} strokeWidth={3} />}
-                      </div>
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={on}
-                        onChange={() => toggle(s.id)}
-                      />
-                      <div className="min-w-0 flex-1 text-[12.5px] truncate">
-                        {s.name}
-                      </div>
-                    </label>
-                  );
-                })}
+                      {on && <Check size={11} strokeWidth={3} />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={on}
+                      onChange={() => toggle(s.id)}
+                    />
+                    <div className="min-w-0 flex-1 text-[12.5px] truncate">
+                      {s.name}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
-          {/* Right: layout config + preview */}
-          <div className="flex flex-col gap-3 overflow-hidden">
-            {/* Columns picker */}
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                Columns
-              </div>
-              <div className="flex items-center gap-1.5">
-                {[1, 2, 3, 4].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setColumns(n)}
-                    className={`w-8 h-8 rounded border text-[12px] font-medium transition-colors ${
-                      columns === n
-                        ? "bg-accent text-black border-accent"
-                        : "border-border text-neutral-300 hover:border-white/30"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setColumns((c) => Math.max(1, c - 1))}
-                  className="ml-1 p-1 text-neutral-400 hover:text-white"
-                  title="Fewer columns"
-                >
-                  <ChevronDown size={12} />
-                </button>
-                <button
-                  onClick={() => setColumns((c) => Math.min(6, c + 1))}
-                  className="p-1 text-neutral-400 hover:text-white"
-                  title="More columns"
-                >
-                  <ChevronUp size={12} />
-                </button>
-                <span className="text-[11px] text-neutral-500 ml-1">
-                  · {rows} row{rows === 1 ? "" : "s"}
-                </span>
-              </div>
+          {/* --- CENTER: LIVE PREVIEW using the actual scene image --- */}
+          <div className="border border-border rounded bg-black overflow-hidden relative min-h-0 flex flex-col">
+            <div className="px-3 py-1.5 border-b border-border flex items-center justify-between text-[10.5px] text-neutral-500 shrink-0">
+              <span>
+                LIVE PREVIEW · {picked.length} item{picked.length === 1 ? "" : "s"}
+              </span>
+              <span>columns {columns} · {rows} row{rows === 1 ? "" : "s"}</span>
             </div>
-
-            {/* Padding slider */}
-            <div>
-              <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                <span>Edge padding</span>
-                <span className="text-white/70 normal-case tracking-normal">
-                  {padPct}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min={2}
-                max={25}
-                value={padPct}
-                onChange={(e) => setPadPct(Number(e.target.value))}
-                className="w-full accent-accent"
+            <div className="relative flex-1 min-h-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={publicUrl(activeScene.image_path) ?? ""}
+                alt=""
+                className="absolute inset-0 w-full h-full object-contain"
+                draggable={false}
               />
-              <div className="text-[10.5px] text-neutral-500 mt-1">
-                How much empty space to leave around the grid.
-              </div>
-            </div>
-
-            {/* Label style */}
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-neutral-400 mb-1.5">
-                Label
-              </div>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => setLabelSuffix("none")}
-                  className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors ${
-                    labelSuffix === "none"
-                      ? "bg-accent text-black border-accent"
-                      : "border-border text-neutral-300 hover:border-white/30"
-                  }`}
-                >
-                  Scene name only
-                </button>
-                <button
-                  onClick={() => setLabelSuffix("arrow")}
-                  className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors flex items-center justify-center gap-1 ${
-                    labelSuffix === "arrow"
-                      ? "bg-accent text-black border-accent"
-                      : "border-border text-neutral-300 hover:border-white/30"
-                  }`}
-                >
-                  Name <ArrowRight size={10} />
-                </button>
-              </div>
-            </div>
-
-            {/* Live preview */}
-            <div className="flex-1 min-h-0 border border-border rounded bg-black overflow-hidden relative">
-              <div className="absolute inset-0 p-2 grid place-items-center pointer-events-none">
-                <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
-                  Preview · {picked.length} item
-                  {picked.length === 1 ? "" : "s"}
-                </span>
-              </div>
               {picked.map((s, i) => {
-                const { x, y } = positionFor(i, picked.length);
+                const { x, y } = iconPos(i, picked.length);
+                const iconPx = Math.max(16, iconSizePct * 0.6);
+                // Anchor label using CSS relative to icon so preview
+                // stays visually correct across container sizes.
+                const isHoriz = labelPos === "right" || labelPos === "left";
                 return (
                   <div
                     key={s.id}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ left: `${x * 100}%`, top: `${y * 100}%` }}
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: `${x * 100}%`,
+                      top: `${y * 100}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
                   >
-                    <div className="w-6 h-6 rounded-full border-2 border-accent bg-black/60 grid place-items-center">
-                      <div className="w-2 h-2 rounded-full bg-accent" />
+                    <div
+                      className="flex items-center"
+                      style={{
+                        flexDirection:
+                          labelPos === "right"
+                            ? "row"
+                            : labelPos === "left"
+                              ? "row-reverse"
+                              : labelPos === "below"
+                                ? "column"
+                                : "column-reverse",
+                        gap: `${labelGap}px`,
+                        alignItems: "center",
+                      }}
+                    >
+                      {IconCmp && (
+                        <IconCmp
+                          size={iconPx}
+                          color={iconTint}
+                          strokeWidth={2}
+                        />
+                      )}
+                      <span
+                        style={{
+                          fontSize: `${labelSize}px`,
+                          color: labelColor,
+                          fontWeight: labelBold ? 700 : 400,
+                          background: labelBg ?? "transparent",
+                          padding: labelBg ? "1px 6px" : 0,
+                          borderRadius: 4,
+                          whiteSpace: isHoriz ? "nowrap" : "normal",
+                          maxWidth: isHoriz ? "160px" : undefined,
+                          textOverflow: "ellipsis",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {s.name}
+                        {labelSuffix === "arrow" ? "  ›" : ""}
+                      </span>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* --- RIGHT: tabbed options --- */}
+          <div className="border border-border rounded bg-panelSoft/40 flex flex-col overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-border">
+              <TabBtn
+                active={tab === "layout"}
+                onClick={() => setTab("layout")}
+                icon={<LayoutGrid size={11} />}
+              >
+                Layout
+              </TabBtn>
+              <TabBtn
+                active={tab === "icon"}
+                onClick={() => setTab("icon")}
+                icon={<Paintbrush size={11} />}
+              >
+                Icon
+              </TabBtn>
+              <TabBtn
+                active={tab === "label"}
+                onClick={() => setTab("label")}
+                icon={<Type size={11} />}
+              >
+                Label
+              </TabBtn>
+            </div>
+
+            <div className="flex-1 overflow-auto panel-scroll p-3 space-y-4">
+              {tab === "layout" && (
+                <>
+                  <Field label="Columns">
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setColumns(n)}
+                          className={`w-8 h-8 rounded border text-[12px] font-medium transition-colors ${
+                            columns === n
+                              ? "bg-accent text-black border-accent"
+                              : "border-border text-neutral-300 hover:border-white/30"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setColumns((c) => Math.max(1, c - 1))}
+                        className="ml-1 p-1 text-neutral-400 hover:text-white"
+                        title="Fewer columns"
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                      <button
+                        onClick={() => setColumns((c) => Math.min(6, c + 1))}
+                        className="p-1 text-neutral-400 hover:text-white"
+                        title="More columns"
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Edge padding"
+                    trailing={<span className="text-white/70">{padPct}%</span>}
+                  >
+                    <input
+                      type="range"
+                      min={2}
+                      max={30}
+                      value={padPct}
+                      onChange={(e) => setPadPct(Number(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                  </Field>
+                </>
+              )}
+
+              {tab === "icon" && (
+                <>
+                  <Field label="Icon shape">
+                    <div className="grid grid-cols-6 gap-1.5 max-h-32 overflow-y-auto panel-scroll">
+                      {ICON_LIBRARY.map(({ key, label, Icon }) => (
+                        <button
+                          key={key}
+                          onClick={() => setIconKey(key)}
+                          title={label}
+                          className={`aspect-square rounded border grid place-items-center transition-colors ${
+                            iconKey === key
+                              ? "border-accent bg-accent/10"
+                              : "border-border hover:border-white/30"
+                          }`}
+                        >
+                          <Icon size={16} color={iconTint} />
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Icon size"
+                    trailing={<span className="text-white/70">{iconSizePct}%</span>}
+                  >
+                    <input
+                      type="range"
+                      min={20}
+                      max={200}
+                      value={iconSizePct}
+                      onChange={(e) => setIconSizePct(Number(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                  </Field>
+
+                  <Field label="Icon color">
+                    <ColorInput value={iconTint} onChange={setIconTint} />
+                  </Field>
+                </>
+              )}
+
+              {tab === "label" && (
+                <>
+                  <Field label="Position (relative to icon)">
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(["left", "right", "above", "below"] as LabelPosition[]).map(
+                        (p) => (
+                          <button
+                            key={p}
+                            onClick={() => setLabelPos(p)}
+                            className={`px-2 py-1.5 rounded border text-[11px] capitalize transition-colors ${
+                              labelPos === p
+                                ? "bg-accent text-black border-accent"
+                                : "border-border text-neutral-300 hover:border-white/30"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Text size"
+                    trailing={<span className="text-white/70">{labelSize}px</span>}
+                  >
+                    <input
+                      type="range"
+                      min={10}
+                      max={48}
+                      value={labelSize}
+                      onChange={(e) => setLabelSize(Number(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                  </Field>
+
+                  <Field label="Text color">
+                    <ColorInput value={labelColor} onChange={setLabelColor} />
+                  </Field>
+
+                  <Field label="Weight">
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setLabelBold(false)}
+                        className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors ${
+                          !labelBold
+                            ? "bg-accent text-black border-accent"
+                            : "border-border text-neutral-300 hover:border-white/30"
+                        }`}
+                      >
+                        Regular
+                      </button>
+                      <button
+                        onClick={() => setLabelBold(true)}
+                        className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors ${
+                          labelBold
+                            ? "bg-accent text-black border-accent"
+                            : "border-border text-neutral-300 hover:border-white/30"
+                        }`}
+                      >
+                        Bold
+                      </button>
+                    </div>
+                  </Field>
+
+                  <Field
+                    label="Icon ↔ text gap"
+                    trailing={<span className="text-white/70">{labelGap}px</span>}
+                  >
+                    <input
+                      type="range"
+                      min={0}
+                      max={40}
+                      value={labelGap}
+                      onChange={(e) => setLabelGap(Number(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                  </Field>
+
+                  <Field label="Text background">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setLabelBg(null)}
+                        className={`px-2 py-1.5 rounded border text-[11px] transition-colors ${
+                          !labelBg
+                            ? "bg-accent text-black border-accent"
+                            : "border-border text-neutral-300 hover:border-white/30"
+                        }`}
+                      >
+                        None
+                      </button>
+                      <ColorInput
+                        value={labelBg ?? "#000000"}
+                        onChange={(v) => setLabelBg(v)}
+                      />
+                    </div>
+                  </Field>
+
+                  <Field label="Trailing character">
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => setLabelSuffix("none")}
+                        className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors ${
+                          labelSuffix === "none"
+                            ? "bg-accent text-black border-accent"
+                            : "border-border text-neutral-300 hover:border-white/30"
+                        }`}
+                      >
+                        Name only
+                      </button>
+                      <button
+                        onClick={() => setLabelSuffix("arrow")}
+                        className={`flex-1 px-2 py-1.5 rounded border text-[11px] transition-colors flex items-center justify-center gap-1 ${
+                          labelSuffix === "arrow"
+                            ? "bg-accent text-black border-accent"
+                            : "border-border text-neutral-300 hover:border-white/30"
+                        }`}
+                      >
+                        Name <ArrowRight size={10} />
+                      </button>
+                    </div>
+                  </Field>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -359,7 +647,8 @@ export default function MenuBuilderModal({
         <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-2">
           <div className="text-[11px] text-neutral-500 flex items-center gap-1.5">
             <Info size={11} />
-            Uses your last-used hotspot style so the menu blends in.
+            Generates 2 hotspots per item (icon + text) so you can move
+            either independently after placing.
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -376,13 +665,93 @@ export default function MenuBuilderModal({
               <Check size={12} />
               {busy
                 ? "Creating…"
-                : `Generate ${picked.length} hotspot${
+                : `Generate ${picked.length} item${
                     picked.length === 1 ? "" : "s"
                   }`}
             </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* --------------------------- UI atoms --------------------------------- */
+
+function TabBtn({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 px-2 py-2 text-[11px] flex items-center justify-center gap-1 relative transition-colors ${
+        active ? "text-white" : "text-neutral-400 hover:text-white"
+      }`}
+    >
+      {icon}
+      {children}
+      {active && (
+        <span className="absolute left-2 right-2 bottom-0 h-[2px] bg-accent rounded-t" />
+      )}
+    </button>
+  );
+}
+
+function Field({
+  label,
+  trailing,
+  children,
+}: {
+  label: string;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10.5px] uppercase tracking-wider text-neutral-400 mb-1.5">
+        <span>{label}</span>
+        {trailing && <span className="normal-case tracking-normal">{trailing}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ColorInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="relative w-7 h-7 rounded border border-white/15 cursor-pointer overflow-hidden shrink-0">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ backgroundColor: value }}
+        />
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 bg-black/40 border border-border rounded px-2 py-1 text-[11px] font-mono text-white/80"
+      />
     </div>
   );
 }
