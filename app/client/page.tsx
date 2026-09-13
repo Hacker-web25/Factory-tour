@@ -708,10 +708,9 @@ function Sidebar({
         />
         <NavItem href="#" icon={<Eye size={16} />} label="Visitors" disabled />
         <NavItem
-          href="#"
+          href="/team/analytics"
           icon={<BarChart3 size={16} />}
           label="Analytics"
-          disabled
         />
       </nav>
 

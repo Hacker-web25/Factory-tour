@@ -1,0 +1,480 @@
+"use client";
+
+/**
+ * Sales-team analytics — the data layer for the org_admin dashboard.
+ *
+ * All aggregation happens client-side over rows from `tour_events`
+ * plus profiles in the org. Server-side rollups would be faster on
+ * huge datasets but for MSME-scale (10–20 presenters, a few thousand
+ * events/month) this is more than fast enough and keeps the code in
+ * one place.
+ *
+ * Every metric this file exports is derived from what's already in
+ * `tour_events` today — no new schema needed. Future accuracy
+ * improvements (session_start/end, dwell pings) plug in without
+ * changing the consumer API.
+ */
+
+import { supabase } from "@/lib/supabase";
+
+/* ------------------------------- Types ---------------------------------- */
+
+export type TeamMember = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  created_at: string;
+};
+
+export type MemberStats = {
+  memberId: string;
+  presentations: number;
+  totalSeconds: number;
+  avgSeconds: number;
+  uniqueProspects: number;
+  countries: string[];
+  toursPresented: string[];
+  lastActive: string | null; // ISO
+  daysActiveInLast7: number;
+  weeklySeries: number[]; // 7 numbers, oldest → newest, "presentations per day"
+  sparkline: number[]; // last 14 days of presentation counts
+};
+
+export type TourEvent = {
+  id: string;
+  tour_id: string | null;
+  scene_id: string | null;
+  event_type: string;
+  meta: Record<string, any> | null;
+  share_link_id: string | null;
+  presenter_user_id: string | null;
+  viewer_fingerprint: string | null;
+  viewer_email: string | null;
+  country: string | null;
+  device_type: string | null;
+  created_at: string;
+};
+
+export type TeamOverview = {
+  members: TeamMember[];
+  perMember: Map<string, MemberStats>;
+  totals: {
+    presentations: number;
+    hours: number;
+    uniqueProspects: number;
+    activeMembers: number;
+  };
+  deltas: {
+    presentations: number; // %
+    hours: number;
+    uniqueProspects: number;
+    activeMembers: number;
+  };
+  recentEvents: TourEvent[];
+  toursById: Map<string, string>; // tour_id → title
+  scenesById: Map<string, { name: string; tour_id: string }>;
+};
+
+/* ----------------------------- Fetching --------------------------------- */
+
+/** Load every artifact needed for the analytics dashboard in one shot.
+ *  Two SQL round-trips (profiles + events); everything else is derived
+ *  client-side. */
+export async function loadTeamOverview(
+  orgId: string,
+  windowDays = 30
+): Promise<TeamOverview> {
+  // 1. Members of this org (excluding org_admin themselves so the
+  //    dashboard is about their team, not them).
+  const { data: profileRows } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, role, created_at")
+    .eq("org_id", orgId);
+  const members = ((profileRows ?? []) as TeamMember[]).filter(
+    (p) => p.role === "presenter"
+  );
+  const memberIds = new Set(members.map((m) => m.id));
+
+  // 2. Events in the window, filtered to this team's presenters.
+  const sinceIso = new Date(
+    Date.now() - windowDays * 24 * 3600 * 1000
+  ).toISOString();
+  let events: TourEvent[] = [];
+  if (memberIds.size > 0) {
+    const { data: evRows } = await supabase
+      .from("tour_events")
+      .select("*")
+      .gte("created_at", sinceIso)
+      .in("presenter_user_id", Array.from(memberIds))
+      .order("created_at", { ascending: false })
+      .limit(20_000);
+    events = (evRows ?? []) as TourEvent[];
+  }
+
+  // 3. Lookups for tour + scene names (batched).
+  const tourIds = Array.from(
+    new Set(events.map((e) => e.tour_id).filter(Boolean) as string[])
+  );
+  const sceneIds = Array.from(
+    new Set(events.map((e) => e.scene_id).filter(Boolean) as string[])
+  );
+  const [toursById, scenesById] = await Promise.all([
+    fetchTours(tourIds),
+    fetchScenes(sceneIds),
+  ]);
+
+  // 4. Aggregate per-member stats.
+  const perMember = new Map<string, MemberStats>();
+  for (const m of members) {
+    perMember.set(m.id, aggregateMember(m.id, events));
+  }
+
+  // 5. Totals + deltas (window vs previous window).
+  const prevWindowIso = new Date(
+    Date.now() - 2 * windowDays * 24 * 3600 * 1000
+  ).toISOString();
+  const prevEvents: TourEvent[] = [];
+  if (memberIds.size > 0) {
+    const { data: prev } = await supabase
+      .from("tour_events")
+      .select("presenter_user_id, viewer_fingerprint, tour_id, created_at")
+      .gte("created_at", prevWindowIso)
+      .lt("created_at", sinceIso)
+      .in("presenter_user_id", Array.from(memberIds))
+      .limit(20_000);
+    if (prev) prevEvents.push(...(prev as TourEvent[]));
+  }
+
+  const totals = summarize(perMember, events, members);
+  const prevTotals = summarizeFromRaw(prevEvents, members);
+  const deltas = {
+    presentations: pctDelta(totals.presentations, prevTotals.presentations),
+    hours: pctDelta(totals.hours, prevTotals.hours),
+    uniqueProspects: pctDelta(
+      totals.uniqueProspects,
+      prevTotals.uniqueProspects
+    ),
+    activeMembers: pctDelta(totals.activeMembers, prevTotals.activeMembers),
+  };
+
+  return {
+    members,
+    perMember,
+    totals,
+    deltas,
+    recentEvents: events.slice(0, 50),
+    toursById,
+    scenesById,
+  };
+}
+
+async function fetchTours(ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data } = await supabase
+    .from("tours")
+    .select("id, title")
+    .in("id", ids);
+  for (const r of (data ?? []) as { id: string; title: string }[]) {
+    out.set(r.id, r.title);
+  }
+  return out;
+}
+async function fetchScenes(
+  ids: string[]
+): Promise<Map<string, { name: string; tour_id: string }>> {
+  const out = new Map<string, { name: string; tour_id: string }>();
+  if (ids.length === 0) return out;
+  const { data } = await supabase
+    .from("scenes")
+    .select("id, name, tour_id")
+    .in("id", ids);
+  for (const r of (data ?? []) as {
+    id: string;
+    name: string;
+    tour_id: string;
+  }[]) {
+    out.set(r.id, { name: r.name, tour_id: r.tour_id });
+  }
+  return out;
+}
+
+/* ---------------------------- Aggregation ------------------------------- */
+
+/** Sessions we group events into. A session = same (presenter, viewer_fp)
+ *  with < 30-min gap between consecutive events. */
+type Session = {
+  presenter: string;
+  viewer: string;
+  tourId: string | null;
+  country: string | null;
+  first: number; // ms
+  last: number; // ms
+};
+
+function sessionsFor(events: TourEvent[]): Session[] {
+  // Group by (presenter, viewer)
+  const byPair = new Map<string, TourEvent[]>();
+  for (const e of events) {
+    const k = `${e.presenter_user_id ?? "?"}::${e.viewer_fingerprint ?? "?"}`;
+    let arr = byPair.get(k);
+    if (!arr) {
+      arr = [];
+      byPair.set(k, arr);
+    }
+    arr.push(e);
+  }
+  const sessions: Session[] = [];
+  for (const arr of byPair.values()) {
+    arr.sort(
+      (a, b) => +new Date(a.created_at) - +new Date(b.created_at)
+    );
+    let cur: Session | null = null;
+    for (const e of arr) {
+      const t = +new Date(e.created_at);
+      if (!cur || t - cur.last > 30 * 60 * 1000) {
+        if (cur) sessions.push(cur);
+        cur = {
+          presenter: e.presenter_user_id ?? "",
+          viewer: e.viewer_fingerprint ?? "",
+          tourId: e.tour_id ?? null,
+          country: e.country ?? null,
+          first: t,
+          last: t,
+        };
+      } else {
+        cur.last = t;
+        if (!cur.tourId && e.tour_id) cur.tourId = e.tour_id;
+        if (!cur.country && e.country) cur.country = e.country;
+      }
+    }
+    if (cur) sessions.push(cur);
+  }
+  return sessions;
+}
+
+function aggregateMember(memberId: string, events: TourEvent[]): MemberStats {
+  const mine = events.filter((e) => e.presenter_user_id === memberId);
+  const sessions = sessionsFor(mine).filter(
+    // A "presentation" = session >= 30s. Filters out one-tap open-and-close.
+    (s) => s.last - s.first >= 30_000
+  );
+
+  const totalMs = sessions.reduce((a, s) => a + (s.last - s.first), 0);
+  const uniqueProspects = new Set(sessions.map((s) => s.viewer).filter(Boolean))
+    .size;
+  const countries = Array.from(
+    new Set(sessions.map((s) => s.country).filter(Boolean) as string[])
+  );
+  const toursPresented = Array.from(
+    new Set(sessions.map((s) => s.tourId).filter(Boolean) as string[])
+  );
+  const lastActive = mine[0]?.created_at ?? null; // events were sorted desc
+
+  // Weekly series — last 7 days of presentation counts.
+  const weeklySeries = perDayCounts(sessions, 7);
+  const sparkline = perDayCounts(sessions, 14);
+  const daysActiveInLast7 = weeklySeries.filter((n) => n > 0).length;
+
+  return {
+    memberId,
+    presentations: sessions.length,
+    totalSeconds: Math.round(totalMs / 1000),
+    avgSeconds:
+      sessions.length > 0 ? Math.round(totalMs / 1000 / sessions.length) : 0,
+    uniqueProspects,
+    countries,
+    toursPresented,
+    lastActive,
+    daysActiveInLast7,
+    weeklySeries,
+    sparkline,
+  };
+}
+
+function perDayCounts(sessions: Session[], days: number): number[] {
+  const out = new Array(days).fill(0);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const zero = +now;
+  for (const s of sessions) {
+    const dayStart = new Date(s.first);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayIdx =
+      days - 1 - Math.floor((zero - +dayStart) / (24 * 3600 * 1000));
+    if (dayIdx >= 0 && dayIdx < days) out[dayIdx] += 1;
+  }
+  return out;
+}
+
+function summarize(
+  perMember: Map<string, MemberStats>,
+  events: TourEvent[],
+  members: TeamMember[]
+) {
+  let presentations = 0;
+  let totalSec = 0;
+  const prospects = new Set<string>();
+  for (const [, s] of perMember) {
+    presentations += s.presentations;
+    totalSec += s.totalSeconds;
+  }
+  for (const e of events) {
+    if (e.viewer_fingerprint) prospects.add(e.viewer_fingerprint);
+  }
+  const activeMembers = members.filter(
+    (m) => (perMember.get(m.id)?.presentations ?? 0) > 0
+  ).length;
+  return {
+    presentations,
+    hours: Math.round((totalSec / 3600) * 10) / 10,
+    uniqueProspects: prospects.size,
+    activeMembers,
+  };
+}
+
+function summarizeFromRaw(events: TourEvent[], members: TeamMember[]) {
+  const perMember = new Map<string, MemberStats>();
+  for (const m of members) {
+    perMember.set(m.id, aggregateMember(m.id, events));
+  }
+  return summarize(perMember, events, members);
+}
+
+function pctDelta(now: number, prev: number): number {
+  if (prev === 0) return now > 0 ? 100 : 0;
+  return Math.round(((now - prev) / prev) * 100);
+}
+
+/* ---------------------------- Insights ---------------------------------- */
+
+/** Rules-based insight generator. Produces 2–4 high-signal sentences
+ *  the org_admin can act on. LLM upgrades slot in without breaking
+ *  callers — the return shape stays `{title, body, tone}[]`. */
+export type Insight = {
+  title: string;
+  body: string;
+  tone: "positive" | "warning" | "neutral";
+};
+
+export function generateInsights(overview: TeamOverview): Insight[] {
+  const insights: Insight[] = [];
+  const members = overview.members;
+  if (members.length === 0) return insights;
+
+  // Top performer
+  let top: { m: TeamMember; s: MemberStats } | null = null;
+  for (const m of members) {
+    const s = overview.perMember.get(m.id);
+    if (!s) continue;
+    if (!top || s.presentations > top.s.presentations) top = { m, s };
+  }
+  if (top && top.s.presentations > 0) {
+    insights.push({
+      title: `${firstName(top.m)} is your top presenter`,
+      body: `${top.s.presentations} presentation${
+        top.s.presentations === 1 ? "" : "s"
+      } this month, reaching ${top.s.uniqueProspects} unique prospect${
+        top.s.uniqueProspects === 1 ? "" : "s"
+      }.`,
+      tone: "positive",
+    });
+  }
+
+  // Idle members
+  const now = Date.now();
+  const idle: TeamMember[] = [];
+  for (const m of members) {
+    const s = overview.perMember.get(m.id);
+    if (!s) continue;
+    if (!s.lastActive) {
+      idle.push(m);
+      continue;
+    }
+    const daysSince = (now - +new Date(s.lastActive)) / (24 * 3600 * 1000);
+    if (daysSince > 7) idle.push(m);
+  }
+  if (idle.length > 0) {
+    insights.push({
+      title: `${idle.length} team member${
+        idle.length === 1 ? "" : "s"
+      } inactive for 7+ days`,
+      body: `${idle
+        .slice(0, 3)
+        .map((m) => firstName(m))
+        .join(", ")}${idle.length > 3 ? ` + ${idle.length - 3} more` : ""}. Consider a nudge.`,
+      tone: "warning",
+    });
+  }
+
+  // Overall momentum
+  if (overview.deltas.presentations !== 0) {
+    const up = overview.deltas.presentations > 0;
+    insights.push({
+      title: `Team ${up ? "up" : "down"} ${Math.abs(
+        overview.deltas.presentations
+      )}% this month`,
+      body: `${overview.totals.presentations} presentations vs previous window. ${
+        up ? "Keep the momentum going." : "Investigate what changed."
+      }`,
+      tone: up ? "positive" : "warning",
+    });
+  }
+
+  // International reach
+  const allCountries = new Set<string>();
+  for (const [, s] of overview.perMember) {
+    for (const c of s.countries) allCountries.add(c);
+  }
+  if (allCountries.size > 1) {
+    insights.push({
+      title: `Prospects across ${allCountries.size} countries`,
+      body: `Team is reaching buyers in ${Array.from(allCountries)
+        .slice(0, 5)
+        .join(", ")}${allCountries.size > 5 ? ` + more` : ""}.`,
+      tone: "neutral",
+    });
+  }
+
+  return insights;
+}
+
+function firstName(m: TeamMember): string {
+  if (m.full_name) return m.full_name.split(" ")[0];
+  return m.email.split("@")[0];
+}
+
+/* ---------------------------- Formatters -------------------------------- */
+
+export function formatHours(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const min = Math.round(seconds / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  const remMin = min % 60;
+  return remMin === 0 ? `${hr}h` : `${hr}h ${remMin}m`;
+}
+
+export function formatRelative(iso: string | null): string {
+  if (!iso) return "Never";
+  const then = +new Date(iso);
+  const now = Date.now();
+  const s = Math.floor((now - then) / 1000);
+  if (s < 60) return "Just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  const d = Math.floor(s / 86400);
+  if (d === 1) return "Yesterday";
+  if (d < 7) return `${d} days ago`;
+  if (d < 30) return `${Math.floor(d / 7)}w ago`;
+  return `${Math.floor(d / 30)}mo ago`;
+}
+
+export function statusFor(iso: string | null): "online" | "idle" | "offline" {
+  if (!iso) return "offline";
+  const mins = (Date.now() - +new Date(iso)) / 60000;
+  if (mins < 5) return "online";
+  if (mins < 30) return "idle";
+  return "offline";
+}
