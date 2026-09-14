@@ -16,6 +16,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import { loadPresence, statusFromLastSeen } from "@/lib/presence";
 
 /* ------------------------------- Types ---------------------------------- */
 
@@ -35,7 +36,9 @@ export type MemberStats = {
   uniqueProspects: number;
   countries: string[];
   toursPresented: string[];
-  lastActive: string | null; // ISO
+  lastActive: string | null; // ISO — most recent event OR presence heartbeat
+  presenceLastSeen: string | null; // ISO — pure presence heartbeat
+  status: "online" | "idle" | "offline";
   daysActiveInLast7: number;
   weeklySeries: number[]; // 7 numbers, oldest → newest, "presentations per day"
   sparkline: number[]; // last 14 days of presentation counts
@@ -124,10 +127,16 @@ export async function loadTeamOverview(
     fetchScenes(sceneIds),
   ]);
 
-  // 4. Aggregate per-member stats.
+  // 4. Presence heartbeats for live status dots.
+  const presenceRows = await loadPresence(Array.from(memberIds));
+
+  // 5. Aggregate per-member stats (blending events + presence).
   const perMember = new Map<string, MemberStats>();
   for (const m of members) {
-    perMember.set(m.id, aggregateMember(m.id, events));
+    perMember.set(
+      m.id,
+      aggregateMember(m.id, events, presenceRows.get(m.id)?.last_seen ?? null)
+    );
   }
 
   // 5. Totals + deltas (window vs previous window).
@@ -254,7 +263,11 @@ function sessionsFor(events: TourEvent[]): Session[] {
   return sessions;
 }
 
-function aggregateMember(memberId: string, events: TourEvent[]): MemberStats {
+function aggregateMember(
+  memberId: string,
+  events: TourEvent[],
+  presenceLastSeen: string | null = null
+): MemberStats {
   const mine = events.filter((e) => e.presenter_user_id === memberId);
   const sessions = sessionsFor(mine).filter(
     // A "presentation" = session >= 30s. Filters out one-tap open-and-close.
@@ -270,7 +283,13 @@ function aggregateMember(memberId: string, events: TourEvent[]): MemberStats {
   const toursPresented = Array.from(
     new Set(sessions.map((s) => s.tourId).filter(Boolean) as string[])
   );
-  const lastActive = mine[0]?.created_at ?? null; // events were sorted desc
+
+  // lastActive = max of (latest event, presence heartbeat). Presence
+  // captures "dashboard open but not presenting yet" so the dot goes
+  // green immediately when a presenter signs in, before they open a
+  // tour.
+  const eventTs = mine[0]?.created_at ?? null;
+  const lastActive = pickLater(eventTs, presenceLastSeen);
 
   // Weekly series — last 7 days of presentation counts.
   const weeklySeries = perDayCounts(sessions, 7);
@@ -287,10 +306,18 @@ function aggregateMember(memberId: string, events: TourEvent[]): MemberStats {
     countries,
     toursPresented,
     lastActive,
+    presenceLastSeen,
+    status: statusFromLastSeen(presenceLastSeen),
     daysActiveInLast7,
     weeklySeries,
     sparkline,
   };
+}
+
+function pickLater(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return +new Date(a) > +new Date(b) ? a : b;
 }
 
 function perDayCounts(sessions: Session[], days: number): number[] {

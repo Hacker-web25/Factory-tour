@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/auth";
 import { getMyProfile, signOut } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
+import TourAssignmentPanel from "@/components/dashboard/TourAssignmentPanel";
 import {
   Box,
   Users,
@@ -501,6 +502,25 @@ export default function TeamPage() {
             </table>
           </div>
         </div>
+
+        {/* Tour assignments — org_admin ticks who can present which tour. */}
+        {me?.org_id && members.length > 0 && (
+          <div className="px-10 mb-8">
+            <TourAssignmentPanel
+              orgId={me.org_id}
+              currentUserId={me.id}
+              presenters={members
+                .filter((m) => m.role === "presenter")
+                .map((m) => ({
+                  id: m.id,
+                  email: m.email,
+                  full_name: m.name || null,
+                  role: m.role,
+                  created_at: m.joinedAt,
+                }))}
+            />
+          </div>
+        )}
 
         {/* Pending invites */}
         {pending.length > 0 && (

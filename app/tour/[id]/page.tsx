@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
 import { loadOfflineTour } from "@/lib/offlineTourData";
+import { getMyProfile } from "@/lib/auth";
 
 type Status =
   | "loading"
@@ -69,8 +70,28 @@ export default function PublicTourPage() {
     const visibility =
       t.visibility ?? (t.published ? "public" : "private");
 
-    // 2) Access — editor preview short-circuits every gate.
-    if (!isEditorPreview) {
+    // 2) Access — editor preview short-circuits every gate. Also let
+    //    any authenticated member of the tour's org through: presenters
+    //    and org_admins need to open "private" tours to present them.
+    //    Superowner (that's you, NITIN) always bypasses. And when the
+    //    presenter is OFFLINE (network unreachable), fall back to
+    //    "there's a locally-cached auth session" as the bypass signal
+    //    so pre-downloaded tours keep playing.
+    let internalBypass = false;
+    try {
+      const profile = await getMyProfile();
+      if (profile) {
+        if (profile.role === "owner") internalBypass = true;
+        else if (t.org_id && profile.org_id === t.org_id) internalBypass = true;
+      }
+    } catch {
+      // profile lookup failed (likely offline) — check for cached session.
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (sess.session) internalBypass = true;
+      } catch {}
+    }
+    if (!isEditorPreview && !internalBypass) {
       if (visibility === "private") {
         setStatus("private");
         return;

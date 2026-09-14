@@ -6,6 +6,8 @@ import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
+import CalendarWidget from "@/components/dashboard/CalendarWidget";
+import { startPresence } from "@/lib/presence";
 import {
   getMyProfile,
   signOut,
@@ -101,6 +103,10 @@ export default function ClientDashboardPage() {
         return;
       }
       setMe(p);
+
+      // Presence heartbeat — keeps the analytics dashboard's status
+      // dots green while the org_admin is signed in too.
+      startPresence();
 
       if (p.org_id) {
         const { data: o } = await supabase
@@ -536,6 +542,18 @@ export default function ClientDashboardPage() {
         </div>
 
         {/* Team table */}
+        {/* Calendar widget — shows team-wide meetings/plans; org_admin
+            can create + assign to any team member. */}
+        {me?.org_id && (
+          <div className="px-10 pb-6">
+            <CalendarWidget
+              orgId={me.org_id}
+              currentUserId={me.id}
+              teammates={team as any}
+            />
+          </div>
+        )}
+
         <div className="px-10 pb-12">
           <div className="rounded-2xl bg-[#0f0f14] border border-white/[0.06] overflow-hidden">
             <div className="px-5 py-4 flex items-center justify-between">

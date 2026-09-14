@@ -13,6 +13,8 @@ import {
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
+import CalendarWidget from "@/components/dashboard/CalendarWidget";
+import { startPresence } from "@/lib/presence";
 import {
   Box,
   Bell,
@@ -95,12 +97,46 @@ export default function SalesDashboardPage() {
       setMe(p);
       setOrg(orgRow as Organization);
 
-      // Fetch all tours in the org — sales can present any of them.
-      const { data: tourRows } = await supabase
+      // Fire the presence heartbeat while this tab is open so the
+      // org_admin's live-status dots update every minute.
+      const stopPres = startPresence();
+      // Detach on unmount (guarded by the closure — safe if this runs
+      // more than once because startPresence is idempotent).
+      (window as any).__factour_presence_stop = stopPres;
+
+      // Presenters see ONLY tours the org_admin has explicitly assigned
+      // to them via the Team page. Fallback: if the org has assignments
+      // for this user of zero AND the assignment feature has never been
+      // used (no assignments exist for the org at all), fall back to
+      // showing every tour — protects existing tours from suddenly
+      // disappearing when the assignment feature rolls out.
+      const { data: myAssignments } = await supabase
+        .from("tour_assignments")
+        .select("tour_id")
+        .eq("user_id", p.id);
+      const assignedIds = new Set(
+        ((myAssignments ?? []) as { tour_id: string }[]).map((r) => r.tour_id)
+      );
+      const { data: allAssignmentsInOrg } = assignedIds.size === 0
+        ? await supabase
+            .from("tour_assignments")
+            .select("tour_id")
+            .limit(1)
+        : { data: [{ tour_id: "sentinel" }] };
+      const hasAnyAssignments =
+        (allAssignmentsInOrg ?? []).length > 0;
+
+      const tourQuery = supabase
         .from("tours")
         .select("*")
         .eq("org_id", orgRow.id)
         .order("updated_at", { ascending: false });
+      const { data: tourRows } =
+        assignedIds.size > 0
+          ? await tourQuery.in("id", Array.from(assignedIds))
+          : hasAnyAssignments
+            ? { data: [] as any[] } // assignments exist but none for me → show empty state
+            : await tourQuery; // backward-compat: no assignments in org yet
       const tourList: TourCard[] = [];
       for (const t of (tourRows ?? []) as Tour[]) {
         const { data: scenes } = await supabase
@@ -252,10 +288,8 @@ export default function SalesDashboardPage() {
           </div>
         </nav>
 
-        {/* Limited offer */}
-        <div className="px-3 mt-6">
-          <LimitedOffer />
-        </div>
+        {/* Marketing / countdown deliberately hidden for presenters —
+            it's for org_admin billing decisions, not sales-team focus. */}
 
         {/* User card removed — top-right handles the profile pill. */}
       </aside>
@@ -373,6 +407,17 @@ export default function SalesDashboardPage() {
                 <Play size={14} /> Start
               </a>
             </div>
+          </div>
+        )}
+
+        {/* Calendar — presenter's own schedule */}
+        {me && org && (
+          <div className="px-10 mb-6">
+            <CalendarWidget
+              orgId={org.id}
+              currentUserId={me.id}
+              myEventsOnly
+            />
           </div>
         )}
 

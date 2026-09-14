@@ -95,7 +95,9 @@ export function MemberCard({
   stats: MemberStats;
   onClick?: () => void;
 }) {
-  const status = statusFor(stats.lastActive);
+  // Prefer presence-derived status when available (heartbeat is more
+  // accurate than "most recent event") but fall back to event ts.
+  const status = stats.status ?? statusFor(stats.lastActive);
   const displayName = member.full_name ?? member.email.split("@")[0];
   const initials = initialsOf(displayName);
   return (
@@ -359,7 +361,9 @@ export function MemberDetailModal({
   const stats = overview.perMember.get(member.id);
   if (!stats) return null;
   const displayName = member.full_name ?? member.email.split("@")[0];
-  const status = statusFor(stats.lastActive);
+  // Prefer presence-derived status when available (heartbeat is more
+  // accurate than "most recent event") but fall back to event ts.
+  const status = stats.status ?? statusFor(stats.lastActive);
 
   // Per-tour breakdown for this member.
   const tourRows = useMemo(() => {
