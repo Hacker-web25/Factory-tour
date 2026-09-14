@@ -835,7 +835,12 @@ function HtmlBillboard({
                   textShadow: h.label_bg
                     ? "none"
                     : "0 1px 2px rgba(0,0,0,0.9)",
-                  whiteSpace: "nowrap",
+                  // pre-wrap = preserve the user's newlines and spaces
+                  // exactly as typed in the label textarea, and wrap
+                  // long lines instead of forcing one long strip.
+                  whiteSpace: "pre-wrap",
+                  textAlign: "center",
+                  maxWidth: 320,
                 }}
               >
                 {t(h.label)}
@@ -1687,7 +1692,11 @@ function InfoHotspot({
               background: h.label_bg ?? "transparent",
               padding: h.label_bg ? "2px 8px" : 0,
               borderRadius: h.label_bg ? 4 : 0,
-              whiteSpace: "nowrap",
+              // pre-wrap so newlines the user typed in the label field
+              // render as actual line breaks instead of collapsing.
+              whiteSpace: "pre-wrap",
+              textAlign: "center",
+              maxWidth: 320,
               textShadow: h.label_bg ? "none" : "0 1px 3px rgba(0,0,0,0.7)",
               pointerEvents: "none",
               userSelect: "none",
