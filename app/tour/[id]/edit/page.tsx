@@ -47,6 +47,10 @@ import {
 import HotspotStyleToolbar from "@/components/builder/HotspotStyleToolbar";
 import PasteStyleModal from "@/components/builder/PasteStyleModal";
 import MenuBuilderModal from "@/components/builder/MenuBuilderModal";
+import CollabAvatars from "@/components/builder/CollabAvatars";
+import { subscribeToTour } from "@/lib/realtimeCollab";
+import { setEditingContext } from "@/lib/editorPresence";
+import { startPresence } from "@/lib/presence";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import FlatViewer from "@/components/panorama/FlatViewer";
 import FolderResourcesModal from "@/components/builder/FolderResourcesModal";
@@ -144,12 +148,16 @@ export default function TourEditPage() {
   // one but you can reach the editor. Runs before any tour data is
   // fetched so we don't leak scene info via network requests either.
   const [roleChecked, setRoleChecked] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
       const p = await getMyProfile();
       if (!p) return router.replace("/login?next=/tour/" + tourId + "/edit");
-      if (p.role === "org_admin") return router.replace("/client");
       if (p.role === "presenter") return router.replace("/presenter");
+      setCurrentUserId(p.id);
+      // Fire base presence heartbeat so the org_admin analytics
+      // dashboard sees this editor as online too.
+      startPresence();
       setRoleChecked(true);
     })();
   }, [router, tourId]);
@@ -332,6 +340,78 @@ export default function TourEditPage() {
     () => scenes.find((s) => s.id === activeSceneId) ?? null,
     [scenes, activeSceneId]
   );
+
+  // Report editing context whenever tour or active scene changes so
+  // teammates see the live "who's on which scene" avatars.
+  useEffect(() => {
+    if (!currentUserId || !tourId) return;
+    setEditingContext(tourId, activeSceneId);
+    // Clear on unmount so avatars go away when we leave the editor.
+    return () => {
+      setEditingContext(null, null);
+    };
+  }, [currentUserId, tourId, activeSceneId]);
+
+  // Real-time collab — subscribe to hotspots / scenes / tour changes
+  // from other editors. Local writes go through the debounced flush
+  // path (pendingHotspotChangesRef); realtime events that arrive for
+  // a row we're currently editing are skipped so our in-flight change
+  // isn't overwritten by our own DB echo.
+  useEffect(() => {
+    if (!tourId || scenes.length === 0) return;
+    const sceneIds = scenes.map((s) => s.id);
+    const teardown = subscribeToTour(tourId, sceneIds, {
+      shouldSkipHotspot: (row: any) => {
+        // Skip echoes of our own unsaved writes AND our very-recent
+        // saved writes (within the last 800ms) — the DB roundtrip
+        // often outraces the local state update by a few hundred ms
+        // and we don't want to flicker the hotspot back to old values.
+        if (pendingHotspotChangesRef.current.has(row.id)) return true;
+        const recent = recentLocalWritesRef.current.get(row.id);
+        if (recent && Date.now() - recent < 800) return true;
+        return false;
+      },
+      onHotspotInsert: (row: any) => {
+        setAllHotspots((list) =>
+          list.some((h) => h.id === row.id) ? list : [...list, row]
+        );
+      },
+      onHotspotUpdate: (row: any) => {
+        setAllHotspots((list) =>
+          list.map((h) => (h.id === row.id ? { ...h, ...row } : h))
+        );
+      },
+      onHotspotDelete: (id: string) => {
+        setAllHotspots((list) => list.filter((h) => h.id !== id));
+        setSelectedHotspotId((cur) => (cur === id ? null : cur));
+        setSelectedHotspotIds((s) => {
+          if (!s.has(id)) return s;
+          const n = new Set(s);
+          n.delete(id);
+          return n;
+        });
+      },
+      onSceneInsert: (row: any) => {
+        setScenes((list) =>
+          list.some((s) => s.id === row.id) ? list : [...list, row]
+        );
+      },
+      onSceneUpdate: (row: any) => {
+        setScenes((list) =>
+          list.map((s) => (s.id === row.id ? { ...s, ...row } : s))
+        );
+      },
+      onSceneDelete: (id: string) => {
+        setScenes((list) => list.filter((s) => s.id !== id));
+        setActiveSceneId((cur) => (cur === id ? null : cur));
+      },
+      onTourUpdate: (row: any) => {
+        setTour((cur) => (cur ? { ...cur, ...row } : row));
+      },
+    });
+    return teardown;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourId, scenes.length]);
 
   // Lookup for hover-preview cards on nav hotspots in the editor viewer.
   const editScenesLookup = useMemo(() => {
@@ -527,6 +607,10 @@ export default function TourEditPage() {
   // state before anyone reads it.
   const pendingHotspotChangesRef = useRef<Map<string, Hotspot>>(new Map());
   const hotspotFlushTimerRef = useRef<number | null>(null);
+  // Timestamps of the most recent local write per hotspot. Realtime
+  // echoes that land within ~800ms of our own write are ignored so
+  // the DB roundtrip doesn't overwrite in-flight React state.
+  const recentLocalWritesRef = useRef<Map<string, number>>(new Map());
   const savedIndicatorTimerRef = useRef<number | null>(null);
 
   /** UI-facing save state — powers the pill in the top bar. */
@@ -812,7 +896,12 @@ export default function TourEditPage() {
             .eq("id", h.id)
             .select()
             .single();
-          if (!error) return { hotspot: h, data, error: null };
+          if (!error) {
+            // Record the write timestamp so the realtime echo (which
+            // usually arrives ~100–300ms later) gets skipped.
+            recentLocalWritesRef.current.set(h.id, Date.now());
+            return { hotspot: h, data, error: null };
+          }
           lastError = error;
           const match = /Could not find the '([^']+)' column/i.exec(
             error.message
@@ -1229,11 +1318,51 @@ export default function TourEditPage() {
 
   async function onHotspotDelete(id: string) {
     const before = allHotspots.find((h) => h.id === id);
+    if (!before) return;
+
+    // MASTER hotspots (one DB row rendered on many scenes) — delete
+    // used to nuke the row and thus wipe the marker from every scene.
+    // If the user is on a specific scene, prompt them: hide from THIS
+    // scene only, or delete everywhere?
+    if (before.is_master && activeSceneId) {
+      const choice = window.confirm(
+        "This is a master hotspot (shows on multiple scenes).\n\n" +
+          "OK  → Remove from THIS scene only (still shows on other scenes)\n" +
+          "Cancel → Delete everywhere"
+      );
+      if (choice) {
+        // Hide from current scene: convert the master's implicit "all
+        // scenes" allowlist into an explicit list of every scene
+        // EXCEPT the active one. If the allowlist is already explicit,
+        // just drop the active scene from it.
+        const currentIds =
+          before.master_scene_ids && before.master_scene_ids.length > 0
+            ? before.master_scene_ids
+            : scenes.map((s) => s.id);
+        const nextIds = currentIds.filter((sid) => sid !== activeSceneId);
+        const updated: Hotspot = {
+          ...before,
+          master_scene_ids: nextIds.length === 0 ? [] : nextIds,
+        };
+        setAllHotspots((h) =>
+          h.map((x) => (x.id === id ? updated : x))
+        );
+        recentLocalWritesRef.current.set(id, Date.now());
+        await supabase
+          .from("hotspots")
+          .update({ master_scene_ids: updated.master_scene_ids })
+          .eq("id", id);
+        setSelectedHotspotId(null);
+        pushOp({ type: "update", id, before, after: updated });
+        return;
+      }
+      // else: fall through to actual delete-everywhere below
+    }
+
     await supabase.from("hotspots").delete().eq("id", id);
     setAllHotspots((h) => h.filter((x) => x.id !== id));
     setSelectedHotspotId(null);
-    // Record the delete so it can be undone.
-    if (before) pushOp({ type: "delete", before });
+    pushOp({ type: "delete", before });
   }
 
   /** Delete every hotspot currently in the multi-selection Set (plus
@@ -1617,6 +1746,15 @@ export default function TourEditPage() {
           <Download size={11} />
           {backingUp ? "Packaging…" : "Backup"}
         </button>
+        {/* Live collab avatars — appears only when other editors are
+            on this tour. Green dot marks the ones on the same scene. */}
+        {currentUserId && (
+          <CollabAvatars
+            tourId={tourId}
+            currentUserId={currentUserId}
+            activeSceneId={activeSceneId}
+          />
+        )}
         {/* Undo / redo / duplicate — history for hotspot edits.
             Ctrl+Z, Ctrl+Shift+Z (or Ctrl+Y), Ctrl+D keyboard shortcuts
             also work. Buttons show enabled/disabled state from the

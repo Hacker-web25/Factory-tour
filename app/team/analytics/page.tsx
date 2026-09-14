@@ -100,6 +100,34 @@ export default function TeamAnalyticsPage() {
       .finally(() => setLoading(false));
   }, [me?.org_id, rangeIdx]);
 
+  // Client-side status-decay tick — every 5s, re-derive each member's
+  // `status` from their stored `presenceLastSeen` using the CURRENT
+  // wall clock. Without this, a member whose heartbeat stopped 10min
+  // ago would still show "online" until the next server poll writes
+  // an updated row. Now they flip to idle within 5s of their tab
+  // closing, and offline 30 min after that.
+  useEffect(() => {
+    if (!overview) return;
+    const tick = window.setInterval(() => {
+      import("@/lib/presence").then(({ statusFromLastSeen }) => {
+        setOverview((cur) => {
+          if (!cur) return cur;
+          const next = new Map(cur.perMember);
+          let changed = false;
+          for (const [id, s] of cur.perMember) {
+            const newStatus = statusFromLastSeen(s.presenceLastSeen);
+            if (newStatus !== s.status) {
+              next.set(id, { ...s, status: newStatus });
+              changed = true;
+            }
+          }
+          return changed ? { ...cur, perMember: next } : cur;
+        });
+      });
+    }, 5_000);
+    return () => window.clearInterval(tick);
+  }, [overview]);
+
   // Real-time presence — refresh the overview every 20s so a
   // teammate signing in shows the live green dot without needing a
   // manual page reload. Also subscribes to Supabase realtime on the

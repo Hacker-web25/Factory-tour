@@ -146,6 +146,22 @@ export default function TeamPage() {
           }
         }
 
+        // Presence heartbeats — for "last active" when the presenter
+        // has signed in recently but hasn't run a presentation yet.
+        const { data: presenceRows } = await supabase
+          .from("presence")
+          .select("user_id, last_seen")
+          .in(
+            "user_id",
+            rows.map((r: any) => r.id)
+          );
+        const presenceByUser = new Map<string, number>();
+        for (const r of (presenceRows ?? []) as any[]) {
+          if (r?.user_id && r?.last_seen) {
+            presenceByUser.set(r.user_id, +new Date(r.last_seen));
+          }
+        }
+
         // Tours-assigned = share_links owned by presenter
         const linkCount = new Map<string, number>();
         if (rows.length > 0) {
@@ -184,7 +200,15 @@ export default function TeamPage() {
             presentations: durs.length,
             totalSec: Math.round(totalSec),
             avgSec: Math.round(avgSec),
-            lastActive: entry?.last ? new Date(entry.last).toISOString() : null,
+            lastActive: (() => {
+              // Prefer whichever is more recent: last tour_event OR
+              // last presence heartbeat. This way "signed in but never
+              // presented" still shows a fresh timestamp.
+              const eventTs = entry?.last ?? 0;
+              const presenceTs = presenceByUser.get(r.id) ?? 0;
+              const latest = Math.max(eventTs, presenceTs);
+              return latest > 0 ? new Date(latest).toISOString() : null;
+            })(),
             toursAssigned: linkCount.get(r.id) ?? 0,
             joinedAt: r.created_at,
           };
@@ -291,10 +315,13 @@ export default function TeamPage() {
             <Eye size={16} className="text-white/30" />
             Visitors
           </div>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-white/30 cursor-not-allowed">
-            <BarChart3 size={16} className="text-white/30" />
+          <Link
+            href="/team/analytics"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-white/60 hover:text-white hover:bg-white/[0.04]"
+          >
+            <BarChart3 size={16} className="text-white/60" />
             Analytics
-          </div>
+          </Link>
         </nav>
 
         <div className="px-3 mt-6">
