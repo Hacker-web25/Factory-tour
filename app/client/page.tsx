@@ -7,6 +7,7 @@ import { supabase, publicUrl } from "@/lib/supabase";
 import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
 import CalendarWidget from "@/components/dashboard/CalendarWidget";
+import AssignTourModal from "@/components/dashboard/AssignTourModal";
 import { startPresence } from "@/lib/presence";
 import {
   getMyProfile,
@@ -89,6 +90,7 @@ export default function ClientDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [assignTour, setAssignTour] = useState<TourCard | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -519,7 +521,13 @@ export default function ClientDashboardPage() {
                   </p>
                 </div>
               ) : (
-                tours.map((t) => <TourCarouselCard key={t.id} tour={t} />)
+                tours.map((t) => (
+                  <TourCarouselCard
+                    key={t.id}
+                    tour={t}
+                    onAssign={() => me?.org_id && setAssignTour(t)}
+                  />
+                ))
               )}
             </div>
             {tours.length > 3 && (
@@ -663,6 +671,16 @@ export default function ClientDashboardPage() {
           orgId={me?.org_id ?? null}
           onClose={() => setInviteOpen(false)}
           onInvited={(r) => setTeam((t) => [r, ...t])}
+        />
+      )}
+
+      {assignTour && me?.org_id && (
+        <AssignTourModal
+          tourId={assignTour.id}
+          tourTitle={assignTour.title}
+          orgId={me.org_id}
+          currentUserId={me.id}
+          onClose={() => setAssignTour(null)}
         />
       )}
 
@@ -965,7 +983,13 @@ function Sparkline({
 }
 
 /* --------------------------- Tour Carousel Card --------------------------- */
-function TourCarouselCard({ tour }: { tour: TourCard }) {
+function TourCarouselCard({
+  tour,
+  onAssign,
+}: {
+  tour: TourCard;
+  onAssign?: () => void;
+}) {
   return (
     <div className="snap-start shrink-0 w-[360px] rounded-2xl bg-[#0f0f14] border border-white/[0.06] overflow-hidden hover:border-white/[0.12] transition-all group">
       <div className="aspect-[16/10] bg-black relative overflow-hidden">
@@ -1008,12 +1032,20 @@ function TourCarouselCard({ tour }: { tour: TourCard }) {
             </span>
           </div>
         </div>
-        <Link
-          href={`/tour/${tour.id}?preview=1`}
-          className="mt-3 w-full py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-blue-400/50 hover:bg-blue-500/10 text-[12px] font-medium text-white/80 hover:text-blue-300 flex items-center justify-center gap-1.5 transition-all"
-        >
-          Open Tour <ArrowRight size={12} />
-        </Link>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Link
+            href={`/tour/${tour.id}?preview=1`}
+            className="py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-blue-400/50 hover:bg-blue-500/10 text-[12px] font-medium text-white/80 hover:text-blue-300 flex items-center justify-center gap-1.5 transition-all"
+          >
+            Open <ArrowRight size={12} />
+          </Link>
+          <button
+            onClick={onAssign}
+            className="py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10 text-[12px] font-medium text-white/80 hover:text-cyan-300 flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Users size={12} /> Assign
+          </button>
+        </div>
       </div>
     </div>
   );

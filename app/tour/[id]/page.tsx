@@ -7,6 +7,7 @@ import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import { getMyProfile } from "@/lib/auth";
+import { setAttribution } from "@/lib/analytics";
 
 type Status =
   | "loading"
@@ -35,6 +36,23 @@ export default function PublicTourPage() {
     // private / unlisted / password gates. Anyone else who navigates here
     // still gets the normal access flow.
     const isEditorPreview = params.get("preview") === "1";
+
+    // Presenter attribution — the sales dashboard's "Present" button
+    // opens `/tour/{id}?presenter=<user_id>`. Wire that into the
+    // analytics attribution context so every scene_view / hotspot_click
+    // / session_start event gets stamped with the presenter's id →
+    // dashboards can compute per-presenter stats.
+    const presenterParam = params.get("presenter");
+    if (presenterParam) {
+      setAttribution({ presenter_user_id: presenterParam });
+    } else {
+      // Fallback: if the viewer is signed in (org_admin previewing, or
+      // presenter opened tour by URL bar), attribute to them.
+      try {
+        const p = await getMyProfile();
+        if (p) setAttribution({ presenter_user_id: p.id });
+      } catch {}
+    }
 
     // 1) Fetch tour — with an offline-snapshot fallback. If the network
     //    fails (presenter is on-site with no wifi) or Supabase returns

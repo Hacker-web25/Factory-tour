@@ -100,6 +100,98 @@ export default function TeamAnalyticsPage() {
       .finally(() => setLoading(false));
   }, [me?.org_id, rangeIdx]);
 
+  // Real-time presence — refresh the overview every 20s so a
+  // teammate signing in shows the live green dot without needing a
+  // manual page reload. Also subscribes to Supabase realtime on the
+  // presence table for zero-latency updates whenever supported.
+  useEffect(() => {
+    if (!me?.org_id) return;
+    const poll = window.setInterval(() => {
+      // Lightweight refresh — only fetches presence rows for members
+      // we already know about, then patches into the existing overview.
+      import("@/lib/presence").then(({ loadPresence, statusFromLastSeen }) => {
+        setOverview((prev) => {
+          if (!prev) return prev;
+          const ids = prev.members.map((m) => m.id);
+          loadPresence(ids).then((presenceMap) => {
+            setOverview((cur) => {
+              if (!cur) return cur;
+              const next = new Map(cur.perMember);
+              for (const m of cur.members) {
+                const p = presenceMap.get(m.id);
+                const existing = next.get(m.id);
+                if (!existing) continue;
+                next.set(m.id, {
+                  ...existing,
+                  presenceLastSeen: p?.last_seen ?? null,
+                  status: statusFromLastSeen(p?.last_seen ?? null),
+                  lastActive:
+                    p?.last_seen && (!existing.lastActive ||
+                      +new Date(p.last_seen) > +new Date(existing.lastActive))
+                      ? p.last_seen
+                      : existing.lastActive,
+                });
+              }
+              return { ...cur, perMember: next };
+            });
+          });
+          return prev;
+        });
+      });
+    }, 20_000);
+
+    // Supabase realtime channel — instant updates when a presence row
+    // is upserted anywhere in the org. Requires realtime enabled on
+    // the `presence` table (Supabase Dashboard → Database → Replication).
+    let channel: any = null;
+    import("@/lib/supabase").then(({ supabase }) => {
+      channel = supabase
+        .channel("presence-changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "presence" },
+          () => {
+            // Just kick a refresh — the polling handler above does the
+            // actual state merge so we don't duplicate logic.
+            import("@/lib/presence").then(({ loadPresence, statusFromLastSeen }) => {
+              setOverview((cur) => {
+                if (!cur) return cur;
+                const ids = cur.members.map((m) => m.id);
+                loadPresence(ids).then((presenceMap) => {
+                  setOverview((c) => {
+                    if (!c) return c;
+                    const next = new Map(c.perMember);
+                    for (const m of c.members) {
+                      const p = presenceMap.get(m.id);
+                      const existing = next.get(m.id);
+                      if (!existing) continue;
+                      next.set(m.id, {
+                        ...existing,
+                        presenceLastSeen: p?.last_seen ?? null,
+                        status: statusFromLastSeen(p?.last_seen ?? null),
+                      });
+                    }
+                    return { ...c, perMember: next };
+                  });
+                });
+                return cur;
+              });
+            });
+          }
+        )
+        .subscribe();
+    });
+
+    return () => {
+      window.clearInterval(poll);
+      if (channel) {
+        import("@/lib/supabase").then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        });
+      }
+    };
+  }, [me?.org_id]);
+
   const insights = useMemo(
     () => (overview ? generateInsights(overview) : []),
     [overview]
