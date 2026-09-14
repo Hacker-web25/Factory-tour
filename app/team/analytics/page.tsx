@@ -35,7 +35,6 @@ import {
   MemberDetailModal,
   LeaderboardCard,
   InsightStrip,
-  ActivityTicker,
   KpiIcons,
 } from "@/components/dashboard/composites";
 import {
@@ -292,10 +291,6 @@ export default function TeamAnalyticsPage() {
             <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
               Sales team analytics
             </h1>
-            <p className="text-[13px] text-white/50 mt-1">
-              A live look at how {firstName}&rsquo;s team is presenting to
-              buyers.
-            </p>
           </div>
           <div className="flex items-center gap-2">
             {/* Range selector */}
@@ -471,11 +466,8 @@ export default function TeamAnalyticsPage() {
               </div>
             </div>
 
-            {/* Activity ticker */}
-            <ActivityTicker
-              events={overview.recentEvents}
-              overview={overview}
-            />
+            {/* Recent activity intentionally removed — session-level
+                drilldown lives inside the MemberDetailModal now. */}
           </>
         )}
       </main>

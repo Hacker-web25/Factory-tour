@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/auth";
 import { getMyProfile, signOut } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
-import TourAssignmentPanel from "@/components/dashboard/TourAssignmentPanel";
+import PresenterAssignModal from "@/components/dashboard/PresenterAssignModal";
 import {
   Box,
   Users,
@@ -64,6 +64,9 @@ export default function TeamPage() {
   const [pending, setPending] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [assignForMemberId, setAssignForMemberId] = useState<string | null>(
+    null
+  );
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -162,18 +165,20 @@ export default function TeamPage() {
           }
         }
 
-        // Tours-assigned = share_links owned by presenter
+        // Tours-assigned = distinct tours the presenter has been granted
+        // access to via tour_assignments (the new source of truth after
+        // the assignment feature shipped). Keeps this column in sync
+        // with what the presenter actually sees on their dashboard.
         const linkCount = new Map<string, number>();
         if (rows.length > 0) {
           const ids = rows.map((r) => r.id);
-          const { data: links } = await supabase
-            .from("share_links")
-            .select("owner_user_id")
-            .in("owner_user_id", ids)
-            .is("revoked_at", null);
-          for (const l of (links ?? []) as any[]) {
-            const oid = l.owner_user_id as string;
-            linkCount.set(oid, (linkCount.get(oid) ?? 0) + 1);
+          const { data: assigns } = await supabase
+            .from("tour_assignments")
+            .select("user_id")
+            .in("user_id", ids);
+          for (const a of (assigns ?? []) as any[]) {
+            const uid = a.user_id as string;
+            linkCount.set(uid, (linkCount.get(uid) ?? 0) + 1);
           }
         }
 
@@ -183,11 +188,13 @@ export default function TeamPage() {
           if (entry) {
             for (const times of entry.sessions.values()) {
               times.sort((a, b) => a - b);
-              durs.push(
+              // Match analytics' 30s minimum — anything shorter is a
+              // preview / accidental tap, not a presentation.
+              const spanSec =
                 times.length < 2
-                  ? 30
-                  : (times[times.length - 1] - times[0]) / 1000
-              );
+                  ? 0
+                  : (times[times.length - 1] - times[0]) / 1000;
+              if (spanSec >= 30) durs.push(spanSec);
             }
           }
           const totalSec = durs.reduce((a, b) => a + b, 0);
@@ -437,6 +444,7 @@ export default function TeamPage() {
                     Team member
                   </th>
                   <th className="text-left px-5 py-2.5 font-medium">Role</th>
+                  <th className="px-2 py-2.5 font-medium" />
                   <th className="text-right px-5 py-2.5 font-medium">Tours assigned</th>
                   <th className="text-right px-5 py-2.5 font-medium">Presentations</th>
                   <th className="text-right px-5 py-2.5 font-medium">Total time</th>
@@ -449,7 +457,7 @@ export default function TeamPage() {
                 {members.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-5 py-8 text-center text-[13px] text-white/40"
                     >
                       No team members yet.{" "}
@@ -496,6 +504,17 @@ export default function TeamPage() {
                           {m.role === "org_admin" ? "ADMIN" : "PRESENTER"}
                         </span>
                       </td>
+                      <td className="px-2 py-3 text-center">
+                        {m.role === "presenter" ? (
+                          <button
+                            onClick={() => setAssignForMemberId(m.id)}
+                            title="Assign tours to this presenter"
+                            className="w-6 h-6 rounded-full grid place-items-center bg-white/[0.04] border border-white/10 text-white/60 hover:text-accent hover:border-accent transition-colors text-[14px] leading-none"
+                          >
+                            +
+                          </button>
+                        ) : null}
+                      </td>
                       <td className="px-5 py-3 text-right tabular-nums">
                         {m.toursAssigned}
                       </td>
@@ -529,25 +548,6 @@ export default function TeamPage() {
             </table>
           </div>
         </div>
-
-        {/* Tour assignments — org_admin ticks who can present which tour. */}
-        {me?.org_id && members.length > 0 && (
-          <div className="px-10 mb-8">
-            <TourAssignmentPanel
-              orgId={me.org_id}
-              currentUserId={me.id}
-              presenters={members
-                .filter((m) => m.role === "presenter")
-                .map((m) => ({
-                  id: m.id,
-                  email: m.email,
-                  full_name: m.name || null,
-                  role: m.role,
-                  created_at: m.joinedAt,
-                }))}
-            />
-          </div>
-        )}
 
         {/* Pending invites */}
         {pending.length > 0 && (
@@ -592,6 +592,41 @@ export default function TeamPage() {
               ...list,
             ])
           }
+        />
+      )}
+
+      {assignForMemberId && me?.org_id && (
+        <PresenterAssignModal
+          orgId={me.org_id}
+          currentUserId={me.id}
+          presenterId={assignForMemberId}
+          presenterName={
+            members.find((m) => m.id === assignForMemberId)?.name ??
+            "Presenter"
+          }
+          onClose={() => setAssignForMemberId(null)}
+          onChange={() => {
+            // Force re-fetch so the "tours assigned" column stays in sync.
+            (async () => {
+              if (!me?.org_id) return;
+              const ids = members.map((r) => r.id);
+              const { data: assigns } = await supabase
+                .from("tour_assignments")
+                .select("user_id")
+                .in("user_id", ids);
+              const linkCount = new Map<string, number>();
+              for (const a of (assigns ?? []) as any[]) {
+                const uid = a.user_id as string;
+                linkCount.set(uid, (linkCount.get(uid) ?? 0) + 1);
+              }
+              setMembers((list) =>
+                list.map((m) => ({
+                  ...m,
+                  toursAssigned: linkCount.get(m.id) ?? 0,
+                }))
+              );
+            })();
+          }}
         />
       )}
     </div>

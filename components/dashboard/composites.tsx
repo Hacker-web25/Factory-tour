@@ -34,12 +34,15 @@ import {
   formatHours,
   formatRelative,
   statusFor,
+  sessionsForMember,
   type Insight,
   type MemberStats,
+  type Session,
   type TeamMember,
   type TeamOverview,
   type TourEvent,
 } from "@/lib/salesAnalytics";
+import { Sparkles as AiIcon, ChevronDown } from "lucide-react";
 
 /* ------------------------------ KpiTile -------------------------------- */
 
@@ -479,26 +482,11 @@ export function MemberDetailModal({
             </div>
           </Section>
 
-          {/* Tours presented */}
-          {tourRows.length > 0 && (
-            <Section title="Tours presented">
-              <div className="space-y-1">
-                {tourRows.slice(0, 5).map((t, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
-                  >
-                    <div className="text-[12.5px] text-white/90 truncate flex-1 pr-3">
-                      {t.title}
-                    </div>
-                    <div className="text-[11px] text-white/50 tabular-nums">
-                      {t.count} time{t.count === 1 ? "" : "s"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
+          {/* Per-session drilldown — one row per presentation, each
+              expandable to reveal per-scene time + hotspot details.
+              The AI Analysis button is a placeholder for the future
+              voice-recording pipeline. */}
+          <SessionsSection overview={overview} member={member} />
 
           {/* Countries reached */}
           {stats.countries.length > 0 && (
@@ -554,3 +542,205 @@ function Section({
 
 /* Re-export KPI icons for the page */
 export const KpiIcons = { Users2, Clock, Presentation, Globe2 };
+
+/* ---------------------- SessionsSection --------------------------- */
+
+/** Per-session list — every presentation this member ran, one row each.
+ *  Row layout: Tour name · Date · Duration · AI Analysis button.
+ *  Clicking the AI button expands an inline panel with per-scene time
+ *  and the list of hotspots opened during that session. */
+function SessionsSection({
+  overview,
+  member,
+}: {
+  overview: TeamOverview;
+  member: TeamMember;
+}) {
+  const sessions = useMemo(() => {
+    const list = sessionsForMember(member.id, overview.recentEvents);
+    // Newest first.
+    return list.sort((a, b) => b.first - a.first);
+  }, [member.id, overview.recentEvents]);
+
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+  if (sessions.length === 0) {
+    return (
+      <Section title="Presentations">
+        <div className="text-[12px] text-white/40 text-center py-6 border border-dashed border-white/10 rounded-lg">
+          No presentations yet.
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title={`Presentations (${sessions.length})`}>
+      <div className="rounded-xl border border-white/[0.06] overflow-hidden bg-black/20">
+        {/* Header */}
+        <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2 border-b border-white/5 text-[10px] uppercase tracking-wider text-white/40">
+          <div>Tour</div>
+          <div>Date</div>
+          <div className="text-right">Duration</div>
+          <div className="text-right">AI Analysis</div>
+        </div>
+        {sessions.map((s, i) => {
+          const tourName = s.tourId
+            ? overview.toursById.get(s.tourId) ?? "Untitled tour"
+            : "Untitled tour";
+          const date = new Date(s.first);
+          const dateStr = date.toLocaleDateString([], {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+          const dur = Math.round((s.last - s.first) / 1000);
+          const durStr = formatHours(dur);
+          const open = expandedIdx === i;
+          return (
+            <div
+              key={i}
+              className={`border-b border-white/5 last:border-0 ${
+                open ? "bg-white/[0.02]" : ""
+              }`}
+            >
+              <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2.5 items-center">
+                <div className="text-[12.5px] text-white truncate">
+                  {tourName}
+                </div>
+                <div className="text-[11.5px] text-white/60 tabular-nums">
+                  {dateStr}
+                </div>
+                <div className="text-[11.5px] text-white/85 tabular-nums text-right font-medium">
+                  {durStr}
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setExpandedIdx(open ? null : i)}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold transition-colors ${
+                      open
+                        ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white"
+                        : "border border-violet-500/40 text-violet-200 hover:bg-violet-500/10"
+                    }`}
+                  >
+                    <AiIcon size={10} /> AI Analysis
+                    <ChevronDown
+                      size={10}
+                      className={`transition-transform ${
+                        open ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              {open && (
+                <AiAnalysisPanel session={s} overview={overview} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+function AiAnalysisPanel({
+  session,
+  overview,
+}: {
+  session: Session;
+  overview: TeamOverview;
+}) {
+  const sceneRows = Object.entries(session.sceneSeconds ?? {})
+    .map(([sceneId, secs]) => ({
+      sceneId,
+      name: overview.scenesById.get(sceneId)?.name ?? "Scene",
+      seconds: secs,
+    }))
+    .sort((a, b) => b.seconds - a.seconds);
+  const totalSceneSec =
+    sceneRows.reduce((a, r) => a + r.seconds, 0) || 1;
+  const hotspotCount = session.hotspots?.length ?? 0;
+  const country = session.country ?? "Unknown";
+
+  return (
+    <div className="px-4 py-4 border-t border-white/5 bg-black/40 space-y-4">
+      {/* Coming-soon banner for voice pipeline */}
+      <div className="rounded-lg border border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-transparent p-3">
+        <div className="flex items-center gap-2 text-[11.5px] text-violet-200 font-semibold mb-0.5">
+          <AiIcon size={11} /> Voice-recording analysis · coming soon
+        </div>
+        <div className="text-[11px] text-white/50 leading-relaxed">
+          Auto-transcribed conversation with buying-signal + objection
+          detection, pitch quality scoring, and best-line extraction.
+          For now, below is the behavioural analysis derived from
+          per-scene dwell time and hotspot interactions.
+        </div>
+      </div>
+
+      {/* Behavioural summary tiles */}
+      <div className="grid grid-cols-3 gap-2">
+        <MiniKpi
+          label="Scenes viewed"
+          value={sceneRows.length}
+        />
+        <MiniKpi
+          label="Hotspots opened"
+          value={hotspotCount}
+        />
+        <MiniKpi label="Buyer country" value={country} />
+      </div>
+
+      {/* Per-scene bar chart */}
+      {sceneRows.length > 0 && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-semibold mb-2">
+            Time spent per scene
+          </div>
+          <div className="space-y-1.5">
+            {sceneRows.map((r) => {
+              const pct = Math.round((r.seconds / totalSceneSec) * 100);
+              return (
+                <div key={r.sceneId} className="text-[11.5px]">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-white/85 truncate max-w-[260px]">
+                      {r.name}
+                    </span>
+                    <span className="text-white/50 tabular-nums">
+                      {formatHours(r.seconds)} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-white/[0.05] rounded overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Hotspot list */}
+      {hotspotCount > 0 && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-semibold mb-2">
+            Hotspots clicked in order
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {session.hotspots!.slice(0, 20).map((hid, i) => (
+              <span
+                key={i}
+                className="text-[10.5px] px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.06] text-white/70 font-mono"
+              >
+                #{i + 1} · {hid.slice(0, 6)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

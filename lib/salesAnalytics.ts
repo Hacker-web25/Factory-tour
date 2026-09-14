@@ -213,14 +213,58 @@ async function fetchScenes(
 
 /** Sessions we group events into. A session = same (presenter, viewer_fp)
  *  with < 30-min gap between consecutive events. */
-type Session = {
+export type Session = {
   presenter: string;
   viewer: string;
   tourId: string | null;
   country: string | null;
   first: number; // ms
   last: number; // ms
+  /** Per-scene time-on-scene, in seconds, computed from the timestamps
+   *  of scene_view events. Keyed by scene_id. */
+  sceneSeconds?: Record<string, number>;
+  /** Hotspot IDs interacted with during this session, in order. */
+  hotspots?: string[];
 };
+
+/** All (filtered) sessions attributed to a specific presenter, with
+ *  the extra fields the detail modal needs (per-scene time, hotspot
+ *  ids). Exported so the modal can render them without another query. */
+export function sessionsForMember(
+  memberId: string,
+  events: TourEvent[]
+): Session[] {
+  const mine = events.filter((e) => e.presenter_user_id === memberId);
+  const sessions = sessionsFor(mine).filter(
+    (s) => s.last - s.first >= 30_000
+  );
+  // Attach per-scene time + hotspot list by walking events per session.
+  return sessions.map((s) => {
+    const inWindow = mine.filter((e) => {
+      if (e.viewer_fingerprint !== s.viewer) return false;
+      const t = +new Date(e.created_at);
+      return t >= s.first && t <= s.last;
+    });
+    inWindow.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
+    const sceneSeconds: Record<string, number> = {};
+    const hotspots: string[] = [];
+    for (let i = 0; i < inWindow.length; i++) {
+      const e = inWindow[i];
+      if (e.event_type === "scene_view" && e.scene_id) {
+        const next = inWindow[i + 1];
+        const start = +new Date(e.created_at);
+        const end = next ? +new Date(next.created_at) : s.last;
+        sceneSeconds[e.scene_id] =
+          (sceneSeconds[e.scene_id] ?? 0) +
+          Math.round(Math.max(0, end - start) / 1000);
+      } else if (e.event_type === "hotspot_click") {
+        const hid = (e as any).hotspot_id ?? (e.meta as any)?.hotspot_id;
+        if (hid) hotspots.push(hid);
+      }
+    }
+    return { ...s, sceneSeconds, hotspots };
+  });
+}
 
 function sessionsFor(events: TourEvent[]): Session[] {
   // Group by (presenter, viewer)
