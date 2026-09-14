@@ -300,12 +300,28 @@ export default function TourEditPage() {
     setRepositioningId(null);
   }, [activeSceneId]);
 
-  // Hotspots visible in the currently active scene: its own + any masters.
+  // Hotspots visible in the currently active scene.
+  //
+  // Master-hotspot semantics (matches the viewer's TourPlayer filter):
+  //   • master_scene_ids === null                  → show on every scene
+  //   • master_scene_ids === []                    → show on NO scene
+  //   • master_scene_ids has values                → show only in those
+  //
+  // A master's OWN scene_id is IGNORED — the allowlist is authoritative.
+  // Without this, un-ticking the "native" scene from the picker had no
+  // effect (the marker kept showing there because the first branch was
+  // matching on scene_id alone).
   const hotspots = useMemo(
     () =>
-      allHotspots.filter(
-        (h) => h.scene_id === activeSceneId || h.is_master
-      ),
+      allHotspots.filter((h) => {
+        if (h.is_master) {
+          const allow = h.master_scene_ids;
+          if (allow == null) return true;
+          if (allow.length === 0) return false;
+          return activeSceneId ? allow.includes(activeSceneId) : false;
+        }
+        return h.scene_id === activeSceneId;
+      }),
     [allHotspots, activeSceneId]
   );
 
@@ -1316,49 +1332,56 @@ export default function TourEditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function onHotspotDelete(id: string) {
+  /** Delete a hotspot.
+   *
+   *  `mode` tells us WHAT the caller wants when the hotspot is a
+   *  master (rendered on multiple scenes):
+   *    • "scene-only"  → keep the row, just remove the active scene
+   *                       from its allowlist (was auto-inferred from a
+   *                       browser confirm before — now driven by the
+   *                       explicit "Remove from this scene" button in
+   *                       the RightPanel).
+   *    • "everywhere"  → drop the DB row, marker vanishes from every
+   *                       scene it was ever shown on.
+   *
+   *  For non-master hotspots the mode is irrelevant — there's only
+   *  one scene it lives on, so we always do a full delete.
+   */
+  async function onHotspotDelete(
+    id: string,
+    mode: "everywhere" | "scene-only" = "everywhere"
+  ) {
     const before = allHotspots.find((h) => h.id === id);
     if (!before) return;
 
-    // MASTER hotspots (one DB row rendered on many scenes) — delete
-    // used to nuke the row and thus wipe the marker from every scene.
-    // If the user is on a specific scene, prompt them: hide from THIS
-    // scene only, or delete everywhere?
-    if (before.is_master && activeSceneId) {
-      const choice = window.confirm(
-        "This is a master hotspot (shows on multiple scenes).\n\n" +
-          "OK  → Remove from THIS scene only (still shows on other scenes)\n" +
-          "Cancel → Delete everywhere"
-      );
-      if (choice) {
-        // Hide from current scene: convert the master's implicit "all
-        // scenes" allowlist into an explicit list of every scene
-        // EXCEPT the active one. If the allowlist is already explicit,
-        // just drop the active scene from it.
-        const currentIds =
-          before.master_scene_ids && before.master_scene_ids.length > 0
-            ? before.master_scene_ids
-            : scenes.map((s) => s.id);
-        const nextIds = currentIds.filter((sid) => sid !== activeSceneId);
-        const updated: Hotspot = {
-          ...before,
-          master_scene_ids: nextIds.length === 0 ? [] : nextIds,
-        };
-        setAllHotspots((h) =>
-          h.map((x) => (x.id === id ? updated : x))
-        );
-        recentLocalWritesRef.current.set(id, Date.now());
-        await supabase
-          .from("hotspots")
-          .update({ master_scene_ids: updated.master_scene_ids })
-          .eq("id", id);
-        setSelectedHotspotId(null);
-        pushOp({ type: "update", id, before, after: updated });
-        return;
+    if (before.is_master && activeSceneId && mode === "scene-only") {
+      // Remove this scene from the master's allowlist. If the list
+      // was previously null ("show everywhere"), materialize it to
+      // every scene except the active one.
+      const currentIds =
+        before.master_scene_ids && before.master_scene_ids.length > 0
+          ? before.master_scene_ids
+          : scenes.map((s) => s.id);
+      const nextIds = currentIds.filter((sid) => sid !== activeSceneId);
+      const updated: Hotspot = {
+        ...before,
+        master_scene_ids: nextIds.length === 0 ? [] : nextIds,
+      };
+      setAllHotspots((h) => h.map((x) => (x.id === id ? updated : x)));
+      recentLocalWritesRef.current.set(id, Date.now());
+      const { error } = await supabase
+        .from("hotspots")
+        .update({ master_scene_ids: updated.master_scene_ids })
+        .eq("id", id);
+      if (error) {
+        console.warn("[master: scene-only delete] persist failed:", error.message);
       }
-      // else: fall through to actual delete-everywhere below
+      setSelectedHotspotId(null);
+      pushOp({ type: "update", id, before, after: updated });
+      return;
     }
 
+    // Full delete — either non-master, or user asked for "everywhere".
     await supabase.from("hotspots").delete().eq("id", id);
     setAllHotspots((h) => h.filter((x) => x.id !== id));
     setSelectedHotspotId(null);

@@ -64,7 +64,7 @@ type Props = {
   onStartReposition: (id: string) => void;
   onTestAction: (h: Hotspot) => void;
   onHotspotChange: (h: Hotspot) => void;
-  onHotspotDelete: (id: string) => void;
+  onHotspotDelete: (id: string, mode?: "everywhere" | "scene-only") => void;
   onHotspotDuplicate?: (id: string) => void;
   onSceneChange: (s: Scene) => void;
   onSave: () => Promise<void>;
@@ -2218,7 +2218,7 @@ function AddonTab({
   hotspot: Hotspot;
   scenes: Scene[];
   onChange: (h: Hotspot) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, mode?: "everywhere" | "scene-only") => void;
   onDuplicate?: () => void;
   onReposition: () => void;
   onTest: () => void;
@@ -3104,12 +3104,45 @@ function AddonTab({
                 <ImageIcon size={12} /> Duplicate
               </button>
             )}
-            <button
-              onClick={() => onDelete(hotspot.id)}
-              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-            >
-              <Trash2 size={12} /> Delete
-            </button>
+            {hotspot.is_master ? (
+              <>
+                {/* Master hotspot → two clearly-different delete paths.
+                    The bold orange "Remove from this scene" is the safe
+                    default; the muted red "Delete everywhere" needs a
+                    deliberate click AND a confirm because it can't be
+                    undone with a single Ctrl+Z (it also removes it from
+                    every other scene). */}
+                <button
+                  onClick={() => onDelete(hotspot.id, "scene-only")}
+                  className="text-[11px] font-semibold text-black bg-amber-400 hover:bg-amber-300 px-2 py-1 rounded-md flex items-center gap-1"
+                  title="Hide this master hotspot from the current scene only. Other scenes keep it."
+                >
+                  <Trash2 size={11} /> Remove from this scene
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Delete this master hotspot from EVERY scene? This can't be undone from just Ctrl+Z."
+                      )
+                    ) {
+                      onDelete(hotspot.id, "everywhere");
+                    }
+                  }}
+                  className="text-[11px] text-white/40 hover:text-red-300 border border-white/10 hover:border-red-300/40 px-2 py-1 rounded-md flex items-center gap-1"
+                  title="Delete the master hotspot from every scene — permanent."
+                >
+                  <Trash2 size={11} /> Delete everywhere
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => onDelete(hotspot.id, "everywhere")}
+                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -3419,75 +3452,128 @@ function MasterScenePicker({
           : Array.from(next),
     });
   }
+  return <MasterScenePickerBody
+    hotspot={hotspot}
+    scenes={scenes}
+    onChange={onChange}
+    ids={ids}
+    allSelected={allSelected}
+    toggle={toggle}
+  />;
+}
+
+/** Extracted so we can host local UI state (collapsed) without
+ *  refactoring the picker's props signature. Also renders a summary
+ *  line so a collapsed picker still tells the user how many scenes
+ *  the master is showing on. */
+function MasterScenePickerBody({
+  hotspot,
+  scenes,
+  onChange,
+  ids,
+  allSelected,
+  toggle,
+}: {
+  hotspot: Hotspot;
+  scenes: Scene[];
+  onChange: (h: Hotspot) => void;
+  ids: Set<string>;
+  allSelected: boolean;
+  toggle: (id: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useState(true);
+  const shownCount = allSelected ? scenes.length : ids.size;
   return (
     <div className="mt-3 border-t border-border pt-3">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="text-[11px] uppercase tracking-wider text-neutral-400">
-          Show in these scenes
-        </div>
-        <div className="flex gap-2 text-[11px]">
-          <button
-            onClick={() =>
-              onChange({ ...hotspot, master_scene_ids: null })
-            }
-            className={`hover:text-white ${
-              allSelected ? "text-accent" : "text-neutral-500"
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center justify-between mb-1.5 hover:text-white group"
+      >
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-block transition-transform text-neutral-500 group-hover:text-white text-[10px] ${
+              collapsed ? "" : "rotate-90"
             }`}
           >
-            All
-          </button>
-          <button
-            onClick={() =>
-              onChange({
-                ...hotspot,
-                master_scene_ids: scenes.map((s) => s.id),
-              })
-            }
-            className="text-neutral-500 hover:text-white"
-          >
-            Every
-          </button>
-        </div>
-      </div>
-      <div className="max-h-56 overflow-y-auto panel-scroll rounded border border-border bg-panelSoft p-1.5 space-y-1">
-        {scenes.length === 0 ? (
-          <div className="text-[11px] text-neutral-500 text-center py-2">
-            No scenes in this tour yet.
+            ▶
+          </span>
+          <div className="text-[11px] uppercase tracking-wider text-neutral-400 group-hover:text-white">
+            Show in these scenes
           </div>
-        ) : (
-          scenes.map((s) => {
-            const checked = allSelected || ids.has(s.id);
-            return (
-              <label
-                key={s.id}
-                className="flex items-center gap-2 text-[12px] hover:bg-white/5 rounded px-1.5 py-1 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(s.id)}
-                  className="shrink-0"
-                />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={publicUrl(s.thumbnail_path ?? s.image_path) ?? ""}
-                  alt=""
-                  className="w-8 h-6 object-cover rounded bg-black shrink-0"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-                <span className="truncate flex-1">{s.name}</span>
-              </label>
-            );
-          })
-        )}
-      </div>
-      <div className="text-[10px] text-neutral-500 mt-1">
-        {allSelected
-          ? "Master appears in every scene."
-          : `Master appears in ${ids.size} scene${
-              ids.size === 1 ? "" : "s"
-            }.`}
-      </div>
+        </div>
+        <div className="text-[10.5px] text-neutral-500">
+          {allSelected
+            ? "every scene"
+            : `${shownCount} of ${scenes.length}`}
+        </div>
+      </button>
+      {!collapsed && (
+        <>
+          <div className="flex gap-2 text-[11px] mb-1.5 justify-end">
+            <button
+              onClick={() =>
+                onChange({ ...hotspot, master_scene_ids: null })
+              }
+              className={`hover:text-white ${
+                allSelected ? "text-accent" : "text-neutral-500"
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() =>
+                onChange({
+                  ...hotspot,
+                  master_scene_ids: scenes.map((s) => s.id),
+                })
+              }
+              className="text-neutral-500 hover:text-white"
+            >
+              Every
+            </button>
+          </div>
+          <div className="max-h-56 overflow-y-auto panel-scroll rounded border border-border bg-panelSoft p-1.5 space-y-1">
+            {scenes.length === 0 ? (
+              <div className="text-[11px] text-neutral-500 text-center py-2">
+                No scenes in this tour yet.
+              </div>
+            ) : (
+              scenes.map((s) => {
+                const checked = allSelected || ids.has(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2 text-[12px] hover:bg-white/5 rounded px-1.5 py-1 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(s.id)}
+                      className="shrink-0"
+                    />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={publicUrl(s.thumbnail_path ?? s.image_path) ?? ""}
+                      alt=""
+                      className="w-8 h-6 object-cover rounded bg-black shrink-0"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                    <span className="truncate flex-1">{s.name}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+          <div className="text-[10px] text-neutral-500 mt-1">
+            {allSelected
+              ? "Master appears in every scene."
+              : `Master appears in ${ids.size} scene${
+                  ids.size === 1 ? "" : "s"
+                }.`}
+          </div>
+        </>
+      )}
     </div>
   );
 }
