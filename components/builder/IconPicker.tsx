@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ICON_LIBRARY } from "@/lib/iconLibrary";
 import { supabase, publicUrl } from "@/lib/supabase";
 import {
@@ -32,7 +32,7 @@ import {
   type AssetFolder,
 } from "@/lib/assetFolders";
 
-type Tab = "recent" | "library" | "upload";
+type Tab = "folders" | "recent" | "library" | "upload";
 
 type Props = {
   tint: string;
@@ -41,17 +41,30 @@ type Props = {
     icon_key?: string | null;
     icon_url?: string | null;
   }) => void;
+  /** Current tour title — used to smart-open the matching folder on
+   *  first render (e.g. tour "Micron Wires" → folder "Micron…"). */
+  tourTitle?: string | null;
 };
 
-export default function IconPicker({ tint, onClose, onPick }: Props) {
-  const [tab, setTab] = useState<Tab>("recent");
+export default function IconPicker({
+  tint,
+  onClose,
+  onPick,
+  tourTitle,
+}: Props) {
+  // Default tab: "folders" — the smart-open flow lives there. Recent
+  // still exists as a browse-all view (assets there also appear inside
+  // their folders — nothing hides when moved).
+  const [tab, setTab] = useState<Tab>("folders");
   const [uploading, setUploading] = useState(false);
   const [recent, setRecent] = useState<RecentUpload[] | null>(null);
   const [folders, setFolders] = useState<AssetFolder[]>([]);
-  // null = root, otherwise the folder we're browsing inside.
+  // null = root of Folders tab; otherwise the folder currently open.
   const [activeFolder, setActiveFolder] = useState<AssetFolder | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  // Tracks whether we've already run the initial smart-open once.
+  const smartOpenedRef = useRef(false);
 
   // Load recent list + folders on open
   useEffect(() => {
@@ -59,10 +72,52 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
     listAssetFolders(null).then(setFolders);
   }, []);
 
-  // Filter the recent list to the active folder (or root).
-  const visibleRecent = (recent ?? []).filter((r) =>
-    activeFolder ? r.folder_id === activeFolder.id : !r.folder_id
-  );
+  // Smart open — first time folders arrive, try to match a folder whose
+  // name is contained in the current tour title (case-insensitive,
+  // ignore short filler words). If found, auto-enter it.
+  useEffect(() => {
+    if (smartOpenedRef.current) return;
+    if (folders.length === 0) return;
+    smartOpenedRef.current = true;
+    if (!tourTitle) return;
+    const tt = tourTitle.toLowerCase();
+    // Rank folders by longest-substring match so "Micron Wires" wins
+    // over the more generic "Wires" when both fit.
+    let best: { f: AssetFolder; score: number } | null = null;
+    for (const f of folders) {
+      const name = f.name.trim();
+      if (!name) continue;
+      const n = name.toLowerCase();
+      // Bidirectional containment — tour title inside folder OR
+      // folder inside tour title.
+      let score = 0;
+      if (tt.includes(n)) score = n.length + 2;
+      else if (n.includes(tt)) score = tt.length + 1;
+      else {
+        // Word overlap fallback — count matching tokens ≥3 chars.
+        const tourTokens = new Set(
+          tt.split(/[^a-z0-9]+/).filter((w) => w.length >= 3)
+        );
+        for (const w of n.split(/[^a-z0-9]+/)) {
+          if (w.length >= 3 && tourTokens.has(w)) score += w.length;
+        }
+      }
+      if (score > (best?.score ?? 0)) best = { f, score };
+    }
+    if (best && best.score >= 3) {
+      setActiveFolder(best.f);
+    }
+  }, [folders, tourTitle]);
+
+  // Assets visible in the Recent tab: ALL uploads — they never hide
+  // when moved to a folder. Filed assets show in BOTH Recent and their
+  // folder. This is what users expect from a "recent" view.
+  const allRecent = recent ?? [];
+  const visibleRecent = allRecent;
+  // Assets visible in the Folders tab: filtered by active folder.
+  const assetsInActiveFolder = activeFolder
+    ? allRecent.filter((r) => r.folder_id === activeFolder.id)
+    : [];
   const foldersInHere = folders.filter((f) =>
     activeFolder ? f.parent_id === activeFolder.id : !f.parent_id
   );
@@ -107,15 +162,14 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
     if (activeFolder?.id === folder.id) setActiveFolder(null);
   }
 
-  // If Recent AND folders are both empty on first load, jump to Upload.
-  // With folders present we always stay on Recent so the user sees
-  // their organization structure right away.
+  // If we open with no assets AND no folders, jump straight to Upload
+  // so the user has something to do. Otherwise stay on Folders (default).
   useEffect(() => {
     if (
       recent &&
       recent.length === 0 &&
       folders.length === 0 &&
-      tab === "recent"
+      tab === "folders"
     ) {
       setTab("upload");
     }
@@ -234,8 +288,30 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — Folders is default because 'smart open' auto-navigates
+            to the folder matching this tour. Recent stays as a browse-all
+            view where every asset lives regardless of folder membership. */}
         <div className="flex gap-1 mb-3 border-b border-border">
+          <TabBtn
+            active={tab === "folders"}
+            onClick={() => setTab("folders")}
+            icon={<FolderIcon size={12} />}
+            // Drag from Recent, hover the tab strip → auto-switch so
+            // the user can drop onto a folder tile.
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes("text/factour-upload-id")) {
+                e.preventDefault();
+                if (tab !== "folders") setTab("folders");
+              }
+            }}
+          >
+            Folders
+            {folders.length > 0 && (
+              <span className="ml-1 text-3xs bg-accent/25 text-accent px-1 rounded">
+                {folders.length}
+              </span>
+            )}
+          </TabBtn>
           <TabBtn
             active={tab === "recent"}
             onClick={() => setTab("recent")}
@@ -264,27 +340,27 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
           </TabBtn>
         </div>
 
-        {/* Recent */}
-        {tab === "recent" && (
+        {/* ------------------- Folders tab ------------------- */}
+        {tab === "folders" && (
           <div className="flex-1 overflow-auto panel-scroll">
-            {/* Breadcrumb + create-folder */}
+            {/* Breadcrumb + New folder */}
             <div className="flex items-center justify-between gap-2 mb-2">
               {activeFolder ? (
                 <button
                   onClick={() => setActiveFolder(null)}
                   className="text-[11px] text-accent hover:underline flex items-center gap-1"
                 >
-                  <ChevronLeft size={11} /> All assets
+                  <ChevronLeft size={11} /> All folders
                 </button>
               ) : (
                 <div className="text-[10.5px] uppercase tracking-wider text-neutral-500">
-                  {folders.length > 0 ? "Folders + assets" : "Assets"}
+                  Folders
                 </div>
               )}
               <button
                 onClick={() => setCreatingFolder(true)}
                 className="text-[11px] text-neutral-400 hover:text-white flex items-center gap-1"
-                title="Create a folder to organize icons"
+                title="Create a folder to group icons by client / project"
               >
                 <FolderPlus size={11} /> New folder
               </button>
@@ -304,7 +380,7 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
                     }
                   }}
                   autoFocus
-                  placeholder="Folder name (e.g. Aditya D., Apex, VeeTee)"
+                  placeholder="Folder name (client, project, category…)"
                   className="flex-1 bg-transparent text-[12px] outline-none text-white"
                 />
                 <button
@@ -325,31 +401,92 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
               </div>
             )}
 
-            {/* Folder chips (visible at this level) */}
-            {foldersInHere.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 mb-3">
-                {foldersInHere.map((f) => (
-                  <FolderTile
-                    key={f.id}
-                    folder={f}
-                    count={
-                      (recent ?? []).filter((r) => r.folder_id === f.id).length
-                    }
-                    onOpen={() => setActiveFolder(f)}
-                    onDelete={() => handleDeleteFolder(f)}
-                    onDropUpload={(uploadId) =>
-                      handleMoveUpload(uploadId, f.id)
-                    }
-                  />
-                ))}
-              </div>
+            {/* At the root: show every folder as tiles. */}
+            {!activeFolder && (
+              <>
+                {folders.length === 0 ? (
+                  <div className="text-center py-8 text-[12px] text-neutral-500">
+                    <FolderPlus
+                      size={22}
+                      className="mx-auto mb-2 text-neutral-600"
+                    />
+                    <div className="mb-1">No folders yet</div>
+                    <div className="text-[11px] text-neutral-600">
+                      Create one per client or product family to organize
+                      your assets. Drag assets from the Recent tab into any
+                      folder to file them.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {foldersInHere.map((f) => (
+                      <FolderTile
+                        key={f.id}
+                        folder={f}
+                        count={
+                          (recent ?? []).filter((r) => r.folder_id === f.id).length
+                        }
+                        onOpen={() => setActiveFolder(f)}
+                        onDelete={() => handleDeleteFolder(f)}
+                        onDropUpload={(uploadId) =>
+                          handleMoveUpload(uploadId, f.id)
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
+            {/* Inside an open folder: show the folder's assets. */}
+            {activeFolder && (
+              <>
+                <div className="text-[10.5px] uppercase tracking-wider text-neutral-500 mb-2 flex items-center gap-1.5">
+                  <FolderIcon size={11} className="text-amber-400" />
+                  {activeFolder.name}
+                  <span className="text-neutral-600">·</span>
+                  <span className="text-neutral-500">
+                    {assetsInActiveFolder.length}{" "}
+                    {assetsInActiveFolder.length === 1 ? "asset" : "assets"}
+                  </span>
+                </div>
+                {assetsInActiveFolder.length === 0 ? (
+                  <div className="text-center py-8 text-[12px] text-neutral-500 border border-dashed border-border rounded">
+                    Empty folder.
+                    <br />
+                    <span className="text-[11px] text-neutral-600">
+                      Drag an asset from the Recent tab onto the folder
+                      tile, or use the ⋮ menu on any Recent asset.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {assetsInActiveFolder.map((r) => (
+                      <RecentThumb
+                        key={r.id}
+                        recent={r}
+                        folders={folders}
+                        onPick={() => pickRecent(r)}
+                        onRemove={(e) => removeRecent(r, e)}
+                        onTogglePinned={(e) => togglePinned(r, e)}
+                        onMove={(folderId) => handleMoveUpload(r.id, folderId)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ------------------- Recent tab ------------------- */}
+        {tab === "recent" && (
+          <div className="flex-1 overflow-auto panel-scroll">
             {recent === null ? (
               <div className="text-xs text-neutral-500 py-8 text-center">
                 Loading…
               </div>
-            ) : visibleRecent.length === 0 && foldersInHere.length === 0 ? (
+            ) : visibleRecent.length === 0 ? (
               <EmptyRecent onSwitchToUpload={() => setTab("upload")} />
             ) : (
               <>
@@ -373,9 +510,9 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
                       className="inline text-accent -mt-0.5 mr-1"
                       fill="currentColor"
                     />
-                    Click the star to save an icon forever — pinned icons
-                    stay across every project and never get pushed out by
-                    the {40}-image cap.
+                    Every uploaded asset lives here even after you file it
+                    into a folder — this is the "everything" view. Drag any
+                    asset onto the Folders tab to organize, or use the ⋮ menu.
                   </div>
                   Sorted: pinned first, then most used. Un-pinned images you
                   never re-use eventually drop off. Deleting doesn&rsquo;t
@@ -444,15 +581,18 @@ function TabBtn({
   children,
   onClick,
   icon,
+  onDragOver,
 }: {
   active: boolean;
   children: React.ReactNode;
   onClick: () => void;
   icon?: React.ReactNode;
+  onDragOver?: (e: React.DragEvent) => void;
 }) {
   return (
     <button
       onClick={onClick}
+      onDragOver={onDragOver}
       className={`px-3 py-1.5 text-xs flex items-center gap-1 relative transition-colors ${
         active
           ? "text-white"

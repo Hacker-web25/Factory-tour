@@ -186,7 +186,10 @@ export default function RightPanel({
           />
         )}
         {tab === "addon" && scene && (
-          <AddonsTab onStartAddHotspot={onStartAddHotspot} />
+          <AddonsTab
+            onStartAddHotspot={onStartAddHotspot}
+            tourTitle={tour.title}
+          />
         )}
         {tab === "lang" && scene && (
           <LangTab
@@ -200,6 +203,7 @@ export default function RightPanel({
           <AddonTab
             hotspot={selectedHotspot}
             scenes={scenes}
+            tourTitle={tour.title}
             onChange={onHotspotChange}
             onDelete={onHotspotDelete}
             onDuplicate={
@@ -447,8 +451,10 @@ function LangTab({
  *  "place mode" — user then clicks on the panorama to drop the hotspot. */
 function AddonsTab({
   onStartAddHotspot,
+  tourTitle,
 }: {
   onStartAddHotspot: (d: Partial<Hotspot>) => void;
+  tourTitle?: string;
 }) {
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   return (
@@ -534,6 +540,7 @@ function AddonsTab({
       {imagePickerOpen && (
         <IconPicker
           tint="#ffffff"
+          tourTitle={tourTitle}
           onClose={() => setImagePickerOpen(false)}
           onPick={(v) => {
             onStartAddHotspot({
@@ -2209,6 +2216,7 @@ function AddonBtn({
 function AddonTab({
   hotspot,
   scenes,
+  tourTitle,
   onChange,
   onDelete,
   onDuplicate,
@@ -2217,6 +2225,7 @@ function AddonTab({
 }: {
   hotspot: Hotspot;
   scenes: Scene[];
+  tourTitle?: string;
   onChange: (h: Hotspot) => void;
   onDelete: (id: string, mode?: "everywhere" | "scene-only") => void;
   onDuplicate?: () => void;
@@ -3150,6 +3159,7 @@ function AddonTab({
       {iconPickerOpen && (
         <IconPicker
           tint={hotspot.icon_tint}
+          tourTitle={tourTitle}
           onClose={() => setIconPickerOpen(false)}
           onPick={(v) => onChange({ ...hotspot, ...v })}
         />
