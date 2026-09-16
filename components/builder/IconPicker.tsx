@@ -11,7 +11,26 @@ import {
   setPinned,
   type RecentUpload,
 } from "@/lib/recentUploads";
-import { X, Upload, Clock, Trash2, ImagePlus, Star } from "lucide-react";
+import {
+  X,
+  Upload,
+  Clock,
+  Trash2,
+  ImagePlus,
+  Star,
+  Folder as FolderIcon,
+  FolderPlus,
+  ChevronLeft,
+  MoreVertical,
+} from "lucide-react";
+import {
+  listAssetFolders,
+  createAssetFolder,
+  renameAssetFolder,
+  deleteAssetFolder,
+  moveUploadToFolder,
+  type AssetFolder,
+} from "@/lib/assetFolders";
 
 type Tab = "recent" | "library" | "upload";
 
@@ -28,19 +47,79 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
   const [tab, setTab] = useState<Tab>("recent");
   const [uploading, setUploading] = useState(false);
   const [recent, setRecent] = useState<RecentUpload[] | null>(null);
+  const [folders, setFolders] = useState<AssetFolder[]>([]);
+  // null = root, otherwise the folder we're browsing inside.
+  const [activeFolder, setActiveFolder] = useState<AssetFolder | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
 
-  // Load recent list once on open
+  // Load recent list + folders on open
   useEffect(() => {
     listRecent().then(setRecent);
+    listAssetFolders(null).then(setFolders);
   }, []);
 
-  // If Recent is empty on first load, jump the user to Upload so they see
-  // useful UI immediately (still lets them switch back to Recent later).
+  // Filter the recent list to the active folder (or root).
+  const visibleRecent = (recent ?? []).filter((r) =>
+    activeFolder ? r.folder_id === activeFolder.id : !r.folder_id
+  );
+  const foldersInHere = folders.filter((f) =>
+    activeFolder ? f.parent_id === activeFolder.id : !f.parent_id
+  );
+
+  async function handleCreateFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const res = await createAssetFolder(null, name, activeFolder?.id ?? null);
+    if (res.folder) setFolders((f) => [...f, res.folder!]);
+    setNewFolderName("");
+    setCreatingFolder(false);
+  }
+
+  async function handleMoveUpload(uploadId: string, folderId: string | null) {
+    await moveUploadToFolder(uploadId, folderId);
+    setRecent((prev) =>
+      prev
+        ? prev.map((r) =>
+            r.id === uploadId ? { ...r, folder_id: folderId } : r
+          )
+        : prev
+    );
+  }
+
+  async function handleDeleteFolder(folder: AssetFolder) {
+    if (
+      !confirm(
+        `Delete folder "${folder.name}"? Assets inside will move to the root — not deleted.`
+      )
+    )
+      return;
+    await deleteAssetFolder(folder.id);
+    setFolders((list) => list.filter((f) => f.id !== folder.id));
+    // Bump any recent items that were in this folder back to root
+    setRecent((prev) =>
+      prev
+        ? prev.map((r) =>
+            r.folder_id === folder.id ? { ...r, folder_id: null } : r
+          )
+        : prev
+    );
+    if (activeFolder?.id === folder.id) setActiveFolder(null);
+  }
+
+  // If Recent AND folders are both empty on first load, jump to Upload.
+  // With folders present we always stay on Recent so the user sees
+  // their organization structure right away.
   useEffect(() => {
-    if (recent && recent.length === 0 && tab === "recent") {
+    if (
+      recent &&
+      recent.length === 0 &&
+      folders.length === 0 &&
+      tab === "recent"
+    ) {
       setTab("upload");
     }
-  }, [recent]);
+  }, [recent, folders, tab]);
 
   async function handleUpload(file: File) {
     setUploading(true);
@@ -188,22 +267,102 @@ export default function IconPicker({ tint, onClose, onPick }: Props) {
         {/* Recent */}
         {tab === "recent" && (
           <div className="flex-1 overflow-auto panel-scroll">
+            {/* Breadcrumb + create-folder */}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              {activeFolder ? (
+                <button
+                  onClick={() => setActiveFolder(null)}
+                  className="text-[11px] text-accent hover:underline flex items-center gap-1"
+                >
+                  <ChevronLeft size={11} /> All assets
+                </button>
+              ) : (
+                <div className="text-[10.5px] uppercase tracking-wider text-neutral-500">
+                  {folders.length > 0 ? "Folders + assets" : "Assets"}
+                </div>
+              )}
+              <button
+                onClick={() => setCreatingFolder(true)}
+                className="text-[11px] text-neutral-400 hover:text-white flex items-center gap-1"
+                title="Create a folder to organize icons"
+              >
+                <FolderPlus size={11} /> New folder
+              </button>
+            </div>
+
+            {creatingFolder && (
+              <div className="flex items-center gap-2 mb-2 bg-panelSoft/60 border border-border rounded px-2 py-1.5">
+                <FolderIcon size={12} className="text-amber-400" />
+                <input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreateFolder();
+                    if (e.key === "Escape") {
+                      setCreatingFolder(false);
+                      setNewFolderName("");
+                    }
+                  }}
+                  autoFocus
+                  placeholder="Folder name (e.g. Aditya D., Apex, VeeTee)"
+                  className="flex-1 bg-transparent text-[12px] outline-none text-white"
+                />
+                <button
+                  onClick={handleCreateFolder}
+                  className="text-[11px] text-black bg-accent px-2 py-0.5 rounded font-medium"
+                >
+                  Create
+                </button>
+                <button
+                  onClick={() => {
+                    setCreatingFolder(false);
+                    setNewFolderName("");
+                  }}
+                  className="text-[11px] text-neutral-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Folder chips (visible at this level) */}
+            {foldersInHere.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {foldersInHere.map((f) => (
+                  <FolderTile
+                    key={f.id}
+                    folder={f}
+                    count={
+                      (recent ?? []).filter((r) => r.folder_id === f.id).length
+                    }
+                    onOpen={() => setActiveFolder(f)}
+                    onDelete={() => handleDeleteFolder(f)}
+                    onDropUpload={(uploadId) =>
+                      handleMoveUpload(uploadId, f.id)
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
             {recent === null ? (
               <div className="text-xs text-neutral-500 py-8 text-center">
                 Loading…
               </div>
-            ) : recent.length === 0 ? (
+            ) : visibleRecent.length === 0 && foldersInHere.length === 0 ? (
               <EmptyRecent onSwitchToUpload={() => setTab("upload")} />
             ) : (
               <>
                 <div className="grid grid-cols-4 gap-2">
-                  {recent.map((r) => (
+                  {visibleRecent.map((r) => (
                     <RecentThumb
                       key={r.id}
                       recent={r}
+                      folders={folders}
                       onPick={() => pickRecent(r)}
                       onRemove={(e) => removeRecent(r, e)}
                       onTogglePinned={(e) => togglePinned(r, e)}
+                      onMove={(folderId) => handleMoveUpload(r.id, folderId)}
                     />
                   ))}
                 </div>
@@ -311,23 +470,33 @@ function TabBtn({
 
 function RecentThumb({
   recent,
+  folders,
   onPick,
   onRemove,
   onTogglePinned,
+  onMove,
 }: {
   recent: RecentUpload;
+  folders: AssetFolder[];
   onPick: () => void;
   onRemove: (e: React.MouseEvent) => void;
   onTogglePinned: (e: React.MouseEvent) => void;
+  onMove: (folderId: string | null) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const pinned = !!recent.pinned;
   return (
     <button
       onClick={onPick}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/factour-upload-id", recent.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
       title={`${recent.filename ?? "image"} · used ${recent.use_count}× ${
         pinned ? "· saved forever" : ""
       }`}
-      className={`aspect-square bg-panelSoft border rounded overflow-hidden transition-colors relative group ${
+      className={`aspect-square bg-panelSoft border rounded overflow-hidden transition-colors relative group cursor-grab active:cursor-grabbing ${
         pinned ? "border-accent/70" : "border-border hover:border-accent"
       }`}
     >
@@ -365,9 +534,130 @@ function RecentThumb({
           {recent.use_count}×
         </span>
       )}
+      {/* Move-to-folder popover — ⋮ button, opens a small folder list.
+          Clicking "Root" un-files the asset. */}
+      <div
+        className="absolute top-0.5 right-6 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+          title="Move to folder"
+          className="p-0.5 rounded bg-black/70 text-neutral-300 hover:text-accent"
+        >
+          <MoreVertical size={10} />
+        </button>
+        {menuOpen && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-full mt-1 z-30 min-w-[140px] bg-panel border border-border rounded shadow-panel py-1 text-[11px]"
+          >
+            <div className="px-2 py-1 text-[9.5px] uppercase tracking-wider text-neutral-500">
+              Move to
+            </div>
+            <button
+              onClick={() => {
+                onMove(null);
+                setMenuOpen(false);
+              }}
+              className={`w-full text-left px-2 py-1 hover:bg-white/5 flex items-center gap-1.5 ${
+                !recent.folder_id ? "text-accent" : "text-neutral-200"
+              }`}
+            >
+              <FolderIcon size={10} className="opacity-60" /> Root (no folder)
+            </button>
+            {folders.length === 0 ? (
+              <div className="px-2 py-1.5 text-neutral-500 text-3xs">
+                No folders yet — create one from the header.
+              </div>
+            ) : (
+              folders.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    onMove(f.id);
+                    setMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-2 py-1 hover:bg-white/5 flex items-center gap-1.5 truncate ${
+                    recent.folder_id === f.id
+                      ? "text-accent"
+                      : "text-neutral-200"
+                  }`}
+                >
+                  <FolderIcon size={10} className="opacity-70 text-amber-400" />
+                  <span className="truncate">{f.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
       <button
         onClick={onRemove}
         title="Remove from Recent"
+        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-neutral-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <Trash2 size={10} />
+      </button>
+    </button>
+  );
+}
+
+/** Folder tile in the Recent grid — click to enter, drop asset to file. */
+function FolderTile({
+  folder,
+  count,
+  onOpen,
+  onDelete,
+  onDropUpload,
+}: {
+  folder: AssetFolder;
+  count: number;
+  onOpen: () => void;
+  onDelete: () => void;
+  onDropUpload: (uploadId: string) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  return (
+    <button
+      onClick={onOpen}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("text/factour-upload-id")) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const id = e.dataTransfer.getData("text/factour-upload-id");
+        if (id) onDropUpload(id);
+      }}
+      className={`aspect-square rounded border grid place-items-center relative group transition-colors ${
+        dragOver
+          ? "border-amber-400 bg-amber-500/10"
+          : "border-border bg-panelSoft hover:border-accent"
+      }`}
+      title={folder.name}
+    >
+      <FolderIcon size={28} className="text-amber-400" />
+      <div className="text-[10.5px] font-medium text-neutral-300 truncate max-w-[90%] mt-1">
+        {folder.name}
+      </div>
+      <div className="text-[9px] text-neutral-500">
+        {count} {count === 1 ? "item" : "items"}
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        title="Delete folder"
         className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/70 text-neutral-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <Trash2 size={10} />

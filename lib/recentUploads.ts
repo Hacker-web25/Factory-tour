@@ -39,6 +39,10 @@ export type RecentUpload = {
   /** True when the user has "starred" this upload — it stays in the
    *  Recent list forever (excluded from the MAX_RECENT eviction). */
   pinned?: boolean;
+  /** Folder this upload has been filed into (null = root). Only used
+   *  by the IconPicker's Recent tab; nothing else in the codebase
+   *  depends on the field being set. */
+  folder_id?: string | null;
 };
 
 /** Return the most-valuable recent uploads first: pinned items on top,

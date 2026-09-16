@@ -343,12 +343,14 @@ function FlatHotspot({
             padding: h.label_bg ? "2px 6px" : 0,
             borderRadius: h.label_bg ? 4 : 0,
             textShadow: h.label_bg ? "none" : "0 1px 2px rgba(0,0,0,0.9)",
-            // pre-wrap preserves newlines the user typed in the label
-            // textarea; centered + capped so long labels wrap tidily
-            // instead of stretching across the whole scene.
+            // pre-wrap preserves user newlines. width:max-content
+            // stops the label from inheriting the icon's narrow width
+            // (which would wrap every single word).
             whiteSpace: "pre-wrap",
             textAlign: "center",
+            width: "max-content",
             maxWidth: 320,
+            wordBreak: "break-word",
             display: "inline-block",
            }}
         >

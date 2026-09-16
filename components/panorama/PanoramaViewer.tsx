@@ -835,12 +835,16 @@ function HtmlBillboard({
                   textShadow: h.label_bg
                     ? "none"
                     : "0 1px 2px rgba(0,0,0,0.9)",
-                  // pre-wrap = preserve the user's newlines and spaces
-                  // exactly as typed in the label textarea, and wrap
-                  // long lines instead of forcing one long strip.
+                  // pre-wrap = preserve the user's newlines exactly
+                  // as typed. width:max-content sizes the span to its
+                  // actual content so it doesn't collapse to the
+                  // (very narrow) icon's width and wrap every single
+                  // word — max-width caps it for genuinely long lines.
                   whiteSpace: "pre-wrap",
                   textAlign: "center",
+                  width: "max-content",
                   maxWidth: 320,
+                  wordBreak: "break-word",
                 }}
               >
                 {t(h.label)}
@@ -1692,11 +1696,15 @@ function InfoHotspot({
               background: h.label_bg ?? "transparent",
               padding: h.label_bg ? "2px 8px" : 0,
               borderRadius: h.label_bg ? 4 : 0,
-              // pre-wrap so newlines the user typed in the label field
-              // render as actual line breaks instead of collapsing.
+              // pre-wrap preserves the user's newlines. width:max-content
+              // sizes the label to its actual content (rather than
+              // inheriting a narrow parent width and wrapping every
+              // word), capped by max-width for very long lines.
               whiteSpace: "pre-wrap",
               textAlign: "center",
+              width: "max-content",
               maxWidth: 320,
+              wordBreak: "break-word",
               textShadow: h.label_bg ? "none" : "0 1px 3px rgba(0,0,0,0.7)",
               pointerEvents: "none",
               userSelect: "none",

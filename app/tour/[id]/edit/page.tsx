@@ -378,19 +378,28 @@ export default function TourEditPage() {
     const sceneIds = scenes.map((s) => s.id);
     const teardown = subscribeToTour(tourId, sceneIds, {
       shouldSkipHotspot: (row: any) => {
-        // Skip echoes of our own unsaved writes AND our very-recent
-        // saved writes (within the last 800ms) — the DB roundtrip
-        // often outraces the local state update by a few hundred ms
-        // and we don't want to flicker the hotspot back to old values.
+        // 1. Our own unsaved write? — pending queue is truth.
         if (pendingHotspotChangesRef.current.has(row.id)) return true;
+        // 2. Our own very-recent saved write (< 800ms)? — the DB
+        //    roundtrip often outraces the local setState.
         const recent = recentLocalWritesRef.current.get(row.id);
         if (recent && Date.now() - recent < 800) return true;
+        // 3. We just deleted this locally (< 5s)? — an INSERT/UPDATE
+        //    echo would resurrect the ghost; drop it.
+        const deletedAt = recentDeletesRef.current.get(row.id);
+        if (deletedAt && Date.now() - deletedAt < 5000) return true;
         return false;
       },
       onHotspotInsert: (row: any) => {
-        setAllHotspots((list) =>
-          list.some((h) => h.id === row.id) ? list : [...list, row]
-        );
+        setAllHotspots((list) => {
+          // Belt-and-braces dedupe — realtime can fire the same INSERT
+          // more than once on reconnects, and the map-check protects
+          // against both the echo AND concurrent local optimistic add.
+          if (list.some((h) => h.id === row.id)) return list;
+          if (knownInsertIdsRef.current.has(row.id)) return list;
+          knownInsertIdsRef.current.add(row.id);
+          return [...list, row];
+        });
       },
       onHotspotUpdate: (row: any) => {
         setAllHotspots((list) =>
@@ -398,6 +407,9 @@ export default function TourEditPage() {
         );
       },
       onHotspotDelete: (id: string) => {
+        // Record + remove.
+        recentDeletesRef.current.set(id, Date.now());
+        knownInsertIdsRef.current.delete(id);
         setAllHotspots((list) => list.filter((h) => h.id !== id));
         setSelectedHotspotId((cur) => (cur === id ? null : cur));
         setSelectedHotspotIds((s) => {
@@ -627,6 +639,14 @@ export default function TourEditPage() {
   // echoes that land within ~800ms of our own write are ignored so
   // the DB roundtrip doesn't overwrite in-flight React state.
   const recentLocalWritesRef = useRef<Map<string, number>>(new Map());
+  // Tombstones for hotspots we deleted locally in the last few seconds.
+  // Guards against a late-arriving INSERT / UPDATE realtime echo that
+  // would resurrect the deleted marker (the "ghost hotspot" bug).
+  const recentDeletesRef = useRef<Map<string, number>>(new Map());
+  // Track hotspot IDs we've inserted locally so a duplicate INSERT
+  // echo (Supabase Realtime can fire multiple events on reconnects)
+  // is not appended twice.
+  const knownInsertIdsRef = useRef<Set<string>>(new Set());
   const savedIndicatorTimerRef = useRef<number | null>(null);
 
   /** UI-facing save state — powers the pill in the top bar. */
@@ -1382,9 +1402,24 @@ export default function TourEditPage() {
     }
 
     // Full delete — either non-master, or user asked for "everywhere".
-    await supabase.from("hotspots").delete().eq("id", id);
+    // Tombstone BEFORE we hit the DB so any realtime echo (ours or a
+    // teammate's) that arrives while the delete is in-flight is
+    // ignored by the shouldSkip guard.
+    recentDeletesRef.current.set(id, Date.now());
+    knownInsertIdsRef.current.delete(id);
     setAllHotspots((h) => h.filter((x) => x.id !== id));
     setSelectedHotspotId(null);
+    const { error } = await supabase.from("hotspots").delete().eq("id", id);
+    if (error) {
+      // DB delete failed — surface the error and re-insert locally so
+      // the user isn't left with a phantom "deleted" hotspot that's
+      // actually still in the DB.
+      console.error("[hotspot delete] persist failed:", error.message);
+      recentDeletesRef.current.delete(id);
+      setAllHotspots((h) => (h.some((x) => x.id === id) ? h : [...h, before]));
+      alert(`Delete failed: ${error.message}`);
+      return;
+    }
     pushOp({ type: "delete", before });
   }
 
