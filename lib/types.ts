@@ -7,7 +7,14 @@ export type TransitionEffect =
   | "fade"
   | "zoom"
   | "slide"
-  | "instant";
+  | "instant"
+  /** Cinematic tunnel-through-the-hotspot zoom. Used automatically for
+   *  nav-hotspot clicks and auto-tour advance regardless of the tour's
+   *  default setting — but can also be set as the default here. */
+  | "warp"
+  /** Organic cross-fade with a subtle drift + blur. Used automatically
+   *  for menu / scene-strip clicks. Also selectable as a tour default. */
+  | "dissolve";
 
 export type Folder = {
   id: string;

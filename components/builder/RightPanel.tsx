@@ -649,6 +649,12 @@ function PhotoTab({
           }
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent"
         >
+          <option value="warp">
+            ✨ Warp — cinematic tunnel-through (recommended)
+          </option>
+          <option value="dissolve">
+            ✨ Dissolve — organic drift crossfade
+          </option>
           <option value="street_view">Street View — stretch + edge blur</option>
           <option value="fade">Fade — simple crossfade</option>
           <option value="zoom">Zoom — target scales in</option>

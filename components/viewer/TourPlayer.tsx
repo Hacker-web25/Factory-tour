@@ -233,7 +233,8 @@ function TourPlayerInner({
     activeScene: active,
     hotspots,
     // Auto-tour advances = cinematic fly-through.
-    onAdvance: (nextId) => navigateTo(nextId, { cinematic: true }),
+    onAdvance: (nextId) =>
+      navigateTo(nextId, { cinematic: true, effectOverride: "warp" }),
     onFireHotspot: (h) => {
       onHotspotClick(h);
       const dur = Math.max(1, h.auto_tour_showcase_duration ?? 5) * 1000;
@@ -366,10 +367,23 @@ function TourPlayerInner({
   const snapshotFnRef = useRef<null | (() => string | null)>(null);
 
   const [transitionOverlay, setTransitionOverlay] = useState<null | {
+    // (see sv-* CSS in globals.css for what each phase does)
     snapshot: string;
     cinematic: boolean;
     /** Which visual effect to play — mirrors tour.transition_effect. */
-    effect: "street_view" | "fade" | "zoom" | "slide" | "instant";
+    effect:
+      | "street_view"
+      | "fade"
+      | "zoom"
+      | "slide"
+      | "instant"
+      | "warp"
+      | "dissolve";
+    // For the "warp" effect only — where in the viewport (0..1) the
+    // zoom should originate from. Comes from the clicked hotspot's
+    // projected screen position so the world feels like it's tunneling
+    // through THAT point. Ignored by other effects.
+    warpOrigin?: { x: number; y: number };
     /** "hold" = overlay is fully opaque and static, hiding the WebGL
      *  scene swap underneath. "out" = the reveal animation is running. */
     phase: "hold" | "out";
@@ -394,19 +408,39 @@ function TourPlayerInner({
       /** True → full cinematic stretch + edge blur (nav / auto-tour).
        *  False → quick crossfade (scene strip / menu). */
       cinematic?: boolean;
+      /** Override the tour's default transition effect for this jump.
+       *  Nav-hotspot clicks pass "warp" for the tunnel-through feel;
+       *  menu clicks pass "dissolve" for a gentle cross-fade with drift.
+       *  Autotour falls back to the tour's setting. */
+      effectOverride?:
+        | "street_view"
+        | "fade"
+        | "zoom"
+        | "slide"
+        | "instant"
+        | "warp"
+        | "dissolve";
+      /** Where on screen (0..1) the warp should originate — usually the
+       *  clicked hotspot's projected position. */
+      warpOrigin?: { x: number; y: number };
     } = {}
   ) {
     if (sceneId === activeSceneId) return;
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
-    // Resolve per-tour transition effect. Fallback to street_view.
-    const effect = (tour.transition_effect ?? "street_view") as
+    // Resolve which transition to run. Explicit override wins; otherwise
+    // fall back to the tour's default (or street_view).
+    const effect = (opts.effectOverride ??
+      tour.transition_effect ??
+      "street_view") as
       | "street_view"
       | "fade"
       | "zoom"
       | "slide"
-      | "instant";
+      | "instant"
+      | "warp"
+      | "dissolve";
 
     try {
       // INSTANT — skip the overlay entirely, just swap the scene.
@@ -450,6 +484,7 @@ function TourPlayerInner({
         snapshot: snapshot ?? "",
         cinematic: !!opts.cinematic,
         effect,
+        warpOrigin: opts.warpOrigin,
         phase: "hold",
         key: Date.now(),
       });
@@ -509,8 +544,16 @@ function TourPlayerInner({
 
     const action = h.action && h.action !== "none" ? h.action : legacyAction(h);
     if (action === "nav" && h.target_scene_id) {
-      // Nav hotspot → full cinematic stretch-and-blur overlay.
-      navigateTo(h.target_scene_id, { cinematic: true });
+      // Nav hotspot → cinematic "warp" zoom, tunneling through the
+      // hotspot toward the next scene. Origin defaults to screen
+      // centre since the user typically re-centered the camera on
+      // the hotspot before clicking; a future refinement can project
+      // (h.yaw, h.pitch) → screen space for a truly directional zoom.
+      navigateTo(h.target_scene_id, {
+        cinematic: true,
+        effectOverride: "warp",
+        warpOrigin: { x: 0.5, y: 0.5 },
+      });
     } else if (action === "url" && h.url) {
       window.open(h.url, "_blank");
     } else if (action === "info_popup" || action === "image_popup") {
@@ -652,6 +695,17 @@ function TourPlayerInner({
               .join(" ")}
             style={{
               backgroundColor: transitionOverlay.snapshot ? undefined : "#000",
+              // Warp effect reads these CSS vars to set transform-origin
+              // at the clicked hotspot's screen position — the tunnel
+              // feels like it's punching THROUGH the marker, not the
+              // middle of the screen.
+              ...(transitionOverlay.effect === "warp" &&
+              transitionOverlay.warpOrigin
+                ? ({
+                    "--warp-x": `${transitionOverlay.warpOrigin.x * 100}%`,
+                    "--warp-y": `${transitionOverlay.warpOrigin.y * 100}%`,
+                  } as React.CSSProperties)
+                : {}),
             }}
             onAnimationEnd={(e) => {
               if (
@@ -829,7 +883,9 @@ function TourPlayerInner({
           tour={tour}
           scenes={scenes}
           activeSceneId={activeSceneId}
-          onSelectScene={navigateTo}
+          onSelectScene={(id: string) =>
+            navigateTo(id, { effectOverride: "dissolve" })
+          }
         />
       </div>
 
@@ -838,7 +894,9 @@ function TourPlayerInner({
           {scenes.map((s) => (
             <button
               key={s.id}
-              onClick={() => navigateTo(s.id)}
+              onClick={() =>
+                navigateTo(s.id, { effectOverride: "dissolve" })
+              }
               className={`shrink-0 w-24 h-14 rounded overflow-hidden border-2 ${
                 activeSceneId === s.id
                   ? "border-accent"

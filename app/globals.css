@@ -988,6 +988,77 @@ details > summary::-webkit-details-marker { display: none; }
   to   { opacity: 1; transform: translate3d(-100%, 0, 0); }
 }
 
+/* ---- WARP — cinematic "tunnel through the hotspot" for nav clicks.
+ *
+ * The outgoing snapshot scales aggressively AWAY from the clicked
+ * hotspot's position (transform-origin driven by --warp-x/--warp-y),
+ * with progressive blur to fake motion blur, then fades to reveal
+ * the next scene already rendered underneath. Feels like teleporting
+ * through the marker.
+ *
+ * Ease curve intentionally uses a sharp ease-in so the zoom starts
+ * slow and RAMPS UP — mimics a real dolly-in acceleration. */
+.sv-overlay.sv-fx-warp {
+  transform-origin: var(--warp-x, 50%) var(--warp-y, 50%);
+}
+.sv-overlay.sv-fx-warp.sv-out {
+  animation: sv-warp-reveal 620ms cubic-bezier(0.55, 0, 0.75, 0.35) forwards;
+}
+.sv-overlay.sv-fx-warp.sv-out.sv-quick {
+  animation: sv-warp-reveal 420ms cubic-bezier(0.55, 0, 0.75, 0.35) forwards;
+}
+.sv-overlay.sv-fx-warp.sv-out .sv-layer-sharp {
+  animation: sv-warp-blur 620ms cubic-bezier(0.55, 0, 0.75, 0.35) forwards;
+}
+.sv-overlay.sv-fx-warp.sv-out.sv-quick .sv-layer-sharp {
+  animation: sv-warp-blur 420ms cubic-bezier(0.55, 0, 0.75, 0.35) forwards;
+}
+@keyframes sv-warp-reveal {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 0.65;
+    transform: scale(2.0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+@keyframes sv-warp-blur {
+  from  { filter: blur(0px)  brightness(1);   }
+  60%   { filter: blur(6px)  brightness(1.15); }
+  to    { filter: blur(14px) brightness(1.3);  }
+}
+
+/* ---- DISSOLVE — organic cross-fade with a very slight drift.
+ *
+ * For non-directional navigation (menu, scene strip). Snapshot fades
+ * out over 480ms with a subtle 2% zoom-in + 1.5px blur. Reads as
+ * "the world softly gives way to the next place" rather than an
+ * abrupt cut. Non-jarring, feels considered, keeps its cinematic
+ * cousin (warp) reserved for the moments that deserve it. */
+.sv-overlay.sv-fx-dissolve.sv-out {
+  animation: sv-dissolve-reveal 480ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.sv-overlay.sv-fx-dissolve.sv-out.sv-quick {
+  animation: sv-dissolve-reveal 300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes sv-dissolve-reveal {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0px);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.03);
+    filter: blur(2.5px);
+  }
+}
+
 /* Legacy aliases — no-op so any lingering references don't 404. */
 .scene-stretch-overlay { display: none; }
 .scene-stretch-cinematic { }
