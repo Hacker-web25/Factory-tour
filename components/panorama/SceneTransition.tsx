@@ -36,13 +36,24 @@
  *   and re-enable at the end after the final pose is restored.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SPHERE_RADIUS, sphericalToVec3 } from "./math";
 
 const TRANSITION_SPHERE_RADIUS = SPHERE_RADIUS - 2;
 const EPS = 0.01; // camera radius from origin — matches Canvas init pose
+
+// How far the camera dollies forward at the peak of a cinematic
+// fly-through, in world units. The sphere radius is 500, so ~150 pushes
+// the camera ~30% of the way toward the wall — enough that the world
+// genuinely rushes past (a real "moving through space" feel) without
+// getting close enough to the texture to look distorted. The old value
+// (0.12) was 1000× too small, which is why transitions felt like an
+// instant flick instead of a camera move.
+const CINEMATIC_DOLLY = 150;
+// FOV widening at peak — amplifies the peripheral "speed" sensation.
+const CINEMATIC_FOV_WHIP = 14;
 
 const textureCache = new Map<string, THREE.Texture>();
 
@@ -137,6 +148,29 @@ export default function SceneTransition({
   const startTimeRef = useRef<number | null>(null);
   const completedRef = useRef(false);
 
+  // FREEZE the camera the instant this component mounts — BEFORE the
+  // target texture has loaded. This kills the auto-tour "flash": without
+  // it, OrbitControls keeps auto-rotating (and the camera-reset effect
+  // can fire) during the texture-load gap, so the user sees the camera
+  // jump around before the fly-through even starts. We disable orbit and
+  // snapshot the current aim right away, then the animation begins from
+  // exactly this frozen pose once the texture is ready.
+  useLayoutEffect(() => {
+    setOrbitEnabled?.(false);
+    baseFovRef.current = (camera as THREE.PerspectiveCamera).fov;
+    const pos = camera.position;
+    if (pos.lengthSq() > 1e-8) {
+      baseAimDirRef.current.copy(pos).negate().normalize();
+    } else {
+      baseAimDirRef.current.set(0, 0, -1);
+    }
+    return () => {
+      // If we unmount before completing, hand control back.
+      setOrbitEnabled?.(true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load target texture.
   useEffect(() => {
     let cancelled = false;
@@ -161,16 +195,10 @@ export default function SceneTransition({
     if (!texture) return;
     startTimeRef.current = performance.now();
     completedRef.current = false;
-    baseFovRef.current = (camera as THREE.PerspectiveCamera).fov;
-
-    // Aim direction = -position/|position| (camera looks at origin).
-    // Fallback to +Z if camera is at origin exactly (shouldn't happen).
-    const pos = camera.position;
-    if (pos.lengthSq() > 1e-8) {
-      baseAimDirRef.current.copy(pos).negate().normalize();
-    } else {
-      baseAimDirRef.current.set(0, 0, -1);
-    }
+    // baseFov + baseAimDir were already captured on mount (useLayoutEffect
+    // above) so the frozen pose is exactly where the user/auto-tour left
+    // the camera — we don't recapture here or we'd pick up any drift
+    // during the texture-load gap.
 
     if (targetAim) {
       const t = sphericalToVec3(targetAim.yaw, targetAim.pitch, 1);
@@ -186,19 +214,11 @@ export default function SceneTransition({
       const d = sphericalToVec3(direction.yaw, direction.pitch, 1);
       dollyDirRef.current.set(d.x, d.y, d.z).normalize();
     } else {
-      // No dolly direction needed — copy aim so any residual dolly stays
-      // along a sensible axis.
+      // No explicit direction (auto-tour, menu) → dolly straight along
+      // the frozen forward aim so the fly-through still moves through
+      // space rather than sitting still.
       dollyDirRef.current.copy(baseAimDirRef.current);
     }
-
-    setOrbitEnabled?.(false);
-
-    return () => {
-      // Safety net if this effect re-runs or the component unmounts
-      // before completion: leave orbit enabled so the user isn't locked
-      // out of the camera.
-      setOrbitEnabled?.(true);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texture, cinematic, direction, targetAim]);
 
@@ -213,59 +233,62 @@ export default function SceneTransition({
     }
 
     const elapsed = performance.now() - startTimeRef.current;
-    const raw = Math.min(1, elapsed / durationMs);
+    const rawLinear = Math.min(1, elapsed / durationMs);
+    // Ease the whole timeline with smoothstep so the transition starts
+    // and ends gently — no abrupt onset that reads as a "glitch".
+    const raw = smoothstep(0, 1, rawLinear);
 
     // ---- Alpha crossfade ----
-    // Cinematic starts the fade slightly later (t=0.15) so the outgoing
-    // scene is fully visible for a beat; quick mode fades from t=0.05
-    // for near-immediate response.
-    const fadeStart = cinematic ? 0.15 : 0.05;
-    const fadeEnd = cinematic ? 0.9 : 0.9;
-    materialRef.current.opacity = smoothstep(fadeStart, fadeEnd, raw);
+    // Fade the incoming scene across the MIDDLE of the timeline so the
+    // outgoing scene is visible during the initial dolly-in and the
+    // incoming scene is fully settled before the camera eases to rest.
+    const fadeStart = cinematic ? 0.28 : 0.08;
+    const fadeEnd = cinematic ? 0.82 : 0.92;
+    materialRef.current.opacity = smoothstep(fadeStart, fadeEnd, rawLinear);
 
     // ---- Aim SLERP ----
-    // Cinematic: SLERPs in the final 25%, so early motion feels like
-    // "walking through the door" (preserved aim + dolly), and the last
-    // beat re-orients to face the new scene's "front".
-    // Quick: SLERPs over the full duration, so the whole 300ms is
-    // spent smoothly re-aiming.
+    // Cinematic: re-orient across the SECOND HALF (0.5→1) so early motion
+    // is a pure forward push (preserved aim + dolly), and the back half
+    // smoothly swings to face the new scene's front. Spreading it over
+    // half the timeline (vs the old final 25%) removes the late "whip"
+    // that felt like a glitch.
+    // Quick: SLERP over the full duration.
     const aimT = targetAimDirRef.current
-      ? smoothstep(cinematic ? 0.75 : 0.0, 1.0, raw)
+      ? smoothstep(cinematic ? 0.5 : 0.0, 1.0, rawLinear)
       : 0;
     const aimDir = targetAimDirRef.current
       ? new THREE.Vector3()
           .lerpVectors(baseAimDirRef.current, targetAimDirRef.current, aimT)
           .normalize()
-      : baseAimDirRef.current;
-
-    // Base camera position from aim direction (radius EPS from origin).
-    const basePos = new THREE.Vector3()
-      .copy(aimDir)
-      .multiplyScalar(-EPS);
+      : baseAimDirRef.current.clone();
 
     // ---- Camera dolly (cinematic only) ----
-    // Small forward-and-back bell curve. Only in cinematic mode — quick
-    // swaps stay still because any dolly at 300ms feels rushed.
-    if (cinematic) {
-      const dolly = bell(raw) * 0.12;
-      basePos.add(dollyDirRef.current.clone().multiplyScalar(dolly));
-    }
-
-    camera.position.copy(basePos);
-    camera.lookAt(0, 0, 0);
+    // Forward-and-back bell curve ALONG the current view direction, so
+    // the world genuinely rushes toward the viewer. CINEMATIC_DOLLY is
+    // ~30% of the sphere radius — a real move, not the old imperceptible
+    // 0.12 units. Camera keeps LOOKING FORWARD (lookAt a point ahead
+    // along aimDir), so dollying off-centre never flips the view.
+    const dolly = cinematic ? bell(rawLinear) * CINEMATIC_DOLLY : 0;
+    const pos = new THREE.Vector3()
+      .copy(aimDir)
+      .multiplyScalar(dolly - EPS);
+    camera.position.copy(pos);
+    const lookTarget = new THREE.Vector3().copy(pos).add(aimDir);
+    camera.lookAt(lookTarget);
 
     // ---- FOV whip (cinematic only) ----
     const cam = camera as THREE.PerspectiveCamera;
     if (cinematic) {
-      cam.fov = baseFovRef.current + bell(raw) * 5;
+      cam.fov = baseFovRef.current + bell(rawLinear) * CINEMATIC_FOV_WHIP;
       cam.updateProjectionMatrix();
     }
 
     // ---- Completion ----
-    if (raw >= 1) {
+    if (rawLinear >= 1) {
       completedRef.current = true;
-      // Snap to exact final pose: at target aim (if provided), radius EPS,
-      // FOV restored. This is what OrbitControls picks up when re-enabled.
+      // Snap to exact final pose: at target aim, radius EPS, FOV restored,
+      // looking at origin — exactly what OrbitControls expects when it
+      // re-takes control.
       const finalDir = targetAimDirRef.current ?? baseAimDirRef.current;
       camera.position.copy(finalDir).multiplyScalar(-EPS);
       camera.lookAt(0, 0, 0);

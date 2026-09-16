@@ -472,7 +472,10 @@ function TourPlayerInner({
         yaw: target.initial_yaw ?? 0,
         pitch: target.initial_pitch ?? 0,
       },
-      durationMs: cinematic ? 1150 : 380,
+      // Longer, more graceful timings. The old 1150ms cinematic felt
+      // rushed once the dolly became visible; ~1.8s lets the fly-through
+      // breathe like a real drone move.
+      durationMs: cinematic ? 1800 : 550,
     });
   }
 
@@ -488,11 +491,12 @@ function TourPlayerInner({
       setActiveSceneId(pt.targetSceneId);
       // Unmount the transition cover shortly after the swap — long
       // enough for the main sphere's TextureLoader to finish (the image
-      // is already in the browser HTTP cache, so this is near-instant).
+      // is already in the browser HTTP cache, so this decodes fast). The
+      // opaque cover hides the swap + any camera-reset snap underneath.
       window.setTimeout(() => {
         setPendingTransition(null);
         inFlightRef.current = false;
-      }, 260);
+      }, 420);
       // Return the same object so the sphere stays opaque during the gap.
       return pt;
     });
@@ -622,6 +626,9 @@ function TourPlayerInner({
           autoRotate={
             autoPlaying &&
             !autoTourPaused &&
+            !pendingTransition && // never auto-rotate mid-transition —
+            // it fights SceneTransition's camera writes and causes the
+            // "glitch/flicker" the user reported during auto-tour swaps.
             (tour.auto_tour_rotate ?? true)
           }
           autoRotateSpeed={tour.auto_tour_rotate_speed ?? 1.5}
