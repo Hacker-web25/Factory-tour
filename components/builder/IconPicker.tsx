@@ -296,12 +296,15 @@ export default function IconPicker({
             active={tab === "folders"}
             onClick={() => setTab("folders")}
             icon={<FolderIcon size={12} />}
-            // Drag from Recent, hover the tab strip → auto-switch so
-            // the user can drop onto a folder tile.
+            // Drag from Recent, hover the tab strip → switch to the
+            // Folders tab AND pop out of any currently-open folder so
+            // the drop target is the tile grid (not the inside-a-folder
+            // asset list where drops have nowhere to land).
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes("text/factour-upload-id")) {
                 e.preventDefault();
                 if (tab !== "folders") setTab("folders");
+                if (activeFolder) setActiveFolder(null);
               }
             }}
           >
