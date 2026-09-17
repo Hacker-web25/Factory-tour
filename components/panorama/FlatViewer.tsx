@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { Hotspot } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { fontFor } from "@/lib/fonts";
+import {
+  type ImageAdjustments,
+  normalizeAdjustments,
+  buildFilterCSS,
+  warmthOverlayStyle,
+  vignetteOverlayStyle,
+  gradientOverlayStyle,
+} from "@/lib/imageAdjustments";
 
 /**
  * Non-panoramic image viewer — used when scene.is_flat is true.
@@ -27,10 +35,13 @@ export default function FlatViewer({
   onHotspotDoubleClick,
   onHotspotDrag,
   onHotspotDragEnd,
+  adjustments,
 }: {
   imageUrl: string;
   hotspots?: Hotspot[];
   editable?: boolean;
+  /** Per-scene colour grading — applied to the flat image + overlays. */
+  adjustments?: Partial<ImageAdjustments> | null;
   selectedHotspotId?: string | null;
   /** Optional multi-select set for bulk highlighting. */
   selectedHotspotIds?: Set<string> | null;
@@ -46,6 +57,14 @@ export default function FlatViewer({
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  // Colour grading (matches the 360 PanoramaViewer): CSS filter on the
+  // image + blended overlay layers sized to the image box.
+  const adj = normalizeAdjustments(adjustments);
+  const gradeFilter = buildFilterCSS(adj);
+  const warmthStyle = warmthOverlayStyle(adj);
+  const vignetteStyle = vignetteOverlayStyle(adj);
+  const gradientStyle = gradientOverlayStyle(adj);
 
   // Reset viewport whenever the underlying image (scene) changes.
   // Without this, switching to another scene and coming back leaves
@@ -188,8 +207,15 @@ export default function FlatViewer({
             objectFit: "contain",
             display: "block",
             pointerEvents: "auto",
+            filter: gradeFilter === "none" ? undefined : gradeFilter,
           }}
         />
+
+        {/* Grading overlay layers — cover the image box, blended, and let
+            clicks pass through so hotspot placement / drag still works. */}
+        {warmthStyle && <div style={warmthStyle} />}
+        {gradientStyle && <div style={gradientStyle} />}
+        {vignetteStyle && <div style={vignetteStyle} />}
 
         {/* Hotspots overlay — inside the same transform so they scale/pan with the image */}
         {hotspots.map((h) => (

@@ -1974,6 +1974,7 @@ export default function TourEditPage() {
           {activeScene && activeScene.is_flat ? (
             <FlatViewer
               imageUrl={publicUrl(activeScene.image_path)}
+              adjustments={(activeScene as any).image_adjustments ?? null}
               hotspots={hotspots}
               editable={!previewMode}
               selectedHotspotId={previewMode ? null : selectedHotspotId}

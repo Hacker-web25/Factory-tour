@@ -390,6 +390,21 @@ function TourPlayerInner({
     durationMs: number;
   }>(null);
 
+  // Colour grading follows whichever scene is BECOMING visible. During an
+  // in-engine transition (nav hotspot / auto-tour fly-through) the target
+  // panorama is rendered inside the same canvas before activeSceneId swaps,
+  // so we grade with the TARGET scene's adjustments for the duration of the
+  // fly-through — otherwise a graded scene would look ungraded until the
+  // swap lands (the "grading not visible in auto tour" bug). When idle it's
+  // just the active scene's grade.
+  const activeAdjustments = useMemo(() => {
+    const target = pendingTransition
+      ? scenes.find((s) => s.id === pendingTransition.targetSceneId)
+      : null;
+    const src = target || active;
+    return (src as any)?.image_adjustments ?? null;
+  }, [active, scenes, pendingTransition]);
+
   const inFlightRef = useRef(false);
 
   /** Wait for the browser to actually paint the just-committed DOM. Two
@@ -607,13 +622,14 @@ function TourPlayerInner({
         {active.is_flat ? (
           <FlatViewer
             imageUrl={publicUrl(active.image_path)}
+            adjustments={activeAdjustments}
             hotspots={hotspots}
             onHotspotClick={onHotspotClick}
           />
         ) : (
         <PanoramaViewer
           imageUrl={publicUrl(active.image_path)}
-          adjustments={(active as any).image_adjustments ?? null}
+          adjustments={activeAdjustments}
           hotspots={hotspots}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}
