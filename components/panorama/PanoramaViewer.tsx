@@ -6,10 +6,19 @@ import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createPortal } from "react-dom";
-import type { Hotspot } from "@/lib/types";
+import type { Hotspot, HotspotFx } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { useT } from "@/lib/TranslationContext";
 import { fontFor } from "@/lib/fonts";
+import {
+  ArrowRight,
+  Info as InfoIcon,
+  Play,
+  Image as ImageGlyph,
+  FileText,
+  Volume2,
+  ExternalLink,
+} from "lucide-react";
 import {
   SPHERE_RADIUS,
   HOTSPOT_RADIUS,
@@ -31,6 +40,9 @@ type Props = {
   imageUrl: string;
   hotspots: Hotspot[];
   editable?: boolean;
+  /** Tour-wide hotspot micro-interaction flags (breathing, hover magnify,
+   *  ripple, hover icon glyph, hover preview card). Undefined = all on. */
+  hotspotFx?: HotspotFx;
   selectedHotspotId?: string | null;
   /** Multi-select ids — visually highlights every hotspot whose id is
    *  in this Set, in addition to `selectedHotspotId`. Populated by
@@ -93,6 +105,9 @@ type Props = {
   /** True → cinematic fly-through (dolly + FOV + late SLERP), ~1100ms.
    *  False → quick crossfade + full-duration SLERP, ~300ms. */
   transitionCinematic?: boolean;
+  /** True → cinematic soft-dissolve (independent of warp). Overrides the
+   *  dolly/FOV-whip path with a luminance-lifted cross-dissolve. */
+  transitionDissolve?: boolean;
   /** Optional dolly direction (nav-hotspot yaw/pitch). Ignored when
    *  transitionCinematic=false. Null = dolly along camera's forward. */
   transitionDirection?: { yaw: number; pitch: number } | null;
@@ -110,6 +125,16 @@ type Props = {
 };
 
 const DRAG_THRESHOLD_PX = 5;
+
+/** Fallback micro-interaction flags — all ON (editor previews, callers that
+ *  don't pass a resolved set). */
+const DEFAULT_FX: HotspotFx = {
+  breathing: true,
+  hoverMagnify: true,
+  ripple: true,
+  hoverIcon: true,
+  hoverCard: true,
+};
 
 export default function PanoramaViewer({
   adjustments,
@@ -136,7 +161,19 @@ export default function PanoramaViewer({
         <Canvas
           camera={{ position: [0, 0, 0.01], fov: 75, near: 0.1, far: 1100 }}
           dpr={[1, 2]}
-          gl={{ antialias: true, preserveDrawingBuffer: true }}
+          gl={{
+            antialias: true,
+            preserveDrawingBuffer: true,
+            // Ask the OS/browser for the discrete GPU on hybrid machines
+            // and skip the depth-sensitive alpha path we don't need — both
+            // help hold a steady 60fps on the panorama sphere.
+            powerPreference: "high-performance",
+            stencil: false,
+          }}
+          // Adaptive quality: if the frame-rate dips (weaker device, huge
+          // texture) drei scales the internal resolution down toward 0.5×
+          // to protect the frame-rate, then restores it when things settle.
+          performance={{ min: 0.5 }}
         >
           <Scene {...props} />
         </Canvas>
@@ -154,6 +191,7 @@ function Scene({
   imageUrl,
   hotspots,
   editable,
+  hotspotFx,
   selectedHotspotId,
   selectedHotspotIds,
   mirrored = false,
@@ -186,6 +224,7 @@ function Scene({
   initialPitch = 0,
   transitionTargetUrl = null,
   transitionCinematic = false,
+  transitionDissolve = false,
   transitionDirection = null,
   transitionTargetAim = null,
   transitionDurationMs = 1100,
@@ -506,6 +545,7 @@ function Scene({
           targetUrl={transitionTargetUrl}
           durationMs={transitionDurationMs}
           cinematic={transitionCinematic}
+          dissolve={transitionDissolve}
           direction={transitionDirection}
           targetAim={transitionTargetAim}
           mirrored={mirrored}
@@ -536,6 +576,7 @@ function Scene({
           key={h.id}
           hotspot={h}
           editable={!!editable}
+          fx={hotspotFx ?? DEFAULT_FX}
           selected={
             selectedHotspotId === h.id ||
             !!selectedHotspotIds?.has(h.id)
@@ -556,8 +597,14 @@ function Scene({
         enableZoom={false}
         enablePan={false}
         enableDamping
-        dampingFactor={0.06}
-        rotateSpeed={-0.4}
+        /* Momentum / inertia: on release the camera keeps rotating with the
+           residual drag velocity and eases to rest, iOS-scroll style. With
+           enableDamping, OrbitControls decays the last sphericalDelta by
+           (1 - dampingFactor) every frame, so a lower dampingFactor = a
+           longer, smoother glide. 0.035 ≈ ~1.5s ease-to-stop at 60fps — even
+           a quick flick throws satisfyingly and coasts to a halt. */
+        dampingFactor={0.035}
+        rotateSpeed={-0.45}
         /* User pitch is stored as: +π/2 = up, -π/2 = down.
            OrbitControls polarAngle: 0 = up, π = down. So polar = π/2 - pitch.
            A tighter pitch_max (looking up limit) becomes a smaller polar min. */
@@ -581,6 +628,7 @@ function Scene({
 function HotspotMarker(props: {
   hotspot: Hotspot;
   editable: boolean;
+  fx: HotspotFx;
   selected: boolean;
   mirrored: boolean;
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
@@ -638,6 +686,7 @@ function HtmlBillboard({
   hotspot: h,
   selected,
   editable,
+  fx = DEFAULT_FX,
   scenesLookup,
   onClick,
   onDoubleClick,
@@ -646,6 +695,7 @@ function HtmlBillboard({
   hotspot: Hotspot;
   selected: boolean;
   editable: boolean;
+  fx?: HotspotFx;
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
@@ -800,7 +850,7 @@ function HtmlBillboard({
             keyframe animation re-runs. Color + max radius both driven by
             data (ripple_color / ripple_size_pct), falling back to the
             hotspot's own color and a subtle default radius. */}
-        {rippleKey > 0 && (
+        {rippleKey > 0 && fx.ripple && (
           <div
             key={rippleKey}
             className="hs-hover-ripple"
@@ -816,7 +866,7 @@ function HtmlBillboard({
 
         {/* Nav preview card — floats above the hotspot on hover, shows
             where this hotspot takes you. */}
-        {hovered && navTarget && !editable && (
+        {hovered && navTarget && !editable && fx.hoverCard && (
           <div
             className="pointer-events-none"
             style={{
@@ -873,8 +923,15 @@ function HtmlBillboard({
             an inline VideoCard. Shows thumbnail + play button + title.
             Click bubbles up to the hotspot's onClick so the video opens
             normally (modal or inline). */}
-        {hovered && showVideoPreview && !editable && (
+        {hovered && showVideoPreview && !editable && fx.hoverCard && (
           <VideoPreviewCard hotspot={h} thumbnail={videoPreviewThumb} />
+        )}
+
+        {/* Type glyph badge — a small affordance that fades in on hover so
+            the visitor instantly knows what a marker DOES (arrow = go to
+            scene, i = info, play = video, etc.). Skipped in the editor. */}
+        {hovered && !editable && fx.hoverIcon && (
+          <HoverTypeGlyph hotspot={h} isNav={isNav} />
         )}
 
         {/* Inner: pure content, with a clean outline offset for selection.
@@ -909,18 +966,37 @@ function HtmlBillboard({
             borderRadius: 0,
             outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 4,
-            transform: hovered && editable ? "scale(1.03)" : "none",
-            transition: "transform 0.15s",
+            // Hover magnify: editor keeps its subtle 1.03; public viewer
+            // gets a more satisfying 1.12 pop when fx.hoverMagnify is on.
+            transform: hovered
+              ? editable
+                ? "scale(1.03)"
+                : fx.hoverMagnify
+                ? "scale(1.12)"
+                : "none"
+              : "none",
+            transition: "transform 0.18s cubic-bezier(0.34,1.56,0.64,1)",
           }}
         >
           {/* Dedicated wrapper for the interaction animation so its transform
-              doesn't conflict with the hover-scale transform above. */}
+              doesn't conflict with the hover-scale transform above.
+              Idle breathing pulse (fx.breathing) plays only when NOT hovered
+              and when the hotspot has no explicit hover animation, so the
+              two never fight. */}
           <div
-            className={
+            className={[
               hovered && h.animation && h.animation !== "none"
                 ? `hs-anim-${h.animation}`
-                : ""
-            }
+                : "",
+              !hovered &&
+              !editable &&
+              fx.breathing &&
+              (!h.animation || h.animation === "none")
+                ? "hs-breathing"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{
               display: "flex",
               flexDirection: flexDir,
@@ -968,6 +1044,49 @@ function HtmlBillboard({
         })()}
       </div>
     </Html>
+  );
+}
+
+/* --------- Hover type-glyph badge (fx.hoverIcon) ---------------------- */
+
+function HoverTypeGlyph({
+  hotspot: h,
+  isNav,
+}: {
+  hotspot: Hotspot;
+  isNav: boolean;
+}) {
+  let Glyph: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }> | null = null;
+  if (isNav || h.type === "nav" || h.action === "nav") Glyph = ArrowRight;
+  else if (h.type === "info") Glyph = InfoIcon;
+  else if (h.type === "video" || h.video_url) Glyph = Play;
+  else if (h.type === "image") Glyph = ImageGlyph;
+  else if (h.pdf_url) Glyph = FileText;
+  else if (h.audio_url) Glyph = Volume2;
+  else if (h.url) Glyph = ExternalLink;
+  if (!Glyph) return null;
+
+  return (
+    <div
+      className="pointer-events-none"
+      style={{
+        position: "absolute",
+        top: 2,
+        right: 2,
+        width: 22,
+        height: 22,
+        borderRadius: "50%",
+        background: "rgba(15,15,20,0.85)",
+        border: "1.5px solid rgba(255,255,255,0.9)",
+        display: "grid",
+        placeItems: "center",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.55)",
+        animation: "hs-nav-preview-in 0.16s ease-out",
+        zIndex: 22,
+      }}
+    >
+      <Glyph size={13} color="#ffffff" strokeWidth={2.4} />
+    </div>
   );
 }
 

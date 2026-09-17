@@ -145,6 +145,17 @@ details > summary::-webkit-details-marker { display: none; }
 .hs-anim-spin   { animation: hs-spin   2s   linear      infinite; }
 .hs-anim-shake  { animation: hs-shake  0.5s ease-in-out infinite; }
 
+/* Idle "breathing" pulse — a slow, subtle scale + opacity swell that gives
+   resting hotspots a living, cinema-grade quality. Gated by fx.breathing. */
+@keyframes hs-breathing {
+  0%, 100% { transform: scale(1);    opacity: 0.92; }
+  50%      { transform: scale(1.06); opacity: 1;    }
+}
+.hs-breathing {
+  animation: hs-breathing 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
 /* --------- Premium pulse ring (breathing double-ring around hotspots) ----
  * Layered behind info & person hotspots. Two rings expand outward and
  * fade — one lagging the other — so the effect feels continuous and

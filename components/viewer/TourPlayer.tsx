@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
+import { resolveHotspotFx } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
 import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
@@ -171,6 +172,9 @@ function TourPlayerInner({
     () => scenes.find((s) => s.id === activeSceneId) ?? null,
     [scenes, activeSceneId]
   );
+
+  // Resolve tour-wide hotspot micro-interaction flags once (default all ON).
+  const hotspotFx = useMemo(() => resolveHotspotFx(tour), [tour]);
 
   useEffect(() => {
     if (!scenes.length) return;
@@ -380,6 +384,9 @@ function TourPlayerInner({
     /** true → cinematic dolly + FOV whip (nav hotspots, auto-tour).
      *  false → quick crossfade only (menu / scene strip). */
     cinematic: boolean;
+    /** true → cinematic soft-dissolve (independent of warp). Mutually
+     *  exclusive with `cinematic`. */
+    dissolve: boolean;
     /** Dolly direction in radians (nav hotspot yaw/pitch). Null = no
      *  directional dolly (dollies along current forward). */
     direction: { yaw: number; pitch: number } | null;
@@ -452,9 +459,16 @@ function TourPlayerInner({
 
     inFlightRef.current = true;
 
-    // INSTANT — no animation, just swap after preloading the texture so
-    // there's no blank flash.
-    if (effect === "instant") {
+    // FLAT-SCENE PATH — the in-engine WebGL SceneTransition lives inside
+    // PanoramaViewer, which is NOT mounted while a flat photo scene is on
+    // screen (FlatViewer renders instead). If we kicked off a pending
+    // transition here, SceneTransition would never mount, its
+    // onComplete would never fire, and inFlightRef would stay stuck —
+    // freezing navigation AND auto-tour. So whenever the current or the
+    // target scene is flat, do a direct swap (preload first to avoid a
+    // blank flash) instead of the 3D fly-through.
+    const currentIsFlat = !!active?.is_flat;
+    if (effect === "instant" || currentIsFlat || target.is_flat) {
       try {
         const img = new window.Image();
         img.src = publicUrl(target.image_path);
@@ -467,13 +481,19 @@ function TourPlayerInner({
       return;
     }
 
-    // Cinematic when the caller asked for it OR when the effect name is
-    // one of the "big" cinematic modes. Quick crossfade otherwise.
+    // Dissolve is its own cinematic mode (soft cross-dissolve, no dolly).
+    // It takes priority over the warp/cinematic path when selected.
+    const dissolve = effect === "dissolve";
+
+    // Cinematic (warp/tunnel) when the caller asked for it OR when the
+    // effect name is one of the "big" fly-through modes. Quick crossfade
+    // otherwise. Dissolve is handled separately and disables cinematic.
     const cinematic =
-      !!opts.cinematic ||
-      effect === "warp" ||
-      effect === "street_view" ||
-      effect === "zoom";
+      !dissolve &&
+      (!!opts.cinematic ||
+        effect === "warp" ||
+        effect === "street_view" ||
+        effect === "zoom");
 
     // Kick off the in-engine transition. PanoramaViewer keeps rendering
     // the CURRENT scene while SceneTransition flies the camera into the
@@ -482,6 +502,7 @@ function TourPlayerInner({
       targetSceneId: sceneId,
       targetUrl: publicUrl(target.image_path),
       cinematic,
+      dissolve,
       direction: opts.direction ?? null,
       targetAim: {
         yaw: target.initial_yaw ?? 0,
@@ -489,8 +510,9 @@ function TourPlayerInner({
       },
       // Longer, more graceful timings. The old 1150ms cinematic felt
       // rushed once the dolly became visible; ~1.8s lets the fly-through
-      // breathe like a real drone move.
-      durationMs: cinematic ? 1800 : 550,
+      // breathe like a real drone move. Dissolve is a touch quicker (~1s)
+      // since there's no spatial move to sell.
+      durationMs: dissolve ? 1000 : cinematic ? 1800 : 550,
     });
   }
 
@@ -630,6 +652,7 @@ function TourPlayerInner({
         <PanoramaViewer
           imageUrl={publicUrl(active.image_path)}
           adjustments={activeAdjustments}
+          hotspotFx={hotspotFx}
           hotspots={hotspots}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}
@@ -671,6 +694,7 @@ function TourPlayerInner({
           // while a navigation is in flight.
           transitionTargetUrl={pendingTransition?.targetUrl ?? null}
           transitionCinematic={pendingTransition?.cinematic ?? false}
+          transitionDissolve={pendingTransition?.dissolve ?? false}
           transitionDirection={pendingTransition?.direction ?? null}
           transitionTargetAim={pendingTransition?.targetAim ?? null}
           transitionDurationMs={pendingTransition?.durationMs ?? 1150}

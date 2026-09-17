@@ -6,6 +6,7 @@ import { getMyProfile } from "@/lib/auth";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
+import { resolveHotspotFx } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
 import { TranslationProvider } from "@/lib/TranslationContext";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
@@ -1714,10 +1715,19 @@ export default function TourEditPage() {
     }
   }
 
-  // Update tour fields in state + DB without reloading the page.
+  // Update tour fields in state + DB without reloading the page. Uses the
+  // self-healing saver so newly-added columns (e.g. fx_* micro-interaction
+  // toggles) that a user's DB hasn't migrated yet are skipped gracefully
+  // instead of failing the whole update.
   async function patchTour(fields: Partial<Tour>) {
     setTour((t) => (t ? { ...t, ...fields } : t));
-    await supabase.from("tours").update(fields).eq("id", tourId);
+    await saveWithColumnFallback(
+      "tours",
+      fields as Record<string, unknown>,
+      tourId,
+      "[tour patch]",
+      { silent: true }
+    );
   }
 
   async function handleBackup() {
@@ -2080,6 +2090,7 @@ export default function TourEditPage() {
             <PanoramaViewer
               imageUrl={publicUrl(activeScene.image_path)}
               adjustments={(activeScene as any).image_adjustments ?? null}
+              hotspotFx={resolveHotspotFx(tour)}
               hotspots={hotspots}
               editable={!previewMode}
               selectedHotspotId={previewMode ? null : selectedHotspotId}

@@ -674,7 +674,7 @@ function PhotoTab({
             ✨ Warp — cinematic tunnel-through (recommended)
           </option>
           <option value="dissolve">
-            ✨ Dissolve — organic drift crossfade
+            ✨ Dissolve — cinematic soft cross-dissolve
           </option>
           <option value="street_view">Street View — stretch + edge blur</option>
           <option value="fade">Fade — simple crossfade</option>
@@ -686,6 +686,8 @@ function PhotoTab({
           Applied to every scene switch in the public viewer.
         </div>
       </div>
+
+      <HotspotFxSettings tour={tour} onPatch={onPatchTour} />
 
       {/* Ambient audio moved to Lang tab so it sits with subtitles. */}
       <NadirSettings tour={tour} onPatch={onPatchTour} />
@@ -1983,6 +1985,89 @@ function AmbientAudioSettings({
             : "Upload MP3 (loops while this scene is active)"}
         </label>
       )}
+    </div>
+  );
+}
+
+/* -------- Hotspot micro-interactions (tour-level cinema polish) -------- */
+function HotspotFxSettings({
+  tour,
+  onPatch,
+}: {
+  tour: Tour;
+  onPatch: (fields: Partial<Tour>) => Promise<void>;
+}) {
+  // Default ON — only false when explicitly disabled.
+  const rows: {
+    key: keyof Tour;
+    label: string;
+    hint: string;
+    value: boolean;
+  }[] = [
+    {
+      key: "fx_breathing",
+      label: "Breathing pulse",
+      hint: "Idle hotspots gently swell so they feel alive",
+      value: tour.fx_breathing !== false,
+    },
+    {
+      key: "fx_hover_magnify",
+      label: "Hover magnify",
+      hint: "Marker pops larger when the cursor is over it",
+      value: tour.fx_hover_magnify !== false,
+    },
+    {
+      key: "fx_ripple",
+      label: "Ripple effect",
+      hint: "Expanding ring radiates on hover / click",
+      value: tour.fx_ripple !== false,
+    },
+    {
+      key: "fx_hover_icon",
+      label: "Type glyph on hover",
+      hint: "Small badge shows what the hotspot does (▶ i →)",
+      value: tour.fx_hover_icon !== false,
+    },
+    {
+      key: "fx_hover_card",
+      label: "Hover preview card",
+      hint: "Nav & video hotspots show a preview on hover",
+      value: tour.fx_hover_card !== false,
+    },
+  ];
+
+  return (
+    <div className="pt-4 border-t border-border space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Sparkles size={12} className="text-cyan-400" />
+        <div className="text-xs uppercase text-neutral-400">
+          Hotspot interactions
+        </div>
+      </div>
+      <div className="text-[11px] text-neutral-500 -mt-1 mb-1">
+        Cinema-grade polish applied to every hotspot in the viewer.
+      </div>
+      {rows.map((r) => (
+        <label
+          key={String(r.key)}
+          className="flex items-start gap-2 text-xs cursor-pointer py-0.5"
+        >
+          <input
+            type="checkbox"
+            checked={r.value}
+            className="mt-0.5 accent-accent"
+            onChange={(e) =>
+              onPatch({ [r.key]: e.target.checked } as Partial<Tour>)
+            }
+          />
+          <span>
+            <span className="text-neutral-200">{r.label}</span>
+            <span className="block text-[10.5px] text-neutral-500">
+              {r.hint}
+            </span>
+          </span>
+        </label>
+      ))}
     </div>
   );
 }

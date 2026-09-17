@@ -109,6 +109,7 @@ export default function SceneTransition({
   targetUrl,
   durationMs,
   cinematic,
+  dissolve = false,
   direction,
   targetAim,
   mirrored,
@@ -121,6 +122,11 @@ export default function SceneTransition({
   /** True → dolly + FOV whip + late-stage SLERP (nav hotspot).
    *  False → alpha crossfade only + full-duration SLERP (manual swap). */
   cinematic: boolean;
+  /** True → cinematic soft-dissolve: no dolly, a gentle FOV breath, a
+   *  luminance-lifted cross-dissolve of the incoming scene, and a
+   *  full-duration aim settle. Completely independent of the warp path;
+   *  when true it takes over the whole animation. */
+  dissolve?: boolean;
   /** Nav-hotspot direction to dolly toward, in radians. Ignored when
    *  cinematic=false (no dolly in quick mode). */
   direction: { yaw: number; pitch: number } | null;
@@ -138,6 +144,7 @@ export default function SceneTransition({
 }) {
   const [texture, setTexture] = useState<THREE.Texture | null>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
 
   // Captured baseline pose — restored at t=1 so orbit re-enables cleanly.
@@ -238,6 +245,62 @@ export default function SceneTransition({
     // and ends gently — no abrupt onset that reads as a "glitch".
     const raw = smoothstep(0, 1, rawLinear);
 
+    /* ======================= DISSOLVE MODE ==============================
+     * A soft film-style cross-dissolve. Independent of the warp path: no
+     * forward dolly, no FOV whip. The incoming scene materialises with a
+     * luminance-lifted cross-fade while the walls ease inward slightly
+     * (a gentle "settle toward you") and the camera does a barely-there
+     * FOV breath. Aim settles to the target's front over the full run. */
+    if (dissolve) {
+      const cam = camera as THREE.PerspectiveCamera;
+
+      // Cross-dissolve: ease-in-out over most of the timeline.
+      materialRef.current.opacity = smoothstep(0.05, 0.95, rawLinear);
+
+      // Luminance lift — the incoming scene briefly blooms brighter at the
+      // midpoint then settles to neutral, giving the "developing" glow of a
+      // classic dissolve. bell() peaks at 0.5. (toneMapped=false lets the
+      // >1 channel values read as a soft highlight before clamping.)
+      const bloom = 1 + bell(rawLinear) * 0.25;
+      materialRef.current.color.setScalar(bloom);
+
+      // Walls ease inward from +4% to rest — subtle parallax that makes the
+      // new room feel like it resolves into place rather than hard-cutting.
+      if (meshRef.current) {
+        const s = 1 + (1 - raw) * 0.04;
+        meshRef.current.scale.setScalar(s);
+      }
+
+      // Aim settle over the full duration (no late whip).
+      const aimT = targetAimDirRef.current ? raw : 0;
+      const aimDir = targetAimDirRef.current
+        ? new THREE.Vector3()
+            .lerpVectors(baseAimDirRef.current, targetAimDirRef.current, aimT)
+            .normalize()
+        : baseAimDirRef.current.clone();
+      const pos = new THREE.Vector3().copy(aimDir).multiplyScalar(-EPS);
+      camera.position.copy(pos);
+      camera.lookAt(0, 0, 0);
+
+      // Barely-there FOV breath (±3°) so it feels alive, not static.
+      cam.fov = baseFovRef.current - bell(rawLinear) * 3;
+      cam.updateProjectionMatrix();
+
+      if (rawLinear >= 1) {
+        completedRef.current = true;
+        const finalDir = targetAimDirRef.current ?? baseAimDirRef.current;
+        camera.position.copy(finalDir).multiplyScalar(-EPS);
+        camera.lookAt(0, 0, 0);
+        cam.fov = baseFovRef.current;
+        cam.updateProjectionMatrix();
+        materialRef.current.color.setScalar(1);
+        if (meshRef.current) meshRef.current.scale.setScalar(1);
+        setOrbitEnabled?.(true);
+        onComplete();
+      }
+      return;
+    }
+
     // ---- Alpha crossfade ----
     // Fade the incoming scene across the MIDDLE of the timeline so the
     // outgoing scene is visible during the initial dolly-in and the
@@ -308,7 +371,7 @@ export default function SceneTransition({
 
   return (
     <group rotation={groupRotation}>
-      <mesh renderOrder={5}>
+      <mesh ref={meshRef} renderOrder={5}>
         <sphereGeometry args={[TRANSITION_SPHERE_RADIUS, 64, 40]} />
         <meshBasicMaterial
           ref={materialRef}

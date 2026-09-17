@@ -72,6 +72,16 @@ export type Tour = {
   /** Which animation plays when the viewer navigates between scenes. */
   transition_effect: TransitionEffect;
 
+  /** Hotspot micro-interactions (cinema-grade polish). Each is an
+   *  independent on/off, applied tour-wide in the public viewer. All
+   *  default ON. Persisted as individual boolean columns so the
+   *  self-healing save can add them lazily. */
+  fx_breathing?: boolean;      // slow breathing pulse on idle hotspots
+  fx_hover_magnify?: boolean;  // marker scales up on hover
+  fx_ripple?: boolean;         // expanding ripple on hover / click
+  fx_hover_icon?: boolean;     // type glyph badge appears on hover
+  fx_hover_card?: boolean;     // nav / video preview card on hover
+
   /** Languages the tour has been translated INTO. Source language is
    *  implicit (always available). Populated by the editor's Translations
    *  panel; consumed by the viewer's LanguagePicker. */
@@ -205,6 +215,32 @@ export type LabelFont =
   | "display";
 
 export type LabelPosition = "top" | "bottom" | "left" | "right";
+
+/** Resolved hotspot micro-interaction flags (all concrete booleans). */
+export type HotspotFx = {
+  breathing: boolean;
+  hoverMagnify: boolean;
+  ripple: boolean;
+  hoverIcon: boolean;
+  hoverCard: boolean;
+};
+
+/** Resolve a tour's fx settings to concrete booleans (default ON). */
+export function resolveHotspotFx(tour: {
+  fx_breathing?: boolean;
+  fx_hover_magnify?: boolean;
+  fx_ripple?: boolean;
+  fx_hover_icon?: boolean;
+  fx_hover_card?: boolean;
+}): HotspotFx {
+  return {
+    breathing: tour.fx_breathing !== false,
+    hoverMagnify: tour.fx_hover_magnify !== false,
+    ripple: tour.fx_ripple !== false,
+    hoverIcon: tour.fx_hover_icon !== false,
+    hoverCard: tour.fx_hover_card !== false,
+  };
+}
 
 export type Hotspot = {
   id: string;
