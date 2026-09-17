@@ -129,7 +129,70 @@ export default function FlatViewer({
     const SNAP_PX = 8;
     const BREAK_PX = 18;
 
-    // Other hotspots — the snap targets. Exclude the one being dragged.
+    const el = imgRef.current;
+    const imgRect0 = el?.getBoundingClientRect();
+    const imgW0 = imgRect0?.width ?? 1000;
+    const imgH0 = imgRect0?.height ?? 1000;
+
+    /* --- Build snap targets from ACTUAL DOM centres of icons and labels ---
+     * Snap by real visible parts, not by flat_x/flat_y (which is the flex
+     * container's centre and shifts whenever a label sits beside the icon).
+     * Two rows of hotspots, one with labels and one without, will now
+     * align by their ICON centres like the user expects. */
+    const iconTargetsX: number[] = [];
+    const iconTargetsY: number[] = [];
+    const labelTargetsX: number[] = [];
+    const labelTargetsY: number[] = [];
+    if (imgRect0) {
+      const nodes = el?.parentElement?.querySelectorAll<HTMLElement>(
+        "[data-hotspot-id]"
+      );
+      nodes?.forEach((node) => {
+        if (node.dataset.hotspotId === id) return; // exclude the dragged one
+        const iconEl = node.querySelector<HTMLElement>('[data-part="icon"]');
+        const labelEl = node.querySelector<HTMLElement>('[data-part="label"]');
+        if (iconEl) {
+          const r = iconEl.getBoundingClientRect();
+          iconTargetsX.push(((r.left + r.width / 2) - imgRect0.left) / imgRect0.width);
+          iconTargetsY.push(((r.top + r.height / 2) - imgRect0.top) / imgRect0.height);
+        }
+        if (labelEl) {
+          const r = labelEl.getBoundingClientRect();
+          labelTargetsX.push(((r.left + r.width / 2) - imgRect0.left) / imgRect0.width);
+          labelTargetsY.push(((r.top + r.height / 2) - imgRect0.top) / imgRect0.height);
+        }
+      });
+    }
+
+    /* --- Compute the offset from the dragged hotspot's ANCHOR (flat_x/y)
+     * to its own icon centre and label centre. When we snap the icon's
+     * centre to some target, we place the anchor at target - iconOffset. */
+    let iconOffX = 0, iconOffY = 0;
+    let labelOffX = 0, labelOffY = 0;
+    let hasIcon = false, hasLabel = false;
+    if (imgRect0) {
+      const draggedNode = el?.parentElement?.querySelector<HTMLElement>(
+        `[data-hotspot-id="${CSS.escape(id)}"]`
+      );
+      const dr = draggedNode?.getBoundingClientRect();
+      const iconEl = draggedNode?.querySelector<HTMLElement>('[data-part="icon"]');
+      const labelEl = draggedNode?.querySelector<HTMLElement>('[data-part="label"]');
+      if (dr && iconEl) {
+        const ir = iconEl.getBoundingClientRect();
+        iconOffX = ((ir.left + ir.width / 2) - (dr.left + dr.width / 2)) / imgRect0.width;
+        iconOffY = ((ir.top + ir.height / 2) - (dr.top + dr.height / 2)) / imgRect0.height;
+        hasIcon = true;
+      }
+      if (dr && labelEl) {
+        const lr = labelEl.getBoundingClientRect();
+        labelOffX = ((lr.left + lr.width / 2) - (dr.left + dr.width / 2)) / imgRect0.width;
+        labelOffY = ((lr.top + lr.height / 2) - (dr.top + dr.height / 2)) / imgRect0.height;
+        hasLabel = true;
+      }
+    }
+
+    // legacy container-centre targets — still useful when nothing was
+    // tagged (e.g. text-type hotspots have no icon).
     const targets = hotspots.filter((o) => o.id !== id && o.flat_x != null && o.flat_y != null);
 
     const onMove = (ev: PointerEvent) => {
@@ -137,70 +200,98 @@ export default function FlatViewer({
       const rawP = screenToImagePct(ev.clientX, ev.clientY);
       if (!rawP) return;
 
-      const el = imgRef.current;
-      const rect = el?.getBoundingClientRect();
-      const imgW = rect?.width ?? 1000;
-      const imgH = rect?.height ?? 1000;
+      const rect = imgRef.current?.getBoundingClientRect();
+      const imgW = rect?.width ?? imgW0;
+      const imgH = rect?.height ?? imgH0;
 
-      // Convert pixel thresholds to 0..1 image-pct units for each axis.
       const snapX = SNAP_PX / imgW;
       const snapY = SNAP_PX / imgH;
       const breakX = BREAK_PX / imgW;
       const breakY = BREAK_PX / imgH;
+
+      /* Snap by the dragged hotspot's ICON centre AND its LABEL centre,
+       * to other hotspots' icon centres and label centres. Each attempt
+       * carries the offset that reconciles snap-point → anchor. */
+      type Candidate = { anchor: number; guide: number; d: number };
+
+      function bestOnAxis(
+        rawAnchor: number,
+        offsets: number[],
+        targetsList: number[],
+        snap: number
+      ): Candidate | null {
+        let best: Candidate | null = null;
+        for (const off of offsets) {
+          const partPos = rawAnchor + off; // where our part currently sits
+          for (const t of targetsList) {
+            const d = Math.abs(partPos - t);
+            if (d < snap && (!best || d < best.d)) {
+              best = { anchor: t - off, guide: t, d };
+            }
+          }
+        }
+        return best;
+      }
+
+      // Which parts of the dragged hotspot are available as snap sources?
+      const offsetsX: number[] = [];
+      const offsetsY: number[] = [];
+      if (hasIcon) { offsetsX.push(iconOffX); offsetsY.push(iconOffY); }
+      if (hasLabel) { offsetsX.push(labelOffX); offsetsY.push(labelOffY); }
+      // Fallback: anchor centre itself (legacy behaviour).
+      if (!hasIcon && !hasLabel) { offsetsX.push(0); offsetsY.push(0); }
+
+      // Targets: real DOM centres (icon + label of every other hotspot),
+      // plus legacy container centres as a safety net.
+      const targetsX = [
+        ...iconTargetsX,
+        ...labelTargetsX,
+        ...targets.map((o) => o.flat_x as number),
+      ];
+      const targetsY = [
+        ...iconTargetsY,
+        ...labelTargetsY,
+        ...targets.map((o) => o.flat_y as number),
+      ];
 
       let x = rawP.x;
       let y = rawP.y;
       let guideV: number | null = null;
       let guideH: number | null = null;
 
-      /* --- X (vertical guide line at another hotspot's flat_x) --- */
+      /* --- X (vertical guide) --- */
       if (stickyRef.current.stuckX != null) {
-        // We're already glued to a vertical line — release only if the
-        // raw cursor has drifted past the break-away threshold.
         if (Math.abs(rawP.x - stickyRef.current.stuckX) > breakX) {
           stickyRef.current.stuckX = null;
         } else {
           x = stickyRef.current.stuckX;
-          guideV = x;
+          guideV = x + iconOffX; // draw at the icon we snapped to
         }
       }
       if (stickyRef.current.stuckX == null) {
-        // Look for a fresh snap target on X.
-        let best: { x: number; d: number } | null = null;
-        for (const o of targets) {
-          const d = Math.abs(rawP.x - (o.flat_x as number));
-          if (d < snapX && (!best || d < best.d)) {
-            best = { x: o.flat_x as number, d };
-          }
-        }
-        if (best) {
-          stickyRef.current.stuckX = best.x;
-          x = best.x;
-          guideV = best.x;
+        const cand = bestOnAxis(rawP.x, offsetsX, targetsX, snapX);
+        if (cand) {
+          stickyRef.current.stuckX = cand.anchor;
+          x = cand.anchor;
+          guideV = cand.guide;
         }
       }
 
-      /* --- Y (horizontal guide line at another hotspot's flat_y) --- */
+      /* --- Y (horizontal guide) --- */
       if (stickyRef.current.stuckY != null) {
         if (Math.abs(rawP.y - stickyRef.current.stuckY) > breakY) {
           stickyRef.current.stuckY = null;
         } else {
           y = stickyRef.current.stuckY;
-          guideH = y;
+          guideH = y + iconOffY;
         }
       }
       if (stickyRef.current.stuckY == null) {
-        let best: { y: number; d: number } | null = null;
-        for (const o of targets) {
-          const d = Math.abs(rawP.y - (o.flat_y as number));
-          if (d < snapY && (!best || d < best.d)) {
-            best = { y: o.flat_y as number, d };
-          }
-        }
-        if (best) {
-          stickyRef.current.stuckY = best.y;
-          y = best.y;
-          guideH = best.y;
+        const cand = bestOnAxis(rawP.y, offsetsY, targetsY, snapY);
+        if (cand) {
+          stickyRef.current.stuckY = cand.anchor;
+          y = cand.anchor;
+          guideH = cand.guide;
         }
       }
 
@@ -441,6 +532,7 @@ function FlatHotspot({
       // here — hs-anim-* keyframes set `transform`, which would clobber
       // translate(-50%, -50%) and visually shift the hotspot off its anchor
       // (the "glitch" you saw when the animation stopped on deselect).
+      data-hotspot-id={h.id}
       className="absolute flex items-center gap-1"
       style={{
         left: `${(h.flat_x ?? 0.5) * 100}%`,
@@ -482,40 +574,51 @@ function FlatHotspot({
               : "column",
         }}
       >
-      {/* Text-type hotspots render label ONLY — no icon marker. */}
-      {h.type === "text" ? null : url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt=""
-          draggable={false}
-          style={{
-            width: w,
-            height: hh,
-            objectFit: "contain",
-            display: "block",
-            pointerEvents: "none",
-          }}
-        />
-      ) : iconEntry ? (
-        <iconEntry.Icon
-          size={Math.min(w, hh)}
-          color={h.icon_tint ?? "#ffffff"}
-          strokeWidth={2}
-        />
-      ) : (
+      {/* Text-type hotspots render label ONLY — no icon marker.
+          Icon wrapper carries data-part="icon" so the magnetic snap can
+          measure the icon's true centre (not the flex container's centre,
+          which shifts when a label is present). */}
+      {h.type !== "text" && (
         <div
-          style={{
-            width: w,
-            height: hh,
-            borderRadius: "50%",
-            background: h.color ?? "#22c55e",
-            border: "2px solid #fff",
-          }}
-        />
+          data-part="icon"
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt=""
+              draggable={false}
+              style={{
+                width: w,
+                height: hh,
+                objectFit: "contain",
+                display: "block",
+                pointerEvents: "none",
+              }}
+            />
+          ) : iconEntry ? (
+            <iconEntry.Icon
+              size={Math.min(w, hh)}
+              color={h.icon_tint ?? "#ffffff"}
+              strokeWidth={2}
+            />
+          ) : (
+            <div
+              style={{
+                width: w,
+                height: hh,
+                borderRadius: "50%",
+                background: h.color ?? "#22c55e",
+                border: "2px solid #fff",
+              }}
+            />
+          )}
+        </div>
       )}
       {h.label && (
         <span
+          data-part="label"
           style={{
             color: h.label_color ?? "#ffffff",
             fontSize: h.label_size ?? 12,
