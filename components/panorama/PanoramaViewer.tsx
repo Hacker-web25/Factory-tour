@@ -1056,7 +1056,7 @@ function HoverTypeGlyph({
   hotspot: Hotspot;
   isNav: boolean;
 }) {
-  let Glyph: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }> | null = null;
+  let Glyph: React.ComponentType<any> | null = null;
   if (isNav || h.type === "nav" || h.action === "nav") Glyph = ArrowRight;
   else if (h.type === "info") Glyph = InfoIcon;
   else if (h.type === "video" || h.video_url) Glyph = Play;
