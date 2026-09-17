@@ -16,6 +16,7 @@ import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
 import IconPicker from "./IconPicker";
 import EditSceneTab from "./EditSceneTab";
+import type { ImageAdjustments } from "@/lib/imageAdjustments";
 import BeautifyModal from "@/components/BeautifyModal";
 import TranslationsSection from "@/components/builder/TranslationsSection";
 import SubtitlesSection from "@/components/builder/SubtitlesSection";
@@ -68,6 +69,8 @@ type Props = {
   onHotspotDelete: (id: string, mode?: "everywhere" | "scene-only") => void;
   onHotspotDuplicate?: (id: string) => void;
   onSceneChange: (s: Scene) => void;
+  /** Apply a colour-grade to every scene in the tour (from the Edit tab). */
+  onApplyAdjustmentsToAll?: (adj: ImageAdjustments) => void;
   onSave: () => Promise<void>;
   onPublishToggle: () => Promise<void>;
   /** When true, the panel is hidden via CSS (component stays mounted so state
@@ -94,6 +97,7 @@ export default function RightPanel({
   onHotspotDelete,
   onHotspotDuplicate,
   onSceneChange,
+  onApplyAdjustmentsToAll,
   onSave,
   onPublishToggle,
   hidden,
@@ -204,7 +208,12 @@ export default function RightPanel({
           />
         )}
         {tab === "edit" && scene && (
-          <EditSceneTab scene={scene} onSceneChange={onSceneChange} />
+          <EditSceneTab
+            scene={scene}
+            sceneCount={scenes.length}
+            onSceneChange={onSceneChange}
+            onApplyToAll={onApplyAdjustmentsToAll}
+          />
         )}
         {tab === "hotspot" && selectedHotspot && (
           <AddonTab

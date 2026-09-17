@@ -7,7 +7,7 @@
  * field). Presets give one-click looks; the sliders fine-tune.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Scene } from "@/lib/types";
 import {
   DEFAULT_ADJUSTMENTS,
@@ -15,15 +15,23 @@ import {
   PRESETS,
   type ImageAdjustments,
 } from "@/lib/imageAdjustments";
-import { Sparkles, RotateCcw, Sun, Contrast, Droplets } from "lucide-react";
+import { Sparkles, RotateCcw, Sun, Contrast, Droplets, Copy, Check } from "lucide-react";
 
 export default function EditSceneTab({
   scene,
+  sceneCount = 1,
   onSceneChange,
+  onApplyToAll,
 }: {
   scene: Scene;
+  /** Total number of scenes in the tour — used to label "Apply to all". */
+  sceneCount?: number;
   onSceneChange: (s: Scene) => void;
+  /** Push the current scene's grade to every scene in the tour. */
+  onApplyToAll?: (adj: ImageAdjustments) => void;
 }) {
+  const [appliedAll, setAppliedAll] = useState(false);
+
   const adj = useMemo(
     () => normalizeAdjustments((scene as any).image_adjustments),
     [scene]
@@ -55,6 +63,12 @@ export default function EditSceneTab({
     });
   }
 
+  function applyToAll() {
+    onApplyToAll?.(adj);
+    setAppliedAll(true);
+    setTimeout(() => setAppliedAll(false), 2000);
+  }
+
   return (
     <div className="pt-4 space-y-5">
       {/* Header */}
@@ -73,6 +87,29 @@ export default function EditSceneTab({
           <RotateCcw size={11} /> Reset
         </button>
       </div>
+
+      {/* Apply this scene's grade to every scene in the tour */}
+      {onApplyToAll && sceneCount > 1 && (
+        <button
+          onClick={applyToAll}
+          className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-md border text-[11.5px] font-medium transition-colors ${
+            appliedAll
+              ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-300"
+              : "border-accent/60 bg-accent/10 text-accent hover:bg-accent/20"
+          }`}
+          title="Copy these exact settings to every other scene"
+        >
+          {appliedAll ? (
+            <>
+              <Check size={13} /> Applied to all {sceneCount} scenes
+            </>
+          ) : (
+            <>
+              <Copy size={13} /> Apply this look to all {sceneCount} scenes
+            </>
+          )}
+        </button>
+      )}
 
       {/* Presets */}
       <div>

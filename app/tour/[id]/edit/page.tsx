@@ -1512,6 +1512,30 @@ export default function TourEditPage() {
     await saveWithColumnFallback("scenes", fullPayload, s.id, "[scene save]");
   }
 
+  /** Apply one colour-grade to EVERY scene in the tour. Updates local state
+   *  in a single pass (instant preview across the scene strip) and persists
+   *  the image_adjustments column to each scene row. Triggered by the Edit
+   *  tab's "Apply this look to all scenes" button. */
+  async function applyAdjustmentsToAll(adj: import("@/lib/imageAdjustments").ImageAdjustments) {
+    const snapshot = { ...adj };
+    setScenes((list) =>
+      list.map((x) => ({ ...x, image_adjustments: snapshot }) as Scene)
+    );
+    const targets = scenes.map((s) => s.id);
+    await Promise.all(
+      targets.map((id) =>
+        saveWithColumnFallback(
+          "scenes",
+          { image_adjustments: snapshot },
+          id,
+          "[apply grade to all]",
+          { silent: true }
+        )
+      )
+    );
+    setSaveState("saved");
+  }
+
   /** Self-healing update helper: sends the whole payload, and if
    *  Supabase returns a "could not find the 'X' column in the schema
    *  cache" error, drops that column and retries. Loops until success
@@ -2256,6 +2280,7 @@ export default function TourEditPage() {
           onHotspotDelete={onHotspotDelete}
           onHotspotDuplicate={duplicateHotspot}
           onSceneChange={onSceneChange}
+          onApplyAdjustmentsToAll={applyAdjustmentsToAll}
           onSave={handleSave}
           onPublishToggle={togglePublish}
         />
