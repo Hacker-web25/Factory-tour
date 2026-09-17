@@ -613,6 +613,7 @@ function TourPlayerInner({
         ) : (
         <PanoramaViewer
           imageUrl={publicUrl(active.image_path)}
+          adjustments={(active as any).image_adjustments ?? null}
           hotspots={hotspots}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}

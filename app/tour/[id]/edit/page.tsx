@@ -1507,6 +1507,7 @@ export default function TourEditPage() {
       tripod_size: s.tripod_size ?? 30,
       camera_height: s.camera_height ?? 1.6,
       folder: s.folder ?? null,
+      image_adjustments: (s as any).image_adjustments ?? null,
     };
     await saveWithColumnFallback("scenes", fullPayload, s.id, "[scene save]");
   }
@@ -2051,6 +2052,7 @@ export default function TourEditPage() {
           ) : activeScene ? (
             <PanoramaViewer
               imageUrl={publicUrl(activeScene.image_path)}
+              adjustments={(activeScene as any).image_adjustments ?? null}
               hotspots={hotspots}
               editable={!previewMode}
               selectedHotspotId={previewMode ? null : selectedHotspotId}

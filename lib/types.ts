@@ -139,6 +139,9 @@ export type Scene = {
   /** Optional grouping label for the scene index menu. Scenes with the same
    *  folder name are grouped together (with a collapsible header). */
   folder: string | null;
+  /** Per-scene colour grading (Photoshop-style). Stored as jsonb; shape
+   *  matches ImageAdjustments in lib/imageAdjustments.ts. Null = original. */
+  image_adjustments: import("./imageAdjustments").ImageAdjustments | null;
 
   created_at: string;
 };

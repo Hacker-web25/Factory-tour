@@ -15,6 +15,7 @@ import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
 import IconPicker from "./IconPicker";
+import EditSceneTab from "./EditSceneTab";
 import BeautifyModal from "@/components/BeautifyModal";
 import TranslationsSection from "@/components/builder/TranslationsSection";
 import SubtitlesSection from "@/components/builder/SubtitlesSection";
@@ -43,7 +44,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 
-type Tab = "photo" | "addon" | "lang" | "hotspot" | "autotour";
+type Tab = "photo" | "addon" | "lang" | "edit" | "hotspot" | "autotour";
 
 type Props = {
   tour: Tour;
@@ -144,6 +145,9 @@ export default function RightPanel({
         <TabBtn active={tab === "lang"} onClick={() => setTab("lang")}>
           🌐 Lang
         </TabBtn>
+        <TabBtn active={tab === "edit"} onClick={() => setTab("edit")}>
+          Edit
+        </TabBtn>
         {selectedHotspot && (
           <TabBtn
             active={tab === "hotspot"}
@@ -198,6 +202,9 @@ export default function RightPanel({
             onPatchTour={onPatchTour}
             onSceneChange={onSceneChange}
           />
+        )}
+        {tab === "edit" && scene && (
+          <EditSceneTab scene={scene} onSceneChange={onSceneChange} />
         )}
         {tab === "hotspot" && selectedHotspot && (
           <AddonTab

@@ -18,6 +18,14 @@ import {
 } from "./math";
 import PolygonHotspot from "./PolygonHotspot";
 import SceneTransition from "./SceneTransition";
+import {
+  type ImageAdjustments,
+  normalizeAdjustments,
+  buildFilterCSS,
+  warmthOverlayStyle,
+  vignetteOverlayStyle,
+  gradientOverlayStyle,
+} from "@/lib/imageAdjustments";
 
 type Props = {
   imageUrl: string;
@@ -94,19 +102,51 @@ type Props = {
   transitionTargetAim?: { yaw: number; pitch: number } | null;
   transitionDurationMs?: number;
   onTransitionComplete?: () => void;
+
+  /** Per-scene colour grading (exposure/contrast/warmth/vignette/etc.).
+   *  Applied as a GPU-composited CSS filter on the WebGL canvas plus
+   *  blended overlay layers. Undefined/null = no grading. */
+  adjustments?: Partial<ImageAdjustments> | null;
 };
 
 const DRAG_THRESHOLD_PX = 5;
 
-export default function PanoramaViewer(props: Props) {
+export default function PanoramaViewer({
+  adjustments,
+  ...props
+}: Props) {
+  const adj = useMemo(
+    () => normalizeAdjustments(adjustments),
+    [adjustments]
+  );
+  const warmthStyle = warmthOverlayStyle(adj);
+  const vignetteStyle = vignetteOverlayStyle(adj);
+  const gradientStyle = gradientOverlayStyle(adj);
+  const filter = buildFilterCSS(adj);
+
   return (
-    <Canvas
-      camera={{ position: [0, 0, 0.01], fov: 75, near: 0.1, far: 1100 }}
-      dpr={[1, 2]}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
-    >
-      <Scene {...props} />
-    </Canvas>
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          filter: filter === "none" ? undefined : filter,
+        }}
+      >
+        <Canvas
+          camera={{ position: [0, 0, 0.01], fov: 75, near: 0.1, far: 1100 }}
+          dpr={[1, 2]}
+          gl={{ antialias: true, preserveDrawingBuffer: true }}
+        >
+          <Scene {...props} />
+        </Canvas>
+      </div>
+      {/* Grading overlay layers — sit above the canvas, blended.
+          pointerEvents:none so drag / hotspot clicks pass straight through. */}
+      {warmthStyle && <div style={warmthStyle} />}
+      {gradientStyle && <div style={gradientStyle} />}
+      {vignetteStyle && <div style={vignetteStyle} />}
+    </div>
   );
 }
 
