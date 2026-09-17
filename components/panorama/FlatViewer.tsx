@@ -305,7 +305,7 @@ function FlatHotspot({
       // here — hs-anim-* keyframes set `transform`, which would clobber
       // translate(-50%, -50%) and visually shift the hotspot off its anchor
       // (the "glitch" you saw when the animation stopped on deselect).
-      className="absolute flex flex-col items-center gap-1"
+      className="absolute flex items-center gap-1"
       style={{
         left: `${(h.flat_x ?? 0.5) * 100}%`,
         top: `${(h.flat_y ?? 0.5) * 100}%`,
@@ -317,14 +317,34 @@ function FlatHotspot({
         outline: selected ? "2px solid rgb(34,211,238)" : undefined,
         outlineOffset: 4,
         padding: 6,
+        // Label position: bottom (default) = icon on top of label,
+        // top = label on top, left/right = side-by-side.
+        flexDirection:
+          (h.label_position ?? "bottom") === "top"
+            ? "column-reverse"
+            : (h.label_position ?? "bottom") === "left"
+            ? "row-reverse"
+            : (h.label_position ?? "bottom") === "right"
+            ? "row"
+            : "column",
       }}
     >
       {/* Inner wrapper: OWNS the animation only. Its own transform is safe
           to be replaced by hs-anim-* keyframes without breaking centering. */}
       <div
-        className={`flex flex-col items-center gap-1 ${
+        className={`flex items-center gap-1 ${
           shouldAnimate ? `hs-anim-${h.animation}` : ""
         }`}
+        style={{
+          flexDirection:
+            (h.label_position ?? "bottom") === "top"
+              ? "column-reverse"
+              : (h.label_position ?? "bottom") === "left"
+              ? "row-reverse"
+              : (h.label_position ?? "bottom") === "right"
+              ? "row"
+              : "column",
+        }}
       >
       {/* Text-type hotspots render label ONLY — no icon marker. */}
       {h.type === "text" ? null : url ? (

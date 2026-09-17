@@ -820,21 +820,36 @@ function HtmlBillboard({
           <VideoPreviewCard hotspot={h} thumbnail={videoPreviewThumb} />
         )}
 
-        {/* Inner: pure content, with a clean outline offset for selection */}
+        {/* Inner: pure content, with a clean outline offset for selection.
+            flex-direction depends on `label_position` — bottom (default) puts
+            the label under the icon, top puts it above, left/right place it
+            side-by-side. Alignment stays centered so the icon anchor stays
+            visually locked to the hotspot's true yaw/pitch. */}
+        {(() => {
+          const pos = (h.label_position ?? "bottom") as
+            | "top"
+            | "bottom"
+            | "left"
+            | "right";
+          const flexDir: React.CSSProperties["flexDirection"] =
+            pos === "top"
+              ? "column-reverse"
+              : pos === "left"
+              ? "row-reverse"
+              : pos === "right"
+              ? "row"
+              : "column";
+          return (
         <div
           className="pointer-events-none"
           style={{
             display: "flex",
-            flexDirection: "column",
+            flexDirection: flexDir,
             alignItems: "center",
             gap: 4,
             background: "transparent",
             border: "none",
             borderRadius: 0,
-            // Only draw the selection outline. Hover no longer paints one —
-            // it was leaving persistent-looking borders on hotspots the user
-            // had hovered past. Selection state remains the only visual
-            // "this hotspot is active" indicator.
             outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 4,
             transform: hovered && editable ? "scale(1.03)" : "none",
@@ -851,7 +866,7 @@ function HtmlBillboard({
             }
             style={{
               display: "flex",
-              flexDirection: "column",
+              flexDirection: flexDir,
               alignItems: "center",
               gap: 4,
             }}
@@ -892,6 +907,8 @@ function HtmlBillboard({
             )}
           </div>
         </div>
+          );
+        })()}
       </div>
     </Html>
   );

@@ -6,6 +6,7 @@ import type {
   HotspotAction,
   HotspotAnimation,
   LabelFont,
+  LabelPosition,
   Scene,
   Tour,
   TransitionEffect,
@@ -43,6 +44,10 @@ import {
   EyeOff,
   Mic,
   UserCircle2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 type Tab = "photo" | "addon" | "lang" | "edit" | "hotspot" | "autotour";
@@ -2789,6 +2794,44 @@ function AddonTab({
             </div>
           </FieldMini>
         </div>
+
+        {/* Label position — where the text sits relative to the icon.
+            Only shown for hotspots that actually render both an icon AND
+            a label (text-type hotspots ARE the label, no icon to anchor
+            against). */}
+        {hotspot.type !== "text" && (
+          <FieldMini label="Position vs. icon">
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  { key: "top", icon: <ArrowUp size={12} />, title: "Above hotspot" },
+                  { key: "bottom", icon: <ArrowDown size={12} />, title: "Below hotspot" },
+                  { key: "left", icon: <ArrowLeft size={12} />, title: "Left of hotspot" },
+                  { key: "right", icon: <ArrowRight size={12} />, title: "Right of hotspot" },
+                ] as { key: LabelPosition; icon: React.ReactNode; title: string }[]
+              ).map(({ key, icon, title }) => {
+                const active = (hotspot.label_position ?? "bottom") === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      onChange({ ...hotspot, label_position: key })
+                    }
+                    title={title}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded border text-[11px] ${
+                      active
+                        ? "border-accent bg-accent/15 text-accent"
+                        : "border-border bg-panelSoft text-neutral-300 hover:text-white hover:border-neutral-500"
+                    }`}
+                  >
+                    {icon}
+                    <span className="capitalize">{key}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </FieldMini>
+        )}
 
         <div className="flex gap-4 mt-2">
           <Checkbox

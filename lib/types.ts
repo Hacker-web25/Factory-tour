@@ -204,6 +204,8 @@ export type LabelFont =
   | "cursive"
   | "display";
 
+export type LabelPosition = "top" | "bottom" | "left" | "right";
+
 export type Hotspot = {
   id: string;
   scene_id: string;
@@ -254,6 +256,9 @@ export type Hotspot = {
   // label typography extras
   label_font: LabelFont;
   label_bg: string | null;
+  /** Where the label sits relative to the hotspot icon.
+   *  "bottom" (default, matches legacy behaviour) | "top" | "left" | "right". */
+  label_position?: LabelPosition;
 
   // type-specific payload
   target_scene_id?: string | null;
