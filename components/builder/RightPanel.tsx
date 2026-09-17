@@ -202,6 +202,8 @@ export default function RightPanel({
           <AddonsTab
             onStartAddHotspot={onStartAddHotspot}
             tourTitle={tour.title}
+            tour={tour}
+            onPatchTour={onPatchTour}
           />
         )}
         {tab === "lang" && scene && (
@@ -473,9 +475,13 @@ function LangTab({
 function AddonsTab({
   onStartAddHotspot,
   tourTitle,
+  tour,
+  onPatchTour,
 }: {
   onStartAddHotspot: (d: Partial<Hotspot>) => void;
   tourTitle?: string;
+  tour: Tour;
+  onPatchTour: (fields: Partial<Tour>) => Promise<void>;
 }) {
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   return (
@@ -575,6 +581,9 @@ function AddonsTab({
           }}
         />
       )}
+
+      {/* Cinema-grade hotspot interactions live here under Add. */}
+      <HotspotFxSettings tour={tour} onPatch={onPatchTour} />
     </div>
   );
 }
@@ -673,6 +682,9 @@ function PhotoTab({
           <option value="warp">
             ✨ Warp — cinematic tunnel-through (recommended)
           </option>
+          <option value="warp_blur">
+            ✨ Warp + Blur — tunnel-through with motion blur
+          </option>
           <option value="dissolve">
             ✨ Dissolve — cinematic soft cross-dissolve
           </option>
@@ -686,8 +698,6 @@ function PhotoTab({
           Applied to every scene switch in the public viewer.
         </div>
       </div>
-
-      <HotspotFxSettings tour={tour} onPatch={onPatchTour} />
 
       {/* Ambient audio moved to Lang tab so it sits with subtitles. */}
       <NadirSettings tour={tour} onPatch={onPatchTour} />
@@ -2023,18 +2033,15 @@ function HotspotFxSettings({
       value: tour.fx_ripple !== false,
     },
     {
-      key: "fx_hover_icon",
-      label: "Type glyph on hover",
-      hint: "Small badge shows what the hotspot does (▶ i →)",
-      value: tour.fx_hover_icon !== false,
-    },
-    {
       key: "fx_hover_card",
       label: "Hover preview card",
       hint: "Nav & video hotspots show a preview on hover",
       value: tour.fx_hover_card !== false,
     },
   ];
+
+  const cardScale = tour.fx_hover_card_scale ?? 1;
+  const idleSpin = tour.fx_idle_spin !== false;
 
   return (
     <div className="pt-4 border-t border-border space-y-2">
@@ -2068,6 +2075,53 @@ function HotspotFxSettings({
           </span>
         </label>
       ))}
+
+      {/* Hover preview card size — scales both the card and the thumbnail
+          inside it. Only relevant while the preview card is enabled. */}
+      {tour.fx_hover_card !== false && (
+        <div className="pt-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[12px] text-neutral-300">
+              Preview card size
+            </span>
+            <span className="text-[11px] tabular-nums text-accent">
+              {Math.round(cardScale * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.5}
+            max={2}
+            step={0.05}
+            value={cardScale}
+            onChange={(e) =>
+              onPatch({ fx_hover_card_scale: Number(e.target.value) })
+            }
+            onDoubleClick={() => onPatch({ fx_hover_card_scale: 1 })}
+            className="w-full accent-accent"
+          />
+          <div className="text-[10.5px] text-neutral-500 mt-0.5">
+            How big the hover preview card and its thumbnail appear.
+          </div>
+        </div>
+      )}
+
+      {/* Unique premium touch: idle showcase spin. */}
+      <label className="flex items-start gap-2 text-xs cursor-pointer py-0.5 pt-2 border-t border-border/60 mt-1">
+        <input
+          type="checkbox"
+          checked={idleSpin}
+          className="mt-0.5 accent-accent"
+          onChange={(e) => onPatch({ fx_idle_spin: e.target.checked })}
+        />
+        <span>
+          <span className="text-neutral-200">Idle showcase spin ✨</span>
+          <span className="block text-[10.5px] text-neutral-500">
+            After a few seconds of no interaction the scene slowly rotates
+            like a showroom turntable — stops the instant the viewer touches it.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }

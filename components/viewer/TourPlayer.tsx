@@ -387,6 +387,9 @@ function TourPlayerInner({
     /** true → cinematic soft-dissolve (independent of warp). Mutually
      *  exclusive with `cinematic`. */
     dissolve: boolean;
+    /** true → warp fly-through PLUS animated motion blur (warp_blur mode).
+     *  Only meaningful when `cinematic` is true. */
+    blur: boolean;
     /** Dolly direction in radians (nav hotspot yaw/pitch). Null = no
      *  directional dolly (dollies along current forward). */
     direction: { yaw: number; pitch: number } | null;
@@ -492,8 +495,12 @@ function TourPlayerInner({
       !dissolve &&
       (!!opts.cinematic ||
         effect === "warp" ||
+        effect === "warp_blur" ||
         effect === "street_view" ||
         effect === "zoom");
+
+    // warp_blur = the exact warp fly-through + an animated motion blur.
+    const blur = effect === "warp_blur";
 
     // Kick off the in-engine transition. PanoramaViewer keeps rendering
     // the CURRENT scene while SceneTransition flies the camera into the
@@ -503,6 +510,7 @@ function TourPlayerInner({
       targetUrl: publicUrl(target.image_path),
       cinematic,
       dissolve,
+      blur,
       direction: opts.direction ?? null,
       targetAim: {
         yaw: target.initial_yaw ?? 0,
@@ -653,6 +661,7 @@ function TourPlayerInner({
           imageUrl={publicUrl(active.image_path)}
           adjustments={activeAdjustments}
           hotspotFx={hotspotFx}
+          idleSpin={tour.fx_idle_spin !== false}
           hotspots={hotspots}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}
@@ -695,6 +704,7 @@ function TourPlayerInner({
           transitionTargetUrl={pendingTransition?.targetUrl ?? null}
           transitionCinematic={pendingTransition?.cinematic ?? false}
           transitionDissolve={pendingTransition?.dissolve ?? false}
+          transitionBlur={pendingTransition?.blur ?? false}
           transitionDirection={pendingTransition?.direction ?? null}
           transitionTargetAim={pendingTransition?.targetAim ?? null}
           transitionDurationMs={pendingTransition?.durationMs ?? 1150}

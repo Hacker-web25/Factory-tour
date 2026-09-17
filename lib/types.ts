@@ -12,6 +12,10 @@ export type TransitionEffect =
    *  nav-hotspot clicks and auto-tour advance regardless of the tour's
    *  default setting — but can also be set as the default here. */
   | "warp"
+  /** Exact duplicate of the warp fly-through PLUS an animated motion blur.
+   *  Kept separate so plain "warp" is never touched — if the blur ever
+   *  misbehaves, revert the tour to "warp". */
+  | "warp_blur"
   /** Organic cross-fade with a subtle drift + blur. Used automatically
    *  for menu / scene-strip clicks. Also selectable as a tour default. */
   | "dissolve";
@@ -79,8 +83,9 @@ export type Tour = {
   fx_breathing?: boolean;      // slow breathing pulse on idle hotspots
   fx_hover_magnify?: boolean;  // marker scales up on hover
   fx_ripple?: boolean;         // expanding ripple on hover / click
-  fx_hover_icon?: boolean;     // type glyph badge appears on hover
   fx_hover_card?: boolean;     // nav / video preview card on hover
+  fx_hover_card_scale?: number; // 0.5–2, size of the hover preview card
+  fx_idle_spin?: boolean;      // slow showcase auto-rotate after inactivity
 
   /** Languages the tour has been translated INTO. Source language is
    *  implicit (always available). Populated by the editor's Translations
@@ -216,29 +221,33 @@ export type LabelFont =
 
 export type LabelPosition = "top" | "bottom" | "left" | "right";
 
-/** Resolved hotspot micro-interaction flags (all concrete booleans). */
+/** Resolved hotspot micro-interaction flags (all concrete values). */
 export type HotspotFx = {
   breathing: boolean;
   hoverMagnify: boolean;
   ripple: boolean;
-  hoverIcon: boolean;
   hoverCard: boolean;
+  hoverCardScale: number;
 };
 
-/** Resolve a tour's fx settings to concrete booleans (default ON). */
+/** Resolve a tour's fx settings to concrete values (default ON, scale 1). */
 export function resolveHotspotFx(tour: {
   fx_breathing?: boolean;
   fx_hover_magnify?: boolean;
   fx_ripple?: boolean;
-  fx_hover_icon?: boolean;
   fx_hover_card?: boolean;
+  fx_hover_card_scale?: number;
 }): HotspotFx {
   return {
     breathing: tour.fx_breathing !== false,
     hoverMagnify: tour.fx_hover_magnify !== false,
     ripple: tour.fx_ripple !== false,
-    hoverIcon: tour.fx_hover_icon !== false,
     hoverCard: tour.fx_hover_card !== false,
+    hoverCardScale:
+      typeof tour.fx_hover_card_scale === "number" &&
+      tour.fx_hover_card_scale > 0
+        ? tour.fx_hover_card_scale
+        : 1,
   };
 }
 

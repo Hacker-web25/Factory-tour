@@ -11,15 +11,6 @@ import { findIcon } from "@/lib/iconLibrary";
 import { useT } from "@/lib/TranslationContext";
 import { fontFor } from "@/lib/fonts";
 import {
-  ArrowRight,
-  Info as InfoIcon,
-  Play,
-  Image as ImageGlyph,
-  FileText,
-  Volume2,
-  ExternalLink,
-} from "lucide-react";
-import {
   SPHERE_RADIUS,
   HOTSPOT_RADIUS,
   sphericalToVec3,
@@ -57,6 +48,10 @@ type Props = {
   nadirSize?: number;
   /** Auto-rotate the camera (used by Auto-tour). */
   autoRotate?: boolean;
+  /** Idle showcase spin — after a few seconds of no interaction the camera
+   *  slowly rotates like a turntable, stopping the instant the viewer
+   *  interacts. Viewer-only (ignored while editable). */
+  idleSpin?: boolean;
   /** Auto-rotate speed (OrbitControls units — ~30/rev at 1.0). Default 1.5. */
   autoRotateSpeed?: number;
   /** Per-scene camera limits (radians). null / undefined = unlimited (up to sensible defaults). */
@@ -108,6 +103,10 @@ type Props = {
   /** True → cinematic soft-dissolve (independent of warp). Overrides the
    *  dolly/FOV-whip path with a luminance-lifted cross-dissolve. */
   transitionDissolve?: boolean;
+  /** True → overlay an animated motion blur on the canvas for the duration
+   *  of the transition (warp_blur mode). Pure CSS, independent of the warp
+   *  animation itself so plain warp is untouched. */
+  transitionBlur?: boolean;
   /** Optional dolly direction (nav-hotspot yaw/pitch). Ignored when
    *  transitionCinematic=false. Null = dolly along camera's forward. */
   transitionDirection?: { yaw: number; pitch: number } | null;
@@ -132,8 +131,8 @@ const DEFAULT_FX: HotspotFx = {
   breathing: true,
   hoverMagnify: true,
   ripple: true,
-  hoverIcon: true,
   hoverCard: true,
+  hoverCardScale: 1,
 };
 
 export default function PanoramaViewer({
@@ -149,8 +148,27 @@ export default function PanoramaViewer({
   const gradientStyle = gradientOverlayStyle(adj);
   const filter = buildFilterCSS(adj);
 
+  // Motion-blur overlay (warp_blur). Runs a one-shot CSS blur animation on
+  // the OUTER wrapper for exactly the transition's duration — kept separate
+  // from the inner grading `filter` so the two compose (blur nests over
+  // grade) and plain warp is never affected. Keyed so it re-fires per swap.
+  const blurActive = !!props.transitionBlur && !!props.transitionTargetUrl;
+  const blurDurMs = props.transitionDurationMs ?? 1800;
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      // NOTE: never key this wrapper — it hosts the persistent <Canvas>, and
+      // a key change would tear down / rebuild the WebGL context (black
+      // frame). Toggling the class on/off is enough to (re)fire the CSS
+      // blur animation each time a transition starts.
+      className={blurActive ? "pano-warp-blur" : undefined}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        animationDuration: blurActive ? `${blurDurMs}ms` : undefined,
+      }}
+    >
       <div
         style={{
           position: "absolute",
@@ -198,6 +216,7 @@ function Scene({
   nadirImageUrl,
   nadirSize = 25,
   autoRotate = false,
+  idleSpin = false,
   autoRotateSpeed = 1.5,
   pitchMin,
   pitchMax,
@@ -460,6 +479,39 @@ function Scene({
     };
   }, [dragId, editable, onHotspotDrag, gl, camera, raycaster, hotspots]);
 
+  /* -------- Idle showcase spin ("attract mode") --------------------------
+   * After IDLE_MS with no pointer / wheel interaction, slowly auto-rotate
+   * the camera like a turntable. Any interaction stops it immediately and
+   * restarts the idle countdown. Viewer-only, and never while a hotspot is
+   * being dragged. Delivers the "the scene is alive" premium feel. */
+  const [idleActive, setIdleActive] = useState(false);
+  useEffect(() => {
+    if (!idleSpin || editable) {
+      setIdleActive(false);
+      return;
+    }
+    const IDLE_MS = 5000;
+    const canvas = gl.domElement;
+    let timer: number | undefined;
+    const arm = () => {
+      setIdleActive(false);
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIdleActive(true), IDLE_MS);
+    };
+    const onInteract = () => arm();
+    canvas.addEventListener("pointerdown", onInteract);
+    canvas.addEventListener("wheel", onInteract, { passive: true });
+    canvas.addEventListener("pointermove", onInteract);
+    arm(); // start the first countdown
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      canvas.removeEventListener("pointerdown", onInteract);
+      canvas.removeEventListener("wheel", onInteract);
+      canvas.removeEventListener("pointermove", onInteract);
+    };
+    // Re-arm on scene change so a fresh scene starts its own countdown.
+  }, [idleSpin, editable, gl, imageUrl]);
+
   // Set initial FOV whenever the scene / zoomInitialFov changes.
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
@@ -616,8 +668,10 @@ function Scene({
         }
         minAzimuthAngle={yawMin ?? -Infinity}
         maxAzimuthAngle={yawMax ?? Infinity}
-        autoRotate={autoRotate}
-        autoRotateSpeed={autoRotateSpeed}
+        /* Auto-tour rotation takes priority; otherwise the idle showcase
+           spin kicks in after inactivity. */
+        autoRotate={autoRotate || idleActive}
+        autoRotateSpeed={autoRotate ? autoRotateSpeed : 0.35}
       />
     </>
   );
@@ -878,7 +932,7 @@ function HtmlBillboard({
               border: "1px solid rgba(34, 211, 238, 0.55)",
               borderRadius: 6,
               padding: 8,
-              width: 260,
+              width: Math.round(260 * fx.hoverCardScale),
               boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
@@ -894,7 +948,7 @@ function HtmlBillboard({
                 draggable={false}
                 style={{
                   width: "100%",
-                  height: 150,
+                  height: Math.round(150 * fx.hoverCardScale),
                   objectFit: "cover",
                   borderRadius: 4,
                   display: "block",
@@ -924,14 +978,11 @@ function HtmlBillboard({
             Click bubbles up to the hotspot's onClick so the video opens
             normally (modal or inline). */}
         {hovered && showVideoPreview && !editable && fx.hoverCard && (
-          <VideoPreviewCard hotspot={h} thumbnail={videoPreviewThumb} />
-        )}
-
-        {/* Type glyph badge — a small affordance that fades in on hover so
-            the visitor instantly knows what a marker DOES (arrow = go to
-            scene, i = info, play = video, etc.). Skipped in the editor. */}
-        {hovered && !editable && fx.hoverIcon && (
-          <HoverTypeGlyph hotspot={h} isNav={isNav} />
+          <VideoPreviewCard
+            hotspot={h}
+            thumbnail={videoPreviewThumb}
+            cardScale={fx.hoverCardScale}
+          />
         )}
 
         {/* Inner: pure content, with a clean outline offset for selection.
@@ -1044,49 +1095,6 @@ function HtmlBillboard({
         })()}
       </div>
     </Html>
-  );
-}
-
-/* --------- Hover type-glyph badge (fx.hoverIcon) ---------------------- */
-
-function HoverTypeGlyph({
-  hotspot: h,
-  isNav,
-}: {
-  hotspot: Hotspot;
-  isNav: boolean;
-}) {
-  let Glyph: React.ComponentType<any> | null = null;
-  if (isNav || h.type === "nav" || h.action === "nav") Glyph = ArrowRight;
-  else if (h.type === "info") Glyph = InfoIcon;
-  else if (h.type === "video" || h.video_url) Glyph = Play;
-  else if (h.type === "image") Glyph = ImageGlyph;
-  else if (h.pdf_url) Glyph = FileText;
-  else if (h.audio_url) Glyph = Volume2;
-  else if (h.url) Glyph = ExternalLink;
-  if (!Glyph) return null;
-
-  return (
-    <div
-      className="pointer-events-none"
-      style={{
-        position: "absolute",
-        top: 2,
-        right: 2,
-        width: 22,
-        height: 22,
-        borderRadius: "50%",
-        background: "rgba(15,15,20,0.85)",
-        border: "1.5px solid rgba(255,255,255,0.9)",
-        display: "grid",
-        placeItems: "center",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.55)",
-        animation: "hs-nav-preview-in 0.16s ease-out",
-        zIndex: 22,
-      }}
-    >
-      <Glyph size={13} color="#ffffff" strokeWidth={2.4} />
-    </div>
   );
 }
 
@@ -1216,9 +1224,12 @@ function IconOrImage({
 function VideoPreviewCard({
   hotspot: h,
   thumbnail,
+  cardScale = 1,
 }: {
   hotspot: Hotspot;
   thumbnail: string | null;
+  /** Tour-wide hover-card size multiplier (fx.hoverCardScale). */
+  cardScale?: number;
 }) {
   const [meta, setMeta] = useState<{ title: string; author?: string } | null>(
     () => (h.video_url ? videoMetaCache.get(h.video_url) ?? null : null)
@@ -1264,7 +1275,7 @@ function VideoPreviewCard({
     (ytId ? "YouTube video" : "Video");
   const subtitle = meta?.author ?? (ytId ? "YouTube" : "");
 
-  const thumbScale = (h.thumbnail_size_pct ?? 100) / 100;
+  const thumbScale = ((h.thumbnail_size_pct ?? 100) / 100) * cardScale;
   const cardW = Math.round(300 * thumbScale);
   const thumbH = Math.round(168 * thumbScale);
 

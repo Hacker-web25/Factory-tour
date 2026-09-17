@@ -156,6 +156,22 @@ details > summary::-webkit-details-marker { display: none; }
   will-change: transform, opacity;
 }
 
+/* Warp + Blur transition — one-shot motion blur over the canvas that peaks
+   mid-fly-through and clears by the end. animation-duration is set inline to
+   match the transition length. Only applied for the warp_blur effect, so
+   plain warp is never touched. */
+@keyframes pano-warp-blur-kf {
+  0%   { filter: blur(0px); }
+  45%  { filter: blur(7px); }
+  100% { filter: blur(0px); }
+}
+.pano-warp-blur {
+  animation-name: pano-warp-blur-kf;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: both;
+  will-change: filter;
+}
+
 /* --------- Premium pulse ring (breathing double-ring around hotspots) ----
  * Layered behind info & person hotspots. Two rings expand outward and
  * fade — one lagging the other — so the effect feels continuous and
