@@ -91,6 +91,23 @@ export default function FlatViewer({
   const lastDragPosRef = useRef<{ x: number; y: number } | null>(null);
   const [isDraggingHotspot, setIsDraggingHotspot] = useState(false);
 
+  /* -------- Magnetic snap state (only during drag) -----------------------
+   * When the dragged hotspot's raw cursor position gets within SNAP_PX of
+   * another hotspot's x or y, the position is locked to that line — with a
+   * larger BREAK_PX threshold you can pull past to release. Guide lines
+   * (dashed cyan) render at every active snap axis so the user sees exactly
+   * what they're aligning to (Figma / Sketch / Kuula-style). */
+  const [snapGuides, setSnapGuides] = useState<{
+    v: number | null; // vertical guide x (0..1 image pct)
+    h: number | null; // horizontal guide y (0..1 image pct)
+  }>({ v: null, h: null });
+  // Track whether we're currently "stuck" to a snap line and how far the
+  // cursor has drifted from it — used for the break-away feel.
+  const stickyRef = useRef<{
+    stuckX: number | null;
+    stuckY: number | null;
+  }>({ stuckX: null, stuckY: null });
+
   function screenToImagePct(clientX: number, clientY: number) {
     const el = imgRef.current;
     if (!el) return null;
@@ -105,11 +122,90 @@ export default function FlatViewer({
     dragHotspotRef.current = id;
     lastDragPosRef.current = null;
     setIsDraggingHotspot(true);
+    stickyRef.current = { stuckX: null, stuckY: null };
+
+    // Snap thresholds — attract within SNAP_PX, break away after BREAK_PX
+    // of drift. Feels like the Kuula / Figma / Sketch magnet.
+    const SNAP_PX = 8;
+    const BREAK_PX = 18;
+
+    // Other hotspots — the snap targets. Exclude the one being dragged.
+    const targets = hotspots.filter((o) => o.id !== id && o.flat_x != null && o.flat_y != null);
 
     const onMove = (ev: PointerEvent) => {
       if (!dragHotspotRef.current) return;
-      const p = screenToImagePct(ev.clientX, ev.clientY);
-      if (!p) return;
+      const rawP = screenToImagePct(ev.clientX, ev.clientY);
+      if (!rawP) return;
+
+      const el = imgRef.current;
+      const rect = el?.getBoundingClientRect();
+      const imgW = rect?.width ?? 1000;
+      const imgH = rect?.height ?? 1000;
+
+      // Convert pixel thresholds to 0..1 image-pct units for each axis.
+      const snapX = SNAP_PX / imgW;
+      const snapY = SNAP_PX / imgH;
+      const breakX = BREAK_PX / imgW;
+      const breakY = BREAK_PX / imgH;
+
+      let x = rawP.x;
+      let y = rawP.y;
+      let guideV: number | null = null;
+      let guideH: number | null = null;
+
+      /* --- X (vertical guide line at another hotspot's flat_x) --- */
+      if (stickyRef.current.stuckX != null) {
+        // We're already glued to a vertical line — release only if the
+        // raw cursor has drifted past the break-away threshold.
+        if (Math.abs(rawP.x - stickyRef.current.stuckX) > breakX) {
+          stickyRef.current.stuckX = null;
+        } else {
+          x = stickyRef.current.stuckX;
+          guideV = x;
+        }
+      }
+      if (stickyRef.current.stuckX == null) {
+        // Look for a fresh snap target on X.
+        let best: { x: number; d: number } | null = null;
+        for (const o of targets) {
+          const d = Math.abs(rawP.x - (o.flat_x as number));
+          if (d < snapX && (!best || d < best.d)) {
+            best = { x: o.flat_x as number, d };
+          }
+        }
+        if (best) {
+          stickyRef.current.stuckX = best.x;
+          x = best.x;
+          guideV = best.x;
+        }
+      }
+
+      /* --- Y (horizontal guide line at another hotspot's flat_y) --- */
+      if (stickyRef.current.stuckY != null) {
+        if (Math.abs(rawP.y - stickyRef.current.stuckY) > breakY) {
+          stickyRef.current.stuckY = null;
+        } else {
+          y = stickyRef.current.stuckY;
+          guideH = y;
+        }
+      }
+      if (stickyRef.current.stuckY == null) {
+        let best: { y: number; d: number } | null = null;
+        for (const o of targets) {
+          const d = Math.abs(rawP.y - (o.flat_y as number));
+          if (d < snapY && (!best || d < best.d)) {
+            best = { y: o.flat_y as number, d };
+          }
+        }
+        if (best) {
+          stickyRef.current.stuckY = best.y;
+          y = best.y;
+          guideH = best.y;
+        }
+      }
+
+      setSnapGuides({ v: guideV, h: guideH });
+      const p = { x, y };
       lastDragPosRef.current = p;
       onHotspotDrag?.(dragHotspotRef.current, p.x, p.y);
     };
@@ -118,7 +214,9 @@ export default function FlatViewer({
       const last = lastDragPosRef.current;
       dragHotspotRef.current = null;
       lastDragPosRef.current = null;
+      stickyRef.current = { stuckX: null, stuckY: null };
       setIsDraggingHotspot(false);
+      setSnapGuides({ v: null, h: null });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
@@ -216,6 +314,44 @@ export default function FlatViewer({
         {warmthStyle && <div style={warmthStyle} />}
         {gradientStyle && <div style={gradientStyle} />}
         {vignetteStyle && <div style={vignetteStyle} />}
+
+        {/* Magnetic-snap guide lines — dashed cyan strokes that appear only
+            while dragging a hotspot near another's x or y axis. Positioned
+            in image-pct so they inherit pan/zoom via the transform wrapper. */}
+        {editable && (snapGuides.v != null || snapGuides.h != null) && (
+          <>
+            {snapGuides.v != null && (
+              <div
+                className="pointer-events-none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: `${snapGuides.v * 100}%`,
+                  width: 0,
+                  borderLeft: "1px dashed rgba(34,211,238,0.9)",
+                  boxShadow: "0 0 6px rgba(34,211,238,0.4)",
+                  zIndex: 30,
+                }}
+              />
+            )}
+            {snapGuides.h != null && (
+              <div
+                className="pointer-events-none"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: `${snapGuides.h * 100}%`,
+                  height: 0,
+                  borderTop: "1px dashed rgba(34,211,238,0.9)",
+                  boxShadow: "0 0 6px rgba(34,211,238,0.4)",
+                  zIndex: 30,
+                }}
+              />
+            )}
+          </>
+        )}
 
         {/* Hotspots overlay — inside the same transform so they scale/pan with the image */}
         {hotspots.map((h) => (

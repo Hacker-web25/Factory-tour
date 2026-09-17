@@ -335,9 +335,25 @@ function Scene({
     });
   }, [gl, camera, raycaster, onProvideScreenToYawPitch]);
 
+  // Magnetic snap during 3D drag — attract yaw/pitch to any OTHER hotspot's
+  // yaw/pitch when within ~1° / release with a bit more drift. Emits a
+  // matching guide-line event so the parent's overlay can render dashed
+  // lines across the viewport. Feels like the flat-scene magnet, but tuned
+  // for spherical space where "aligned in the world" is aligned yaw or
+  // aligned pitch.
+  const snapStuckRef = useRef<{ yaw: number | null; pitch: number | null }>({
+    yaw: null,
+    pitch: null,
+  });
   useEffect(() => {
     if (!dragId || !editable || !onHotspotDrag) return;
     if (orbitRef.current) orbitRef.current.enabled = false;
+    snapStuckRef.current = { yaw: null, pitch: null };
+
+    // ~0.9° attract / ~2° release. Rad.
+    const SNAP = 0.016;
+    const BREAK = 0.035;
+    const targets = hotspots.filter((h) => h.id !== dragId);
 
     const canvas = gl.domElement;
     const handleMove = (e: PointerEvent) => {
@@ -346,14 +362,55 @@ function Scene({
       const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
       const hit = raycaster.intersectObject(sphereRef.current)[0];
-      if (hit) {
-        const p = hit.point.clone().normalize().multiplyScalar(HOTSPOT_RADIUS);
-        const { yaw, pitch } = vec3ToSpherical(p);
-        onHotspotDrag(dragId, yaw, pitch);
+      if (!hit) return;
+      const p = hit.point.clone().normalize().multiplyScalar(HOTSPOT_RADIUS);
+      let { yaw, pitch } = vec3ToSpherical(p);
+
+      // Yaw snap (vertical alignment in the world).
+      if (snapStuckRef.current.yaw != null) {
+        if (Math.abs(yaw - snapStuckRef.current.yaw) > BREAK) {
+          snapStuckRef.current.yaw = null;
+        } else {
+          yaw = snapStuckRef.current.yaw;
+        }
       }
+      if (snapStuckRef.current.yaw == null) {
+        let best: { yaw: number; d: number } | null = null;
+        for (const t of targets) {
+          const d = Math.abs(yaw - t.yaw);
+          if (d < SNAP && (!best || d < best.d)) best = { yaw: t.yaw, d };
+        }
+        if (best) {
+          snapStuckRef.current.yaw = best.yaw;
+          yaw = best.yaw;
+        }
+      }
+
+      // Pitch snap (horizontal alignment in the world).
+      if (snapStuckRef.current.pitch != null) {
+        if (Math.abs(pitch - snapStuckRef.current.pitch) > BREAK) {
+          snapStuckRef.current.pitch = null;
+        } else {
+          pitch = snapStuckRef.current.pitch;
+        }
+      }
+      if (snapStuckRef.current.pitch == null) {
+        let best: { pitch: number; d: number } | null = null;
+        for (const t of targets) {
+          const d = Math.abs(pitch - t.pitch);
+          if (d < SNAP && (!best || d < best.d)) best = { pitch: t.pitch, d };
+        }
+        if (best) {
+          snapStuckRef.current.pitch = best.pitch;
+          pitch = best.pitch;
+        }
+      }
+
+      onHotspotDrag(dragId, yaw, pitch);
     };
     const handleUp = () => {
       setDragId(null);
+      snapStuckRef.current = { yaw: null, pitch: null };
       if (orbitRef.current) orbitRef.current.enabled = true;
     };
     window.addEventListener("pointermove", handleMove);
@@ -362,7 +419,7 @@ function Scene({
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [dragId, editable, onHotspotDrag, gl, camera, raycaster]);
+  }, [dragId, editable, onHotspotDrag, gl, camera, raycaster, hotspots]);
 
   // Set initial FOV whenever the scene / zoomInitialFov changes.
   useEffect(() => {
