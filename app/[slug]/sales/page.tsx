@@ -14,7 +14,9 @@ import {
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
 import CalendarWidget from "@/components/dashboard/CalendarWidget";
+import VpvLogo from "@/components/dashboard/VpvLogo";
 import { startPresence } from "@/lib/presence";
+import { timeGreeting } from "@/lib/greeting";
 import {
   Box,
   Bell,
@@ -239,13 +241,7 @@ export default function SalesDashboardPage() {
     setTimeout(() => setCopiedId(null), 1500);
   }
 
-  const greeting = useMemo(() => {
-    const h = new Date().getHours();
-    if (h < 5) return "Working late,";
-    if (h < 12) return "Good morning,";
-    if (h < 18) return "Good afternoon,";
-    return "Good evening,";
-  }, []);
+  const greeting = useMemo(() => timeGreeting(), []);
   const firstName = (me?.full_name || me?.email || "there").split(/[\s@]/)[0];
 
   if (loading) {
@@ -274,22 +270,7 @@ export default function SalesDashboardPage() {
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
         <div className="px-6 pt-7 pb-8">
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-lg bg-vpv-grad" />
-              <div className="absolute inset-[3px] rounded-md bg-white grid place-items-center">
-                <Factory size={16} className="text-vpv-navy" />
-              </div>
-            </div>
-            <div className="leading-none">
-              <div className="text-[17px] font-extrabold tracking-tight text-vpv-navy">
-                VPV
-              </div>
-              <div className="text-[9px] font-semibold tracking-[0.18em] text-vpv-muted mt-0.5">
-                FACTORY TOUR
-              </div>
-            </div>
-          </div>
+          <VpvLogo />
         </div>
         <nav className="px-3 space-y-0.5">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]">

@@ -53,7 +53,7 @@ export function CountUp({
   return (
     <>
       {format(v)}
-      {suffix && <span className="text-white/40 text-[0.7em] ml-1">{suffix}</span>}
+      {suffix && <span className="text-vpv-muted text-[0.7em] ml-1">{suffix}</span>}
     </>
   );
 }
@@ -63,7 +63,7 @@ export function CountUp({
 export function DeltaChip({ pct }: { pct: number }) {
   if (pct === 0) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-white/40 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-0.5 text-[10.5px] font-medium text-vpv-muted bg-vpv-canvas border border-vpv-line px-1.5 py-0.5 rounded-full">
         <Minus size={9} /> 0%
       </span>
     );
@@ -73,8 +73,8 @@ export function DeltaChip({ pct }: { pct: number }) {
     <span
       className={`inline-flex items-center gap-0.5 text-[10.5px] font-medium px-1.5 py-0.5 rounded-full border ${
         up
-          ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/25"
-          : "text-rose-300 bg-rose-500/10 border-rose-500/25"
+          ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+          : "text-rose-600 bg-rose-50 border-rose-200"
       }`}
     >
       {up ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
@@ -177,14 +177,14 @@ export function WeekStrip({ values }: { values: number[] }) {
         return (
           <div key={i} className="flex flex-col items-center gap-0.5">
             <div
-              className="w-3 rounded-sm bg-accent"
+              className="w-3 rounded-sm bg-vpv-blue"
               style={{
                 height: `${Math.max(4, intensity * 20)}px`,
                 opacity: v === 0 ? 0.12 : 0.35 + intensity * 0.65,
               }}
               title={`${v} presentation${v === 1 ? "" : "s"}`}
             />
-            <span className="text-[8px] text-white/25">{label}</span>
+            <span className="text-[8px] text-vpv-muted">{label}</span>
           </div>
         );
       })}

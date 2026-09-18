@@ -90,41 +90,41 @@ export default function PresenterAssignModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/75 grid place-items-center p-4"
+      className="fixed inset-0 z-50 bg-vpv-navy/30 backdrop-blur-sm grid place-items-center p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-neutral-950 border border-white/10 rounded-2xl w-[460px] max-w-full max-h-[85vh] flex flex-col shadow-2xl"
+        className="bg-white border border-vpv-line rounded-2xl w-[460px] max-w-full max-h-[85vh] flex flex-col shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
       >
-        <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-vpv-line flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <UserCheck size={14} className="text-cyan-400 shrink-0" />
+            <UserCheck size={14} className="text-vpv-cyan shrink-0" />
             <div className="min-w-0">
-              <div className="text-[13px] font-semibold truncate">
+              <div className="text-[13px] font-semibold truncate text-vpv-ink">
                 Assign tours
               </div>
-              <div className="text-[11px] text-white/40 truncate">
+              <div className="text-[11px] text-vpv-muted truncate">
                 to {presenterName}
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white">
+          <button onClick={onClose} className="text-vpv-muted hover:text-vpv-ink">
             <X size={16} />
           </button>
         </div>
-        <div className="px-5 py-2 border-b border-white/5 text-[11px] flex items-center justify-between">
-          <span className="text-white/40">
+        <div className="px-5 py-2 border-b border-vpv-line text-[11px] flex items-center justify-between">
+          <span className="text-vpv-muted">
             {assigned.size} of {tours.length} tour
             {tours.length === 1 ? "" : "s"}
           </span>
           <div className="flex items-center gap-2">
-            <button onClick={selectAll} className="text-accent hover:underline">
+            <button onClick={selectAll} className="text-vpv-blue hover:underline font-medium">
               All
             </button>
-            <span className="text-white/20">·</span>
+            <span className="text-vpv-line">·</span>
             <button
               onClick={selectNone}
-              className="text-white/50 hover:text-white"
+              className="text-vpv-muted hover:text-vpv-ink"
             >
               None
             </button>
@@ -133,10 +133,10 @@ export default function PresenterAssignModal({
         <div className="flex-1 overflow-auto panel-scroll p-2">
           {loading ? (
             <div className="grid place-items-center py-8">
-              <Loader2 size={16} className="animate-spin text-white/40" />
+              <Loader2 size={16} className="animate-spin text-vpv-muted" />
             </div>
           ) : tours.length === 0 ? (
-            <div className="text-center py-8 text-[12px] text-white/40">
+            <div className="text-center py-8 text-[12px] text-vpv-muted">
               No tours in your library yet.
             </div>
           ) : (
@@ -151,15 +151,15 @@ export default function PresenterAssignModal({
                     disabled={busy}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors text-left ${
                       on
-                        ? "border-accent/40 bg-accent/5"
-                        : "border-transparent hover:bg-white/[0.04]"
+                        ? "border-vpv-blue/40 bg-vpv-tint"
+                        : "border-transparent hover:bg-vpv-tint/50"
                     }`}
                   >
                     <div
                       className={`w-4 h-4 rounded grid place-items-center border shrink-0 ${
                         on
-                          ? "bg-accent border-accent text-black"
-                          : "border-white/20"
+                          ? "bg-vpv-blue border-vpv-blue text-white"
+                          : "border-vpv-line"
                       }`}
                     >
                       {busy ? (
@@ -168,7 +168,7 @@ export default function PresenterAssignModal({
                         <Check size={11} strokeWidth={3} />
                       ) : null}
                     </div>
-                    <div className="min-w-0 flex-1 text-[12.5px] text-white truncate">
+                    <div className="min-w-0 flex-1 text-[12.5px] text-vpv-ink truncate">
                       {t.title}
                     </div>
                   </button>
@@ -177,7 +177,7 @@ export default function PresenterAssignModal({
             </div>
           )}
         </div>
-        <div className="px-5 py-3 border-t border-white/5 text-[10.5px] text-white/40">
+        <div className="px-5 py-3 border-t border-vpv-line text-[10.5px] text-vpv-muted">
           Changes save instantly. The presenter sees updates on their
           dashboard within seconds.
         </div>

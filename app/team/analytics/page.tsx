@@ -33,10 +33,10 @@ import {
   KpiTile,
   MemberCard,
   MemberDetailModal,
-  LeaderboardCard,
   InsightStrip,
   KpiIcons,
 } from "@/components/dashboard/composites";
+import VpvLogo from "@/components/dashboard/VpvLogo";
 import {
   Box,
   Users,
@@ -234,30 +234,25 @@ export default function TeamAnalyticsPage() {
 
   if (!me) {
     return (
-      <div className="min-h-screen bg-black text-white grid place-items-center">
-        <Loader2 size={20} className="animate-spin text-white/40" />
+      <div className="min-h-screen bg-vpv-canvas text-vpv-ink grid place-items-center">
+        <Loader2 size={20} className="animate-spin text-vpv-blue/50" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div
+      className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
+      style={{
+        backgroundImage:
+          "radial-gradient(60% 55% at 85% 0%, rgba(25,184,242,0.10), rgba(0,0,0,0) 60%), radial-gradient(45% 45% at 5% 5%, rgba(20,104,216,0.08), rgba(0,0,0,0) 55%)",
+        backgroundAttachment: "fixed",
+      }}
+    >
       {/* SIDEBAR */}
-      <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black border-r border-white/[0.06] flex flex-col">
+      <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
         <div className="px-6 pt-7 pb-8">
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500" />
-              <div className="absolute inset-[3px] rounded-md bg-black grid place-items-center">
-                <Factory size={16} className="text-white" />
-              </div>
-            </div>
-            <div className="text-[15px] font-semibold tracking-tight leading-none">
-              FACTORY
-              <br />
-              TOUR
-            </div>
-          </div>
+          <VpvLogo />
         </div>
         <nav className="px-3 space-y-0.5">
           <SideNav href="/client" icon={<Box size={16} />} label="All Tours" />
@@ -284,11 +279,11 @@ export default function TeamAnalyticsPage() {
           <div className="min-w-0">
             <Link
               href="/client"
-              className="text-[11px] text-white/40 hover:text-white/70 flex items-center gap-1 mb-2"
+              className="text-[11px] text-vpv-muted hover:text-vpv-blue flex items-center gap-1 mb-2"
             >
               <ChevronLeft size={11} /> Back to dashboard
             </Link>
-            <h1 className="text-[28px] font-semibold leading-tight tracking-tight">
+            <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-vpv-ink">
               Sales team analytics
             </h1>
           </div>
@@ -297,7 +292,7 @@ export default function TeamAnalyticsPage() {
             <div className="relative">
               <button
                 onClick={() => setRangeMenuOpen((v) => !v)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/10 text-[12px] hover:bg-white/[0.06]"
+                className="flex items-center gap-2 px-3 py-2 rounded-full bg-white border border-vpv-line text-[12px] text-vpv-ink hover:border-vpv-blue/40"
               >
                 {RANGES[rangeIdx].label}
                 <ChevronDown size={12} />
@@ -305,7 +300,7 @@ export default function TeamAnalyticsPage() {
               {rangeMenuOpen && (
                 <div
                   onMouseLeave={() => setRangeMenuOpen(false)}
-                  className="absolute right-0 top-full mt-1 bg-neutral-950 border border-white/10 rounded-lg py-1 min-w-[160px] shadow-panel z-10"
+                  className="absolute right-0 top-full mt-1 bg-white border border-vpv-line rounded-xl py-1 min-w-[160px] shadow-[0_12px_40px_-12px_rgba(11,61,145,0.25)] z-10"
                 >
                   {RANGES.map((r, i) => (
                     <button
@@ -314,8 +309,8 @@ export default function TeamAnalyticsPage() {
                         setRangeIdx(i);
                         setRangeMenuOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-white/5 ${
-                        i === rangeIdx ? "text-accent" : "text-white/70"
+                      className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-vpv-tint ${
+                        i === rangeIdx ? "text-vpv-blue font-medium" : "text-vpv-muted"
                       }`}
                     >
                       {r.label}
@@ -326,7 +321,7 @@ export default function TeamAnalyticsPage() {
             </div>
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/10 text-[12px] hover:bg-white/[0.06]"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white border border-vpv-line text-[12px] text-vpv-ink hover:border-vpv-blue/40"
               title="Print or save as PDF"
             >
               <Download size={12} /> Export
@@ -335,24 +330,24 @@ export default function TeamAnalyticsPage() {
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-white/[0.04] border border-white/10 hover:bg-white/[0.06]"
+                className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/40"
               >
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 grid place-items-center text-black text-[11px] font-semibold">
+                <div className="w-7 h-7 rounded-full bg-vpv-grad grid place-items-center text-white text-[11px] font-semibold">
                   {(me.full_name ?? me.email).slice(0, 1).toUpperCase()}
                 </div>
-                <div className="text-[11.5px] font-medium">
+                <div className="text-[11.5px] font-medium text-vpv-ink">
                   {me.full_name?.split(" ")[0] ?? "You"}
                 </div>
-                <ChevronDown size={11} className="text-white/40" />
+                <ChevronDown size={11} className="text-vpv-muted" />
               </button>
               {userMenuOpen && (
                 <div
                   onMouseLeave={() => setUserMenuOpen(false)}
-                  className="absolute right-0 top-full mt-1 bg-neutral-950 border border-white/10 rounded-lg py-1 min-w-[180px] shadow-panel z-10"
+                  className="absolute right-0 top-full mt-1 bg-white border border-vpv-line rounded-xl py-1 min-w-[180px] shadow-[0_12px_40px_-12px_rgba(11,61,145,0.25)] z-10"
                 >
                   <button
                     onClick={handleSignOut}
-                    className="w-full text-left px-3 py-2 text-[12px] hover:bg-white/5 flex items-center gap-2 text-rose-300"
+                    className="w-full text-left px-3 py-2 text-[12px] hover:bg-vpv-tint flex items-center gap-2 text-rose-500"
                   >
                     <LogOut size={12} /> Sign out
                   </button>
@@ -364,7 +359,7 @@ export default function TeamAnalyticsPage() {
 
         {loading || !overview ? (
           <div className="grid place-items-center py-24">
-            <Loader2 size={20} className="animate-spin text-white/40" />
+            <Loader2 size={20} className="animate-spin text-vpv-blue/50" />
           </div>
         ) : (
           <>
@@ -376,7 +371,7 @@ export default function TeamAnalyticsPage() {
                 delta={overview.deltas.presentations}
                 sparkline={sumSparklines(overview, "sparkline")}
                 icon={<KpiIcons.Presentation size={16} />}
-                accent="#a78bfa"
+                accent="#1468D8"
               />
               <KpiTile
                 label="Time presenting"
@@ -385,7 +380,7 @@ export default function TeamAnalyticsPage() {
                 delta={overview.deltas.hours}
                 sparkline={sumSparklines(overview, "sparkline")}
                 icon={<KpiIcons.Clock size={16} />}
-                accent="#22d3ee"
+                accent="#19B8F2"
               />
               <KpiTile
                 label="Unique prospects"
@@ -393,7 +388,7 @@ export default function TeamAnalyticsPage() {
                 delta={overview.deltas.uniqueProspects}
                 sparkline={sumSparklines(overview, "sparkline")}
                 icon={<KpiIcons.Globe2 size={16} />}
-                accent="#34d399"
+                accent="#0B3D91"
               />
               <KpiTile
                 label="Active members"
@@ -404,7 +399,7 @@ export default function TeamAnalyticsPage() {
                   (m) => overview.perMember.get(m.id)?.presentations ?? 0
                 )}
                 icon={<KpiIcons.Users2 size={16} />}
-                accent="#fbbf24"
+                accent="#0ea5b7"
               />
             </div>
 
@@ -415,59 +410,48 @@ export default function TeamAnalyticsPage() {
               </div>
             )}
 
-            {/* Team grid + Leaderboard */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 mb-6">
-              <div>
-                <div className="flex items-baseline justify-between mb-3">
-                  <h2 className="text-[15px] font-semibold">Your team</h2>
-                  <span className="text-[11px] text-white/40">
-                    {overview.members.length} member
-                    {overview.members.length === 1 ? "" : "s"}
-                  </span>
+            {/* Team grid (leaderboard removed per design) */}
+            <div className="mb-6">
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-[15px] font-semibold text-vpv-ink">Your team</h2>
+                <span className="text-[11px] text-vpv-muted">
+                  {overview.members.length} member
+                  {overview.members.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {overview.members.length === 0 ? (
+                <div className="bg-white border border-vpv-line rounded-2xl p-8 text-center shadow-[0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+                  <Users size={24} className="mx-auto text-vpv-blue/40 mb-2" />
+                  <div className="text-[13px] text-vpv-ink mb-1">
+                    No sales team members yet
+                  </div>
+                  <div className="text-[11px] text-vpv-muted mb-3">
+                    Invite your first presenter to see stats here.
+                  </div>
+                  <Link
+                    href="/team"
+                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-full bg-vpv-grad text-white text-[12px] font-medium"
+                  >
+                    Go to Team page
+                  </Link>
                 </div>
-                {overview.members.length === 0 ? (
-                  <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
-                    <Users size={24} className="mx-auto text-white/30 mb-2" />
-                    <div className="text-[13px] text-white/70 mb-1">
-                      No sales team members yet
-                    </div>
-                    <div className="text-[11px] text-white/40 mb-3">
-                      Invite your first presenter to see stats here.
-                    </div>
-                    <Link
-                      href="/team"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-black text-[12px] font-medium"
-                    >
-                      Go to Team page
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {overview.members.map((m) => {
-                      const s = overview.perMember.get(m.id);
-                      if (!s) return null;
-                      return (
-                        <MemberCard
-                          key={m.id}
-                          member={m}
-                          stats={s}
-                          onClick={() => setDetailMember(m)}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              <div>
-                <LeaderboardCard
-                  overview={overview}
-                  onPick={(m) => setDetailMember(m)}
-                />
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {overview.members.map((m) => {
+                    const s = overview.perMember.get(m.id);
+                    if (!s) return null;
+                    return (
+                      <MemberCard
+                        key={m.id}
+                        member={m}
+                        stats={s}
+                        onClick={() => setDetailMember(m)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
-
-            {/* Recent activity intentionally removed — session-level
-                drilldown lives inside the MemberDetailModal now. */}
           </>
         )}
       </main>
@@ -519,7 +503,7 @@ function SideNav({
     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors";
   if (disabled) {
     return (
-      <div className={`${base} text-white/25 cursor-not-allowed`}>
+      <div className={`${base} text-vpv-muted/50 cursor-not-allowed`}>
         {icon}
         {label}
       </div>
@@ -528,7 +512,7 @@ function SideNav({
   if (active) {
     return (
       <div
-        className={`${base} bg-violet-500/15 text-violet-200 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.3)]`}
+        className={`${base} bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]`}
       >
         {icon}
         {label}
@@ -538,7 +522,7 @@ function SideNav({
   return (
     <Link
       href={href}
-      className={`${base} text-white/60 hover:text-white hover:bg-white/[0.04]`}
+      className={`${base} text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/50`}
     >
       {icon}
       {label}

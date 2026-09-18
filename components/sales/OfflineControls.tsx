@@ -140,20 +140,24 @@ export default function OfflineControls({ tours }: Props) {
       <button
         onClick={() => setModalOpen(true)}
         title="Offline mode & downloads"
-        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3 py-2 rounded-full border shadow-panel transition-colors ${
+        className={`fixed bottom-4 right-4 z-40 flex items-center gap-2 px-3.5 py-2 rounded-full border transition-colors shadow-[0_10px_30px_-10px_rgba(11,61,145,0.35)] ${
           offline
             ? "bg-amber-500 border-amber-300 text-black"
-            : "bg-black/80 border-white/15 text-white/80 hover:text-white"
+            : "bg-white border-vpv-line text-vpv-ink hover:border-vpv-blue/40"
         }`}
       >
-        {offline ? <WifiOff size={14} /> : <Wifi size={14} />}
+        {offline ? (
+          <WifiOff size={14} />
+        ) : (
+          <Wifi size={14} className="text-vpv-cyan" />
+        )}
         <span className="text-[12px] font-medium">
           {offline ? "Offline" : "Online"}
         </span>
         {prepared.length > 0 && (
           <span
             className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-              offline ? "bg-black/25 text-black" : "bg-accent/25 text-accent"
+              offline ? "bg-black/25 text-black" : "bg-vpv-tint text-vpv-blue"
             }`}
           >
             {prepared.length} saved
@@ -178,25 +182,25 @@ export default function OfflineControls({ tours }: Props) {
       {/* Modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 grid place-items-center p-4"
+          className="fixed inset-0 z-50 bg-vpv-navy/30 backdrop-blur-sm grid place-items-center p-4"
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="bg-panel border border-border rounded-lg w-[560px] max-w-full max-h-[85vh] flex flex-col shadow-panel"
+            className="bg-white border border-vpv-line rounded-2xl w-[560px] max-w-full max-h-[85vh] flex flex-col shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-vpv-line">
               <div className="flex items-center gap-2">
                 {offline ? (
-                  <WifiOff size={16} className="text-amber-400" />
+                  <WifiOff size={16} className="text-amber-500" />
                 ) : (
-                  <Wifi size={16} className="text-accent" />
+                  <Wifi size={16} className="text-vpv-cyan" />
                 )}
-                <h3 className="text-[14px] font-semibold">
+                <h3 className="text-[14px] font-semibold text-vpv-ink">
                   Offline mode
                   {offline && (
-                    <span className="ml-2 text-[11px] text-amber-400 font-normal">
+                    <span className="ml-2 text-[11px] text-amber-500 font-normal">
                       · currently offline
                     </span>
                   )}
@@ -204,26 +208,26 @@ export default function OfflineControls({ tours }: Props) {
               </div>
               <button
                 onClick={() => setModalOpen(false)}
-                className="text-neutral-400 hover:text-white"
+                className="text-vpv-muted hover:text-vpv-ink"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Storage summary */}
-            <div className="px-4 py-3 border-b border-border bg-panelSoft/40 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-vpv-line bg-vpv-canvas flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <HardDrive size={13} className="text-neutral-400" />
+                <HardDrive size={13} className="text-vpv-muted" />
                 <div className="text-[12px]">
-                  <div className="text-white">
+                  <div className="text-vpv-ink">
                     <span className="font-semibold">
                       {formatBytes(storage.usage)}
                     </span>{" "}
-                    <span className="text-neutral-500">
+                    <span className="text-vpv-muted">
                       / {formatBytes(storage.quota)} available
                     </span>
                   </div>
-                  <div className="text-[10.5px] text-neutral-500">
+                  <div className="text-[10.5px] text-vpv-muted">
                     {prepared.length} tour{prepared.length === 1 ? "" : "s"}{" "}
                     downloaded
                   </div>
@@ -232,7 +236,7 @@ export default function OfflineControls({ tours }: Props) {
               {prepared.length > 0 && (
                 <button
                   onClick={handleClearAll}
-                  className="text-[11px] text-red-300 hover:text-red-200 flex items-center gap-1"
+                  className="text-[11px] text-rose-500 hover:text-rose-600 flex items-center gap-1"
                 >
                   <Trash2 size={11} /> Clear all
                 </button>
@@ -241,8 +245,8 @@ export default function OfflineControls({ tours }: Props) {
 
             {/* Queued writes badge */}
             {pendingWrites > 0 && (
-              <div className="px-4 py-2.5 border-b border-border flex items-center justify-between bg-amber-500/10">
-                <div className="flex items-center gap-2 text-[12px] text-amber-200">
+              <div className="px-4 py-2.5 border-b border-vpv-line flex items-center justify-between bg-amber-50">
+                <div className="flex items-center gap-2 text-[12px] text-amber-700">
                   <ArrowUpFromLine size={12} />
                   {pendingWrites} analytics event
                   {pendingWrites === 1 ? "" : "s"} queued to sync
@@ -250,7 +254,7 @@ export default function OfflineControls({ tours }: Props) {
                 <button
                   disabled={offline}
                   onClick={handleFlush}
-                  className="text-[11px] text-accent hover:underline disabled:opacity-40 disabled:pointer-events-none"
+                  className="text-[11px] text-vpv-blue hover:underline disabled:opacity-40 disabled:pointer-events-none"
                 >
                   Sync now
                 </button>
@@ -260,7 +264,7 @@ export default function OfflineControls({ tours }: Props) {
             {/* Tour list */}
             <div className="flex-1 overflow-auto panel-scroll p-3">
               {tours.length === 0 ? (
-                <div className="text-[12px] text-neutral-500 py-8 text-center">
+                <div className="text-[12px] text-vpv-muted py-8 text-center">
                   No tours assigned to you yet.
                 </div>
               ) : (
@@ -271,21 +275,21 @@ export default function OfflineControls({ tours }: Props) {
                     return (
                       <div
                         key={t.id}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded border ${
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${
                           isReady
-                            ? "border-accent/40 bg-accent/5"
-                            : "border-border bg-panelSoft/40"
+                            ? "border-vpv-blue/40 bg-vpv-tint"
+                            : "border-vpv-line bg-vpv-canvas"
                         }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="text-[13px] font-medium truncate">
+                          <div className="text-[13px] font-medium truncate text-vpv-ink">
                             {t.title}
                           </div>
                           {isReady && !busy && (
-                            <div className="text-[10.5px] text-neutral-500 flex items-center gap-1 mt-0.5">
+                            <div className="text-[10.5px] text-vpv-muted flex items-center gap-1 mt-0.5">
                               <CheckCircle2
                                 size={10}
-                                className="text-accent"
+                                className="text-vpv-blue"
                               />
                               Ready offline
                               {(() => {
@@ -295,7 +299,7 @@ export default function OfflineControls({ tours }: Props) {
                                 if (!p) return null;
                                 return (
                                   <>
-                                    <span className="text-neutral-700">·</span>
+                                    <span className="text-vpv-line">·</span>
                                     <span>
                                       {p.urlCount} file
                                       {p.urlCount === 1 ? "" : "s"} ·{" "}
@@ -310,7 +314,7 @@ export default function OfflineControls({ tours }: Props) {
                           )}
                           {busy && progress && (
                             <div className="mt-1">
-                              <div className="text-[10.5px] text-neutral-400 mb-0.5 flex items-center gap-1">
+                              <div className="text-[10.5px] text-vpv-muted mb-0.5 flex items-center gap-1">
                                 {progress.phase === "collecting" && (
                                   <>
                                     <Loader2
@@ -336,7 +340,7 @@ export default function OfflineControls({ tours }: Props) {
                                   <>
                                     <CheckCircle2
                                       size={10}
-                                      className="text-accent"
+                                      className="text-vpv-blue"
                                     />
                                     Done — {progress.ok} file
                                     {progress.ok === 1 ? "" : "s"} ready
@@ -346,18 +350,18 @@ export default function OfflineControls({ tours }: Props) {
                                   <>
                                     <AlertTriangle
                                       size={10}
-                                      className="text-amber-400"
+                                      className="text-amber-500"
                                     />
                                     {progress.message ?? "Some files failed"}
                                   </>
                                 )}
                               </div>
-                              <div className="h-1 bg-white/10 rounded overflow-hidden">
+                              <div className="h-1 bg-vpv-line rounded overflow-hidden">
                                 <div
                                   className={`h-full ${
                                     progress.phase === "error"
-                                      ? "bg-amber-400"
-                                      : "bg-accent"
+                                      ? "bg-amber-500"
+                                      : "bg-vpv-grad"
                                   }`}
                                   style={{
                                     width: `${
@@ -387,10 +391,10 @@ export default function OfflineControls({ tours }: Props) {
                                     ? "Re-download to refresh"
                                     : "Download for offline"
                               }
-                              className={`text-[11px] font-medium px-2.5 py-1.5 rounded transition-colors ${
+                              className={`text-[11px] font-medium px-3 py-1.5 rounded-full transition-colors ${
                                 isReady
-                                  ? "text-accent hover:text-black hover:bg-accent"
-                                  : "bg-accent text-black hover:bg-accentHover"
+                                  ? "text-vpv-blue border border-vpv-line hover:bg-vpv-tint"
+                                  : "bg-vpv-grad text-white hover:opacity-90"
                               } disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1`}
                             >
                               {isReady ? (
@@ -407,7 +411,7 @@ export default function OfflineControls({ tours }: Props) {
                               <button
                                 onClick={() => handleRemove(t.id)}
                                 title="Remove offline copy"
-                                className="text-neutral-500 hover:text-red-400 p-1.5"
+                                className="text-vpv-muted hover:text-rose-500 p-1.5"
                               >
                                 <Trash2 size={11} />
                               </button>
@@ -422,7 +426,7 @@ export default function OfflineControls({ tours }: Props) {
             </div>
 
             {/* Footer tip */}
-            <div className="px-4 py-2.5 border-t border-border text-[11px] text-neutral-500 leading-snug">
+            <div className="px-4 py-2.5 border-t border-vpv-line text-[11px] text-vpv-muted leading-snug">
               Download tours over wifi before your factory visit. When the
               network drops, downloaded tours keep playing — panoramas,
               hotspots, videos, PDFs and audio all run from local cache.

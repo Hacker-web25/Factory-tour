@@ -64,7 +64,7 @@ export function KpiTile({
   accent?: string;
 }) {
   return (
-    <div className="relative bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 overflow-hidden group hover:border-white/15 transition-colors">
+    <div className="relative bg-white border border-vpv-line rounded-2xl p-5 overflow-hidden group shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.22)] hover:shadow-[0_16px_36px_-16px_rgba(11,61,145,0.28)] transition-shadow">
       <div className="flex items-start justify-between mb-4">
         <div
           className="w-9 h-9 rounded-xl grid place-items-center"
@@ -74,10 +74,10 @@ export function KpiTile({
         </div>
         <DeltaChip pct={delta} />
       </div>
-      <div className="text-[11px] uppercase tracking-wider text-white/40 mb-1">
+      <div className="text-[11px] uppercase tracking-wider text-vpv-muted mb-1">
         {label}
       </div>
-      <div className="text-[32px] font-semibold leading-none text-white mb-3 tabular-nums">
+      <div className="text-[32px] font-semibold leading-none text-vpv-ink mb-3 tabular-nums">
         <CountUp to={value} suffix={suffix} />
       </div>
       <div className="opacity-70 group-hover:opacity-100 transition-opacity">
@@ -106,30 +106,30 @@ export function MemberCard({
   return (
     <button
       onClick={onClick}
-      className="text-left bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4 hover:border-white/15 hover:bg-white/[0.05] transition-colors group flex flex-col gap-3"
+      className="text-left bg-white border border-vpv-line rounded-2xl p-4 hover:border-vpv-blue/40 hover:shadow-[0_16px_40px_-20px_rgba(11,61,145,0.3)] transition-all group flex flex-col gap-3"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center text-white text-[13px] font-semibold shrink-0">
+            <div className="w-11 h-11 rounded-full bg-vpv-grad grid place-items-center text-white text-[13px] font-semibold shrink-0">
               {initials}
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-neutral-900">
+            <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-white">
               <StatusDot status={status} />
             </div>
           </div>
           <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-white truncate">
+            <div className="text-[14px] font-semibold text-vpv-ink truncate">
               {displayName}
             </div>
-            <div className="text-[11px] text-white/40 truncate">
+            <div className="text-[11px] text-vpv-muted truncate">
               {member.email}
             </div>
           </div>
         </div>
         <ChevronRight
           size={14}
-          className="text-white/20 group-hover:text-white/60 transition-colors mt-1 shrink-0"
+          className="text-vpv-muted/50 group-hover:text-vpv-blue transition-colors mt-1 shrink-0"
         />
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -137,8 +137,8 @@ export function MemberCard({
         <MiniStat label="Time" value={formatHours(stats.totalSeconds)} />
         <MiniStat label="Prospects" value={stats.uniqueProspects} />
       </div>
-      <div className="flex items-center justify-between pt-2 border-t border-white/[0.05]">
-        <div className="text-[10.5px] text-white/40">
+      <div className="flex items-center justify-between pt-2 border-t border-vpv-line">
+        <div className="text-[10.5px] text-vpv-muted">
           Active {formatRelative(stats.lastActive)}
         </div>
         <WeekStrip values={stats.weeklySeries} />
@@ -149,11 +149,11 @@ export function MemberCard({
 
 function MiniStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-white/[0.02] border border-white/[0.04] rounded-lg px-2 py-1.5">
-      <div className="text-[9.5px] uppercase tracking-wider text-white/35 leading-none mb-1">
+    <div className="bg-vpv-canvas border border-vpv-line rounded-lg px-2 py-1.5">
+      <div className="text-[9.5px] uppercase tracking-wider text-vpv-muted leading-none mb-1">
         {label}
       </div>
-      <div className="text-[14px] font-semibold text-white tabular-nums leading-none">
+      <div className="text-[14px] font-semibold text-vpv-ink tabular-nums leading-none">
         {value}
       </div>
     </div>
@@ -236,10 +236,10 @@ export function LeaderboardCard({
 export function InsightStrip({ insights }: { insights: Insight[] }) {
   if (insights.length === 0) return null;
   return (
-    <div className="bg-gradient-to-br from-violet-500/[0.06] via-fuchsia-500/[0.03] to-transparent border border-violet-500/15 rounded-2xl p-4">
+    <div className="bg-gradient-to-br from-vpv-tint via-white to-white border border-vpv-line rounded-2xl p-4 shadow-[0_10px_30px_-18px_rgba(11,61,145,0.2)]">
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={13} className="text-violet-300" />
-        <div className="text-[11px] uppercase tracking-wider text-violet-200 font-semibold">
+        <Sparkles size={13} className="text-vpv-blue" />
+        <div className="text-[11px] uppercase tracking-wider text-vpv-blue font-semibold">
           Insights for you
         </div>
       </div>
@@ -247,23 +247,23 @@ export function InsightStrip({ insights }: { insights: Insight[] }) {
         {insights.slice(0, 4).map((it, i) => (
           <div
             key={i}
-            className="bg-black/30 border border-white/[0.05] rounded-xl p-3"
+            className="bg-white border border-vpv-line rounded-xl p-3"
           >
             <div className="flex items-center gap-1.5 mb-1">
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
                   it.tone === "positive"
-                    ? "bg-emerald-400"
+                    ? "bg-emerald-500"
                     : it.tone === "warning"
-                      ? "bg-amber-400"
-                      : "bg-white/40"
+                      ? "bg-amber-500"
+                      : "bg-vpv-muted"
                 }`}
               />
-              <span className="text-[11px] font-semibold text-white/90">
+              <span className="text-[11px] font-semibold text-vpv-ink">
                 {it.title}
               </span>
             </div>
-            <div className="text-[11.5px] text-white/50 leading-snug">
+            <div className="text-[11.5px] text-vpv-muted leading-snug">
               {it.body}
             </div>
           </div>
@@ -403,30 +403,30 @@ export function MemberDetailModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm grid place-items-center p-4"
+      className="fixed inset-0 z-50 bg-vpv-navy/30 backdrop-blur-sm grid place-items-center p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-neutral-950 border border-white/10 rounded-2xl w-[720px] max-w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+        className="bg-white border border-vpv-line rounded-2xl w-[720px] max-w-full max-h-[90vh] overflow-hidden flex flex-col shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-5 border-b border-white/5">
+        <div className="px-6 pt-6 pb-5 border-b border-vpv-line">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center text-white text-[18px] font-semibold">
+                <div className="w-14 h-14 rounded-full bg-vpv-grad grid place-items-center text-white text-[18px] font-semibold">
                   {initialsOf(displayName)}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-neutral-950">
+                <div className="absolute -bottom-0.5 -right-0.5 p-0.5 rounded-full bg-white">
                   <StatusDot status={status} />
                 </div>
               </div>
               <div>
-                <div className="text-[18px] font-semibold text-white">
+                <div className="text-[18px] font-semibold text-vpv-ink">
                   {displayName}
                 </div>
-                <div className="text-[12px] text-white/50">{member.email}</div>
-                <div className="text-[10.5px] text-white/30 mt-1">
+                <div className="text-[12px] text-vpv-muted">{member.email}</div>
+                <div className="text-[10.5px] text-vpv-muted/80 mt-1">
                   Last active {formatRelative(stats.lastActive)} ·{" "}
                   {stats.daysActiveInLast7}/7 active days
                 </div>
@@ -434,7 +434,7 @@ export function MemberDetailModal({
             </div>
             <button
               onClick={onClose}
-              className="text-white/40 hover:text-white p-1"
+              className="text-vpv-muted hover:text-vpv-ink p-1"
             >
               <X size={16} />
             </button>
@@ -468,10 +468,10 @@ export function MemberDetailModal({
                     className="flex-1 flex flex-col items-center gap-1"
                   >
                     <div
-                      className="w-full rounded-t bg-gradient-to-t from-violet-500 to-fuchsia-500"
+                      className="w-full rounded-t bg-vpv-grad"
                       style={{ height: `${Math.max(4, h)}px`, opacity: v === 0 ? 0.15 : 0.9 }}
                     />
-                    <span className="text-[9.5px] text-white/30">
+                    <span className="text-[9.5px] text-vpv-muted">
                       {["S", "M", "T", "W", "T", "F", "S"][
                         (new Date().getDay() - (6 - i) + 7) % 7
                       ]}
@@ -495,9 +495,9 @@ export function MemberDetailModal({
                 {stats.countries.map((c) => (
                   <span
                     key={c}
-                    className="text-[11px] px-2 py-1 rounded-md bg-white/[0.04] border border-white/[0.06] text-white/80 inline-flex items-center gap-1"
+                    className="text-[11px] px-2 py-1 rounded-md bg-vpv-tint border border-vpv-line text-vpv-navy inline-flex items-center gap-1"
                   >
-                    <Globe2 size={10} className="text-white/40" />
+                    <Globe2 size={10} className="text-vpv-blue" />
                     {c}
                   </span>
                 ))}
@@ -512,11 +512,11 @@ export function MemberDetailModal({
 
 function MiniKpi({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-white/[0.03] border border-white/[0.05] rounded-xl p-3">
-      <div className="text-[9.5px] uppercase tracking-wider text-white/40 leading-none mb-1.5">
+    <div className="bg-vpv-canvas border border-vpv-line rounded-xl p-3">
+      <div className="text-[9.5px] uppercase tracking-wider text-vpv-muted leading-none mb-1.5">
         {label}
       </div>
-      <div className="text-[18px] font-semibold text-white tabular-nums leading-none">
+      <div className="text-[18px] font-semibold text-vpv-ink tabular-nums leading-none">
         {value}
       </div>
     </div>
@@ -532,7 +532,7 @@ function Section({
 }) {
   return (
     <div>
-      <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-semibold mb-2">
+      <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-2">
         {title}
       </div>
       {children}
@@ -567,7 +567,7 @@ function SessionsSection({
   if (sessions.length === 0) {
     return (
       <Section title="Presentations">
-        <div className="text-[12px] text-white/40 text-center py-6 border border-dashed border-white/10 rounded-lg">
+        <div className="text-[12px] text-vpv-muted text-center py-6 border border-dashed border-vpv-line rounded-lg">
           No presentations yet.
         </div>
       </Section>
@@ -576,9 +576,9 @@ function SessionsSection({
 
   return (
     <Section title={`Presentations (${sessions.length})`}>
-      <div className="rounded-xl border border-white/[0.06] overflow-hidden bg-black/20">
+      <div className="rounded-xl border border-vpv-line overflow-hidden bg-vpv-canvas">
         {/* Header */}
-        <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2 border-b border-white/5 text-[10px] uppercase tracking-wider text-white/40">
+        <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2 border-b border-vpv-line text-[10px] uppercase tracking-wider text-vpv-muted">
           <div>Tour</div>
           <div>Date</div>
           <div className="text-right">Duration</div>
@@ -600,27 +600,27 @@ function SessionsSection({
           return (
             <div
               key={i}
-              className={`border-b border-white/5 last:border-0 ${
-                open ? "bg-white/[0.02]" : ""
+              className={`border-b border-vpv-line last:border-0 ${
+                open ? "bg-vpv-tint/40" : ""
               }`}
             >
               <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2.5 items-center">
-                <div className="text-[12.5px] text-white truncate">
+                <div className="text-[12.5px] text-vpv-ink truncate">
                   {tourName}
                 </div>
-                <div className="text-[11.5px] text-white/60 tabular-nums">
+                <div className="text-[11.5px] text-vpv-muted tabular-nums">
                   {dateStr}
                 </div>
-                <div className="text-[11.5px] text-white/85 tabular-nums text-right font-medium">
+                <div className="text-[11.5px] text-vpv-ink tabular-nums text-right font-medium">
                   {durStr}
                 </div>
                 <div className="flex justify-end">
                   <button
                     onClick={() => setExpandedIdx(open ? null : i)}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10.5px] font-semibold transition-colors ${
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-semibold transition-colors ${
                       open
-                        ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white"
-                        : "border border-violet-500/40 text-violet-200 hover:bg-violet-500/10"
+                        ? "bg-vpv-grad text-white"
+                        : "border border-vpv-blue/40 text-vpv-blue hover:bg-vpv-tint"
                     }`}
                   >
                     <AiIcon size={10} /> AI Analysis
@@ -664,13 +664,13 @@ function AiAnalysisPanel({
   const country = session.country ?? "Unknown";
 
   return (
-    <div className="px-4 py-4 border-t border-white/5 bg-black/40 space-y-4">
+    <div className="px-4 py-4 border-t border-vpv-line bg-vpv-canvas space-y-4">
       {/* Coming-soon banner for voice pipeline */}
-      <div className="rounded-lg border border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-transparent p-3">
-        <div className="flex items-center gap-2 text-[11.5px] text-violet-200 font-semibold mb-0.5">
+      <div className="rounded-lg border border-vpv-blue/25 bg-gradient-to-br from-vpv-tint via-white to-white p-3">
+        <div className="flex items-center gap-2 text-[11.5px] text-vpv-blue font-semibold mb-0.5">
           <AiIcon size={11} /> Voice-recording analysis · coming soon
         </div>
-        <div className="text-[11px] text-white/50 leading-relaxed">
+        <div className="text-[11px] text-vpv-muted leading-relaxed">
           Auto-transcribed conversation with buying-signal + objection
           detection, pitch quality scoring, and best-line extraction.
           For now, below is the behavioural analysis derived from
@@ -694,7 +694,7 @@ function AiAnalysisPanel({
       {/* Per-scene bar chart */}
       {sceneRows.length > 0 && (
         <div>
-          <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-semibold mb-2">
+          <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-2">
             Time spent per scene
           </div>
           <div className="space-y-1.5">
@@ -703,16 +703,16 @@ function AiAnalysisPanel({
               return (
                 <div key={r.sceneId} className="text-[11.5px]">
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-white/85 truncate max-w-[260px]">
+                    <span className="text-vpv-ink truncate max-w-[260px]">
                       {r.name}
                     </span>
-                    <span className="text-white/50 tabular-nums">
+                    <span className="text-vpv-muted tabular-nums">
                       {formatHours(r.seconds)} · {pct}%
                     </span>
                   </div>
-                  <div className="h-1.5 bg-white/[0.05] rounded overflow-hidden">
+                  <div className="h-1.5 bg-vpv-line rounded overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                      className="h-full bg-vpv-grad"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -726,14 +726,14 @@ function AiAnalysisPanel({
       {/* Hotspot list */}
       {hotspotCount > 0 && (
         <div>
-          <div className="text-[10.5px] uppercase tracking-wider text-white/40 font-semibold mb-2">
+          <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-2">
             Hotspots clicked in order
           </div>
           <div className="flex flex-wrap gap-1">
             {session.hotspots!.slice(0, 20).map((hid, i) => (
               <span
                 key={i}
-                className="text-[10.5px] px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/[0.06] text-white/70 font-mono"
+                className="text-[10.5px] px-1.5 py-0.5 rounded bg-vpv-tint border border-vpv-line text-vpv-navy font-mono"
               >
                 #{i + 1} · {hid.slice(0, 6)}
               </span>

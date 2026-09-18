@@ -16,6 +16,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "VPV — Virtual Plant Visit",
   description: "Real Factories. Real Confidence. 360° virtual tours for factories & manufacturing sites.",
+  icons: {
+    icon: "https://myvpv.com/vpv-mark.png",
+    apple: "https://myvpv.com/vpv-mark.png",
+  },
 };
 
 export default function RootLayout({

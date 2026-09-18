@@ -8,7 +8,10 @@ import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
 import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import AssignTourModal from "@/components/dashboard/AssignTourModal";
+import VpvLogo from "@/components/dashboard/VpvLogo";
+import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import { startPresence } from "@/lib/presence";
+import { timeGreeting } from "@/lib/greeting";
 import {
   getMyProfile,
   signOut,
@@ -356,13 +359,7 @@ export default function ClientDashboardPage() {
     router.push("/login");
   }
 
-  const greeting = useMemo(() => {
-    const h = new Date().getHours();
-    if (h < 5) return "Working late,";
-    if (h < 12) return "Good morning,";
-    if (h < 18) return "Good afternoon,";
-    return "Good evening,";
-  }, []);
+  const greeting = useMemo(() => timeGreeting(), []);
   const firstName = (me?.full_name || me?.email || "there").split(/[\s@]/)[0];
 
   function scrollCarousel(dir: "left" | "right") {
@@ -416,17 +413,11 @@ export default function ClientDashboardPage() {
               {greeting} {firstName}{" "}
               <span className="inline-block hover:animate-wiggle">👋</span>
             </h1>
-            <p className="text-[13px] text-vpv-muted mt-1">
-              Here&apos;s what&apos;s happening across your virtual factories.
-            </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative w-10 h-10 rounded-full border border-vpv-line bg-white grid place-items-center text-vpv-muted hover:text-vpv-blue hover:border-vpv-blue/40 transition-all">
-              <Bell size={16} />
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-vpv-blue text-white text-[10px] font-semibold grid place-items-center">
-                3
-              </span>
-            </button>
+            {me?.org_id && (
+              <NotificationsBell orgId={me.org_id} currentUserId={me.id} />
+            )}
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen((v) => !v)}
@@ -723,22 +714,7 @@ function Sidebar({
     <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
       {/* Logo */}
       <div className="px-6 pt-7 pb-8">
-        <div className="flex items-center gap-2.5">
-          <div className="relative w-9 h-9">
-            <div className="absolute inset-0 rounded-lg bg-vpv-grad" />
-            <div className="absolute inset-[3px] rounded-md bg-white grid place-items-center">
-              <Factory size={16} className="text-vpv-navy" />
-            </div>
-          </div>
-          <div className="leading-none">
-            <div className="text-[17px] font-extrabold tracking-tight text-vpv-navy">
-              VPV
-            </div>
-            <div className="text-[9px] font-semibold tracking-[0.18em] text-vpv-muted mt-0.5">
-              FACTORY TOUR
-            </div>
-          </div>
-        </div>
+        <VpvLogo />
       </div>
 
       {/* Nav */}
