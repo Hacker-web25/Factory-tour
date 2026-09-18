@@ -547,6 +547,20 @@ function TourPlayerInner({
     });
   }
 
+  function onHotspotHover(h: Hotspot) {
+    // Analytics — record a meaningful hover (dwell-gated in the viewer).
+    // Debounced per hotspot so re-entering the same marker repeatedly in a
+    // few seconds doesn't inflate the count.
+    if (analyticsOn) {
+      trackEvent(
+        tour.id,
+        "hotspot_hover",
+        { scene_id: h.scene_id, hotspot_id: h.id },
+        1500
+      );
+    }
+  }
+
   function onHotspotClick(h: Hotspot) {
     // Analytics — record every hotspot click regardless of action type.
     if (analyticsOn) {
@@ -663,6 +677,7 @@ function TourPlayerInner({
           hotspotFx={hotspotFx}
           idleSpin={tour.fx_idle_spin !== false}
           hotspots={hotspots}
+          onHotspotHover={onHotspotHover}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}
           hideTripod={active.hide_tripod ?? false}

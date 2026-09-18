@@ -88,6 +88,9 @@ type Props = {
   ) => void;
   onHotspotClick?: (h: Hotspot) => void;
   onHotspotDoubleClick?: (h: Hotspot) => void;
+  /** Fired once when the viewer meaningfully hovers a hotspot (after a
+   *  short dwell so fly-overs don't count). Used for analytics. */
+  onHotspotHover?: (h: Hotspot) => void;
   onHotspotDrag?: (id: string, yaw: number, pitch: number) => void;
   initialYaw?: number;
   initialPitch?: number;
@@ -238,6 +241,7 @@ function Scene({
   onProvideScreenToYawPitch,
   onHotspotClick,
   onHotspotDoubleClick,
+  onHotspotHover,
   onHotspotDrag,
   initialYaw = 0,
   initialPitch = 0,
@@ -637,6 +641,7 @@ function Scene({
           scenesLookup={scenesLookup}
           onClick={() => onHotspotClick?.(h)}
           onDoubleClick={() => onHotspotDoubleClick?.(h)}
+          onHover={() => onHotspotHover?.(h)}
           onDragStart={() => setDragId(h.id)}
           setOrbitEnabled={(v) => {
             if (orbitRef.current) orbitRef.current.enabled = v;
@@ -688,6 +693,7 @@ function HotspotMarker(props: {
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled: (v: boolean) => void;
 }) {
@@ -744,6 +750,7 @@ function HtmlBillboard({
   scenesLookup,
   onClick,
   onDoubleClick,
+  onHover,
   onDragStart,
 }: {
   hotspot: Hotspot;
@@ -753,11 +760,15 @@ function HtmlBillboard({
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
   const { t } = useT();
   const [hovered, setHovered] = useState(false);
+  // Analytics dwell timer — fire onHover once the pointer lingers ~400ms so
+  // brushing past a marker doesn't register as a "hover". Cleared on leave.
+  const hoverTimerRef = useRef<number | null>(null);
   // Hover ripple — increments each time the pointer enters, forcing the
   // ripple <div> to remount and re-run its keyframe animation. Color is
   // driven by the hotspot's own colour so authors can tune it per marker.
@@ -890,8 +901,19 @@ function HtmlBillboard({
           setHovered(true);
           // Fire a fresh ripple each time the pointer enters.
           setRippleKey((k) => k + 1);
+          // Analytics: count a hover only after a short dwell.
+          if (!editable && onHover) {
+            if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
+          }
         }}
-        onMouseLeave={() => setHovered(false)}
+        onMouseLeave={() => {
+          setHovered(false);
+          if (hoverTimerRef.current) {
+            window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+          }
+        }}
         onPointerDown={handlePointerDown}
         onClick={(e) => {
           if (!editable) {

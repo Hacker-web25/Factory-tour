@@ -34,10 +34,11 @@ import {
   formatHours,
   formatRelative,
   statusFor,
-  sessionsForMember,
+  preciseSessionsForMember,
+  bucketSessionsByDay,
   type Insight,
   type MemberStats,
-  type Session,
+  type PreciseSession,
   type TeamMember,
   type TeamOverview,
   type TourEvent,
@@ -556,15 +557,16 @@ function SessionsSection({
   overview: TeamOverview;
   member: TeamMember;
 }) {
-  const sessions = useMemo(() => {
-    const list = sessionsForMember(member.id, overview.recentEvents);
-    // Newest first.
-    return list.sort((a, b) => b.first - a.first);
-  }, [member.id, overview.recentEvents]);
+  // Precise, session_id-based sessions over the FULL event window.
+  const days = useMemo(() => {
+    const sessions = preciseSessionsForMember(member.id, overview.allEvents);
+    return bucketSessionsByDay(sessions);
+  }, [member.id, overview.allEvents]);
 
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const totalSessions = days.reduce((a, d) => a + d.presentations, 0);
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
-  if (sessions.length === 0) {
+  if (totalSessions === 0) {
     return (
       <Section title="Presentations">
         <div className="text-[12px] text-vpv-muted text-center py-6 border border-dashed border-vpv-line rounded-lg">
@@ -575,70 +577,94 @@ function SessionsSection({
   }
 
   return (
-    <Section title={`Presentations (${sessions.length})`}>
-      <div className="rounded-xl border border-vpv-line overflow-hidden bg-vpv-canvas">
-        {/* Header */}
-        <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2 border-b border-vpv-line text-[10px] uppercase tracking-wider text-vpv-muted">
-          <div>Tour</div>
-          <div>Date</div>
-          <div className="text-right">Duration</div>
-          <div className="text-right">AI Analysis</div>
-        </div>
-        {sessions.map((s, i) => {
-          const tourName = s.tourId
-            ? overview.toursById.get(s.tourId) ?? "Untitled tour"
-            : "Untitled tour";
-          const date = new Date(s.first);
-          const dateStr = date.toLocaleDateString([], {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          });
-          const dur = Math.round((s.last - s.first) / 1000);
-          const durStr = formatHours(dur);
-          const open = expandedIdx === i;
-          return (
-            <div
-              key={i}
-              className={`border-b border-vpv-line last:border-0 ${
-                open ? "bg-vpv-tint/40" : ""
-              }`}
-            >
-              <div className="grid grid-cols-[1fr_100px_90px_130px] gap-3 px-3 py-2.5 items-center">
-                <div className="text-[12.5px] text-vpv-ink truncate">
-                  {tourName}
-                </div>
-                <div className="text-[11.5px] text-vpv-muted tabular-nums">
-                  {dateStr}
-                </div>
-                <div className="text-[11.5px] text-vpv-ink tabular-nums text-right font-medium">
-                  {durStr}
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setExpandedIdx(open ? null : i)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-semibold transition-colors ${
-                      open
-                        ? "bg-vpv-grad text-white"
-                        : "border border-vpv-blue/40 text-vpv-blue hover:bg-vpv-tint"
-                    }`}
-                  >
-                    <AiIcon size={10} /> AI Analysis
-                    <ChevronDown
-                      size={10}
-                      className={`transition-transform ${
-                        open ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                </div>
+    <Section title={`Presentations by day (${totalSessions})`}>
+      <div className="space-y-3">
+        {days.map((day) => (
+          <div
+            key={day.dayKey}
+            className="rounded-xl border border-vpv-line overflow-hidden bg-white"
+          >
+            {/* Day header — weekday + rollup */}
+            <div className="flex items-center justify-between px-3 py-2 bg-vpv-canvas border-b border-vpv-line">
+              <div className="text-[12px] font-semibold text-vpv-ink">
+                {day.weekday}
+                <span className="text-vpv-muted font-normal">
+                  {" "}
+                  · {day.label}
+                </span>
               </div>
-              {open && (
-                <AiAnalysisPanel session={s} overview={overview} />
-              )}
+              <div className="flex items-center gap-2.5 text-[10.5px] text-vpv-muted">
+                <span className="text-vpv-navy font-medium">
+                  {day.presentations} present{day.presentations === 1 ? "" : "s"}
+                </span>
+                <span>· {formatHours(day.totalSec)}</span>
+                <span>· {day.clicks} clicks</span>
+                <span>· {day.hovers} hovers</span>
+              </div>
             </div>
-          );
-        })}
+
+            {/* Sessions in this day */}
+            {day.sessions.map((s) => {
+              const tourName = s.tourId
+                ? overview.toursById.get(s.tourId) ?? "Untitled tour"
+                : "Untitled tour";
+              const startStr = new Date(s.startMs).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              });
+              const open = openKey === s.sessionId;
+              return (
+                <div
+                  key={s.sessionId}
+                  className={`border-b border-vpv-line last:border-0 ${
+                    open ? "bg-vpv-tint/40" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    {/* Start time */}
+                    <div className="text-[12px] text-vpv-navy font-semibold tabular-nums w-[72px] shrink-0">
+                      {startStr}
+                    </div>
+                    {/* Tour + interaction chips */}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12.5px] text-vpv-ink truncate">
+                        {tourName}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10.5px] text-vpv-muted">
+                        <span className="tabular-nums text-vpv-ink font-medium">
+                          {formatHours(s.durationSec)}
+                        </span>
+                        <span>· {s.scenesViewed} scenes</span>
+                        <span>· {s.totalClicks} clicks</span>
+                        <span>· {s.totalHovers} hovers</span>
+                        {s.country && <span>· {s.country}</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setOpenKey(open ? null : s.sessionId)}
+                      className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-semibold transition-colors ${
+                        open
+                          ? "bg-vpv-grad text-white"
+                          : "border border-vpv-blue/40 text-vpv-blue hover:bg-vpv-tint"
+                      }`}
+                    >
+                      <AiIcon size={10} /> Details
+                      <ChevronDown
+                        size={10}
+                        className={`transition-transform ${
+                          open ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {open && (
+                    <AiAnalysisPanel session={s} overview={overview} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -648,47 +674,47 @@ function AiAnalysisPanel({
   session,
   overview,
 }: {
-  session: Session;
+  session: PreciseSession;
   overview: TeamOverview;
 }) {
-  const sceneRows = Object.entries(session.sceneSeconds ?? {})
+  const sceneRows = Object.entries(session.sceneSeconds)
     .map(([sceneId, secs]) => ({
       sceneId,
       name: overview.scenesById.get(sceneId)?.name ?? "Scene",
       seconds: secs,
     }))
     .sort((a, b) => b.seconds - a.seconds);
-  const totalSceneSec =
-    sceneRows.reduce((a, r) => a + r.seconds, 0) || 1;
-  const hotspotCount = session.hotspots?.length ?? 0;
+  const totalSceneSec = sceneRows.reduce((a, r) => a + r.seconds, 0) || 1;
+
+  const clickRows = Object.entries(session.hotspotClicks).sort(
+    (a, b) => b[1] - a[1]
+  );
+  const hoverRows = Object.entries(session.hotspotHovers).sort(
+    (a, b) => b[1] - a[1]
+  );
   const country = session.country ?? "Unknown";
+  const endStr = new Date(session.endMs).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const startStr = new Date(session.startMs).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 
   return (
     <div className="px-4 py-4 border-t border-vpv-line bg-vpv-canvas space-y-4">
-      {/* Coming-soon banner for voice pipeline */}
-      <div className="rounded-lg border border-vpv-blue/25 bg-gradient-to-br from-vpv-tint via-white to-white p-3">
-        <div className="flex items-center gap-2 text-[11.5px] text-vpv-blue font-semibold mb-0.5">
-          <AiIcon size={11} /> Voice-recording analysis · coming soon
-        </div>
-        <div className="text-[11px] text-vpv-muted leading-relaxed">
-          Auto-transcribed conversation with buying-signal + objection
-          detection, pitch quality scoring, and best-line extraction.
-          For now, below is the behavioural analysis derived from
-          per-scene dwell time and hotspot interactions.
-        </div>
+      {/* Precise session facts */}
+      <div className="grid grid-cols-4 gap-2">
+        <MiniKpi label="Duration" value={formatHours(session.durationSec)} />
+        <MiniKpi label="Scenes viewed" value={session.scenesViewed} />
+        <MiniKpi label="Clicks" value={session.totalClicks} />
+        <MiniKpi label="Hovers" value={session.totalHovers} />
       </div>
-
-      {/* Behavioural summary tiles */}
-      <div className="grid grid-cols-3 gap-2">
-        <MiniKpi
-          label="Scenes viewed"
-          value={sceneRows.length}
-        />
-        <MiniKpi
-          label="Hotspots opened"
-          value={hotspotCount}
-        />
-        <MiniKpi label="Buyer country" value={country} />
+      <div className="text-[10.5px] text-vpv-muted">
+        Ran from <span className="text-vpv-ink font-medium">{startStr}</span> to{" "}
+        <span className="text-vpv-ink font-medium">{endStr}</span> · buyer
+        location: {country}
       </div>
 
       {/* Per-scene bar chart */}
@@ -723,24 +749,57 @@ function AiAnalysisPanel({
         </div>
       )}
 
-      {/* Hotspot list */}
-      {hotspotCount > 0 && (
+      {/* Hotspots clicked */}
+      {clickRows.length > 0 && (
         <div>
           <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-2">
-            Hotspots clicked in order
+            Hotspots clicked
           </div>
           <div className="flex flex-wrap gap-1">
-            {session.hotspots!.slice(0, 20).map((hid, i) => (
+            {clickRows.map(([hid, n]) => (
               <span
-                key={i}
-                className="text-[10.5px] px-1.5 py-0.5 rounded bg-vpv-tint border border-vpv-line text-vpv-navy font-mono"
+                key={hid}
+                className="text-[10.5px] px-1.5 py-0.5 rounded bg-vpv-tint border border-vpv-line text-vpv-navy"
               >
-                #{i + 1} · {hid.slice(0, 6)}
+                {hotspotLabel(hid, overview)}{n > 1 ? ` ×${n}` : ""}
               </span>
             ))}
           </div>
         </div>
       )}
+
+      {/* Hotspots hovered */}
+      {hoverRows.length > 0 && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-2">
+            Hotspots hovered
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {hoverRows.map(([hid, n]) => (
+              <span
+                key={hid}
+                className="text-[10.5px] px-1.5 py-0.5 rounded bg-white border border-vpv-line text-vpv-muted"
+              >
+                {hotspotLabel(hid, overview)}{n > 1 ? ` ×${n}` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Voice-analysis placeholder (future AI) */}
+      <div className="rounded-lg border border-vpv-blue/25 bg-gradient-to-br from-vpv-tint via-white to-white p-3">
+        <div className="flex items-center gap-2 text-[11px] text-vpv-blue font-semibold">
+          <AiIcon size={11} /> Voice-recording AI analysis · coming soon
+        </div>
+      </div>
     </div>
   );
+}
+
+/** Best-effort human label for a hotspot id (falls back to a short id). */
+function hotspotLabel(id: string, overview: TeamOverview): string {
+  // We don't have a hotspot lookup in the overview yet — show a short id.
+  // Kept as a helper so wiring a real label map later is a one-liner.
+  return `#${id.slice(0, 6)}`;
 }

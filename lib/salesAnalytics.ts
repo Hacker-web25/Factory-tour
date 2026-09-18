@@ -48,6 +48,8 @@ export type TourEvent = {
   id: string;
   tour_id: string | null;
   scene_id: string | null;
+  hotspot_id: string | null;
+  session_id: string | null;
   event_type: string;
   meta: Record<string, any> | null;
   share_link_id: string | null;
@@ -75,6 +77,9 @@ export type TeamOverview = {
     activeMembers: number;
   };
   recentEvents: TourEvent[];
+  /** ALL events in the window (not just the recent 50) — used for the
+   *  precise per-session drilldown so nothing is dropped. */
+  allEvents: TourEvent[];
   toursById: Map<string, string>; // tour_id → title
   scenesById: Map<string, { name: string; tour_id: string }>;
 };
@@ -173,6 +178,7 @@ export async function loadTeamOverview(
     totals,
     deltas,
     recentEvents: events.slice(0, 50),
+    allEvents: events,
     toursById,
     scenesById,
   };
@@ -264,6 +270,170 @@ export function sessionsForMember(
     }
     return { ...s, sceneSeconds, hotspots };
   });
+}
+
+/* --------------------- Precise session analytics ------------------------ *
+ * The functions above cluster events by a 30-min time gap — good enough for
+ * headline counts, but fuzzy. For the per-member drilldown we use the exact
+ * `session_id` stamped on every event (one browser tab = one meeting). This
+ * gives precise: start time, duration, per-scene dwell, hotspot clicks,
+ * hovers, and total interactions — all real, all measured. */
+
+export type PreciseSession = {
+  sessionId: string;
+  tourId: string | null;
+  country: string | null;
+  startMs: number;
+  endMs: number;
+  durationSec: number;
+  /** seconds spent on each scene (keyed by scene_id) */
+  sceneSeconds: Record<string, number>;
+  scenesViewed: number;
+  /** hotspot_id → click count */
+  hotspotClicks: Record<string, number>;
+  totalClicks: number;
+  /** hotspot_id → hover count */
+  hotspotHovers: Record<string, number>;
+  totalHovers: number;
+};
+
+/** Build precise sessions for one member from the FULL event list, grouped
+ *  by session_id. Sessions with < 15s of activity are dropped as accidental
+ *  opens. Newest first. */
+export function preciseSessionsForMember(
+  memberId: string,
+  events: TourEvent[]
+): PreciseSession[] {
+  const mine = events.filter((e) => e.presenter_user_id === memberId);
+  const byId = new Map<string, TourEvent[]>();
+  for (const e of mine) {
+    const sid = e.session_id ?? `nosess-${e.id}`;
+    let arr = byId.get(sid);
+    if (!arr) {
+      arr = [];
+      byId.set(sid, arr);
+    }
+    arr.push(e);
+  }
+
+  const out: PreciseSession[] = [];
+  for (const [sessionId, rawArr] of byId) {
+    const arr = rawArr
+      .slice()
+      .sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
+    const startMs = +new Date(arr[0].created_at);
+    const endMs = +new Date(arr[arr.length - 1].created_at);
+    const durationSec = Math.round((endMs - startMs) / 1000);
+
+    const sceneSeconds: Record<string, number> = {};
+    const hotspotClicks: Record<string, number> = {};
+    const hotspotHovers: Record<string, number> = {};
+    let tourId: string | null = null;
+    let country: string | null = null;
+
+    for (let i = 0; i < arr.length; i++) {
+      const e = arr[i];
+      if (!tourId && e.tour_id) tourId = e.tour_id;
+      if (!country && e.country) country = e.country;
+
+      if (e.event_type === "scene_view" && e.scene_id) {
+        // Time on this scene = gap until the next event in the session.
+        const next = arr[i + 1];
+        const start = +new Date(e.created_at);
+        const stop = next ? +new Date(next.created_at) : endMs;
+        sceneSeconds[e.scene_id] =
+          (sceneSeconds[e.scene_id] ?? 0) +
+          Math.round(Math.max(0, stop - start) / 1000);
+      } else if (e.event_type === "hotspot_click" && e.hotspot_id) {
+        hotspotClicks[e.hotspot_id] = (hotspotClicks[e.hotspot_id] ?? 0) + 1;
+      } else if (e.event_type === "hotspot_hover" && e.hotspot_id) {
+        hotspotHovers[e.hotspot_id] = (hotspotHovers[e.hotspot_id] ?? 0) + 1;
+      }
+    }
+
+    const totalClicks = Object.values(hotspotClicks).reduce((a, b) => a + b, 0);
+    const totalHovers = Object.values(hotspotHovers).reduce((a, b) => a + b, 0);
+
+    // Drop trivial opens (< 15s and no interaction).
+    if (durationSec < 15 && totalClicks === 0 && totalHovers === 0) continue;
+
+    out.push({
+      sessionId,
+      tourId,
+      country,
+      startMs,
+      endMs,
+      durationSec,
+      sceneSeconds,
+      scenesViewed: Object.keys(sceneSeconds).length,
+      hotspotClicks,
+      totalClicks,
+      hotspotHovers,
+      totalHovers,
+    });
+  }
+
+  out.sort((a, b) => b.startMs - a.startMs);
+  return out;
+}
+
+/** Group precise sessions into day buckets (local time), newest day first.
+ *  Each bucket carries the day's total presentations + time + interactions. */
+export type DayBucket = {
+  dayKey: string; // YYYY-MM-DD (local)
+  label: string; // e.g. "Mon, 12 May"
+  weekday: string; // "Monday"
+  sessions: PreciseSession[];
+  presentations: number;
+  totalSec: number;
+  clicks: number;
+  hovers: number;
+};
+
+export function bucketSessionsByDay(sessions: PreciseSession[]): DayBucket[] {
+  const map = new Map<string, PreciseSession[]>();
+  for (const s of sessions) {
+    const d = new Date(s.startMs);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(d.getDate()).padStart(2, "0")}`;
+    let arr = map.get(key);
+    if (!arr) {
+      arr = [];
+      map.set(key, arr);
+    }
+    arr.push(s);
+  }
+  const buckets: DayBucket[] = [];
+  for (const [dayKey, arr] of map) {
+    const d = new Date(arr[0].startMs);
+    buckets.push({
+      dayKey,
+      label: d.toLocaleDateString([], {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+      weekday: d.toLocaleDateString([], { weekday: "long" }),
+      sessions: arr.sort((a, b) => b.startMs - a.startMs),
+      presentations: arr.length,
+      totalSec: arr.reduce((a, s) => a + s.durationSec, 0),
+      clicks: arr.reduce((a, s) => a + s.totalClicks, 0),
+      hovers: arr.reduce((a, s) => a + s.totalHovers, 0),
+    });
+  }
+  buckets.sort((a, b) => (a.dayKey < b.dayKey ? 1 : -1));
+  return buckets;
+}
+
+/** Distinct meetings (sessions) for a member — the honest "how many
+ *  presentations" number, one per real session regardless of click count. */
+export function meetingCountForMember(
+  memberId: string,
+  events: TourEvent[]
+): number {
+  return preciseSessionsForMember(memberId, events).length;
 }
 
 function sessionsFor(events: TourEvent[]): Session[] {

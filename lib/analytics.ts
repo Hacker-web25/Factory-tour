@@ -22,6 +22,7 @@ import { supabase } from "./supabase";
 export type TourEventType =
   | "scene_view"
   | "hotspot_click"
+  | "hotspot_hover"
   | "session_start"
   | "session_end";
 
