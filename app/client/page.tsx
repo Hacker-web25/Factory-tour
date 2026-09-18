@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
@@ -97,23 +97,7 @@ export default function ClientDashboardPage() {
   const [assignTour, setAssignTour] = useState<TourCard | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    (async () => {
-      const p = await getMyProfile();
-      if (!p) {
-        router.replace("/login?next=/client");
-        return;
-      }
-      if (p.role === "presenter") {
-        router.replace("/presenter");
-        return;
-      }
-      setMe(p);
-
-      // Presence heartbeat — keeps the analytics dashboard's status
-      // dots green while the org_admin is signed in too.
-      startPresence();
-
+  const loadDashboard = useCallback(async (p: Profile) => {
       if (p.org_id) {
         const { data: o } = await supabase
           .from("organizations")
@@ -170,7 +154,7 @@ export default function ClientDashboardPage() {
             .gte("created_at", thirtyDaysAgo),
           supabase
             .from("tour_events")
-            .select("tour_id, viewer_fingerprint, created_at, presenter_user_id, event_type")
+            .select("tour_id, session_id, viewer_fingerprint, created_at, presenter_user_id, event_type")
             .in("tour_id", tourIds)
             .gte("created_at", sixtyDaysAgo)
             .lt("created_at", thirtyDaysAgo),
@@ -178,43 +162,41 @@ export default function ClientDashboardPage() {
         const events = (recent ?? []) as any[];
         const priorEvents = (prior ?? []) as any[];
 
-        // Per-tour rollup — view count + avg session time (proxy)
+        // Group ALL events by session_id (one browser tab = one real
+        // viewing session). Precise + click-proof: 1000 clicks inside a
+        // meeting still count as ONE view, and duration is measured from
+        // the session's first to last event.
+        type Sess = { tid: string | null; first: number; last: number };
+        const sess = new Map<string, Sess>();
+        for (const e of events) {
+          const sid = e.session_id as string | null;
+          if (!sid) continue;
+          const ts = new Date(e.created_at).getTime();
+          let s = sess.get(sid);
+          if (!s) {
+            s = { tid: e.tour_id ?? null, first: ts, last: ts };
+            sess.set(sid, s);
+          }
+          if (!s.tid && e.tour_id) s.tid = e.tour_id;
+          if (ts < s.first) s.first = ts;
+          if (ts > s.last) s.last = ts;
+        }
+
         const viewsByTour = new Map<string, number>();
         const timesByTour = new Map<string, number[]>();
         for (const t of tourList) {
           viewsByTour.set(t.id, 0);
           timesByTour.set(t.id, []);
         }
-        // Group events per (tour, fingerprint) to compute session durations
-        const sessionsByTour = new Map<string, Map<string, number[]>>();
-        for (const e of events) {
-          const tid = e.tour_id as string;
-          if (e.event_type === "scene_view" || e.event_type === "tour_start") {
-            viewsByTour.set(tid, (viewsByTour.get(tid) ?? 0) + 1);
+        const allDurations: number[] = [];
+        for (const s of sess.values()) {
+          if (!s.tid) continue;
+          viewsByTour.set(s.tid, (viewsByTour.get(s.tid) ?? 0) + 1);
+          const dur = Math.round((s.last - s.first) / 1000);
+          if (dur > 0) {
+            timesByTour.get(s.tid)?.push(dur);
+            allDurations.push(dur);
           }
-          if (e.viewer_fingerprint) {
-            let byFp = sessionsByTour.get(tid);
-            if (!byFp) {
-              byFp = new Map();
-              sessionsByTour.set(tid, byFp);
-            }
-            const arr = byFp.get(e.viewer_fingerprint) ?? [];
-            arr.push(new Date(e.created_at).getTime());
-            byFp.set(e.viewer_fingerprint, arr);
-          }
-        }
-        // Reduce sessions → per-tour avg-session in seconds
-        for (const [tid, byFp] of sessionsByTour) {
-          const durations: number[] = [];
-          for (const times of byFp.values()) {
-            times.sort((a, b) => a - b);
-            if (times.length < 2) {
-              durations.push(30);
-              continue;
-            }
-            durations.push((times[times.length - 1] - times[0]) / 1000);
-          }
-          timesByTour.set(tid, durations);
         }
         for (const t of tourList) {
           t.view_count = viewsByTour.get(t.id) ?? 0;
@@ -224,47 +206,45 @@ export default function ClientDashboardPage() {
             : 0;
         }
 
-        // Global KPIs
-        const totalViews = events.filter(
-          (e) => e.event_type === "scene_view" || e.event_type === "tour_start"
-        ).length;
-        const priorViews = priorEvents.filter(
-          (e) => e.event_type === "scene_view" || e.event_type === "tour_start"
-        ).length;
-        const allDurations = Array.from(timesByTour.values()).flat();
+        // Global KPIs — Total Views = number of viewing sessions (opens),
+        // not raw scene navigations.
+        const totalViews = Array.from(viewsByTour.values()).reduce(
+          (a, b) => a + b,
+          0
+        );
         const avgTourTimeSec = allDurations.length
           ? Math.round(allDurations.reduce((a, b) => a + b, 0) / allDurations.length)
           : 0;
 
-        // Prior period avg — compute from priorEvents
-        const priorSessionsByTour = new Map<string, Map<string, number[]>>();
+        // Prior window (deltas) — same session_id logic.
+        const priorSess = new Map<string, { first: number; last: number }>();
         for (const e of priorEvents) {
-          const tid = e.tour_id as string;
-          if (!e.viewer_fingerprint) continue;
-          let byFp = priorSessionsByTour.get(tid);
-          if (!byFp) {
-            byFp = new Map();
-            priorSessionsByTour.set(tid, byFp);
+          const sid = e.session_id as string | null;
+          if (!sid) continue;
+          const ts = new Date(e.created_at).getTime();
+          let s = priorSess.get(sid);
+          if (!s) {
+            s = { first: ts, last: ts };
+            priorSess.set(sid, s);
           }
-          const arr = byFp.get(e.viewer_fingerprint) ?? [];
-          arr.push(new Date(e.created_at).getTime());
-          byFp.set(e.viewer_fingerprint, arr);
+          if (ts < s.first) s.first = ts;
+          if (ts > s.last) s.last = ts;
         }
+        const priorViews = priorSess.size;
         const priorDurations: number[] = [];
-        for (const byFp of priorSessionsByTour.values()) {
-          for (const times of byFp.values()) {
-            times.sort((a, b) => a - b);
-            if (times.length < 2) priorDurations.push(30);
-            else priorDurations.push((times[times.length - 1] - times[0]) / 1000);
-          }
+        for (const s of priorSess.values()) {
+          const d = Math.round((s.last - s.first) / 1000);
+          if (d > 0) priorDurations.push(d);
         }
         const priorAvg = priorDurations.length
           ? Math.round(priorDurations.reduce((a, b) => a + b, 0) / priorDurations.length)
           : 0;
 
-        // Sparklines — 14 daily buckets
-        const viewsSpark = bucketByDay(events, 14, (e) =>
-          e.event_type === "scene_view" || e.event_type === "tour_start"
+        // Sparklines — count sessions (opens) per day.
+        const viewsSpark = bucketByDay(
+          events,
+          14,
+          (e) => e.event_type === "session_start"
         );
         const toursSpark = new Array(14).fill(tourList.length);
         const timeSpark = bucketByDayValues(events, 14, () => avgTourTimeSec);
@@ -295,44 +275,56 @@ export default function ClientDashboardPage() {
           .from("profiles")
           .select("id, full_name, email, role")
           .eq("org_id", p.org_id);
-        const presenterIds = (profs ?? []).map((x: any) => x.id);
+        // Sales team only — the admin (owner of the dashboard) is never a
+        // "team member" and their own activity is never counted here.
+        const presenters = (profs ?? []).filter(
+          (x: any) => x.role === "presenter"
+        );
+        const presenterIdSet = new Set(presenters.map((x: any) => x.id));
         const byPresenterCount = new Map<string, number>();
         const byPresenterTimes = new Map<string, number[]>();
-        if (presenterIds.length > 0 && tourIds.length > 0) {
+        if (presenters.length > 0 && tourIds.length > 0) {
           const thirtyDaysAgo = new Date(
             Date.now() - 30 * 24 * 60 * 60 * 1000
           ).toISOString();
           const { data: ev } = await supabase
             .from("tour_events")
-            .select("presenter_user_id, viewer_fingerprint, created_at")
+            .select("presenter_user_id, session_id, created_at")
             .in("tour_id", tourIds)
             .gte("created_at", thirtyDaysAgo);
-          const sessionsByPres = new Map<string, Map<string, number[]>>();
+          // Group by (presenter, session_id) — a "presentation" = one real
+          // session, click-proof.
+          const byPres = new Map<
+            string,
+            Map<string, { first: number; last: number }>
+          >();
           for (const e of (ev ?? []) as any[]) {
             const pid = e.presenter_user_id as string | null;
-            if (!pid || !e.viewer_fingerprint) continue;
-            let byFp = sessionsByPres.get(pid);
-            if (!byFp) {
-              byFp = new Map();
-              sessionsByPres.set(pid, byFp);
+            const sid = e.session_id as string | null;
+            if (!pid || !sid || !presenterIdSet.has(pid)) continue;
+            const ts = new Date(e.created_at).getTime();
+            let bySess = byPres.get(pid);
+            if (!bySess) {
+              bySess = new Map();
+              byPres.set(pid, bySess);
             }
-            const arr = byFp.get(e.viewer_fingerprint) ?? [];
-            arr.push(new Date(e.created_at).getTime());
-            byFp.set(e.viewer_fingerprint, arr);
+            const cur = bySess.get(sid);
+            if (!cur) bySess.set(sid, { first: ts, last: ts });
+            else {
+              if (ts < cur.first) cur.first = ts;
+              if (ts > cur.last) cur.last = ts;
+            }
           }
-          for (const [pid, byFp] of sessionsByPres) {
-            byPresenterCount.set(pid, byFp.size);
+          for (const [pid, bySess] of byPres) {
             const durs: number[] = [];
-            for (const times of byFp.values()) {
-              times.sort((a, b) => a - b);
-              durs.push(
-                times.length < 2 ? 60 : (times[times.length - 1] - times[0]) / 1000
-              );
+            for (const s of bySess.values()) {
+              durs.push(Math.round((s.last - s.first) / 1000));
             }
+            byPresenterCount.set(pid, bySess.size);
             byPresenterTimes.set(pid, durs);
           }
         }
-        const teamList: TeamRow[] = (profs ?? []).map((x: any) => {
+        const teamList: TeamRow[] = presenters.map((x: any) => {
           const durs = byPresenterTimes.get(x.id) ?? [];
           const totalSec = durs.reduce((a, b) => a + b, 0);
           const avgSec = durs.length ? totalSec / durs.length : 0;
@@ -340,7 +332,7 @@ export default function ClientDashboardPage() {
             id: x.id,
             name: x.full_name || x.email.split("@")[0],
             email: x.email,
-            role: x.role === "org_admin" ? "Admin" : "Presenter",
+            role: "Presenter",
             presentations: byPresenterCount.get(x.id) ?? 0,
             totalMinutes: Math.round(totalSec / 60),
             avgMinutes: Math.round(avgSec / 60),
@@ -349,10 +341,49 @@ export default function ClientDashboardPage() {
         teamList.sort((a, b) => b.presentations - a.presentations);
         setTeam(teamList);
       }
+  }, []);
 
+  // Initial auth + first load.
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) {
+        router.replace("/login?next=/client");
+        return;
+      }
+      if (p.role === "presenter") {
+        router.replace("/presenter");
+        return;
+      }
+      setMe(p);
+      // Presence heartbeat — keeps the analytics status dots green.
+      startPresence();
+      await loadDashboard(p);
       setLoading(false);
     })();
-  }, [router]);
+  }, [router, loadDashboard]);
+
+  // Live refresh — re-pull stats every 20s AND instantly when a new
+  // tour_event lands (a presenter opening / interacting), so the dashboard
+  // updates without a manual reload.
+  useEffect(() => {
+    if (!me) return;
+    const iv = window.setInterval(() => {
+      loadDashboard(me);
+    }, 20000);
+    const ch = supabase
+      .channel(`client-live-${me.org_id ?? "x"}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tour_events" },
+        () => loadDashboard(me)
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(iv);
+      supabase.removeChannel(ch);
+    };
+  }, [me, loadDashboard]);
 
   async function onSignOut() {
     await signOut();

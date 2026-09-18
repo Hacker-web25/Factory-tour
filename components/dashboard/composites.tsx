@@ -797,9 +797,8 @@ function AiAnalysisPanel({
   );
 }
 
-/** Best-effort human label for a hotspot id (falls back to a short id). */
+/** Human label for a hotspot id from the overview lookup (falls back to a
+ *  short id only if the hotspot was deleted). */
 function hotspotLabel(id: string, overview: TeamOverview): string {
-  // We don't have a hotspot lookup in the overview yet — show a short id.
-  // Kept as a helper so wiring a real label map later is a one-liner.
-  return `#${id.slice(0, 6)}`;
+  return overview.hotspotsById.get(id) ?? `Hotspot #${id.slice(0, 6)}`;
 }

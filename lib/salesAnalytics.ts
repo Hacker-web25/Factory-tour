@@ -82,6 +82,7 @@ export type TeamOverview = {
   allEvents: TourEvent[];
   toursById: Map<string, string>; // tour_id → title
   scenesById: Map<string, { name: string; tour_id: string }>;
+  hotspotsById: Map<string, string>; // hotspot_id → human label
 };
 
 /* ----------------------------- Fetching --------------------------------- */
@@ -127,9 +128,13 @@ export async function loadTeamOverview(
   const sceneIds = Array.from(
     new Set(events.map((e) => e.scene_id).filter(Boolean) as string[])
   );
-  const [toursById, scenesById] = await Promise.all([
+  const hotspotIds = Array.from(
+    new Set(events.map((e) => e.hotspot_id).filter(Boolean) as string[])
+  );
+  const [toursById, scenesById, hotspotsById] = await Promise.all([
     fetchTours(tourIds),
     fetchScenes(sceneIds),
+    fetchHotspots(hotspotIds),
   ]);
 
   // 4. Presence heartbeats for live status dots.
@@ -181,7 +186,41 @@ export async function loadTeamOverview(
     allEvents: events,
     toursById,
     scenesById,
+    hotspotsById,
   };
+}
+
+/** hotspot_id → a friendly label (its text/label, else info title, else a
+ *  Title-cased type). Used to show WHICH hotspot was clicked/hovered. */
+async function fetchHotspots(ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const { data } = await supabase
+    .from("hotspots")
+    .select("id, label, type, info_title, icon_key")
+    .in("id", ids);
+  for (const r of (data ?? []) as {
+    id: string;
+    label: string | null;
+    type: string | null;
+    info_title: string | null;
+    icon_key: string | null;
+  }[]) {
+    const label =
+      (r.label && r.label.trim()) ||
+      (r.info_title && r.info_title.trim()) ||
+      (r.icon_key && titleCase(r.icon_key)) ||
+      (r.type && `${titleCase(r.type)} hotspot`) ||
+      "Hotspot";
+    out.set(r.id, label);
+  }
+  return out;
+}
+
+function titleCase(s: string): string {
+  return s
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 async function fetchTours(ids: string[]): Promise<Map<string, string>> {

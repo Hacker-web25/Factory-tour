@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -72,27 +72,7 @@ export default function TeamPage() {
   );
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const p = await getMyProfile();
-      if (!p) {
-        router.replace("/login?next=/team");
-        return;
-      }
-      if (p.role === "presenter") {
-        // Presenters shouldn't see team management. Redirect to their sales dashboard.
-        if (p.org_id) {
-          const slug = await slugForOrgId(p.org_id);
-          if (slug) {
-            router.replace(`/${slug}/sales`);
-            return;
-          }
-        }
-        router.replace("/setup");
-        return;
-      }
-      setMe(p);
-
+  const loadTeam = useCallback(async (p: Profile) => {
       if (p.org_id) {
         const { data: org } = await supabase
           .from("organizations")
@@ -110,7 +90,10 @@ export default function TeamPage() {
           .select("id, full_name, email, role, created_at")
           .eq("org_id", p.org_id)
           .order("created_at");
-        const rows = (profs ?? []) as any[];
+        // Sales team only — never list the admin or count their activity.
+        const rows = ((profs ?? []) as any[]).filter(
+          (r) => r.role === "presenter"
+        );
 
         // Analytics per presenter — 30 day window
         const thirtyDaysAgo = new Date(
@@ -130,7 +113,7 @@ export default function TeamPage() {
         if (tourIds.length > 0) {
           const { data: events } = await supabase
             .from("tour_events")
-            .select("presenter_user_id, viewer_fingerprint, created_at")
+            .select("presenter_user_id, session_id, created_at")
             .in("tour_id", tourIds)
             .gte("created_at", thirtyDaysAgo);
           for (const e of (events ?? []) as any[]) {
@@ -143,11 +126,13 @@ export default function TeamPage() {
             }
             const ts = new Date(e.created_at).getTime();
             entry.last = Math.max(entry.last ?? 0, ts);
-            if (e.viewer_fingerprint) {
+            // Cluster by the exact session_id (one tab = one meeting), not
+            // by viewer_fingerprint — click-proof + precise.
+            if (e.session_id) {
               const arr =
-                entry.sessions.get(e.viewer_fingerprint as string) ?? [];
+                entry.sessions.get(e.session_id as string) ?? [];
               arr.push(ts);
-              entry.sessions.set(e.viewer_fingerprint as string, arr);
+              entry.sessions.set(e.session_id as string, arr);
             }
           }
         }
@@ -249,10 +234,50 @@ export default function TeamPage() {
           }));
         setPending(active);
       }
+  }, []);
 
+  // Initial auth + first load.
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) {
+        router.replace("/login?next=/team");
+        return;
+      }
+      if (p.role === "presenter") {
+        if (p.org_id) {
+          const slug = await slugForOrgId(p.org_id);
+          if (slug) {
+            router.replace(`/${slug}/sales`);
+            return;
+          }
+        }
+        router.replace("/setup");
+        return;
+      }
+      setMe(p);
+      await loadTeam(p);
       setLoading(false);
     })();
-  }, [router]);
+  }, [router, loadTeam]);
+
+  // Live refresh — poll + realtime on new events, no reload needed.
+  useEffect(() => {
+    if (!me) return;
+    const iv = window.setInterval(() => loadTeam(me), 20000);
+    const ch = supabase
+      .channel(`team-live-${me.org_id ?? "x"}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tour_events" },
+        () => loadTeam(me)
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(iv);
+      supabase.removeChannel(ch);
+    };
+  }, [me, loadTeam]);
 
   async function onSignOut() {
     await signOut();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
@@ -64,6 +64,86 @@ export default function SalesDashboardPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const salesTourIdsRef = useRef<string[]>([]);
+
+  /** Recompute THIS presenter's stats from precise session_id grouping.
+   *  Click-proof (1000 clicks = 1 presentation) and works for presenter-led
+   *  meetings where there's no distinct viewer fingerprint. */
+  const refreshStats = useCallback(
+    async (presenterId: string, tourIds: string[]) => {
+      if (tourIds.length === 0) {
+        setPresentations(0);
+        setTotalSec(0);
+        setAvgSec(0);
+        return;
+      }
+      const since = new Date(
+        Date.now() - 30 * 24 * 60 * 60 * 1000
+      ).toISOString();
+      const { data } = await supabase
+        .from("tour_events")
+        .select("tour_id, session_id, created_at, event_type")
+        .in("tour_id", tourIds)
+        .eq("presenter_user_id", presenterId)
+        .gte("created_at", since);
+      const rowsE = (data ?? []) as any[];
+
+      const bySession = new Map<
+        string,
+        { tid: string | null; first: number; last: number }
+      >();
+      for (const e of rowsE) {
+        const sid = e.session_id as string | null;
+        if (!sid) continue;
+        const ts = new Date(e.created_at).getTime();
+        let s = bySession.get(sid);
+        if (!s) {
+          s = { tid: e.tour_id ?? null, first: ts, last: ts };
+          bySession.set(sid, s);
+        }
+        if (!s.tid && e.tour_id) s.tid = e.tour_id;
+        if (ts < s.first) s.first = ts;
+        if (ts > s.last) s.last = ts;
+      }
+
+      const durations: number[] = [];
+      const perTourCount = new Map<string, number>();
+      const perTourDur = new Map<string, number[]>();
+      for (const s of bySession.values()) {
+        const d = Math.round((s.last - s.first) / 1000);
+        durations.push(d);
+        if (s.tid) {
+          perTourCount.set(s.tid, (perTourCount.get(s.tid) ?? 0) + 1);
+          const a = perTourDur.get(s.tid) ?? [];
+          if (d > 0) a.push(d);
+          perTourDur.set(s.tid, a);
+        }
+      }
+      const total = durations.reduce((a, b) => a + b, 0);
+      setPresentations(bySession.size);
+      setTotalSec(total);
+      setAvgSec(durations.length ? Math.round(total / durations.length) : 0);
+      setPresentSpark(
+        bucketByDay(rowsE, 14, (e) => e.event_type === "session_start")
+      );
+      setAvgSpark(bucketByDayValues(rowsE, 14, () => 1) as number[]);
+
+      // Update per-tour view counts / avg time on the cards.
+      setTours((prev) =>
+        prev.map((t) => {
+          const durs = perTourDur.get(t.id) ?? [];
+          return {
+            ...t,
+            view_count: perTourCount.get(t.id) ?? 0,
+            avg_time_sec: durs.length
+              ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)
+              : 0,
+          };
+        })
+      );
+    },
+    []
+  );
 
   useEffect(() => {
     (async () => {
@@ -156,72 +236,40 @@ export default function SalesDashboardPage() {
         });
       }
 
-      // Analytics — presentations attributed to THIS presenter, 30d.
-      const thirtyDaysAgo = new Date(
-        Date.now() - 30 * 24 * 60 * 60 * 1000
-      ).toISOString();
-      const tourIds = tourList.map((t) => t.id);
-      if (tourIds.length > 0) {
-        const { data: events } = await supabase
-          .from("tour_events")
-          .select("*")
-          .in("tour_id", tourIds)
-          .eq("presenter_user_id", p.id)
-          .gte("created_at", thirtyDaysAgo);
-        const rowsE = (events ?? []) as any[];
-
-        // Group events per fingerprint per tour → session durations
-        const sessionsByTour = new Map<string, Map<string, number[]>>();
-        for (const e of rowsE) {
-          if (!e.viewer_fingerprint) continue;
-          let byFp = sessionsByTour.get(e.tour_id as string);
-          if (!byFp) {
-            byFp = new Map();
-            sessionsByTour.set(e.tour_id as string, byFp);
-          }
-          const arr = byFp.get(e.viewer_fingerprint) ?? [];
-          arr.push(new Date(e.created_at).getTime());
-          byFp.set(e.viewer_fingerprint, arr);
-        }
-
-        const allDurations: number[] = [];
-        for (const t of tourList) {
-          const byFp = sessionsByTour.get(t.id);
-          const durs: number[] = [];
-          if (byFp) {
-            for (const times of byFp.values()) {
-              times.sort((a, b) => a - b);
-              durs.push(
-                times.length < 2
-                  ? 30
-                  : (times[times.length - 1] - times[0]) / 1000
-              );
-            }
-          }
-          t.view_count = byFp ? byFp.size : 0;
-          t.avg_time_sec = durs.length
-            ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length)
-            : 0;
-          allDurations.push(...durs);
-        }
-        setPresentations(allDurations.length);
-        setTotalSec(Math.round(allDurations.reduce((a, b) => a + b, 0)));
-        setAvgSec(
-          allDurations.length
-            ? Math.round(
-                allDurations.reduce((a, b) => a + b, 0) / allDurations.length
-              )
-            : 0
-        );
-
-        // Sparklines
-        setPresentSpark(bucketByDay(rowsE, 14, () => true));
-        setAvgSpark(bucketByDayValues(rowsE, 14, () => 1) as number[]);
-      }
       setTours(tourList);
+      const tourIds = tourList.map((t) => t.id);
+      salesTourIdsRef.current = tourIds;
+      await refreshStats(p.id, tourIds);
       setLoading(false);
     })();
-  }, [params.slug, router]);
+  }, [params.slug, router, refreshStats]);
+
+  // Live refresh — recompute this presenter's own stats every 20s and
+  // whenever a new event of theirs lands, so their dashboard updates live.
+  useEffect(() => {
+    if (!me) return;
+    const iv = window.setInterval(
+      () => refreshStats(me.id, salesTourIdsRef.current),
+      20000
+    );
+    const ch = supabase
+      .channel(`sales-live-${me.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "tour_events",
+          filter: `presenter_user_id=eq.${me.id}`,
+        },
+        () => refreshStats(me.id, salesTourIdsRef.current)
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(iv);
+      supabase.removeChannel(ch);
+    };
+  }, [me, refreshStats]);
 
   async function onSignOut() {
     await signOut();

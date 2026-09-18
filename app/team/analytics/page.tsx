@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getMyProfile, signOut, type Profile } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import {
   loadTeamOverview,
   generateInsights,
@@ -97,6 +98,30 @@ export default function TeamAnalyticsPage() {
     loadTeamOverview(me.org_id, RANGES[rangeIdx].days)
       .then((o) => setOverview(o))
       .finally(() => setLoading(false));
+  }, [me?.org_id, rangeIdx]);
+
+  // Live refresh — silently re-pull the full overview every 25s AND when a
+  // new tour_event lands, so presentation/interaction stats update without
+  // a page reload.
+  useEffect(() => {
+    if (!me?.org_id) return;
+    const orgId = me.org_id;
+    const days = RANGES[rangeIdx].days;
+    const refresh = () =>
+      loadTeamOverview(orgId, days).then((o) => setOverview(o));
+    const iv = window.setInterval(refresh, 25000);
+    const ch = supabase
+      .channel(`analytics-live-${orgId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tour_events" },
+        () => refresh()
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(iv);
+      supabase.removeChannel(ch);
+    };
   }, [me?.org_id, rangeIdx]);
 
   // Client-side status-decay tick — every 5s, re-derive each member's
