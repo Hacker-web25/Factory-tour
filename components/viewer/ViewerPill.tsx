@@ -29,6 +29,10 @@ import {
   Globe2,
   MoreHorizontal,
   Check,
+  Maximize2,
+  Minimize2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useT } from "@/lib/TranslationContext";
 import { langMeta } from "@/lib/i18n";
@@ -43,13 +47,44 @@ export type ViewerPillProps = {
     muted: boolean;
     onToggle: () => void;
   } | null;
+  /** Hide / show the bottom scene-thumbnail strip. Omit if there's no
+   *  strip to hide (single-scene tour). */
+  stripVisibility?: {
+    hidden: boolean;
+    onToggle: () => void;
+  } | null;
 };
 
 export default function ViewerPill({
   onResetZoom,
   autoTour,
   audio,
+  stripVisibility,
 }: ViewerPillProps) {
+  // Fullscreen state is fully self-managed — the pill listens to the
+  // document's fullscreen events so the button label stays truthful even
+  // if the user hits Esc.
+  const [isFs, setIsFs] = useState(
+    () =>
+      typeof document !== "undefined" &&
+      !!document.fullscreenElement
+  );
+  useEffect(() => {
+    const onFs = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+  const toggleFullscreen = () => {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
+    } catch {
+      /* silently ignore — some browsers block outside user activation */
+    }
+  };
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -161,6 +196,34 @@ export default function ViewerPill({
             label="Reset zoom"
           />
         )}
+        {stripVisibility && (
+          <ActionBtn
+            title={
+              stripVisibility.hidden
+                ? "Show scene strip"
+                : "Hide scene strip"
+            }
+            onClick={stripVisibility.onToggle}
+            icon={
+              stripVisibility.hidden ? (
+                <Eye size={14} />
+              ) : (
+                <EyeOff size={14} />
+              )
+            }
+            label={stripVisibility.hidden ? "Show strip" : "Hide strip"}
+            accent={stripVisibility.hidden}
+          />
+        )}
+        <ActionBtn
+          title={isFs ? "Exit fullscreen" : "Enter fullscreen"}
+          onClick={toggleFullscreen}
+          icon={
+            isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />
+          }
+          label={isFs ? "Exit fullscreen" : "Fullscreen"}
+          accent={isFs}
+        />
       </div>
 
       {/* The trigger chip — always visible. Rotates the dots subtly when

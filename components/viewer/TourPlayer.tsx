@@ -9,7 +9,7 @@ import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
-import { Minimize2, Ruler } from "lucide-react";
+import { Ruler } from "lucide-react";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import MeasureTool from "@/components/viewer/MeasureTool";
 import { trackEvent } from "@/lib/analytics";
@@ -256,6 +256,9 @@ function TourPlayerInner({
   // clicks the speaker icon to silence everything (e.g. during a live
   // walkthrough where they want to talk over the tour instead).
   const [audioMuted, setAudioMuted] = useState(false);
+  // Whether the bottom scene-thumbnail strip is hidden (toggled from the
+  // pill). Kept per-tab; a fresh tab starts with the strip visible.
+  const [stripHidden, setStripHidden] = useState(false);
 
   // Effect 1: create/destroy the audio element only when URL changes.
   useEffect(() => {
@@ -764,19 +767,9 @@ function TourPlayerInner({
         {/* Glass title chip — top-left, collapses on idle, expands on hover. */}
         <TitleChip tourTitle={tour.title} sceneName={active.name} />
 
-        {/* Exit fullscreen — closes this tab, returns user to the editor. */}
-        {isFullscreenTab && (
-          <button
-            onClick={() => window.close()}
-            className="absolute top-3 right-3 bg-white/80 hover:bg-white border border-white/70 text-vpv-navy text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-xl shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)]"
-            title="Exit fullscreen (close this tab)"
-          >
-            <Minimize2 size={12} /> Exit fullscreen
-          </button>
-        )}
-
         {/* Consolidated glass control pill — bottom-right. Fans out on
-            hover with reset-zoom, auto-tour, language, sound. */}
+            hover with reset-zoom, auto-tour, language, sound, strip
+            visibility, and fullscreen. */}
         <ViewerPill
           onResetZoom={() => zoomResetRef.current?.()}
           autoTour={
@@ -794,6 +787,14 @@ function TourPlayerInner({
               ? {
                   muted: audioMuted,
                   onToggle: () => setAudioMuted((v) => !v),
+                }
+              : null
+          }
+          stripVisibility={
+            !hideControls && scenes.length > 1
+              ? {
+                  hidden: stripHidden,
+                  onToggle: () => setStripHidden((v) => !v),
                 }
               : null
           }
@@ -828,26 +829,50 @@ function TourPlayerInner({
       </div>
 
       {!hideControls && scenes.length > 1 && (
-        <div className="h-20 bg-white/80 backdrop-blur-xl border-t border-white/60 flex items-center gap-2 px-3 overflow-x-auto panel-scroll">
-          {scenes.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => navigateTo(s.id, { cinematic: false })}
-              className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all ${
-                activeSceneId === s.id
-                  ? "border-vpv-blue shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
-                  : "border-vpv-line hover:border-vpv-blue/40"
-              }`}
-              title={s.name}
+        /* Grid-rows trick — animates the strip's HEIGHT from 0 → auto with
+           a real cubic-bezier ease. Combined with translate+opacity on the
+           inner rail gives a proper "slide down + settle" premium feel
+           instead of a jarring cut. */
+        <div
+          aria-hidden={stripHidden}
+          className="grid overflow-hidden"
+          style={{
+            gridTemplateRows: stripHidden ? "0fr" : "1fr",
+            transition: "grid-template-rows 380ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div
+              style={{
+                transform: stripHidden ? "translateY(8px)" : "translateY(0)",
+                opacity: stripHidden ? 0 : 1,
+                transition:
+                  "transform 380ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease",
+              }}
+              className="h-20 bg-white/80 backdrop-blur-xl border-t border-white/60 flex items-center gap-2 px-3 overflow-x-auto panel-scroll"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={publicUrl(s.image_path)}
-                alt={s.name}
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
+              {scenes.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => navigateTo(s.id, { cinematic: false })}
+                  className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                    activeSceneId === s.id
+                      ? "border-vpv-blue shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
+                      : "border-vpv-line hover:border-vpv-blue/40"
+                  }`}
+                  title={s.name}
+                  tabIndex={stripHidden ? -1 : 0}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={publicUrl(s.image_path)}
+                    alt={s.name}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

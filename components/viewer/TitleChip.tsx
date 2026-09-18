@@ -7,7 +7,7 @@
  * changes). Purely decorative — no side effects.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Layers } from "lucide-react";
 
 export default function TitleChip({
@@ -18,23 +18,15 @@ export default function TitleChip({
   sceneName: string;
 }) {
   const [hovered, setHovered] = useState(false);
-  // Auto-expand briefly when the scene name changes so viewers see where
-  // they are without needing to hover.
-  const [autoOpen, setAutoOpen] = useState(true);
-  const firstMount = useRef(true);
-
+  // Show once briefly on first mount so viewers see where they are,
+  // then stay collapsed — only hover opens it after that.
+  const [firstOpen, setFirstOpen] = useState(true);
   useEffect(() => {
-    if (firstMount.current) {
-      firstMount.current = false;
-      const t = window.setTimeout(() => setAutoOpen(false), 2500);
-      return () => window.clearTimeout(t);
-    }
-    setAutoOpen(true);
-    const t = window.setTimeout(() => setAutoOpen(false), 2200);
+    const t = window.setTimeout(() => setFirstOpen(false), 2500);
     return () => window.clearTimeout(t);
-  }, [sceneName]);
+  }, []);
 
-  const open = hovered || autoOpen;
+  const open = hovered || firstOpen;
 
   return (
     <div
