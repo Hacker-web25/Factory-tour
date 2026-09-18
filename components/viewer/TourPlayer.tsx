@@ -9,21 +9,14 @@ import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
-import {
-  Play,
-  Pause,
-  Minimize2,
-  ZoomIn,
-  Ruler,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Minimize2, Ruler } from "lucide-react";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import MeasureTool from "@/components/viewer/MeasureTool";
 import { trackEvent } from "@/lib/analytics";
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
-import LanguagePicker from "@/components/viewer/LanguagePicker";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
+import ViewerPill from "@/components/viewer/ViewerPill";
+import TitleChip from "@/components/viewer/TitleChip";
 
 type Props = {
   tour: Tour;
@@ -636,9 +629,6 @@ function TourPlayerInner({
 
   return (
     <div className="h-full w-full flex flex-col bg-black">
-      {/* Floating language dropdown — hides itself when the tour has
-          only one language configured. */}
-      <LanguagePicker position="top-right" />
       {/* Live-translated subtitles — attaches to whichever source
           (ambient audio, audio hotspot, video hotspot) is currently
           firing time-update events. Hidden when the presenter mutes
@@ -771,86 +761,43 @@ function TourPlayerInner({
           requestPoint={requestMeasurePoint}
         />
 
-        <div className="absolute top-3 left-3 text-white text-sm font-medium bg-black/50 px-3 py-1 rounded">
-          {tour.title} · {active.name}
-        </div>
-
-        {/* Auto-tour play/pause — sits BELOW the language picker at
-            top-right so the two never overlap (previously the language
-            dropdown was covering this button). */}
-        {scenes.length > 1 && (
-          <button
-            onClick={() => setAutoPlaying((v) => !v)}
-            className={`absolute right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
-              isFullscreenTab ? "top-28" : "top-14"
-            }`}
-            title={autoPlaying ? "Pause walkthrough" : "Start walkthrough"}
-          >
-            {autoPlaying ? (
-              <>
-                <Pause size={12} /> Pause
-              </>
-            ) : (
-              <>
-                <Play size={12} /> Auto-tour
-              </>
-            )}
-          </button>
-        )}
-
-        {/* Mute / unmute — pauses ambient audio AND hides subtitles when
-            active. Sits below the Auto-tour button, still on the right. */}
-        {(ambientUrl ||
-          (tour as unknown as { subtitle_settings?: any })
-            .subtitle_settings) && (
-          <button
-            onClick={() => setAudioMuted((v) => !v)}
-            className={`absolute right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm ${
-              scenes.length > 1
-                ? isFullscreenTab
-                  ? "top-40"
-                  : "top-24"
-                : isFullscreenTab
-                  ? "top-28"
-                  : "top-14"
-            }`}
-            title={
-              audioMuted
-                ? "Turn audio & subtitles back on"
-                : "Mute audio & hide subtitles"
-            }
-          >
-            {audioMuted ? (
-              <>
-                <VolumeX size={12} /> Muted
-              </>
-            ) : (
-              <>
-                <Volume2 size={12} /> Sound
-              </>
-            )}
-          </button>
-        )}
+        {/* Glass title chip — top-left, collapses on idle, expands on hover. */}
+        <TitleChip tourTitle={tour.title} sceneName={active.name} />
 
         {/* Exit fullscreen — closes this tab, returns user to the editor. */}
         {isFullscreenTab && (
           <button
             onClick={() => window.close()}
-            className="absolute top-3 right-3 bg-black/70 hover:bg-black/85 border border-white/25 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
+            className="absolute top-3 right-3 bg-white/80 hover:bg-white border border-white/70 text-vpv-navy text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-xl shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)]"
             title="Exit fullscreen (close this tab)"
           >
             <Minimize2 size={12} /> Exit fullscreen
           </button>
         )}
 
-        {/* Reset zoom button — always available in bottom-right corner */}
-        <button
-          onClick={() => zoomResetRef.current?.()}
-          className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 border border-white/20 text-white text-xs px-3 py-2 rounded-full flex items-center gap-1.5 backdrop-blur-sm"
-          title="Reset zoom to default"
-        >
-          <ZoomIn size={12} /> Reset zoom
-        </button>
+        {/* Consolidated glass control pill — bottom-right. Fans out on
+            hover with reset-zoom, auto-tour, language, sound. */}
+        <ViewerPill
+          onResetZoom={() => zoomResetRef.current?.()}
+          autoTour={
+            scenes.length > 1
+              ? {
+                  playing: autoPlaying,
+                  onToggle: () => setAutoPlaying((v) => !v),
+                }
+              : null
+          }
+          audio={
+            ambientUrl ||
+            (tour as unknown as { subtitle_settings?: any })
+              .subtitle_settings
+              ? {
+                  muted: audioMuted,
+                  onToggle: () => setAudioMuted((v) => !v),
+                }
+              : null
+          }
+        />
 
         {/* Measure tool toggle — hidden for now (will be reintroduced
             when the calibration UX is finished). The MeasureTool
@@ -881,16 +828,17 @@ function TourPlayerInner({
       </div>
 
       {!hideControls && scenes.length > 1 && (
-        <div className="h-20 bg-black/80 border-t border-neutral-800 flex items-center gap-2 px-3 overflow-x-auto panel-scroll">
+        <div className="h-20 bg-white/80 backdrop-blur-xl border-t border-white/60 flex items-center gap-2 px-3 overflow-x-auto panel-scroll">
           {scenes.map((s) => (
             <button
               key={s.id}
               onClick={() => navigateTo(s.id, { cinematic: false })}
-              className={`shrink-0 w-24 h-14 rounded overflow-hidden border-2 ${
+              className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all ${
                 activeSceneId === s.id
-                  ? "border-accent"
-                  : "border-transparent"
+                  ? "border-vpv-blue shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
+                  : "border-vpv-line hover:border-vpv-blue/40"
               }`}
+              title={s.name}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

@@ -1,18 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
+/**
+ * MenuOverlay — the scene-index side rail (a.k.a. the tour's "menu").
+ *
+ * Design goals (rewrite):
+ *   • Glassmorphism styling matching the VPV brand — semi-transparent
+ *     white, navy text, brand-blue accent for the active scene.
+ *   • Pinnable: opens as a floating panel on click, then a pin icon
+ *     locks it as a permanent LEFT or RIGHT rail (choice persisted per
+ *     tour in localStorage).
+ *   • Auto-collapses back to a discreet round chip when unpinned and
+ *     the user clicks outside.
+ *   • Folder grouping preserved from the old menu.
+ */
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MenuPosition, Scene, Tour } from "@/lib/types";
 import { publicUrl } from "@/lib/supabase";
-import { ChevronDown, ChevronRight, Folder } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  Menu,
+  Pin,
+  PinOff,
+  X,
+  ArrowLeftFromLine,
+  ArrowRightFromLine,
+} from "lucide-react";
 import { useT } from "@/lib/TranslationContext";
 
-/**
- * Corner-docked scene-index menu.
- * Icon (custom "list" glyph — three dots and three bars, similar to but not
- * derived from any copyrighted set) sits in one of four corners with a
- * user-set size and resting opacity. Clicking it expands a smoothly-animated
- * panel with a clickable list of scene names.
- */
+type Side = "left" | "right";
+
 export default function MenuOverlay({
   tour,
   scenes,
@@ -24,69 +43,185 @@ export default function MenuOverlay({
   activeSceneId: string | null;
   onSelectScene: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // Which side of the screen the rail lives on — user pref, per tour.
+  const storageKey = `vpv-menu-side:${tour.id}`;
+  const pinKey = `vpv-menu-pinned:${tour.id}`;
+
+  const [side, setSide] = useState<Side>(() => {
+    if (typeof window === "undefined") return sideFromTourDefault(tour);
+    try {
+      const v = window.localStorage.getItem(storageKey);
+      if (v === "left" || v === "right") return v;
+    } catch {}
+    return sideFromTourDefault(tour);
+  });
+  const [pinned, setPinned] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(pinKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [open, setOpen] = useState<boolean>(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Persist prefs whenever they change.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(storageKey, side);
+    } catch {}
+  }, [side, storageKey]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(pinKey, pinned ? "1" : "0");
+    } catch {}
+  }, [pinned, pinKey]);
+
+  // Close-on-outside-click, but only when NOT pinned.
+  useEffect(() => {
+    if (!open || pinned) return;
+    function onDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open, pinned]);
+
   if (!tour.menu_enabled) return null;
 
-  const size = Math.max(28, Math.min(120, tour.menu_size ?? 44));
-  const opacity = Math.max(0.15, Math.min(1, tour.menu_opacity ?? 0.75));
-  const pos = (tour.menu_position ?? "top-left") as MenuPosition;
+  const panelVisible = open || pinned;
+  const size = 40;
 
-  const positionStyle: React.CSSProperties = {
+  // The panel — glass sheet, full height, docked to the chosen side.
+  const panelStyle: React.CSSProperties = {
     position: "absolute",
-    ...positionOffsets(pos),
-    zIndex: 30,
+    top: 0,
+    bottom: 0,
+    [side]: 0,
+    width: 300,
+    zIndex: 25,
+    transform: panelVisible
+      ? "translateX(0)"
+      : side === "left"
+        ? "translateX(-100%)"
+        : "translateX(100%)",
+    transition:
+      "transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms",
+    opacity: panelVisible ? 1 : 0,
+    pointerEvents: panelVisible ? "auto" : "none",
   };
 
-  const menuAnchor = anchorForPosition(pos);
+  // The trigger chip — visible only when the panel is closed.
+  const chipStyle: React.CSSProperties = {
+    position: "absolute",
+    top: 16,
+    [side === "left" ? "left" : "right"]: 16,
+    zIndex: 26,
+    width: size,
+    height: size,
+    opacity: panelVisible ? 0 : 1,
+    pointerEvents: panelVisible ? "none" : "auto",
+    transition: "opacity 180ms",
+  };
 
   return (
-    <div style={positionStyle} className="select-none">
+    <div ref={wrapRef} className="select-none">
+      {/* Trigger chip — always in the SAME corner as the pinned side. */}
       <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Scene index"
-        style={{
-          width: size,
-          height: size,
-          opacity: open ? 1 : opacity,
-          transition: "opacity 200ms ease, transform 200ms ease",
-        }}
-        className="grid place-items-center rounded-lg bg-black/60 border border-white/20 backdrop-blur-sm hover:opacity-100 hover:scale-105 cursor-pointer"
+        onClick={() => setOpen(true)}
+        aria-label="Open scene index"
+        style={chipStyle}
+        className="grid place-items-center rounded-full bg-white/80 hover:bg-white border border-white/70 backdrop-blur-xl text-vpv-navy shadow-[0_10px_30px_-10px_rgba(11,61,145,0.4)] transition-transform hover:scale-105"
       >
-        <MenuGlyph size={Math.round(size * 0.55)} />
+        <Menu size={17} />
       </button>
 
-      {/* Menu panel */}
-      <div
-        style={{
-          ...menuAnchor,
-          transformOrigin: transformOriginFor(pos),
-          transform: open ? "scale(1)" : "scale(0.85)",
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? "auto" : "none",
-          transition:
-            "transform 220ms cubic-bezier(0.2, 0.9, 0.35, 1.15), opacity 180ms ease",
-        }}
-        className="absolute min-w-[240px] max-w-[320px] max-h-[70vh] overflow-auto rounded-lg bg-black/85 border border-white/15 backdrop-blur-md shadow-2xl p-2"
+      {/* The rail */}
+      <aside
+        style={panelStyle}
+        className="flex flex-col bg-white/70 backdrop-blur-2xl border-white/60 shadow-[0_20px_60px_-20px_rgba(11,61,145,0.4)]"
       >
-        <div className="text-[10px] uppercase tracking-wide text-neutral-400 px-2 py-1.5">
-          Scenes
-        </div>
-        {scenes.length === 0 && (
-          <div className="text-xs text-neutral-500 px-2 py-3">
-            No scenes yet.
+        <div
+          className={`border-${side === "left" ? "r" : "l"} border-white/50 flex flex-col h-full`}
+        >
+          {/* Header — title + pin + close + side-swap */}
+          <div className="flex items-center gap-1.5 px-3 py-3 border-b border-white/50">
+            <div className="text-[11px] uppercase tracking-wider text-vpv-muted font-semibold flex-1">
+              Scenes
+              <span className="text-vpv-ink/50 ml-1.5 font-normal normal-case tracking-normal">
+                {scenes.length}
+              </span>
+            </div>
+
+            {/* Move to the other side */}
+            <button
+              onClick={() => setSide(side === "left" ? "right" : "left")}
+              title={
+                side === "left" ? "Dock on the right" : "Dock on the left"
+              }
+              className="w-7 h-7 grid place-items-center rounded-md text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+            >
+              {side === "left" ? (
+                <ArrowRightFromLine size={13} />
+              ) : (
+                <ArrowLeftFromLine size={13} />
+              )}
+            </button>
+
+            {/* Pin toggle */}
+            <button
+              onClick={() => setPinned((v) => !v)}
+              title={pinned ? "Unpin" : "Pin as a permanent rail"}
+              className={`w-7 h-7 grid place-items-center rounded-md ${
+                pinned
+                  ? "bg-vpv-blue text-white"
+                  : "text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+              }`}
+            >
+              {pinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </button>
+
+            {/* Close (only useful when not pinned) */}
+            {!pinned && (
+              <button
+                onClick={() => setOpen(false)}
+                title="Close"
+                className="w-7 h-7 grid place-items-center rounded-md text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
-        )}
-        <SceneList
-          scenes={scenes}
-          activeSceneId={activeSceneId}
-          onSelect={(id) => {
-            onSelectScene(id);
-            setOpen(false);
-          }}
-        />
-      </div>
+
+          {/* Scene list */}
+          <div className="flex-1 overflow-y-auto panel-scroll p-2">
+            {scenes.length === 0 ? (
+              <div className="text-xs text-vpv-muted px-2 py-3">
+                No scenes yet.
+              </div>
+            ) : (
+              <SceneList
+                scenes={scenes}
+                activeSceneId={activeSceneId}
+                onSelect={(id) => {
+                  onSelectScene(id);
+                  if (!pinned) setOpen(false);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </aside>
     </div>
   );
+}
+
+/** Old tour.menu_position was corner-based — fold that down to left/right
+ *  so users' historical prefs land somewhere sensible. */
+function sideFromTourDefault(tour: Tour): Side {
+  const pos = (tour.menu_position ?? "top-left") as MenuPosition;
+  return pos.endsWith("right") ? "right" : "left";
 }
 
 /* ------------ Scene list with folder grouping + thumbnails ------------ */
@@ -100,7 +235,6 @@ function SceneList({
   activeSceneId: string | null;
   onSelect: (id: string) => void;
 }) {
-  // Group scenes by folder (preserving encounter order for both folder + item).
   const groups = useMemo(() => {
     const map = new Map<string, Scene[]>();
     for (const s of scenes) {
@@ -129,7 +263,7 @@ function SceneList({
                 onClick={() =>
                   setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))
                 }
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] uppercase tracking-wide text-neutral-300 hover:text-white"
+                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] uppercase tracking-wide text-vpv-muted hover:text-vpv-navy"
               >
                 {isCollapsed ? (
                   <ChevronRight size={12} />
@@ -138,7 +272,7 @@ function SceneList({
                 )}
                 <Folder size={12} />
                 <span className="truncate flex-1 text-left">{g.label}</span>
-                <span className="text-[10px] text-neutral-500">
+                <span className="text-[10px] text-vpv-muted/60">
                   {g.scenes.length}
                 </span>
               </button>
@@ -180,56 +314,32 @@ function SceneRow({
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-2 py-1.5 rounded flex items-center gap-2 text-sm transition ${active ? "bg-accent text-black font-medium" : "hover:bg-white/10 text-neutral-100"}`}
+      className={`w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 text-sm transition ${
+        active
+          ? "bg-vpv-blue text-white font-medium shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
+          : "hover:bg-vpv-tint/70 text-vpv-ink"
+      }`}
     >
       {thumbUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumbUrl} alt="" draggable={false} className="w-10 h-6 object-cover rounded border border-white/10 shrink-0" />
+        <img
+          src={thumbUrl}
+          alt=""
+          draggable={false}
+          className={`w-10 h-6 object-cover rounded border shrink-0 ${
+            active ? "border-white/40" : "border-vpv-line"
+          }`}
+        />
       ) : (
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? "bg-black/70" : "bg-cyan-400"}`} />
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+            active ? "bg-white" : "bg-vpv-blue"
+          }`}
+        />
       )}
-      <span className="truncate flex-1">{t(s.name) || `Scene ${index + 1}`}</span>
+      <span className="truncate flex-1">
+        {t(s.name) || `Scene ${index + 1}`}
+      </span>
     </button>
-  );
-}
-
-function positionOffsets(pos: MenuPosition) {
-  switch (pos) {
-    case "top-left": return { top: 16, left: 16 };
-    case "top-right": return { top: 16, right: 16 };
-    case "bottom-left": return { bottom: 96, left: 16 };
-    case "bottom-right": return { bottom: 96, right: 16 };
-  }
-}
-
-function anchorForPosition(pos: MenuPosition): React.CSSProperties {
-  switch (pos) {
-    case "top-left": return { top: "calc(100% + 8px)", left: 0 };
-    case "top-right": return { top: "calc(100% + 8px)", right: 0 };
-    case "bottom-left": return { bottom: "calc(100% + 8px)", left: 0 };
-    case "bottom-right": return { bottom: "calc(100% + 8px)", right: 0 };
-  }
-}
-
-function transformOriginFor(pos: MenuPosition): string {
-  switch (pos) {
-    case "top-left": return "top left";
-    case "top-right": return "top right";
-    case "bottom-left": return "bottom left";
-    case "bottom-right": return "bottom right";
-  }
-}
-
-function MenuGlyph({ size = 24 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="7" cy="8" r="2.4" fill="currentColor" />
-      <circle cx="7" cy="16" r="2.4" fill="currentColor" />
-      <circle cx="7" cy="24" r="2.4" fill="currentColor" />
-      <rect x="13" y="6" width="14" height="4" rx="2" fill="currentColor" />
-      <rect x="13" y="14" width="14" height="4" rx="2" fill="currentColor" />
-      <rect x="13" y="22" width="14" height="4" rx="2" fill="currentColor" />
-      <style>{`svg { color: white; }`}</style>
-    </svg>
   );
 }
