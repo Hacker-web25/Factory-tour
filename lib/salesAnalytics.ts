@@ -190,28 +190,86 @@ export async function loadTeamOverview(
   };
 }
 
-/** hotspot_id → a friendly label (its text/label, else info title, else a
- *  Title-cased type). Used to show WHICH hotspot was clicked/hovered. */
+/** hotspot_id → a MEANINGFUL label so the admin knows which hotspot was
+ *  clicked/hovered. Priority:
+ *    1. the author's typed label ("Change Rooms")
+ *    2. what it does — a nav hotspot → "→ Destination scene"
+ *    3. its info title
+ *    4. where it lives — "Info spot · Ground floor"
+ *  Only falls back to a generic name when the hotspot has truly nothing. */
 async function fetchHotspots(ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (ids.length === 0) return out;
   const { data } = await supabase
     .from("hotspots")
-    .select("id, label, type, info_title, icon_key")
+    .select(
+      "id, label, type, action, target_scene_id, scene_id, info_title, icon_key"
+    )
     .in("id", ids);
-  for (const r of (data ?? []) as {
+  const rows = (data ?? []) as {
     id: string;
     label: string | null;
     type: string | null;
+    action: string | null;
+    target_scene_id: string | null;
+    scene_id: string | null;
     info_title: string | null;
     icon_key: string | null;
-  }[]) {
-    const label =
+  }[];
+
+  // Resolve scene names for both the hotspot's own scene and any nav target.
+  const sceneIds = Array.from(
+    new Set(
+      rows
+        .flatMap((r) => [r.target_scene_id, r.scene_id])
+        .filter(Boolean) as string[]
+    )
+  );
+  const sceneName = new Map<string, string>();
+  if (sceneIds.length) {
+    const { data: sc } = await supabase
+      .from("scenes")
+      .select("id, name")
+      .in("id", sceneIds);
+    for (const s of (sc ?? []) as { id: string; name: string }[]) {
+      sceneName.set(s.id, s.name);
+    }
+  }
+
+  const prettyType: Record<string, string> = {
+    nav: "Navigation",
+    info: "Info spot",
+    image: "Image",
+    video: "Video",
+    audio: "Audio",
+    text: "Label",
+    person: "Person tag",
+    polygon: "Area",
+    icon: "Marker",
+  };
+
+  for (const r of rows) {
+    const isNav =
+      r.type === "nav" || r.action === "nav" ? true : false;
+    const targetName = r.target_scene_id
+      ? sceneName.get(r.target_scene_id)
+      : null;
+    const ownScene = r.scene_id ? sceneName.get(r.scene_id) : null;
+
+    let label =
       (r.label && r.label.trim()) ||
+      (isNav && targetName ? `→ ${targetName}` : "") ||
       (r.info_title && r.info_title.trim()) ||
-      (r.icon_key && titleCase(r.icon_key)) ||
-      (r.type && `${titleCase(r.type)} hotspot`) ||
-      "Hotspot";
+      (targetName ? `→ ${targetName}` : "");
+
+    if (!label) {
+      const typeName =
+        (r.type && prettyType[r.type]) ||
+        (r.type && titleCase(r.type)) ||
+        "Hotspot";
+      label = ownScene ? `${typeName} · ${ownScene}` : typeName;
+    }
+
     out.set(r.id, label);
   }
   return out;
