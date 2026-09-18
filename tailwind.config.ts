@@ -20,6 +20,32 @@ const config: Config = {
         accentHover: "#17a074",
         // Secondary highlight — cool cyan (placement crosshair, indicators)
         highlight: "#22d3ee",
+        // VPV brand system — pulled from myvpv.com. Used by the customer-
+        // facing dashboards (org_admin + sales team) so they match the
+        // marketing site. Navy → blue → cyan on white.
+        vpv: {
+          ink: "#0C1017",      // primary text
+          muted: "#526071",    // secondary text
+          navy: "#0B3D91",     // deep brand navy
+          blue: "#1468D8",     // primary action blue
+          cyan: "#19B8F2",     // bright accent / gradient end
+          tint: "#EAF2FE",     // light blue surface tint
+          canvas: "#F4F8FD",   // page background
+          line: "#E2E8F0",     // hairline borders
+        },
+      },
+      backgroundImage: {
+        "vpv-grad": "linear-gradient(120deg, #0B3D91, #1468D8 52%, #19B8F2)",
+        "vpv-grad-soft": "linear-gradient(135deg, #0B3D91, #1468D8)",
+      },
+      fontFamily: {
+        sans: [
+          "var(--font-inter)",
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
       },
       fontSize: {
         // Compact editor typography

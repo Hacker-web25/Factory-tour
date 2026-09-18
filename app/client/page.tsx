@@ -34,6 +34,7 @@ import {
   X,
   Plus,
   Check,
+  Crown,
 } from "lucide-react";
 
 /**
@@ -373,9 +374,9 @@ export default function ClientDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-black text-white/40 text-sm">
+      <div className="min-h-screen grid place-items-center bg-vpv-canvas text-vpv-muted text-sm">
         <div className="flex items-center gap-3">
-          <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
+          <div className="w-4 h-4 rounded-full border-2 border-vpv-line border-t-vpv-blue animate-spin" />
           Loading your dashboard…
         </div>
       </div>
@@ -383,7 +384,15 @@ export default function ClientDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div
+      className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
+      style={{
+        // Soft brand sheen — same radial cyan/blue wash as myvpv.com's hero.
+        backgroundImage:
+          "radial-gradient(60% 55% at 85% 0%, rgba(25,184,242,0.10), rgba(0,0,0,0) 60%), radial-gradient(45% 45% at 5% 5%, rgba(20,104,216,0.08), rgba(0,0,0,0) 55%)",
+        backgroundAttachment: "fixed",
+      }}
+    >
       {/* Offline mode cockpit — same UI as sales presenters get.
           Org admins can pre-download tours before a client visit or
           before travelling to a spot with bad wifi. */}
@@ -403,52 +412,52 @@ export default function ClientDashboardPage() {
         {/* Top bar */}
         <div className="px-10 pt-8 pb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-[28px] font-semibold tracking-tight">
+            <h1 className="text-[28px] font-semibold tracking-tight text-vpv-ink">
               {greeting} {firstName}{" "}
               <span className="inline-block hover:animate-wiggle">👋</span>
             </h1>
-            <p className="text-[13px] text-white/50 mt-1">
+            <p className="text-[13px] text-vpv-muted mt-1">
               Here&apos;s what&apos;s happening across your virtual factories.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative w-10 h-10 rounded-full border border-white/10 grid place-items-center text-white/60 hover:text-white hover:border-white/20 transition-all">
+            <button className="relative w-10 h-10 rounded-full border border-vpv-line bg-white grid place-items-center text-vpv-muted hover:text-vpv-blue hover:border-vpv-blue/40 transition-all">
               <Bell size={16} />
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-blue-500 text-[10px] font-semibold grid place-items-center">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-vpv-blue text-white text-[10px] font-semibold grid place-items-center">
                 3
               </span>
             </button>
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] border border-white/10"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-full bg-white hover:bg-vpv-tint border border-vpv-line transition-colors"
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 grid place-items-center text-[13px] font-semibold text-black">
+                <div className="w-9 h-9 rounded-full bg-vpv-grad grid place-items-center text-[13px] font-semibold text-white">
                   {firstName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="text-left mr-1">
-                  <div className="text-[13px] font-medium leading-tight">
+                  <div className="text-[13px] font-medium leading-tight text-vpv-ink">
                     {firstName}
                   </div>
-                  <div className="text-[10px] text-white/50 leading-tight">
+                  <div className="text-[10px] text-vpv-muted leading-tight">
                     Admin
                   </div>
                 </div>
-                <ChevronDown size={14} className="text-white/40" />
+                <ChevronDown size={14} className="text-vpv-muted" />
               </button>
               {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-lg border border-white/10 bg-[#0f0f14] shadow-2xl overflow-hidden z-10">
-                  <div className="px-3 py-2.5 border-b border-white/10">
-                    <div className="text-[12px] font-medium truncate">
+                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-xl border border-vpv-line bg-white shadow-[0_12px_40px_-12px_rgba(11,61,145,0.25)] overflow-hidden z-10">
+                  <div className="px-3 py-2.5 border-b border-vpv-line">
+                    <div className="text-[12px] font-medium truncate text-vpv-ink">
                       {me?.full_name || me?.email}
                     </div>
-                    <div className="text-[10px] text-white/50 truncate">
+                    <div className="text-[10px] text-vpv-muted truncate">
                       {me?.email}
                     </div>
                   </div>
                   <button
                     onClick={onSignOut}
-                    className="w-full text-left px-3 py-2 text-[12px] text-white/70 hover:bg-white/[0.04] hover:text-white flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-[12px] text-vpv-muted hover:bg-vpv-tint hover:text-vpv-blue flex items-center gap-2"
                   >
                     <LogOut size={12} /> Sign out
                   </button>
@@ -464,42 +473,42 @@ export default function ClientDashboardPage() {
             label="Total tours"
             value={kpis.totalTours}
             deltaLabel={`↑ ${kpis.toursDelta} this month`}
-            iconBg="bg-blue-500/10"
-            iconRing="text-blue-400"
+            iconBg="bg-vpv-blue/10"
+            iconRing="text-vpv-blue"
             icon={<Box size={20} />}
             spark={kpis.toursSpark}
-            sparkColor="#3b82f6"
+            sparkColor="#1468D8"
           />
           <KpiCard
             label="Total views"
             value={kpis.totalViews}
             deltaLabel={`↑ ${Math.abs(kpis.viewsDeltaPct)}% this month`}
-            iconBg="bg-emerald-500/10"
-            iconRing="text-emerald-400"
+            iconBg="bg-vpv-cyan/10"
+            iconRing="text-vpv-cyan"
             icon={<Eye size={20} />}
             spark={kpis.viewsSpark}
-            sparkColor="#10b981"
+            sparkColor="#19B8F2"
           />
           <KpiCard
             label="Avg tour time"
             value={formatDuration(kpis.avgTourTimeSec)}
             valueIsString
             deltaLabel={`↑ ${Math.abs(kpis.avgTimeDeltaPct)}% this month`}
-            iconBg="bg-amber-500/10"
-            iconRing="text-amber-400"
+            iconBg="bg-vpv-navy/10"
+            iconRing="text-vpv-navy"
             icon={<Clock size={20} />}
             spark={kpis.timeSpark}
-            sparkColor="#f59e0b"
+            sparkColor="#0B3D91"
           />
         </div>
 
         {/* Tours carousel */}
         <div className="px-10 mb-10">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[20px] font-semibold">Your Virtual Factories</h2>
+            <h2 className="text-[20px] font-semibold text-vpv-ink">Your Virtual Factories</h2>
             <Link
               href="/"
-              className="text-[12px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              className="text-[12px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
             >
               View all tours <ArrowRight size={12} />
             </Link>
@@ -510,12 +519,12 @@ export default function ClientDashboardPage() {
               className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {tours.length === 0 ? (
-                <div className="w-full border border-dashed border-white/10 rounded-2xl p-14 text-center bg-white/[0.02]">
-                  <Box size={22} className="mx-auto text-white/30 mb-3" />
-                  <div className="text-[14px] text-white/70 mb-1">
+                <div className="w-full border border-dashed border-vpv-line rounded-2xl p-14 text-center bg-white">
+                  <Box size={22} className="mx-auto text-vpv-blue/40 mb-3" />
+                  <div className="text-[14px] text-vpv-ink mb-1">
                     No tours yet.
                   </div>
-                  <p className="text-[12px] text-white/40">
+                  <p className="text-[12px] text-vpv-muted">
                     Your account manager will attach tours to your organization
                     soon.
                   </p>
@@ -534,13 +543,13 @@ export default function ClientDashboardPage() {
               <>
                 <button
                   onClick={() => scrollCarousel("left")}
-                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md grid place-items-center border border-white/10"
+                  className="absolute -left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
                   onClick={() => scrollCarousel("right")}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md grid place-items-center border border-white/10"
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -563,22 +572,22 @@ export default function ClientDashboardPage() {
         )}
 
         <div className="px-10 pb-12">
-          <div className="rounded-2xl bg-[#0f0f14] border border-white/[0.06] overflow-hidden">
+          <div className="rounded-2xl bg-white border border-vpv-line shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-16px_rgba(11,61,145,0.18)] overflow-hidden">
             <div className="px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Users size={14} className="text-white/60" />
-                <h2 className="text-[16px] font-semibold">Your Team</h2>
+                <Users size={14} className="text-vpv-muted" />
+                <h2 className="text-[16px] font-semibold text-vpv-ink">Your Team</h2>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setInviteOpen(true)}
-                  className="text-[12px] text-white bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-400 hover:to-cyan-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium shadow-[0_8px_24px_-8px_rgba(59,130,246,0.5)]"
+                  className="text-[12px] text-white bg-vpv-grad hover:opacity-90 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 font-medium shadow-[0_8px_24px_-8px_rgba(20,104,216,0.55)]"
                 >
                   <UserPlus size={12} /> Invite
                 </button>
                 <Link
                   href="/team"
-                  className="text-[12px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-[12px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
                 >
                   View all team <ArrowRight size={12} />
                 </Link>
@@ -586,7 +595,7 @@ export default function ClientDashboardPage() {
             </div>
             <table className="w-full text-[13px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-[0.12em] text-white/40 border-t border-b border-white/[0.06]">
+                <tr className="text-[10px] uppercase tracking-[0.12em] text-vpv-muted border-t border-b border-vpv-line bg-vpv-canvas/60">
                   <th className="text-left px-5 py-2.5 font-medium">
                     Team member
                   </th>
@@ -612,12 +621,12 @@ export default function ClientDashboardPage() {
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-5 py-8 text-center text-[13px] text-white/40"
+                      className="px-5 py-8 text-center text-[13px] text-vpv-muted"
                     >
                       No team members yet.{" "}
                       <button
                         onClick={() => setInviteOpen(true)}
-                        className="text-blue-400 hover:text-blue-300 underline"
+                        className="text-vpv-blue hover:text-vpv-navy underline"
                       >
                         Invite one
                       </button>{" "}
@@ -628,7 +637,7 @@ export default function ClientDashboardPage() {
                   team.map((r, idx) => (
                     <tr
                       key={r.id}
-                      className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]"
+                      className="border-b border-vpv-line last:border-0 hover:bg-vpv-tint/40"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
@@ -638,22 +647,22 @@ export default function ClientDashboardPage() {
                             {r.name.slice(0, 1).toUpperCase()}
                           </div>
                           <div>
-                            <div className="text-[13px] font-medium text-white/90">
+                            <div className="text-[13px] font-medium text-vpv-ink">
                               {r.name}
                             </div>
-                            <div className="text-[11px] text-white/40">
+                            <div className="text-[11px] text-vpv-muted">
                               {r.role}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3 tabular-nums">
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
                         {r.presentations}
                       </td>
-                      <td className="px-5 py-3 tabular-nums">
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
                         {formatHM(r.totalMinutes)}
                       </td>
-                      <td className="px-5 py-3 tabular-nums">
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
                         {r.avgMinutes}m {padSec(r.totalMinutes % 60)}s
                       </td>
                     </tr>
@@ -711,20 +720,23 @@ function Sidebar({
   setUserMenuOpen: (v: boolean) => void;
 }) {
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black border-r border-white/[0.06] flex flex-col">
+    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
       {/* Logo */}
       <div className="px-6 pt-7 pb-8">
         <div className="flex items-center gap-2.5">
           <div className="relative w-9 h-9">
-            <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400" />
-            <div className="absolute inset-[3px] rounded-md bg-black grid place-items-center">
-              <Factory size={16} className="text-white" />
+            <div className="absolute inset-0 rounded-lg bg-vpv-grad" />
+            <div className="absolute inset-[3px] rounded-md bg-white grid place-items-center">
+              <Factory size={16} className="text-vpv-navy" />
             </div>
           </div>
-          <div className="text-[15px] font-semibold tracking-tight leading-none">
-            FACTORY
-            <br />
-            TOUR
+          <div className="leading-none">
+            <div className="text-[17px] font-extrabold tracking-tight text-vpv-navy">
+              VPV
+            </div>
+            <div className="text-[9px] font-semibold tracking-[0.18em] text-vpv-muted mt-0.5">
+              FACTORY TOUR
+            </div>
           </div>
         </div>
       </div>
@@ -777,10 +789,10 @@ function NavItem({
   if (disabled) {
     return (
       <div
-        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-white/30 cursor-not-allowed"
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-vpv-muted/50 cursor-not-allowed"
         title="Coming soon"
       >
-        <span className="text-white/30">{icon}</span>
+        <span className="text-vpv-muted/50">{icon}</span>
         {label}
       </div>
     );
@@ -790,11 +802,11 @@ function NavItem({
       href={href}
       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all ${
         active
-          ? "bg-blue-500/15 text-blue-300 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
-          : "text-white/60 hover:text-white hover:bg-white/[0.04]"
+          ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
+          : "text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/50"
       }`}
     >
-      <span className={active ? "text-blue-400" : "text-white/60"}>{icon}</span>
+      <span className={active ? "text-vpv-blue" : "text-vpv-muted"}>{icon}</span>
       {label}
     </Link>
   );
@@ -822,20 +834,24 @@ function LimitedOffer() {
   const secs = Math.floor((remaining % 60000) / 1000);
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f14] p-4 text-center">
-      <div className="text-[9px] uppercase tracking-[0.15em] text-lime-300 font-semibold flex items-center justify-center gap-1 mb-3">
-        Limited Time Offer <span>🔥</span>
+    <div className="rounded-2xl border border-vpv-line bg-gradient-to-b from-white to-vpv-tint p-4 text-center shadow-[0_10px_30px_-16px_rgba(11,61,145,0.25)]">
+      <div className="text-[9px] uppercase tracking-[0.15em] text-vpv-blue font-semibold flex items-center justify-center gap-1 mb-1">
+        <Crown size={11} /> Limited Time Offer
       </div>
-      <div className="text-[10px] text-white/50 mb-0.5">Original Price</div>
-      <div className="text-[13px] text-white/40 line-through mb-3">
-        ₹3,00,000
+      <div className="text-[15px] font-bold text-vpv-navy mb-2">
+        Upgrade to Pro
       </div>
-      <div className="text-[10px] text-white/50 mb-0.5">Special Discount</div>
-      <div className="text-[18px] font-bold text-lime-300 mb-3">
+      <div className="text-[11px] text-vpv-muted mb-3 leading-snug">
+        Unlock advanced analytics, automation and more.
+      </div>
+      <div className="text-[13px] text-vpv-muted/70 line-through">₹3,00,000</div>
+      <div className="text-[20px] font-extrabold text-vpv-blue mb-3">
         ₹30,000 OFF
       </div>
-      <div className="border-t border-white/10 pt-3 mb-3">
-        <div className="text-[10px] text-white/50 mb-2">Hurry! Offer ends in</div>
+      <div className="border-t border-vpv-line pt-3 mb-3">
+        <div className="text-[10px] text-vpv-muted mb-2 flex items-center justify-center gap-1">
+          <span className="text-vpv-cyan">⚡</span> Hurry! Offer ends in
+        </div>
         <div className="grid grid-cols-4 gap-1">
           {[
             { v: days, l: "days" },
@@ -843,18 +859,18 @@ function LimitedOffer() {
             { v: mins, l: "min" },
             { v: secs, l: "sec" },
           ].map((t) => (
-            <div key={t.l}>
-              <div className="text-[16px] font-bold text-lime-300 tabular-nums leading-none">
+            <div key={t.l} className="rounded-md bg-white border border-vpv-line py-1">
+              <div className="text-[16px] font-bold text-vpv-navy tabular-nums leading-none">
                 {String(t.v).padStart(2, "0")}
               </div>
-              <div className="text-[8px] uppercase text-white/40 tracking-wider mt-1">
+              <div className="text-[8px] uppercase text-vpv-muted tracking-wider mt-1">
                 {t.l}
               </div>
             </div>
           ))}
         </div>
       </div>
-      <button className="w-full py-2 rounded-lg bg-lime-300 hover:bg-lime-200 text-black text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-[0_8px_24px_-6px_rgba(190,242,100,0.6)]">
+      <button className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-[0_10px_28px_-8px_rgba(20,104,216,0.6)]">
         UPGRADE NOW <ArrowRight size={12} />
       </button>
     </div>
@@ -903,7 +919,7 @@ function KpiCard({
   }, [value, valueIsString]);
 
   return (
-    <div className="rounded-2xl bg-[#0f0f14] border border-white/[0.06] p-5 relative overflow-hidden">
+    <div className="rounded-2xl bg-white border border-vpv-line p-5 relative overflow-hidden shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.22)] hover:shadow-[0_1px_2px_rgba(11,61,145,0.06),0_16px_36px_-16px_rgba(11,61,145,0.28)] transition-shadow">
       <div className="flex items-start gap-4 mb-4">
         <div
           className={`w-12 h-12 rounded-xl ${iconBg} grid place-items-center ${iconRing}`}
@@ -911,16 +927,16 @@ function KpiCard({
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-medium mb-1">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted font-medium mb-1">
             {label}
           </div>
-          <div className="text-[30px] font-semibold tracking-tight tabular-nums leading-none">
+          <div className="text-[30px] font-semibold tracking-tight tabular-nums leading-none text-vpv-ink">
             {valueIsString ? (value as string) : n.toLocaleString()}
           </div>
         </div>
       </div>
       <div className="flex items-end justify-between">
-        <div className="text-[11px] text-emerald-400 font-medium">
+        <div className="text-[11px] text-emerald-600 font-medium">
           {deltaLabel}
         </div>
         {spark.length > 1 && (
@@ -991,8 +1007,8 @@ function TourCarouselCard({
   onAssign?: () => void;
 }) {
   return (
-    <div className="snap-start shrink-0 w-[360px] rounded-2xl bg-[#0f0f14] border border-white/[0.06] overflow-hidden hover:border-white/[0.12] transition-all group">
-      <div className="aspect-[16/10] bg-black relative overflow-hidden">
+    <div className="snap-start shrink-0 w-[360px] rounded-2xl bg-white border border-vpv-line overflow-hidden hover:border-vpv-blue/40 hover:shadow-[0_16px_40px_-18px_rgba(11,61,145,0.3)] transition-all group">
+      <div className="aspect-[16/10] bg-vpv-tint relative overflow-hidden">
         {tour.cover_path ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -1001,29 +1017,29 @@ function TourCarouselCard({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <div className="w-full h-full grid place-items-center text-white/30 text-xs">
+          <div className="w-full h-full grid place-items-center text-vpv-muted/60 text-xs">
             no cover
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/25" />
         {tour.published && (
-          <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-semibold text-emerald-300 backdrop-blur-md">
-            <span className="w-1 h-1 rounded-full bg-emerald-400" /> LIVE
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 border border-emerald-500/40 text-[10px] font-semibold text-emerald-600 backdrop-blur-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
           </span>
         )}
-        <button className="absolute top-3 right-3 w-7 h-7 rounded-md bg-black/40 hover:bg-black/60 grid place-items-center backdrop-blur-md">
-          <MoreVertical size={14} className="text-white/70" />
+        <button className="absolute top-3 right-3 w-7 h-7 rounded-md bg-white/85 hover:bg-white grid place-items-center backdrop-blur-md border border-vpv-line">
+          <MoreVertical size={14} className="text-vpv-muted" />
         </button>
       </div>
       <div className="p-4">
-        <div className="text-[15px] font-semibold mb-1 truncate">
+        <div className="text-[15px] font-semibold mb-1 truncate text-vpv-ink">
           {tour.title}
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-white/50 mb-3">
+        <div className="flex items-center gap-1.5 text-[11px] text-vpv-muted mb-3">
           <MapPin size={11} /> {org_location_placeholder()}
         </div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[11px] text-white/50">
+          <div className="flex items-center gap-3 text-[11px] text-vpv-muted">
             <span className="flex items-center gap-1">
               <Eye size={11} /> {tour.view_count} Views
             </span>
@@ -1035,13 +1051,13 @@ function TourCarouselCard({
         <div className="grid grid-cols-2 gap-2 mt-3">
           <Link
             href={`/tour/${tour.id}?preview=1`}
-            className="py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-blue-400/50 hover:bg-blue-500/10 text-[12px] font-medium text-white/80 hover:text-blue-300 flex items-center justify-center gap-1.5 transition-all"
+            className="py-2 rounded-full bg-vpv-grad text-white text-[12px] font-medium hover:opacity-90 flex items-center justify-center gap-1.5 transition-all shadow-[0_8px_20px_-10px_rgba(20,104,216,0.6)]"
           >
             Open <ArrowRight size={12} />
           </Link>
           <button
             onClick={onAssign}
-            className="py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10 text-[12px] font-medium text-white/80 hover:text-cyan-300 flex items-center justify-center gap-1.5 transition-all"
+            className="py-2 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
           >
             <Users size={12} /> Assign
           </button>
@@ -1162,23 +1178,23 @@ function InviteModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-vpv-navy/30 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-[420px] max-w-[92vw] rounded-2xl bg-[#0f0f14] border border-white/10 p-6 shadow-2xl"
+        className="w-[420px] max-w-[92vw] rounded-2xl bg-white border border-vpv-line p-6 shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-white/40 mb-1">
+            <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1">
               Invite team member
             </div>
-            <div className="text-[18px] font-semibold">Add a presenter</div>
+            <div className="text-[18px] font-semibold text-vpv-ink">Add a presenter</div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-white/[0.05] grid place-items-center text-white/60"
+            className="w-8 h-8 rounded-lg hover:bg-vpv-tint grid place-items-center text-vpv-muted"
           >
             <X size={16} />
           </button>
@@ -1186,13 +1202,13 @@ function InviteModal({
 
         {/* Mode toggle — invite code (recommended) vs pre-create account */}
         {!tempPass && !inviteCode && (
-          <div className="grid grid-cols-2 gap-1 p-1 mb-4 bg-black/40 border border-white/10 rounded-lg">
+          <div className="grid grid-cols-2 gap-1 p-1 mb-4 bg-vpv-canvas border border-vpv-line rounded-lg">
             <button
               onClick={() => setMode("code")}
               className={`py-1.5 rounded-md text-[11px] font-medium transition-all ${
                 mode === "code"
-                  ? "bg-white text-black"
-                  : "text-white/60 hover:text-white"
+                  ? "bg-vpv-grad text-white"
+                  : "text-vpv-muted hover:text-vpv-navy"
               }`}
             >
               Invite code
@@ -1201,8 +1217,8 @@ function InviteModal({
               onClick={() => setMode("account")}
               className={`py-1.5 rounded-md text-[11px] font-medium transition-all ${
                 mode === "account"
-                  ? "bg-white text-black"
-                  : "text-white/60 hover:text-white"
+                  ? "bg-vpv-grad text-white"
+                  : "text-vpv-muted hover:text-vpv-navy"
               }`}
             >
               Pre-create account
@@ -1212,17 +1228,17 @@ function InviteModal({
 
         {inviteCode ? (
           <div>
-            <div className="text-[11px] text-white/60 mb-3">
+            <div className="text-[11px] text-vpv-muted mb-3">
               Share this code with your presenter. They&apos;ll enter it on
-              the signup page under <span className="text-white">Sales Team</span>.
+              the signup page under <span className="text-vpv-navy font-medium">Sales Team</span>.
             </div>
-            <div className="p-4 rounded-lg bg-gradient-to-br from-cyan-500/10 to-emerald-500/10 border border-cyan-400/30 font-mono text-[24px] tracking-widest text-cyan-200 text-center mb-3 select-all">
+            <div className="p-4 rounded-lg bg-vpv-tint border border-vpv-blue/30 font-mono text-[24px] tracking-widest text-vpv-navy text-center mb-3 select-all">
               {inviteCode}
             </div>
-            <div className="text-[10px] text-white/40 text-center mb-3">
+            <div className="text-[10px] text-vpv-muted text-center mb-3">
               Expires in 7 days · single use
             </div>
-            <label className="block text-[10px] uppercase tracking-[0.15em] text-white/40 mb-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1.5">
               Their email (optional — for pre-filled invite)
             </label>
             <input
@@ -1230,16 +1246,16 @@ function InviteModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="presenter@company.com"
-              className="w-full mb-3 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-cyan-400/60"
+              className="w-full mb-3 bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2.5 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
             />
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={copyCode}
-                className="py-2.5 rounded-lg bg-white/[0.05] border border-white/10 hover:border-white/20 text-white text-[13px] font-medium flex items-center justify-center gap-2"
+                className="py-2.5 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-vpv-navy text-[13px] font-medium flex items-center justify-center gap-2"
               >
                 {codeCopied ? (
                   <>
-                    <Check size={14} className="text-emerald-300" /> Copied!
+                    <Check size={14} className="text-emerald-500" /> Copied!
                   </>
                 ) : (
                   <>Copy code</>
@@ -1247,62 +1263,62 @@ function InviteModal({
               </button>
               <button
                 onClick={emailCode}
-                className="py-2.5 rounded-lg bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-black text-[13px] font-semibold flex items-center justify-center gap-2"
+                className="py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[13px] font-semibold flex items-center justify-center gap-2"
               >
                 📧 Email invite
               </button>
             </div>
             <button
               onClick={onClose}
-              className="w-full mt-3 py-2 text-[12px] text-white/50 hover:text-white"
+              className="w-full mt-3 py-2 text-[12px] text-vpv-muted hover:text-vpv-navy"
             >
               Done
             </button>
           </div>
         ) : mode === "code" ? (
           <div>
-            <p className="text-[12px] text-white/60 mb-4">
+            <p className="text-[12px] text-vpv-muted mb-4">
               Generate a one-time invite code. Share it with your presenter —
               they&apos;ll paste it during signup to join{" "}
-              <span className="text-white">your organization</span>.
+              <span className="text-vpv-navy font-medium">your organization</span>.
             </p>
             {error && (
-              <div className="text-[12px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2 mb-3">
+              <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
                 {error}
               </div>
             )}
             <button
               onClick={generateCode}
               disabled={busy}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-black text-[13px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[13px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy ? "Generating…" : <>🔑 Generate invite code</>}
             </button>
-            <p className="text-[10px] text-white/40 mt-3 text-center">
+            <p className="text-[10px] text-vpv-muted mt-3 text-center">
               Expires in 7 days · single use · no email required
             </p>
           </div>
         ) : tempPass ? (
           <div>
             {msg && (
-              <div className="text-[12px] text-emerald-300 mb-3">{msg}</div>
+              <div className="text-[12px] text-emerald-600 mb-3">{msg}</div>
             )}
-            <div className="text-[10px] uppercase tracking-[0.15em] text-white/40 mb-1">
+            <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1">
               Temp password
             </div>
-            <div className="p-3 rounded-lg bg-black/40 border border-white/10 font-mono text-[14px] text-lime-300 select-all mb-3">
+            <div className="p-3 rounded-lg bg-vpv-canvas border border-vpv-line font-mono text-[14px] text-vpv-navy select-all mb-3">
               {tempPass}
             </div>
             <button
               onClick={onClose}
-              className="w-full py-2.5 rounded-lg bg-blue-500 hover:bg-blue-400 text-white text-[13px] font-medium"
+              className="w-full py-2.5 rounded-full bg-vpv-blue hover:bg-vpv-navy text-white text-[13px] font-medium"
             >
               Done
             </button>
           </div>
         ) : (
           <form onSubmit={submit}>
-            <label className="block text-[10px] uppercase tracking-[0.15em] text-white/40 mb-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1.5">
               Email
             </label>
             <input
@@ -1311,27 +1327,27 @@ function InviteModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="presenter@company.com"
-              className="w-full mb-3 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-blue-400/60"
+              className="w-full mb-3 bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2.5 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
               autoFocus
             />
-            <label className="block text-[10px] uppercase tracking-[0.15em] text-white/40 mb-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1.5">
               Full name (optional)
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Priya Sharma"
-              className="w-full mb-4 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-blue-400/60"
+              className="w-full mb-4 bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2.5 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
             />
             {error && (
-              <div className="text-[12px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2 mb-3">
+              <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
                 {error}
               </div>
             )}
             <button
               type="submit"
               disabled={busy}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-400 hover:to-cyan-300 text-white text-[13px] font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[13px] font-medium disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy ? (
                 "Creating…"
@@ -1341,7 +1357,7 @@ function InviteModal({
                 </>
               )}
             </button>
-            <p className="text-[10px] text-white/40 mt-3 text-center">
+            <p className="text-[10px] text-vpv-muted mt-3 text-center">
               We&apos;ll create their login and give you a temp password to
               share.
             </p>

@@ -60,17 +60,17 @@ export default function CalendarWidget({
   }, [orgId, currentUserId, myEventsOnly]);
 
   return (
-    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.05]">
+    <div className="bg-white border border-vpv-line rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-vpv-line">
         <div className="flex items-center gap-2">
-          <Calendar size={13} className="text-cyan-400" />
-          <div className="text-[11px] uppercase tracking-wider text-white/60 font-semibold">
+          <Calendar size={13} className="text-vpv-cyan" />
+          <div className="text-[11px] uppercase tracking-wider text-vpv-muted font-semibold">
             Schedule
           </div>
         </div>
         <button
           onClick={() => setModalOpen(true)}
-          className="text-[11px] flex items-center gap-1 text-accent hover:text-accentHover"
+          className="text-[11px] flex items-center gap-1 text-vpv-blue hover:text-vpv-navy font-medium"
         >
           <Plus size={11} /> New
         </button>
@@ -78,21 +78,21 @@ export default function CalendarWidget({
 
       <div className="max-h-[320px] overflow-y-auto panel-scroll">
         {loading ? (
-          <div className="text-[12px] text-white/40 py-8 text-center">
+          <div className="text-[12px] text-vpv-muted py-8 text-center">
             Loading…
           </div>
         ) : events.length === 0 ? (
           <div className="text-center py-8 px-4">
-            <Calendar size={22} className="mx-auto text-white/25 mb-2" />
-            <div className="text-[12.5px] text-white/60 mb-1">
+            <Calendar size={22} className="mx-auto text-vpv-blue/30 mb-2" />
+            <div className="text-[12.5px] text-vpv-ink mb-1">
               No upcoming meetings
             </div>
-            <div className="text-[11px] text-white/35 mb-3">
+            <div className="text-[11px] text-vpv-muted mb-3">
               Plan your next client visit or demo.
             </div>
             <button
               onClick={() => setModalOpen(true)}
-              className="inline-flex items-center gap-1 text-[11.5px] px-2.5 py-1.5 rounded-lg bg-accent text-black font-medium"
+              className="inline-flex items-center gap-1 text-[11.5px] px-3 py-1.5 rounded-full bg-vpv-grad text-white font-medium"
             >
               <Plus size={11} /> Add first
             </button>
@@ -153,7 +153,7 @@ function EventRow({
   const done = event.status === "done";
   return (
     <div
-      className={`px-5 py-3 border-b border-white/[0.04] last:border-0 group ${
+      className={`px-5 py-3 border-b border-vpv-line last:border-0 group hover:bg-vpv-tint/40 ${
         done ? "opacity-50" : ""
       }`}
     >
@@ -161,10 +161,10 @@ function EventRow({
         <div
           className={`text-center min-w-[42px] shrink-0 rounded-md py-1 px-1.5 ${
             isToday
-              ? "bg-cyan-500/20 text-cyan-200"
+              ? "bg-vpv-cyan/15 text-vpv-navy"
               : isPast
-                ? "bg-white/[0.04] text-white/40"
-                : "bg-white/[0.06] text-white/70"
+                ? "bg-vpv-canvas text-vpv-muted"
+                : "bg-vpv-tint text-vpv-navy"
           }`}
         >
           <div className="text-[10px] uppercase tracking-wider leading-none">
@@ -177,12 +177,12 @@ function EventRow({
         <div className="min-w-0 flex-1">
           <div
             className={`text-[13px] font-medium truncate ${
-              done ? "line-through text-white/50" : "text-white"
+              done ? "line-through text-vpv-muted" : "text-vpv-ink"
             }`}
           >
             {event.title}
           </div>
-          <div className="flex items-center gap-2 mt-0.5 text-[10.5px] text-white/40">
+          <div className="flex items-center gap-2 mt-0.5 text-[10.5px] text-vpv-muted">
             <span className="inline-flex items-center gap-0.5">
               <Clock size={9} /> {relative}
             </span>
@@ -192,13 +192,13 @@ function EventRow({
               </span>
             )}
             {assignee && (
-              <span className="text-white/40">
+              <span className="text-vpv-muted">
                 · {assignee.full_name ?? assignee.email.split("@")[0]}
               </span>
             )}
           </div>
           {event.notes && (
-            <div className="text-[11px] text-white/50 mt-1 line-clamp-2">
+            <div className="text-[11px] text-vpv-muted mt-1 line-clamp-2">
               {event.notes}
             </div>
           )}
@@ -208,7 +208,7 @@ function EventRow({
             <button
               onClick={() => onDone(event.id)}
               title="Mark as done"
-              className="text-white/40 hover:text-emerald-300 p-1"
+              className="text-vpv-muted hover:text-emerald-500 p-1"
             >
               <Check size={12} />
             </button>
@@ -216,7 +216,7 @@ function EventRow({
           <button
             onClick={() => onDelete(event.id)}
             title="Delete"
-            className="text-white/40 hover:text-rose-300 p-1"
+            className="text-vpv-muted hover:text-rose-500 p-1"
           >
             <Trash2 size={12} />
           </button>
@@ -273,27 +273,27 @@ function NewEventModal({
   return (
     <div
       onClick={onCancel}
-      className="fixed inset-0 z-50 bg-black/75 grid place-items-center p-4"
+      className="fixed inset-0 z-50 bg-vpv-navy/30 backdrop-blur-sm grid place-items-center p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-neutral-950 border border-white/10 rounded-2xl w-[460px] max-w-full shadow-2xl"
+        className="bg-white border border-vpv-line rounded-2xl w-[460px] max-w-full shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
       >
-        <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-vpv-line flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Calendar size={14} className="text-cyan-400" />
-            <h3 className="text-[14px] font-semibold">New meeting</h3>
+            <Calendar size={14} className="text-vpv-cyan" />
+            <h3 className="text-[14px] font-semibold text-vpv-ink">New meeting</h3>
           </div>
           <button
             onClick={onCancel}
-            className="text-white/40 hover:text-white text-lg leading-none"
+            className="text-vpv-muted hover:text-vpv-ink text-lg leading-none"
           >
             ×
           </button>
         </div>
         <div className="p-5 space-y-3">
           <div>
-            <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+            <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
               Title
             </div>
             <input
@@ -301,42 +301,42 @@ function NewEventModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Client demo · Acme Corp"
               autoFocus
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60"
+              className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+              <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
                 Date
               </div>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60"
+                className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
               />
             </div>
             <div>
-              <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+              <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
                 Time
               </div>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60"
+                className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
               />
             </div>
           </div>
           {teammates && teammates.length > 0 && (
             <div>
-              <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+              <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
                 Assign to
               </div>
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60"
+                className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
               >
                 <option value={currentUserId}>Me</option>
                 {teammates.map((t) => (
@@ -348,18 +348,18 @@ function NewEventModal({
             </div>
           )}
           <div>
-            <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+            <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
               Location (optional)
             </div>
             <input
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Factory floor · Zoom · Client's office"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60"
+              className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
             />
           </div>
           <div>
-            <div className="text-[10.5px] uppercase tracking-wider text-white/40 mb-1">
+            <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted mb-1">
               Notes (optional)
             </div>
             <textarea
@@ -367,21 +367,21 @@ function NewEventModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Buyer contact, quote details, key questions to ask…"
-              className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-accent/60 resize-none"
+              className="w-full bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue resize-none"
             />
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-white/5 flex items-center justify-end gap-2">
+        <div className="px-5 py-3 border-t border-vpv-line flex items-center justify-end gap-2">
           <button
             onClick={onCancel}
-            className="text-[12px] text-white/50 hover:text-white px-3 py-1.5"
+            className="text-[12px] text-vpv-muted hover:text-vpv-ink px-3 py-1.5"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={busy || !title.trim()}
-            className="bg-accent hover:bg-accentHover text-black text-[12px] font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+            className="bg-vpv-grad hover:opacity-90 text-white text-[12px] font-semibold px-4 py-1.5 rounded-full disabled:opacity-50"
           >
             {busy ? "Adding…" : "Add meeting"}
           </button>

@@ -250,14 +250,21 @@ export default function SalesDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-black text-white/40 text-sm">
+      <div className="min-h-screen grid place-items-center bg-vpv-canvas text-vpv-muted text-sm">
         Loading your workspace…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div
+      className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
+      style={{
+        backgroundImage:
+          "radial-gradient(60% 55% at 85% 0%, rgba(25,184,242,0.10), rgba(0,0,0,0) 60%), radial-gradient(45% 45% at 5% 5%, rgba(20,104,216,0.08), rgba(0,0,0,0) 55%)",
+        backgroundAttachment: "fixed",
+      }}
+    >
       {/* Offline mode cockpit — floating status pill + prep modal +
           top banner when the network drops. Presenters can pre-download
           every tour they need before heading into a factory with poor wifi. */}
@@ -265,25 +272,28 @@ export default function SalesDashboardPage() {
         tours={tours.map((t) => ({ id: t.id, title: t.title }))}
       />
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-screen w-[240px] bg-black border-r border-white/[0.06] flex flex-col">
+      <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
         <div className="px-6 pt-7 pb-8">
           <div className="flex items-center gap-2.5">
             <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-pink-500 to-cyan-400" />
-              <div className="absolute inset-[3px] rounded-md bg-black grid place-items-center">
-                <Factory size={16} className="text-white" />
+              <div className="absolute inset-0 rounded-lg bg-vpv-grad" />
+              <div className="absolute inset-[3px] rounded-md bg-white grid place-items-center">
+                <Factory size={16} className="text-vpv-navy" />
               </div>
             </div>
-            <div className="text-[15px] font-semibold tracking-tight leading-none">
-              FACTORY
-              <br />
-              TOUR
+            <div className="leading-none">
+              <div className="text-[17px] font-extrabold tracking-tight text-vpv-navy">
+                VPV
+              </div>
+              <div className="text-[9px] font-semibold tracking-[0.18em] text-vpv-muted mt-0.5">
+                FACTORY TOUR
+              </div>
             </div>
           </div>
         </div>
         <nav className="px-3 space-y-0.5">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] bg-pink-500/15 text-pink-300 shadow-[inset_0_0_0_1px_rgba(236,72,153,0.3)]">
-            <Box size={16} className="text-pink-400" />
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]">
+            <Box size={16} className="text-vpv-blue" />
             My Tours
           </div>
         </nav>
@@ -298,48 +308,48 @@ export default function SalesDashboardPage() {
       <main className="flex-1 min-w-0 ml-[240px]">
         <div className="px-10 pt-8 pb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-[28px] font-semibold tracking-tight">
+            <h1 className="text-[28px] font-semibold tracking-tight text-vpv-ink">
               {greeting} {firstName} 🎯
             </h1>
-            <p className="text-[13px] text-white/50 mt-1">
+            <p className="text-[13px] text-vpv-muted mt-1">
               Your tours are ready. Pick one to open a live session.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative w-10 h-10 rounded-full border border-white/10 grid place-items-center text-white/60 hover:text-white hover:border-white/20 transition-all">
+            <button className="relative w-10 h-10 rounded-full border border-vpv-line bg-white grid place-items-center text-vpv-muted hover:text-vpv-blue hover:border-vpv-blue/40 transition-all">
               <Bell size={16} />
             </button>
             <div className="relative">
               <button
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] border border-white/10"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-full bg-white hover:bg-vpv-tint border border-vpv-line transition-colors"
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500 to-cyan-400 grid place-items-center text-[13px] font-semibold text-black">
+                <div className="w-9 h-9 rounded-full bg-vpv-grad grid place-items-center text-[13px] font-semibold text-white">
                   {firstName.slice(0, 1).toUpperCase()}
                 </div>
                 <div className="text-left mr-1">
-                  <div className="text-[13px] font-medium leading-tight">
+                  <div className="text-[13px] font-medium leading-tight text-vpv-ink">
                     {firstName}
                   </div>
-                  <div className="text-[10px] text-white/50 leading-tight">
+                  <div className="text-[10px] text-vpv-muted leading-tight">
                     Presenter
                   </div>
                 </div>
-                <ChevronDown size={14} className="text-white/40" />
+                <ChevronDown size={14} className="text-vpv-muted" />
               </button>
               {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-lg border border-white/10 bg-[#0f0f14] shadow-2xl overflow-hidden z-10">
-                  <div className="px-3 py-2.5 border-b border-white/10">
-                    <div className="text-[12px] font-medium truncate">
+                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-xl border border-vpv-line bg-white shadow-[0_12px_40px_-12px_rgba(11,61,145,0.25)] overflow-hidden z-10">
+                  <div className="px-3 py-2.5 border-b border-vpv-line">
+                    <div className="text-[12px] font-medium truncate text-vpv-ink">
                       {me?.full_name || me?.email}
                     </div>
-                    <div className="text-[10px] text-white/50 truncate">
+                    <div className="text-[10px] text-vpv-muted truncate">
                       {me?.email}
                     </div>
                   </div>
                   <button
                     onClick={onSignOut}
-                    className="w-full text-left px-3 py-2 text-[12px] text-white/70 hover:bg-white/[0.04] hover:text-white flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-[12px] text-vpv-muted hover:bg-vpv-tint hover:text-vpv-blue flex items-center gap-2"
                   >
                     <LogOut size={12} /> Sign out
                   </button>
@@ -355,11 +365,11 @@ export default function SalesDashboardPage() {
             label="Presentations · 30d"
             value={presentations}
             deltaLabel={`Total ${formatHM(Math.round(totalSec / 60))}`}
-            iconBg="bg-pink-500/10"
-            iconRing="text-pink-400"
+            iconBg="bg-vpv-blue/10"
+            iconRing="text-vpv-blue"
             icon={<Zap size={20} />}
             spark={presentSpark}
-            sparkColor="#ec4899"
+            sparkColor="#1468D8"
           />
           <KpiCard
             label="Avg presentation time"
@@ -372,29 +382,29 @@ export default function SalesDashboardPage() {
                   ? "Keep it going"
                   : "First few sessions"
             }
-            iconBg="bg-cyan-500/10"
-            iconRing="text-cyan-400"
+            iconBg="bg-vpv-cyan/10"
+            iconRing="text-vpv-cyan"
             icon={<Clock size={20} />}
             spark={avgSpark}
-            sparkColor="#22d3ee"
+            sparkColor="#19B8F2"
           />
         </div>
 
         {/* Quick launch — the most-recent tour, huge CTA */}
         {tours.length > 0 && (
           <div className="px-10 mb-8">
-            <div className="rounded-2xl overflow-hidden border border-white/[0.08] bg-gradient-to-br from-pink-500/20 via-violet-500/15 to-cyan-500/10 backdrop-blur-xl p-5 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-pink-500 to-violet-500 grid place-items-center shadow-[0_10px_30px_-8px_rgba(236,72,153,0.6)]">
+            <div className="rounded-2xl overflow-hidden bg-vpv-grad p-5 flex items-center gap-4 shadow-[0_18px_44px_-18px_rgba(11,61,145,0.55)]">
+              <div className="w-14 h-14 rounded-xl bg-white/15 border border-white/25 grid place-items-center backdrop-blur-sm">
                 <Rocket size={26} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.15em] text-pink-200/80 mb-0.5">
+                <div className="text-[10px] uppercase tracking-[0.15em] text-white/80 mb-0.5">
                   Quick launch
                 </div>
-                <div className="text-[16px] font-semibold text-white/95 truncate">
+                <div className="text-[16px] font-semibold text-white truncate">
                   {tours[0].title}
                 </div>
-                <div className="text-[11px] text-white/50 truncate">
+                <div className="text-[11px] text-white/70 truncate">
                   Open in a new tab and start presenting.
                 </div>
               </div>
@@ -402,7 +412,7 @@ export default function SalesDashboardPage() {
                 href={`/tour/${tours[0].id}?presenter=${me?.id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 px-4 py-2.5 bg-white text-black text-[13px] font-semibold rounded-lg hover:bg-white/90 flex items-center gap-2 shadow-lg"
+                className="shrink-0 px-5 py-2.5 bg-white text-vpv-navy text-[13px] font-semibold rounded-full hover:bg-vpv-tint flex items-center gap-2 shadow-lg"
               >
                 <Play size={14} /> Start
               </a>
@@ -424,10 +434,10 @@ export default function SalesDashboardPage() {
         {/* Tour carousel */}
         <div className="px-10 mb-10">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[20px] font-semibold">
+            <h2 className="text-[20px] font-semibold text-vpv-ink">
               Your Virtual Factories
             </h2>
-            <span className="text-[12px] text-white/40">
+            <span className="text-[12px] text-vpv-muted">
               {tours.length} {tours.length === 1 ? "tour" : "tours"}
             </span>
           </div>
@@ -437,12 +447,12 @@ export default function SalesDashboardPage() {
               className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {tours.length === 0 ? (
-                <div className="w-full border border-dashed border-white/10 rounded-2xl p-14 text-center bg-white/[0.02]">
-                  <Box size={22} className="mx-auto text-white/30 mb-3" />
-                  <div className="text-[14px] text-white/70 mb-1">
+                <div className="w-full border border-dashed border-vpv-line rounded-2xl p-14 text-center bg-white">
+                  <Box size={22} className="mx-auto text-vpv-blue/40 mb-3" />
+                  <div className="text-[14px] text-vpv-ink mb-1">
                     No tours to present yet.
                   </div>
-                  <p className="text-[12px] text-white/40">
+                  <p className="text-[12px] text-vpv-muted">
                     Your admin will publish tours here soon.
                   </p>
                 </div>
@@ -450,9 +460,9 @@ export default function SalesDashboardPage() {
                 tours.map((t) => (
                   <div
                     key={t.id}
-                    className="snap-start shrink-0 w-[360px] rounded-2xl bg-[#0f0f14] border border-white/[0.06] overflow-hidden hover:border-white/[0.12] transition-all group"
+                    className="snap-start shrink-0 w-[360px] rounded-2xl bg-white border border-vpv-line overflow-hidden hover:border-vpv-blue/40 hover:shadow-[0_16px_40px_-18px_rgba(11,61,145,0.3)] transition-all group"
                   >
-                    <div className="aspect-[16/10] bg-black relative overflow-hidden">
+                    <div className="aspect-[16/10] bg-vpv-tint relative overflow-hidden">
                       {t.cover_path ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -461,23 +471,23 @@ export default function SalesDashboardPage() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
-                        <div className="w-full h-full grid place-items-center text-white/30 text-xs">
+                        <div className="w-full h-full grid place-items-center text-vpv-muted/60 text-xs">
                           no cover
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/25" />
                       {t.published && (
-                        <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-semibold text-emerald-300 backdrop-blur-md">
-                          <span className="w-1 h-1 rounded-full bg-emerald-400" />{" "}
+                        <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 border border-emerald-500/40 text-[10px] font-semibold text-emerald-600 backdrop-blur-md">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />{" "}
                           LIVE
                         </span>
                       )}
                     </div>
                     <div className="p-4">
-                      <div className="text-[15px] font-semibold mb-1 truncate">
+                      <div className="text-[15px] font-semibold mb-1 truncate text-vpv-ink">
                         {t.title}
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-white/50 mb-3">
+                      <div className="flex items-center gap-3 text-[11px] text-vpv-muted mb-3">
                         <span className="flex items-center gap-1">
                           <Clock size={11} /> {formatDuration(t.avg_time_sec)} avg
                         </span>
@@ -489,17 +499,17 @@ export default function SalesDashboardPage() {
                           href={`/tour/${t.id}?presenter=${me?.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="py-2 rounded-lg bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-400 hover:to-violet-400 text-white text-[12px] font-medium flex items-center justify-center gap-1.5"
+                          className="py-2 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-medium flex items-center justify-center gap-1.5 shadow-[0_8px_20px_-10px_rgba(20,104,216,0.6)]"
                         >
                           <Play size={11} /> Present
                         </a>
                         <button
                           onClick={() => copyLink(t)}
-                          className="py-2 rounded-lg bg-white/[0.03] border border-white/10 hover:border-white/20 text-white/80 text-[12px] font-medium flex items-center justify-center gap-1.5"
+                          className="py-2 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-vpv-navy text-[12px] font-medium flex items-center justify-center gap-1.5"
                         >
                           {copiedId === t.id ? (
                             <>
-                              <Check size={11} className="text-emerald-300" />{" "}
+                              <Check size={11} className="text-emerald-500" />{" "}
                               Copied
                             </>
                           ) : (
@@ -518,13 +528,13 @@ export default function SalesDashboardPage() {
               <>
                 <button
                   onClick={() => scrollCarousel("left")}
-                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md grid place-items-center border border-white/10"
+                  className="absolute -left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
                 >
                   <ChevronLeft size={16} />
                 </button>
                 <button
                   onClick={() => scrollCarousel("right")}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md grid place-items-center border border-white/10"
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -637,7 +647,7 @@ function KpiCard({
     };
   }, [value, valueIsString]);
   return (
-    <div className="rounded-2xl bg-[#0f0f14] border border-white/[0.06] p-5">
+    <div className="rounded-2xl bg-white border border-vpv-line p-5 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.22)]">
       <div className="flex items-start gap-4 mb-4">
         <div
           className={`w-12 h-12 rounded-xl ${iconBg} grid place-items-center ${iconRing}`}
@@ -645,16 +655,16 @@ function KpiCard({
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.15em] text-white/40 font-medium mb-1">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted font-medium mb-1">
             {label}
           </div>
-          <div className="text-[30px] font-semibold tracking-tight tabular-nums leading-none">
+          <div className="text-[30px] font-semibold tracking-tight tabular-nums leading-none text-vpv-ink">
             {valueIsString ? (value as string) : n.toLocaleString()}
           </div>
         </div>
       </div>
       <div className="flex items-end justify-between">
-        <div className="text-[11px] text-emerald-400 font-medium">
+        <div className="text-[11px] text-emerald-600 font-medium">
           {deltaLabel}
         </div>
         {spark.length > 1 && (

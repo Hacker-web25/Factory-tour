@@ -1,12 +1,21 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
 import OfflineBootstrap from "@/components/OfflineBootstrap";
 
+// Match myvpv.com — Inter across the whole product.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Factory Tour",
-  description: "360° virtual tours for factories & manufacturing sites",
+  title: "VPV — Virtual Plant Visit",
+  description: "Real Factories. Real Confidence. 360° virtual tours for factories & manufacturing sites.",
 };
 
 export default function RootLayout({
@@ -15,8 +24,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={inter.variable}>
+      <body className="font-sans">
+
         {/* Runs once, keeps the user signed in across reloads but signs
             them out after 15 days of no activity. */}
         <IdleGuard />
