@@ -30,6 +30,7 @@ import {
   X,
   KeyRound,
   Crown,
+  Mic,
 } from "lucide-react";
 
 type TeamMember = {
@@ -63,6 +64,7 @@ export default function TeamPage() {
   const [me, setMe] = useState<Profile | null>(null);
   const [orgName, setOrgName] = useState<string>("");
   const [orgSlug, setOrgSlug] = useState<string>("");
+  const [autoRecord, setAutoRecord] = useState(false);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pending, setPending] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,12 +78,13 @@ export default function TeamPage() {
       if (p.org_id) {
         const { data: org } = await supabase
           .from("organizations")
-          .select("name, slug")
+          .select("name, slug, auto_record")
           .eq("id", p.org_id)
           .maybeSingle();
         if (org) {
           setOrgName(org.name);
           setOrgSlug(org.slug ?? "");
+          setAutoRecord(!!(org as { auto_record?: boolean }).auto_record);
         }
 
         // Members
@@ -284,6 +287,20 @@ export default function TeamPage() {
     router.push("/login");
   }
 
+  async function toggleAutoRecord() {
+    if (!me?.org_id) return;
+    const next = !autoRecord;
+    setAutoRecord(next); // optimistic
+    const { error } = await supabase
+      .from("organizations")
+      .update({ auto_record: next })
+      .eq("id", me.org_id);
+    if (error) {
+      setAutoRecord(!next); // revert on failure
+      alert("Couldn't update the recording setting. Please try again.");
+    }
+  }
+
   async function removeMember(m: TeamMember) {
     if (m.role === "org_admin") {
       alert("Can't remove an admin.");
@@ -441,6 +458,41 @@ export default function TeamPage() {
               members.reduce((s, m) => s + m.totalSec, 0) / 3600
             )}
           />
+        </div>
+
+        {/* Auto-record setting */}
+        <div className="px-10 mb-8">
+          <div className="rounded-2xl bg-white border border-vpv-line p-5 flex items-start gap-4 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+            <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
+              <Mic size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-semibold text-vpv-ink">
+                Auto-record presentations
+              </div>
+              <div className="text-[12px] text-vpv-muted mt-0.5 leading-snug">
+                When on, every presentation your team gives is voice-recorded
+                for AI insights (topics covered, quotation, location). Presenters
+                see a clear “Recording” indicator. Turn off anytime.
+              </div>
+            </div>
+            <button
+              onClick={toggleAutoRecord}
+              role="switch"
+              aria-checked={autoRecord}
+              className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                autoRecord ? "bg-vpv-blue" : "bg-vpv-line"
+              }`}
+              title={autoRecord ? "Turn off auto-record" : "Turn on auto-record"}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"
+                style={{
+                  transform: autoRecord ? "translateX(20px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Members table */}

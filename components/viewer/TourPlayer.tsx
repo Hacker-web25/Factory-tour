@@ -12,7 +12,16 @@ import { useAutoTour } from "@/lib/useAutoTour";
 import { Ruler } from "lucide-react";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import MeasureTool from "@/components/viewer/MeasureTool";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, getSessionId } from "@/lib/analytics";
+import {
+  startPresentationSession,
+  savePresentationRecording,
+} from "@/lib/presentationSession";
+import {
+  startRecording,
+  isRecordingSupported,
+  type ActiveRecorder,
+} from "@/lib/presentationRecorder";
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 import ViewerPill from "@/components/viewer/ViewerPill";
@@ -24,6 +33,22 @@ type Props = {
   hideControls?: boolean;
   autoplay?: boolean;
 };
+
+/** Map a stored language code to a BCP-47 tag for the speech engine.
+ *  Indian locales bias toward -IN which the Web Speech API supports well. */
+function bcpForLang(code: string): string {
+  const map: Record<string, string> = {
+    en: "en-IN",
+    hi: "hi-IN",
+    mr: "mr-IN",
+    gu: "gu-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    bn: "bn-IN",
+    pa: "pa-IN",
+  };
+  return map[code] ?? "en-IN";
+}
 
 /**
  * Public entry — hosts the TranslationProvider so every child can
@@ -142,6 +167,93 @@ function TourPlayerInner({
     return () => {
       onLeave();
       window.removeEventListener("beforeunload", onLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour.id, analyticsOn]);
+
+  // Presenter capture — GPS location on start, and (if the org enabled
+  // auto-record) voice recording + live transcript for the whole session.
+  // Only runs for presenter-led sessions (opened with ?presenter=<uid>).
+  const [recording, setRecording] = useState(false);
+  useEffect(() => {
+    if (!analyticsOn || typeof window === "undefined") return;
+    const presenterId = new URLSearchParams(window.location.search).get(
+      "presenter"
+    );
+    if (!presenterId) return; // only sales-led sessions are tracked here
+    const sessionId = getSessionId();
+    const orgId = (tour as unknown as { org_id?: string | null }).org_id ?? null;
+
+    let recorder: ActiveRecorder | null = null;
+    let cancelled = false;
+    let saved = false;
+
+    (async () => {
+      // 1) GPS — always, even if recording is off.
+      startPresentationSession({
+        sessionId,
+        tourId: tour.id,
+        orgId,
+        presenterId,
+      }).catch(() => {});
+
+      // 2) Voice — only if the org turned auto-record on.
+      if (!orgId || !isRecordingSupported()) return;
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("auto_record")
+        .eq("id", orgId)
+        .maybeSingle();
+      if (cancelled || !(org as { auto_record?: boolean } | null)?.auto_record)
+        return;
+      try {
+        recorder = await startRecording(
+          bcpForLang(
+            (tour as unknown as { default_language?: string | null })
+              .default_language ?? "en"
+          )
+        );
+        if (cancelled) {
+          recorder.cancel();
+          recorder = null;
+          return;
+        }
+        setRecording(true);
+      } catch {
+        /* mic permission denied — silently continue without recording */
+      }
+    })();
+
+    async function finalize() {
+      if (!recorder || saved) return;
+      saved = true;
+      const r = recorder;
+      recorder = null;
+      setRecording(false);
+      try {
+        const out = await r.stop();
+        await savePresentationRecording({
+          sessionId,
+          blob: out.blob,
+          transcript: out.transcript,
+          durationSec: out.durationSec,
+        });
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // Save on tab close / navigation away.
+    const onHide = () => {
+      finalize();
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      finalize();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tour.id, analyticsOn]);
@@ -766,6 +878,15 @@ function TourPlayerInner({
 
         {/* Glass title chip — top-left, collapses on idle, expands on hover. */}
         <TitleChip tourTitle={tour.title} sceneName={active.name} />
+
+        {/* Recording indicator — transparency for the presenter while the
+            org's auto-record is capturing this session. */}
+        {recording && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)]">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            Recording
+          </div>
+        )}
 
         {/* Consolidated glass control pill — bottom-right. Fans out on
             hover with reset-zoom, auto-tour, language, sound, strip

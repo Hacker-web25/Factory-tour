@@ -17,6 +17,10 @@
 
 import { supabase } from "@/lib/supabase";
 import { loadPresence, statusFromLastSeen } from "@/lib/presence";
+import {
+  loadPresentationSessions,
+  type PresentationSession,
+} from "@/lib/presentationSession";
 
 /* ------------------------------- Types ---------------------------------- */
 
@@ -83,6 +87,8 @@ export type TeamOverview = {
   toursById: Map<string, string>; // tour_id → title
   scenesById: Map<string, { name: string; tour_id: string }>;
   hotspotsById: Map<string, string>; // hotspot_id → human label
+  /** session_id → GPS + recording + AI-topic data for that presentation. */
+  presentationSessions: Map<string, PresentationSession>;
 };
 
 /* ----------------------------- Fetching --------------------------------- */
@@ -137,8 +143,12 @@ export async function loadTeamOverview(
     fetchHotspots(hotspotIds),
   ]);
 
-  // 4. Presence heartbeats for live status dots.
-  const presenceRows = await loadPresence(Array.from(memberIds));
+  // 4. Presence heartbeats for live status dots + per-presentation
+  //    GPS/recording enrichment.
+  const [presenceRows, presentationSessions] = await Promise.all([
+    loadPresence(Array.from(memberIds)),
+    loadPresentationSessions(orgId),
+  ]);
 
   // 5. Aggregate per-member stats (blending events + presence).
   const perMember = new Map<string, MemberStats>();
@@ -187,6 +197,7 @@ export async function loadTeamOverview(
     toursById,
     scenesById,
     hotspotsById,
+    presentationSessions,
   };
 }
 

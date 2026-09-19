@@ -56,6 +56,13 @@ function getAttribution(): AttributionContext {
   );
 }
 
+/** Public accessor for the current tab's analytics session id — so other
+ *  systems (GPS capture, voice recording) can attach their data to the
+ *  SAME session the events belong to. */
+export function getSessionId(): string {
+  return getOrCreateSessionId();
+}
+
 function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "server";
   try {

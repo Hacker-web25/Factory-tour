@@ -43,7 +43,16 @@ import {
   type TeamOverview,
   type TourEvent,
 } from "@/lib/salesAnalytics";
-import { Sparkles as AiIcon, ChevronDown } from "lucide-react";
+import {
+  recordingUrl,
+  type PresentationSession,
+} from "@/lib/presentationSession";
+import {
+  Sparkles as AiIcon,
+  ChevronDown,
+  MapPin as MapPinIcon,
+  Volume2,
+} from "lucide-react";
 
 /* ------------------------------ KpiTile -------------------------------- */
 
@@ -637,7 +646,26 @@ function SessionsSection({
                         <span>· {s.scenesViewed} scenes</span>
                         <span>· {s.totalClicks} clicks</span>
                         <span>· {s.totalHovers} hovers</span>
-                        {s.country && <span>· {s.country}</span>}
+                        {(() => {
+                          const ps = overview.presentationSessions.get(
+                            s.sessionId
+                          );
+                          if (ps?.place) {
+                            return (
+                              <span className="inline-flex items-center gap-0.5 text-vpv-blue">
+                                · <MapPinIcon size={9} /> {ps.place}
+                              </span>
+                            );
+                          }
+                          if (ps?.audio_path) {
+                            return (
+                              <span className="inline-flex items-center gap-0.5 text-vpv-blue">
+                                · <Volume2 size={9} /> recorded
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
                     <button
@@ -692,7 +720,6 @@ function AiAnalysisPanel({
   const hoverRows = Object.entries(session.hotspotHovers).sort(
     (a, b) => b[1] - a[1]
   );
-  const country = session.country ?? "Unknown";
   const endStr = new Date(session.endMs).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
@@ -713,9 +740,14 @@ function AiAnalysisPanel({
       </div>
       <div className="text-[10.5px] text-vpv-muted">
         Ran from <span className="text-vpv-ink font-medium">{startStr}</span> to{" "}
-        <span className="text-vpv-ink font-medium">{endStr}</span> · buyer
-        location: {country}
+        <span className="text-vpv-ink font-medium">{endStr}</span>
       </div>
+
+      {/* GPS location + voice recording + AI topic insights (advanced
+          tracking). Pulled from presentation_sessions by session_id. */}
+      <PresentationInsights
+        ps={overview.presentationSessions.get(session.sessionId) ?? null}
+      />
 
       {/* Per-scene bar chart */}
       {sceneRows.length > 0 && (
@@ -787,12 +819,122 @@ function AiAnalysisPanel({
         </div>
       )}
 
-      {/* Voice-analysis placeholder (future AI) */}
-      <div className="rounded-lg border border-vpv-blue/25 bg-gradient-to-br from-vpv-tint via-white to-white p-3">
-        <div className="flex items-center gap-2 text-[11px] text-vpv-blue font-semibold">
-          <AiIcon size={11} /> Voice-recording AI analysis · coming soon
-        </div>
+    </div>
+  );
+}
+
+/* ---- Advanced tracking: location + recording + topic insights ---------- */
+
+function PresentationInsights({
+  ps,
+}: {
+  ps: PresentationSession | null;
+}) {
+  const hasLocation = ps && (ps.place || (ps.lat != null && ps.lng != null));
+  const audio = ps ? recordingUrl(ps.audio_path) : null;
+  const topics = ps?.topics ?? [];
+  const transcript = ps?.transcript ?? "";
+
+  if (!ps || (!hasLocation && !audio && topics.length === 0)) {
+    return (
+      <div className="rounded-lg border border-dashed border-vpv-line p-3 text-[11px] text-vpv-muted">
+        No location or recording captured for this session.
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Location */}
+      {hasLocation && (
+        <div className="flex items-center gap-2 text-[12px]">
+          <MapPinIcon size={13} className="text-vpv-blue shrink-0" />
+          <span className="text-vpv-ink truncate">
+            {ps.place ||
+              `${ps.lat!.toFixed(4)}, ${ps.lng!.toFixed(4)}`}
+          </span>
+          {ps.lat != null && ps.lng != null && (
+            <a
+              href={`https://www.google.com/maps?q=${ps.lat},${ps.lng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-vpv-blue hover:text-vpv-navy font-medium shrink-0"
+            >
+              View on map ↗
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Audio playback */}
+      {audio && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-vpv-muted font-semibold mb-1.5 flex items-center gap-1.5">
+            <Volume2 size={11} /> Recording
+            {ps.duration_sec ? ` · ${formatHours(ps.duration_sec)}` : ""}
+          </div>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio src={audio} controls className="w-full h-9" />
+        </div>
+      )}
+
+      {/* AI topics */}
+      {topics.length > 0 && (
+        <div>
+          <div className="text-[10.5px] uppercase tracking-wider text-vpv-blue font-semibold mb-2 flex items-center gap-1.5">
+            <AiIcon size={11} /> Spoke on {topics.length} topic
+            {topics.length === 1 ? "" : "s"}
+          </div>
+          <div className="space-y-1.5">
+            {topics.map((tp) => (
+              <div
+                key={tp.key}
+                className="rounded-lg border border-vpv-line bg-white p-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium text-vpv-navy">
+                    {tp.label}
+                  </span>
+                  <span className="text-[10px] text-vpv-muted">
+                    {tp.mentions} mention{tp.mentions === 1 ? "" : "s"}
+                  </span>
+                </div>
+                {tp.detail && (
+                  <div className="text-[11px] text-vpv-muted mt-0.5 leading-snug">
+                    “{tp.detail}”
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Full transcript (collapsible) */}
+      {transcript && <TranscriptBlock text={transcript} />}
+    </div>
+  );
+}
+
+function TranscriptBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-[11px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
+      >
+        <ChevronDown
+          size={11}
+          className={`transition-transform ${open ? "rotate-180" : ""}`}
+        />
+        {open ? "Hide transcript" : "Show full transcript"}
+      </button>
+      {open && (
+        <div className="mt-1.5 max-h-40 overflow-y-auto rounded-lg border border-vpv-line bg-vpv-canvas p-2.5 text-[11.5px] text-vpv-ink leading-relaxed whitespace-pre-wrap">
+          {text}
+        </div>
+      )}
     </div>
   );
 }

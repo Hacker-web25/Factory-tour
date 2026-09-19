@@ -28,6 +28,8 @@ export type Organization = {
   id: string;
   name: string;
   created_at: string;
+  /** Org-wide toggle: auto-record presentations (voice) for AI insights. */
+  auto_record?: boolean;
 };
 
 /** Get the currently-signed-in user's Supabase session. Returns null when
