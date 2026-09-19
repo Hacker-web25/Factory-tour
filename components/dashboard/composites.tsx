@@ -814,6 +814,9 @@ function PresentationInsights({
   const audio = ps ? recordingUrl(ps.audio_path) : null;
   const topics = ps?.topics ?? [];
   const transcript = ps?.transcript ?? "";
+  // "AI Analysis" button only shows when a deep report is actually
+  // meaningful — i.e. we have a recording AND some transcript to analyse.
+  const canAnalyse = !!(ps?.audio_path && transcript.trim().length > 20);
 
   if (!ps || (!hasLocation && !audio && topics.length === 0)) {
     return (
@@ -825,6 +828,16 @@ function PresentationInsights({
 
   return (
     <div className="space-y-3">
+      {canAnalyse && (
+        <a
+          href={`/team/analytics/session/${ps.session_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-full bg-vpv-grad text-white text-[12.5px] font-semibold shadow-[0_10px_28px_-10px_rgba(20,104,216,0.55)] hover:opacity-90"
+        >
+          <AiIcon size={13} /> Open full AI analysis ↗
+        </a>
+      )}
       {/* Location */}
       {hasLocation && (
         <div className="flex items-center gap-2 text-[12px]">
