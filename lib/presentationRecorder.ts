@@ -23,6 +23,9 @@ type StopResult = {
 export type ActiveRecorder = {
   stop: () => Promise<StopResult>;
   cancel: () => void;
+  /** Current audio + transcript WITHOUT stopping — used for periodic
+   *  autosave so a hard tab-close still leaves a recent copy on the server. */
+  snapshot: () => StopResult;
   supported: boolean;
 };
 
@@ -96,6 +99,15 @@ export async function startRecording(
 
   return {
     supported: true,
+    snapshot() {
+      // chunks accumulate continuously (start(1000)), so a blob built now
+      // contains everything captured so far.
+      return {
+        blob: new Blob(chunks, { type: mimeType || "audio/webm" }),
+        transcript: transcript.trim(),
+        durationSec: Math.round((Date.now() - startedAt) / 1000),
+      };
+    },
     cancel() {
       wantTranscribe = false;
       try {

@@ -646,26 +646,6 @@ function SessionsSection({
                         <span>· {s.scenesViewed} scenes</span>
                         <span>· {s.totalClicks} clicks</span>
                         <span>· {s.totalHovers} hovers</span>
-                        {(() => {
-                          const ps = overview.presentationSessions.get(
-                            s.sessionId
-                          );
-                          if (ps?.place) {
-                            return (
-                              <span className="inline-flex items-center gap-0.5 text-vpv-blue">
-                                · <MapPinIcon size={9} /> {ps.place}
-                              </span>
-                            );
-                          }
-                          if (ps?.audio_path) {
-                            return (
-                              <span className="inline-flex items-center gap-0.5 text-vpv-blue">
-                                · <Volume2 size={9} /> recorded
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
                       </div>
                     </div>
                     <button

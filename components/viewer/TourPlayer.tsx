@@ -187,6 +187,7 @@ function TourPlayerInner({
     let recorder: ActiveRecorder | null = null;
     let cancelled = false;
     let saved = false;
+    let autosaveTimer: number | undefined;
 
     (async () => {
       // 1) GPS — always, even if recording is off.
@@ -219,6 +220,21 @@ function TourPlayerInner({
           return;
         }
         setRecording(true);
+        // Periodic autosave — a presentation tab is usually CLOSED when the
+        // presenter is done, which cancels an on-close upload. So we flush
+        // the audio + transcript every 20s; whatever was captured up to the
+        // last flush survives even an abrupt close.
+        autosaveTimer = window.setInterval(() => {
+          if (!recorder) return;
+          const snap = recorder.snapshot();
+          if (snap.durationSec < 3) return;
+          savePresentationRecording({
+            sessionId,
+            blob: snap.blob,
+            transcript: snap.transcript,
+            durationSec: snap.durationSec,
+          }).catch(() => {});
+        }, 20000);
       } catch {
         /* mic permission denied — silently continue without recording */
       }
@@ -227,6 +243,7 @@ function TourPlayerInner({
     async function finalize() {
       if (!recorder || saved) return;
       saved = true;
+      if (autosaveTimer) window.clearInterval(autosaveTimer);
       const r = recorder;
       recorder = null;
       setRecording(false);
@@ -879,12 +896,20 @@ function TourPlayerInner({
         {/* Glass title chip — top-left, collapses on idle, expands on hover. */}
         <TitleChip tourTitle={tour.title} sceneName={active.name} />
 
-        {/* Recording indicator — transparency for the presenter while the
-            org's auto-record is capturing this session. */}
+        {/* Recording indicator — top-right, collapsed to a small red dot;
+            expands to "Recording" on hover. Transparency without clutter. */}
         {recording && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)]">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            Recording
+          <div
+            className="group absolute top-4 right-4 z-30 flex items-center gap-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] overflow-hidden transition-all duration-300"
+            style={{ height: 28 }}
+            title="This session is being recorded"
+          >
+            <span className="w-7 h-7 grid place-items-center shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+            </span>
+            <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
+              Recording
+            </span>
           </div>
         )}
 
