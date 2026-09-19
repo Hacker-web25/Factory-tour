@@ -38,6 +38,7 @@ import {
   Plus,
   Check,
   Crown,
+  Mic,
 } from "lucide-react";
 
 /**
@@ -78,6 +79,7 @@ export default function ClientDashboardPage() {
   const router = useRouter();
   const [me, setMe] = useState<Profile | null>(null);
   const [org, setOrg] = useState<Organization | null>(null);
+  const [autoRecord, setAutoRecord] = useState(false);
   const [tours, setTours] = useState<TourCard[]>([]);
   const [team, setTeam] = useState<TeamRow[]>([]);
   const [kpis, setKpis] = useState<Kpis>({
@@ -104,7 +106,10 @@ export default function ClientDashboardPage() {
           .select("*")
           .eq("id", p.org_id)
           .maybeSingle();
-        if (o) setOrg(o as Organization);
+        if (o) {
+          setOrg(o as Organization);
+          setAutoRecord(!!(o as { auto_record?: boolean }).auto_record);
+        }
       }
 
       // Tours
@@ -390,6 +395,20 @@ export default function ClientDashboardPage() {
     router.push("/login");
   }
 
+  async function toggleAutoRecord() {
+    if (!me?.org_id) return;
+    const next = !autoRecord;
+    setAutoRecord(next);
+    const { error } = await supabase
+      .from("organizations")
+      .update({ auto_record: next })
+      .eq("id", me.org_id);
+    if (error) {
+      setAutoRecord(!next);
+      alert("Couldn't update the recording setting. Please try again.");
+    }
+  }
+
   const greeting = useMemo(() => timeGreeting(), []);
   const firstName = (me?.full_name || me?.email || "there").split(/[\s@]/)[0];
 
@@ -579,6 +598,45 @@ export default function ClientDashboardPage() {
             )}
           </div>
         </div>
+
+        {/* Auto-record presentations — org-wide voice capture toggle. */}
+        {me?.org_id && (
+          <div className="px-10 pb-6">
+            <div className="rounded-2xl bg-white border border-vpv-line p-5 flex items-start gap-4 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+              <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
+                <Mic size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-semibold text-vpv-ink">
+                  Auto-record presentations
+                </div>
+                <div className="text-[12px] text-vpv-muted mt-0.5 leading-snug">
+                  Voice-record every presentation your team gives, for AI
+                  insights (topics, quotation, location). Presenters see a
+                  clear “Recording” indicator. Turn off anytime.
+                </div>
+              </div>
+              <button
+                onClick={toggleAutoRecord}
+                role="switch"
+                aria-checked={autoRecord}
+                className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                  autoRecord ? "bg-vpv-blue" : "bg-vpv-line"
+                }`}
+                title={autoRecord ? "Turn off" : "Turn on"}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"
+                  style={{
+                    transform: autoRecord
+                      ? "translateX(20px)"
+                      : "translateX(0)",
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Team table */}
         {/* Calendar widget — shows team-wide meetings/plans; org_admin
