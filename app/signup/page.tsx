@@ -110,8 +110,8 @@ export default function SignupPage() {
           Create your account
         </h1>
         <p className="text-[13px] text-white/50 mb-8">
-          One step. We&apos;ll ask if you&apos;re the factory owner or a
-          sales-team member right after.
+          You&apos;ll need an invite code from your organization admin
+          to finish. If your org isn&apos;t set up yet, contact sales.
         </p>
 
         {/* Full name */}
