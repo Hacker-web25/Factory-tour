@@ -44,6 +44,8 @@ const RESERVED = new Set([
   "support",
   "blog",
   "status",
+  "login",
+  "dashboard",
 ]);
 
 // Paths that live INSIDE a [slug] segment when accessed via a
