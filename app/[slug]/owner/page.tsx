@@ -12,6 +12,7 @@ import { useParams, useRouter } from "next/navigation";
 import ClientDashboardPage from "@/app/client/page";
 import { getMyProfile } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 
 export default function OwnerDashboardBySlug() {
   const params = useParams<{ slug: string }>();
@@ -41,16 +42,15 @@ export default function OwnerDashboardBySlug() {
         // Redirect to their actual dashboard.
         const mySlug = await slugForOrgId(p.org_id);
         if (mySlug) {
-          router.replace(
-            `/${mySlug}/${p.role === "presenter" ? "sales" : "owner"}`
-          );
+          goToDashboard(mySlug, p.role === "presenter" ? "sales" : "owner");
+          return;
         } else {
           router.replace("/setup");
         }
         return;
       }
       if (p.role === "presenter") {
-        router.replace(`/${params.slug}/sales`);
+        goToDashboard(params.slug, "sales");
         return;
       }
       setOk(true);
