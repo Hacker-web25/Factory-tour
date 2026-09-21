@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn, signInWithGoogle, getMyProfile } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
-import { goToDashboard } from "@/lib/authRedirect";
 import AuthShell from "@/components/AuthShell";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -54,9 +53,7 @@ export default function LoginPage() {
       return;
     }
     const role = profile.role === "presenter" ? "sales" : "owner";
-    // Cross-subdomain hop on prod myvpv.com so the URL lands on the
-    // branded org subdomain, not on login.myvpv.com/<slug>/...
-    goToDashboard(slug, role);
+    router.push(`/${slug}/${role}`);
   }
 
   return (

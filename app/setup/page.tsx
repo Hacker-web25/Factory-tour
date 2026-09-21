@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, signOut } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
-import { goToDashboard } from "@/lib/authRedirect";
 import { redeemInviteCode } from "@/lib/inviteCodes";
 import AuthShell from "@/components/AuthShell";
 import { Users2, ArrowRight, KeyRound, LogOut, Loader2 } from "lucide-react";
@@ -48,8 +47,8 @@ export default function SetupPage() {
       if (p.org_id) {
         const slug = await slugForOrgId(p.org_id);
         if (slug) {
-  const role = p.role === "presenter" ? "sales" : "owner";
-          goToDashboard(slug, role);
+          const role = p.role === "presenter" ? "sales" : "owner";
+          router.replace(`/${slug}/${role}`);
           return;
         }
       }
@@ -72,8 +71,8 @@ export default function SetupPage() {
         .update({ role: "presenter", org_id: res.orgId })
         .eq("id", p.id);
       if (profErr) throw profErr;
-const slug = await slugForOrgId(res.orgId);
-      if (slug) goToDashboard(slug, "sales");
+      const slug = await slugForOrgId(res.orgId);
+      router.replace(`/${slug}/sales`);
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong.");
       setBusy(false);
