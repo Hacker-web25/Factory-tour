@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn, signInWithGoogle, getMyProfile } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 import AuthShell from "@/components/AuthShell";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 
@@ -53,7 +54,8 @@ export default function LoginPage() {
       return;
     }
     const role = profile.role === "presenter" ? "sales" : "owner";
-    router.push(`/${slug}/${role}`);
+    // Cross-subdomain handoff so URL lands on <slug>.myvpv.com/<role>
+    await goToDashboard(slug, role);
   }
 
   return (
