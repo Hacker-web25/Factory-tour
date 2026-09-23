@@ -683,9 +683,11 @@ function LeadDetail({
       <div className="mt-6 flex flex-wrap gap-2">
         {lead.email && (
           <a
-            href={`mailto:${lead.email}?subject=${encodeURIComponent(
-              "Your VPV qualification — next steps",
-            )}`}
+            href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+              lead.email,
+            )}&su=${encodeURIComponent("Your VPV qualification — next steps")}`}
+            target="_blank"
+            rel="noreferrer"
             className="inline-flex items-center gap-1.5 bg-[#1468d8] hover:bg-[#0b3d91] text-white text-[12.5px] font-semibold rounded-lg px-3.5 py-2"
           >
             <Mail size={13} /> Email
