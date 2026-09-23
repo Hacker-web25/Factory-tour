@@ -24,10 +24,14 @@ type Field = {
   id: string;
   label: string;
   help?: string;
-  type: "text" | "email" | "tel" | "textarea" | "radio";
+  type: "text" | "email" | "tel" | "textarea" | "radio" | "select";
   options?: string[];
   placeholder?: string;
   required?: boolean;
+  /** For type: "select" — when the chosen option equals this string, an
+   *  extra "Please specify" text input appears; its value is combined
+   *  into the field as "<option>: <specified>". Typical value: "Other". */
+  otherOption?: string;
 };
 
 type Step = {
@@ -55,9 +59,23 @@ const STEPS: Step[] = [
       {
         id: "industry",
         label: "Primary industry / sector",
-        type: "text",
+        type: "select",
         required: true,
-        placeholder: "e.g. Home textiles, Auto components, Chemicals",
+        options: [
+          "Textiles & Apparel",
+          "Automotive & Components",
+          "Pharmaceuticals & Chemicals",
+          "Engineering & Machinery",
+          "Food & Beverages",
+          "Electronics & IT Hardware",
+          "Handicrafts & Furniture",
+          "Dairy",
+          "Machine Manufacturing",
+          "Paper",
+          "Rubber",
+          "Other",
+        ],
+        otherOption: "Other",
       },
       {
         id: "factory_count",
@@ -641,6 +659,62 @@ function FieldRow({
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  if (field.type === "select" && field.options) {
+    // Value shape when "Other" chosen: "Other: <specified text>" (or just
+    // "Other" when nothing was specified). This keeps a single DB column.
+    const rawIsOther =
+      field.otherOption != null &&
+      (value === field.otherOption ||
+        value.startsWith(field.otherOption + ": "));
+    const selected = rawIsOther
+      ? field.otherOption!
+      : field.options.includes(value)
+      ? value
+      : "";
+    const specified = rawIsOther
+      ? value === field.otherOption
+        ? ""
+        : value.slice(field.otherOption!.length + 2)
+      : "";
+
+    return (
+      <div>
+        {commonLabel}
+        <select
+          id={field.id}
+          value={selected}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === field.otherOption) onChange(field.otherOption!);
+            else onChange(v);
+          }}
+          className="w-full bg-white border border-slate-200 hover:border-slate-300 focus:border-[#1468d8] focus:ring-4 focus:ring-[#1468d8]/10 rounded-xl px-4 py-3 text-[14px] outline-none transition-all appearance-none bg-[url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22%2364748b%22%3E%3Cpath%20d%3D%22M5.23%207.21a.75.75%200%20011.06.02L10%2011.06l3.71-3.83a.75.75%200%20111.08%201.04l-4.25%204.4a.75.75%200%2001-1.08%200l-4.25-4.4a.75.75%200%2001.02-1.06z%22/%3E%3C/svg%3E')] bg-no-repeat bg-[position:right_1rem_center] pr-10"
+        >
+          <option value="" disabled>
+            Select an option
+          </option>
+          {field.options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        {selected === field.otherOption && (
+          <input
+            type="text"
+            value={specified}
+            placeholder="Please specify (optional)"
+            onChange={(e) => {
+              const t = e.target.value;
+              onChange(t.trim() ? `${field.otherOption}: ${t}` : field.otherOption!);
+            }}
+            className="mt-2 w-full bg-white border border-slate-200 hover:border-slate-300 focus:border-[#1468d8] focus:ring-4 focus:ring-[#1468d8]/10 rounded-xl px-4 py-3 text-[14px] outline-none transition-all"
+          />
+        )}
       </div>
     );
   }
