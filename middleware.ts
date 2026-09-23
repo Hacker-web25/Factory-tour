@@ -46,6 +46,7 @@ const RESERVED = new Set([
   "status",
   "login",
   "dashboard",
+  "apply",
 ]);
 
 // Paths that live INSIDE a [slug] segment when accessed via a
@@ -74,6 +75,17 @@ export function middleware(req: NextRequest) {
   const slug = subPart.split(".").pop() ?? "";
 
   // www.myvpv.com is not the app — bounce to the marketing apex.
+  // On apply.myvpv.com the site is the qualification form —
+  // rewrite / to /apply so the visitor lands on the form immediately.
+  // APPLY_HOST_REWRITE
+  if (slug === "apply") {
+    if (url.pathname === "/" || url.pathname === "") {
+      url.pathname = "/apply";
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.next();
+  }
+
   if (slug === "www") {
     return NextResponse.redirect(
       `https://${APEX}${url.pathname}${url.search}`,
