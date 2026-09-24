@@ -226,14 +226,15 @@ export default function ViewerPill({
         />
       </div>
 
-      {/* The trigger chip — always visible. Rotates the dots subtly when
-          the pill is open so users get feedback that hover is captured. */}
+      {/* The trigger chip — always visible, deliberately larger so it's
+          discoverable at a glance. Rotates when the fan-out is open. */}
       <button
         aria-label="Viewer controls"
-        className="h-10 w-10 rounded-full grid place-items-center bg-white/85 hover:bg-white border border-white/70 backdrop-blur-xl text-vpv-navy shadow-[0_10px_30px_-10px_rgba(11,61,145,0.4)] transition-transform"
+        onClick={() => setOpen((v) => !v)}
+        className="h-14 w-14 rounded-full grid place-items-center bg-vpv-grad text-white border border-white/60 backdrop-blur-xl shadow-[0_16px_40px_-12px_rgba(11,61,145,0.55)] transition-transform hover:scale-105"
         style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
       >
-        <MoreHorizontal size={16} />
+        <MoreHorizontal size={22} />
       </button>
     </div>
   );
