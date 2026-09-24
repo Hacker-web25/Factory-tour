@@ -15,7 +15,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MenuPosition, Scene, Tour } from "@/lib/types";
 import { publicUrl } from "@/lib/supabase";
-import { ChevronDown, ChevronRight, Folder, Menu, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  Menu,
+  Pin,
+  PinOff,
+  X,
+} from "lucide-react";
 import { useT } from "@/lib/TranslationContext";
 
 export default function MenuOverlay({
@@ -29,18 +37,35 @@ export default function MenuOverlay({
   activeSceneId: string | null;
   onSelectScene: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // Pinned state persists per tour so the viewer keeps their layout.
+  const pinKey = `vpv-menu-pinned:${tour.id}`;
+  const [pinned, setPinned] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem(pinKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(pinKey, pinned ? "1" : "0");
+    } catch {}
+  }, [pinned, pinKey]);
+
+  // Pinned panels start open so the layout persists across sessions.
+  const [open, setOpen] = useState<boolean>(pinned);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click.
+  // Close-on-outside-click — bypassed when pinned.
   useEffect(() => {
-    if (!open) return;
+    if (!open || pinned) return;
     function onDown(e: MouseEvent) {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+  }, [open, pinned]);
 
   if (!tour.menu_enabled) return null;
 
@@ -62,15 +87,16 @@ export default function MenuOverlay({
   };
 
   // The panel — sized 300px wide, capped in height, anchored to the chip
-  // corner and slides in from the same edge.
+  // corner and slides in from the same edge. When pinned the panel sits
+  // tighter to the corner (no chip gap) since the chip is hidden.
   const panelBase: React.CSSProperties = {
     position: "absolute",
     zIndex: 31,
     width: 300,
     maxHeight: "70vh",
     ...(pos.startsWith("top")
-      ? { top: chipOffset + size + 8 }
-      : { bottom: chipOffset + size + 8 }),
+      ? { top: pinned ? chipOffset : chipOffset + size + 8 }
+      : { bottom: pinned ? chipOffset : chipOffset + size + 8 }),
     ...(pos.endsWith("left") ? { left: chipOffset } : { right: chipOffset }),
     transformOrigin: transformOriginFor(pos),
     transform: open ? "scale(1)" : "scale(0.92)",
@@ -82,39 +108,62 @@ export default function MenuOverlay({
 
   return (
     <div ref={wrapRef} className="select-none">
-      {/* Trigger chip — glass, translucent, positioned per tour settings. */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? "Close scene index" : "Open scene index"}
-        style={chipStyle}
-        className="grid place-items-center rounded-full bg-white/85 hover:bg-white border border-white/60 backdrop-blur-xl text-vpv-navy shadow-[0_10px_30px_-10px_rgba(11,61,145,0.4)] hover:scale-105"
-      >
-        {open ? (
-          <X size={Math.round(size * 0.42)} />
-        ) : (
-          <Menu size={Math.round(size * 0.42)} />
-        )}
-      </button>
+      {/* Trigger chip — glass, translucent, positioned per tour settings.
+          Hidden when the panel is pinned (the panel is always visible then,
+          so the chip would just get in the way). */}
+      {!pinned && (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Close scene index" : "Open scene index"}
+          style={chipStyle}
+          className="grid place-items-center rounded-full bg-white/85 hover:bg-white border border-white/60 backdrop-blur-xl text-vpv-navy shadow-[0_10px_30px_-10px_rgba(11,61,145,0.4)] hover:scale-105"
+        >
+          {open ? (
+            <X size={Math.round(size * 0.42)} />
+          ) : (
+            <Menu size={Math.round(size * 0.42)} />
+          )}
+        </button>
+      )}
 
       {/* Panel */}
       <div
         style={panelBase}
         className="rounded-2xl bg-white/75 backdrop-blur-2xl border border-white/60 shadow-[0_20px_60px_-20px_rgba(11,61,145,0.4)] overflow-hidden flex flex-col"
       >
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/50">
-          <div className="text-[11px] uppercase tracking-wider text-vpv-muted font-semibold">
+        <div className="flex items-center gap-1 px-3 py-2.5 border-b border-white/50">
+          <div className="text-[11px] uppercase tracking-wider text-vpv-muted font-semibold flex-1">
             Scenes{" "}
             <span className="text-vpv-ink/50 ml-1 font-normal normal-case tracking-normal">
               {scenes.length}
             </span>
           </div>
+          {/* Pin — keeps the panel open across scene changes and outside
+              clicks. Persisted per tour in localStorage. */}
           <button
-            onClick={() => setOpen(false)}
-            title="Close"
-            className="w-7 h-7 grid place-items-center rounded-md text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+            onClick={() => {
+              setPinned((v) => !v);
+              // When pinning, make sure the panel is showing.
+              if (!pinned) setOpen(true);
+            }}
+            title={pinned ? "Unpin" : "Pin panel open"}
+            className={`w-7 h-7 grid place-items-center rounded-md transition-colors ${
+              pinned
+                ? "bg-vpv-blue text-white"
+                : "text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+            }`}
           >
-            <X size={14} />
+            {pinned ? <PinOff size={13} /> : <Pin size={13} />}
           </button>
+          {!pinned && (
+            <button
+              onClick={() => setOpen(false)}
+              title="Close"
+              className="w-7 h-7 grid place-items-center rounded-md text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/60"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto panel-scroll p-2">
           {scenes.length === 0 ? (
@@ -127,7 +176,9 @@ export default function MenuOverlay({
               activeSceneId={activeSceneId}
               onSelect={(id) => {
                 onSelectScene(id);
-                setOpen(false);
+                // Keep the panel visible when pinned so the viewer can
+                // click through scenes without re-opening it.
+                if (!pinned) setOpen(false);
               }}
             />
           )}
