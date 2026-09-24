@@ -626,6 +626,28 @@ function PhotoTab({
         </div>
       </div>
 
+      <div>
+        <div className="text-xs uppercase text-neutral-400 mb-1">
+          Scene description
+        </div>
+        <textarea
+          value={(scene as any).description ?? ""}
+          onChange={(e) =>
+            onSceneChange({
+              ...(scene as any),
+              description: e.target.value,
+            } as Scene)
+          }
+          placeholder="Short line about this scene (e.g. 'Where we do plating & finishing')"
+          rows={2}
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent resize-none"
+        />
+        <div className="text-[11px] text-neutral-500 mt-1">
+          Appears in smaller text under the scene name when the scene index
+          menu is pinned as a rail.
+        </div>
+      </div>
+
       <CameraSettings
         scene={scene}
         onSceneChange={onSceneChange}
@@ -2344,10 +2366,34 @@ function MenuSettings({
             </div>
           </div>
 
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wider text-neutral-400 mb-1">
+              Thumbnail size (rail)
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {(["sm", "md", "lg"] as const).map((k) => {
+                const active = (tour.menu_thumb_size ?? "md") === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => patch({ menu_thumb_size: k })}
+                    className={`py-1.5 rounded-md text-[11px] font-medium border transition-colors ${
+                      active
+                        ? "bg-accent text-black border-accent"
+                        : "bg-panelSoft text-neutral-300 border-border hover:border-neutral-500"
+                    }`}
+                  >
+                    {k === "sm" ? "Small" : k === "md" ? "Medium" : "Large"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="text-[11px] text-neutral-500">
             Menu shows an icon in the chosen corner on every scene. Click to
-            expand a smooth-animated list of scene names — click a name to
-            jump.
+            expand a floating list — or use the pin button in the panel to
+            dock it as a full-height rail with descriptions.
           </div>
         </>
       )}

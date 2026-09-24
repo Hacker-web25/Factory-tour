@@ -56,6 +56,9 @@ export type Tour = {
   menu_position: MenuPosition;
   menu_size: number;      // px, size of the icon button
   menu_opacity: number;   // 0..1, resting opacity when the menu is closed
+  /** Thumbnail size in the scene-index menu / pinned rail.
+   *  "sm" = 40px, "md" = 60px, "lg" = 84px. Text scales with it. */
+  menu_thumb_size?: "sm" | "md" | "lg";
 
   /** Optional full-width translucent header strip in the viewer.
    *  Carries the VPV logo (left) + the tour's company logo (center)
@@ -162,6 +165,9 @@ export type Scene = {
   /** Optional grouping label for the scene index menu. Scenes with the same
    *  folder name are grouped together (with a collapsible header). */
   folder: string | null;
+  /** Short description shown under the scene name in the pinned scene rail
+   *  (viewer-side). Free-text, optional. */
+  description?: string | null;
   /** Per-scene colour grading (Photoshop-style). Stored as jsonb; shape
    *  matches ImageAdjustments in lib/imageAdjustments.ts. Null = original. */
   image_adjustments: import("./imageAdjustments").ImageAdjustments | null;

@@ -1510,6 +1510,7 @@ export default function TourEditPage() {
       tripod_size: s.tripod_size ?? 30,
       camera_height: s.camera_height ?? 1.6,
       folder: s.folder ?? null,
+      description: (s as any).description ?? null,
       image_adjustments: (s as any).image_adjustments ?? null,
     };
     await saveWithColumnFallback("scenes", fullPayload, s.id, "[scene save]");
