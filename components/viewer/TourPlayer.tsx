@@ -35,6 +35,25 @@ type Props = {
   autoplay?: boolean;
 };
 
+/** Recording indicator — small pulsing red dot that expands to
+ *  "Recording" on hover. Shown while the org's auto-record is capturing. */
+function RecordingDot() {
+  return (
+    <div
+      className="group flex items-center gap-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] overflow-hidden transition-all duration-300"
+      style={{ height: 36 }}
+      title="This session is being recorded"
+    >
+      <span className="w-9 h-9 grid place-items-center shrink-0">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+      </span>
+      <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
+        Recording
+      </span>
+    </div>
+  );
+}
+
 /** Map a stored language code to a BCP-47 tag for the speech engine.
  *  Indian locales bias toward -IN which the Web Speech API supports well. */
 function bcpForLang(code: string): string {
@@ -909,29 +928,48 @@ function TourPlayerInner({
           requestPoint={requestMeasurePoint}
         />
 
-        {/* Top-left: VPV brand tile — always visible, subtle, no text. */}
-        <div className="absolute top-4 left-4 z-30">
-          <ViewerLogoBadge />
-        </div>
-
-        {/* Top-right cluster: recording pill + tour/org title chip. */}
-        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
-          {recording && (
-            <div
-              className="group flex items-center gap-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] overflow-hidden transition-all duration-300"
-              style={{ height: 36 }}
-              title="This session is being recorded"
-            >
-              <span className="w-9 h-9 grid place-items-center shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-              </span>
-              <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
-                Recording
-              </span>
+        {/* Optional full-width HEADER STRIP — carries VPV logo (left),
+            company logo (centre), title/recording (right). Enabled from
+            the editor's Photo tab. When off, we fall back to the discreet
+            top-left logo pill + top-right title cluster (original layout). */}
+        {tour.top_strip_enabled ? (
+          <div className="absolute top-0 left-0 right-0 z-30 h-14 flex items-center justify-between px-4 bg-white/25 backdrop-blur-xl border-b border-white/40 shadow-[0_6px_20px_-12px_rgba(11,61,145,0.35)]">
+            <ViewerLogoBadge height={36} />
+            <div className="flex-1 grid place-items-center">
+              {tour.company_logo_path && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={publicUrl(tour.company_logo_path) ?? ""}
+                  alt="Company logo"
+                  draggable={false}
+                  style={{
+                    height: 30,
+                    width: "auto",
+                    maxWidth: "35vw",
+                    display: "block",
+                    filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.6))",
+                  }}
+                />
+              )}
             </div>
-          )}
-          <TitleChip tourTitle={tour.title} orgName={orgName} />
-        </div>
+            <div className="flex items-center gap-2">
+              {recording && <RecordingDot />}
+              <TitleChip tourTitle={tour.title} orgName={orgName} />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Top-left: VPV brand pill — subtle, translucent. */}
+            <div className="absolute top-4 left-4 z-30">
+              <ViewerLogoBadge />
+            </div>
+            {/* Top-right cluster: recording pill + tour/org title chip. */}
+            <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+              {recording && <RecordingDot />}
+              <TitleChip tourTitle={tour.title} orgName={orgName} />
+            </div>
+          </>
+        )}
 
         {/* Consolidated glass control pill — bottom-right. Fans out on
             hover with reset-zoom, auto-tour, language, sound, strip

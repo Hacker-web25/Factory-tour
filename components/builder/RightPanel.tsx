@@ -703,6 +703,7 @@ function PhotoTab({
       <NadirSettings tour={tour} onPatch={onPatchTour} />
       <AutoTourSettings tour={tour} onPatch={onPatchTour} />
       <MenuSettings tour={tour} onPatch={onPatchTour} />
+      <TopStripSettings tour={tour} onPatch={onPatchTour} />
 
       {/* Translations + Subtitles moved to their own "Lang" tab so
           this panel stays focused on scene/tour visuals. */}
@@ -2347,6 +2348,112 @@ function MenuSettings({
             Menu shows an icon in the chosen corner on every scene. Click to
             expand a smooth-animated list of scene names — click a name to
             jump.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* -------- Header strip (VPV logo + company logo on presenter) ---------- */
+function TopStripSettings({
+  tour,
+  onPatch,
+}: {
+  tour: Tour;
+  onPatch: (fields: Partial<Tour>) => Promise<void>;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const enabled = tour.top_strip_enabled === true;
+  const logoPath = tour.company_logo_path ?? null;
+  const logoUrl = logoPath ? publicUrl(logoPath) : null;
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `company-logos/${tour.id}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("tours")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (error) {
+        alert("Upload failed: " + error.message);
+        return;
+      }
+      await onPatch({ company_logo_path: path });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="pt-4 border-t border-border space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase text-neutral-400">Header strip</div>
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => onPatch({ top_strip_enabled: e.target.checked })}
+          />
+          Enable
+        </label>
+      </div>
+      {enabled && (
+        <>
+          <div className="text-[11px] text-neutral-500">
+            Translucent bar across the top of the presenter view carrying
+            the VPV logo on the left, your company logo in the middle, and
+            the tour title on the right.
+          </div>
+          <div>
+            <div className="text-[10.5px] uppercase tracking-wider text-neutral-400 mb-1.5">
+              Company logo
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-11 min-w-[80px] px-2 rounded-md bg-panelSoft border border-border grid place-items-center overflow-hidden">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl}
+                    alt="Company logo"
+                    className="max-h-full max-w-[140px] object-contain"
+                  />
+                ) : (
+                  <span className="text-[10.5px] text-neutral-500">
+                    No logo
+                  </span>
+                )}
+              </div>
+              <label
+                className={`text-[11px] font-medium px-2.5 py-1.5 rounded bg-accent hover:bg-accentHover text-black cursor-pointer ${
+                  uploading ? "opacity-60 pointer-events-none" : ""
+                }`}
+              >
+                {uploading ? "Uploading…" : logoUrl ? "Replace" : "Upload"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUpload(f);
+                  }}
+                />
+              </label>
+              {logoUrl && (
+                <button
+                  onClick={() => onPatch({ company_logo_path: null })}
+                  className="text-[11px] text-red-300 hover:text-red-200 px-1"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <div className="text-[10.5px] text-neutral-500 mt-1.5">
+              Transparent PNG works best. Height auto-scales to match the VPV
+              logo.
+            </div>
           </div>
         </>
       )}

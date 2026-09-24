@@ -57,6 +57,14 @@ export type Tour = {
   menu_size: number;      // px, size of the icon button
   menu_opacity: number;   // 0..1, resting opacity when the menu is closed
 
+  /** Optional full-width translucent header strip in the viewer.
+   *  Carries the VPV logo (left) + the tour's company logo (center)
+   *  + the tour/org title chip (right). Persisted per-tour. */
+  top_strip_enabled?: boolean;
+  /** Storage path for the tour's company / brand logo shown in the
+   *  header strip (uploaded via the editor's Photo tab). */
+  company_logo_path?: string | null;
+
   /** Nadir patch — circular image at the south pole of every scene. */
   nadir_image_path: string | null;
   nadir_size: number;    // percent of viewport height (default 25)
