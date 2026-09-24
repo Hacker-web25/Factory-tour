@@ -26,6 +26,7 @@ import { TranslationProvider, useT } from "@/lib/TranslationContext";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 import ViewerPill from "@/components/viewer/ViewerPill";
 import TitleChip from "@/components/viewer/TitleChip";
+import ViewerLogoBadge from "@/components/viewer/ViewerLogoBadge";
 
 type Props = {
   tour: Tour;
@@ -157,6 +158,21 @@ function TourPlayerInner({
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("preview") === "1";
   const analyticsOn = !isEditorPreview;
+
+  // Organization name for the title chip — one small fetch per tour.
+  const [orgName, setOrgName] = useState<string | null>(null);
+  useEffect(() => {
+    const orgId = (tour as unknown as { org_id?: string | null }).org_id;
+    if (!orgId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", orgId)
+        .maybeSingle();
+      if (data) setOrgName((data as { name: string }).name);
+    })();
+  }, [tour]);
 
   // Session boundaries — fires once per tab lifetime.
   useEffect(() => {
@@ -893,25 +909,29 @@ function TourPlayerInner({
           requestPoint={requestMeasurePoint}
         />
 
-        {/* Glass title chip — top-left, collapses on idle, expands on hover. */}
-        <TitleChip tourTitle={tour.title} sceneName={active.name} />
+        {/* Top-left: VPV brand tile — always visible, subtle, no text. */}
+        <div className="absolute top-4 left-4 z-30">
+          <ViewerLogoBadge />
+        </div>
 
-        {/* Recording indicator — top-right, collapsed to a small red dot;
-            expands to "Recording" on hover. Transparency without clutter. */}
-        {recording && (
-          <div
-            className="group absolute top-4 right-4 z-30 flex items-center gap-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] overflow-hidden transition-all duration-300"
-            style={{ height: 28 }}
-            title="This session is being recorded"
-          >
-            <span className="w-7 h-7 grid place-items-center shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-            </span>
-            <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
-              Recording
-            </span>
-          </div>
-        )}
+        {/* Top-right cluster: recording pill + tour/org title chip. */}
+        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          {recording && (
+            <div
+              className="group flex items-center gap-1.5 rounded-full bg-white/85 backdrop-blur-xl border border-white/70 text-[11px] font-medium text-rose-600 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] overflow-hidden transition-all duration-300"
+              style={{ height: 36 }}
+              title="This session is being recorded"
+            >
+              <span className="w-9 h-9 grid place-items-center shrink-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              </span>
+              <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
+                Recording
+              </span>
+            </div>
+          )}
+          <TitleChip tourTitle={tour.title} orgName={orgName} />
+        </div>
 
         {/* Consolidated glass control pill — bottom-right. Fans out on
             hover with reset-zoom, auto-tour, language, sound, strip
@@ -1001,7 +1021,7 @@ function TourPlayerInner({
                 <button
                   key={s.id}
                   onClick={() => navigateTo(s.id, { cinematic: false })}
-                  className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                  className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all relative group ${
                     activeSceneId === s.id
                       ? "border-vpv-blue shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
                       : "border-vpv-line hover:border-vpv-blue/40"
@@ -1015,6 +1035,19 @@ function TourPlayerInner({
                     alt={s.name}
                     className="w-full h-full object-cover"
                   />
+                  {/* Very translucent glass strip along the bottom carrying
+                      the scene name — always visible, subtle enough not to
+                      cover the thumbnail; brightens for the active scene. */}
+                  <div
+                    className={`absolute inset-x-0 bottom-0 px-1.5 py-0.5 backdrop-blur-md text-[9.5px] font-medium truncate text-center ${
+                      activeSceneId === s.id
+                        ? "bg-vpv-blue/70 text-white"
+                        : "bg-white/30 text-vpv-navy group-hover:bg-white/50"
+                    }`}
+                    style={{ textShadow: "0 1px 2px rgba(255,255,255,0.4)" }}
+                  >
+                    {s.name}
+                  </div>
                 </button>
               ))}
             </div>

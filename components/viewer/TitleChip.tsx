@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * TitleChip — glassmorphism chip in the top-left that shows the tour +
- * active scene name. Collapses to a compact icon-only pill after a moment
- * so the scene stays uncluttered, and expands on hover (or when the scene
- * changes). Purely decorative — no side effects.
+ * TitleChip — glassmorphism chip in the TOP-RIGHT of the viewer that shows
+ * the tour title + the organization it belongs to. Collapses to a small
+ * icon-only pill after a moment so the scene stays uncluttered, and
+ * expands on hover. Purely decorative — no side effects.
  */
 
 import { useEffect, useState } from "react";
@@ -12,14 +12,12 @@ import { Layers } from "lucide-react";
 
 export default function TitleChip({
   tourTitle,
-  sceneName,
+  orgName,
 }: {
   tourTitle: string;
-  sceneName: string;
+  orgName?: string | null;
 }) {
   const [hovered, setHovered] = useState(false);
-  // Show once briefly on first mount so viewers see where they are,
-  // then stay collapsed — only hover opens it after that.
   const [firstOpen, setFirstOpen] = useState(true);
   useEffect(() => {
     const t = window.setTimeout(() => setFirstOpen(false), 2500);
@@ -30,7 +28,6 @@ export default function TitleChip({
 
   return (
     <div
-      className="absolute top-4 left-4 z-30 select-none"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -46,17 +43,19 @@ export default function TitleChip({
         <Layers size={15} className="shrink-0 text-vpv-blue" />
         <div
           className="min-w-0 flex items-baseline gap-1.5 transition-opacity duration-200"
-          style={{
-            opacity: open ? 1 : 0,
-          }}
+          style={{ opacity: open ? 1 : 0 }}
         >
           <span className="text-[13px] font-semibold whitespace-nowrap">
             {tourTitle}
           </span>
-          <span className="text-vpv-muted text-[12px]">·</span>
-          <span className="text-[12.5px] text-vpv-ink truncate">
-            {sceneName}
-          </span>
+          {orgName && (
+            <>
+              <span className="text-vpv-muted text-[12px]">·</span>
+              <span className="text-[12.5px] text-vpv-ink truncate">
+                {orgName}
+              </span>
+            </>
+          )}
         </div>
       </div>
     </div>
