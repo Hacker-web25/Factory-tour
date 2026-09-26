@@ -1492,6 +1492,8 @@ export default function TourEditPage() {
       initial_pitch: s.initial_pitch,
       ambient_audio_url: s.ambient_audio_url ?? null,
       ambient_audio_volume: s.ambient_audio_volume ?? 0.5,
+      ambient_audio_trim_start: (s as any).ambient_audio_trim_start ?? null,
+      ambient_audio_trim_end: (s as any).ambient_audio_trim_end ?? null,
       auto_tour_duration: s.auto_tour_duration ?? null,
       pitch_min: s.pitch_min,
       pitch_max: s.pitch_max,

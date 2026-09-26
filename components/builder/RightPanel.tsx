@@ -17,6 +17,7 @@ import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
 import IconPicker from "./IconPicker";
 import EditSceneTab from "./EditSceneTab";
+import AudioTab from "./AudioTab";
 import type { ImageAdjustments } from "@/lib/imageAdjustments";
 import BeautifyModal from "@/components/BeautifyModal";
 import TranslationsSection from "@/components/builder/TranslationsSection";
@@ -50,7 +51,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-type Tab = "photo" | "addon" | "lang" | "edit" | "hotspot" | "autotour";
+type Tab = "photo" | "addon" | "lang" | "edit" | "audio" | "hotspot" | "autotour";
 
 type Props = {
   tour: Tour;
@@ -157,6 +158,9 @@ export default function RightPanel({
         <TabBtn active={tab === "edit"} onClick={() => setTab("edit")}>
           Edit
         </TabBtn>
+        <TabBtn active={tab === "audio"} onClick={() => setTab("audio")}>
+          Audio
+        </TabBtn>
         {selectedHotspot && (
           <TabBtn
             active={tab === "hotspot"}
@@ -220,6 +224,14 @@ export default function RightPanel({
             sceneCount={scenes.length}
             onSceneChange={onSceneChange}
             onApplyToAll={onApplyAdjustmentsToAll}
+          />
+        )}
+        {tab === "audio" && (
+          <AudioTab
+            tour={tour}
+            scene={scene}
+            onSceneChange={onSceneChange}
+            onPatchTour={onPatchTour}
           />
         )}
         {tab === "hotspot" && selectedHotspot && (

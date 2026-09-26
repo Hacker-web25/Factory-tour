@@ -83,6 +83,9 @@ export type Tour = {
    *  audio and plays continuously across scene switches without resetting. */
   ambient_audio_url: string | null;
   ambient_audio_volume: number;
+  /** Optional trim on the tour-wide clip (seconds). */
+  ambient_audio_trim_start?: number | null;
+  ambient_audio_trim_end?: number | null;
 
   /** Which animation plays when the viewer navigates between scenes. */
   transition_effect: TransitionEffect;
@@ -131,6 +134,9 @@ export type Scene = {
   /** Optional ambient audio (loops while scene is active). */
   ambient_audio_url: string | null;
   ambient_audio_volume: number; // 0..1
+  /** Optional trim points on the ambient clip (seconds). */
+  ambient_audio_trim_start?: number | null;
+  ambient_audio_trim_end?: number | null;
   /** Per-scene duration override for auto-tour (seconds). null = use tour default. */
   auto_tour_duration: number | null;
   /** Camera control limits (radians). null = unlimited. */

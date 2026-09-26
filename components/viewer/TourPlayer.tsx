@@ -35,6 +35,110 @@ type Props = {
   autoplay?: boolean;
 };
 
+/** Per-scene audio chip — floats near the bottom-right control pill and
+ *  only renders when the active scene has an ambient clip.
+ *    single click  = mute / unmute the audio
+ *    double click  = play / pause the audio
+ *  Uses a click-then-wait pattern to distinguish the two intents. */
+function SceneAudioChip({
+  muted,
+  paused,
+  onMuteToggle,
+  onPlayPauseToggle,
+}: {
+  muted: boolean;
+  paused: boolean;
+  onMuteToggle: () => void;
+  onPlayPauseToggle: () => void;
+}) {
+  const clickTimer = useRef<number | null>(null);
+  function handleClick() {
+    if (clickTimer.current) {
+      window.clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      onPlayPauseToggle();
+    } else {
+      clickTimer.current = window.setTimeout(() => {
+        clickTimer.current = null;
+        onMuteToggle();
+      }, 240);
+    }
+  }
+  const label = paused
+    ? "Audio paused · double-click to play"
+    : muted
+      ? "Audio muted · click to unmute"
+      : "Audio on · click to mute, double-click to pause";
+  const iconColor = paused
+    ? "text-vpv-navy"
+    : muted
+      ? "text-vpv-muted"
+      : "text-vpv-blue";
+  return (
+    <button
+      onClick={handleClick}
+      title={label}
+      aria-label={label}
+      className="absolute bottom-24 right-4 z-30 w-12 h-12 rounded-full grid place-items-center bg-white/85 hover:bg-white border border-white/70 backdrop-blur-xl shadow-[0_10px_30px_-10px_rgba(11,61,145,0.4)] hover:scale-105 transition-transform"
+    >
+      {paused ? (
+        // paused → show a play icon (audio is halted)
+        <span className="grid place-items-center">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className={iconColor}
+          >
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </span>
+      ) : muted ? (
+        // muted → speaker with a slash
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={iconColor}
+        >
+          <polygon
+            points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"
+            fill="currentColor"
+          />
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </svg>
+      ) : (
+        // playing → speaker with sound waves
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={iconColor}
+        >
+          <polygon
+            points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"
+            fill="currentColor"
+          />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /** Recording indicator — small pulsing red dot that expands to
  *  "Recording" on hover. Shown while the org's auto-record is capturing. */
 function RecordingDot() {
@@ -411,20 +515,32 @@ function TourPlayerInner({
   // Ambient audio — tour-level overrides scene-level, so it plays continuously
   // across scene switches.
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const ambientUrl =
-    tour.ambient_audio_url ?? active?.ambient_audio_url ?? null;
-  const ambientVolume = tour.ambient_audio_url
+  const isTourLevel = !!tour.ambient_audio_url;
+  const ambientUrl = isTourLevel
+    ? tour.ambient_audio_url
+    : active?.ambient_audio_url ?? null;
+  const ambientVolume = isTourLevel
     ? tour.ambient_audio_volume ?? 0.5
     : active?.ambient_audio_volume ?? 0.5;
+  const trimStart = isTourLevel
+    ? (tour as any).ambient_audio_trim_start ?? 0
+    : ((active as any)?.ambient_audio_trim_start ?? 0);
+  const trimEnd = isTourLevel
+    ? ((tour as any).ambient_audio_trim_end ?? null)
+    : ((active as any)?.ambient_audio_trim_end ?? null);
   // Global mute — pauses ambient audio AND hides subtitles. Presenter
   // clicks the speaker icon to silence everything (e.g. during a live
   // walkthrough where they want to talk over the tour instead).
   const [audioMuted, setAudioMuted] = useState(false);
+  // Per-scene play/pause via the scene audio icon (double-click).
+  const [audioPaused, setAudioPaused] = useState(false);
   // Whether the bottom scene-thumbnail strip is hidden (toggled from the
   // pill). Kept per-tab; a fresh tab starts with the strip visible.
   const [stripHidden, setStripHidden] = useState(false);
 
-  // Effect 1: create/destroy the audio element only when URL changes.
+  // Effect 1: create/destroy the audio element only when the URL or trim
+  // window changes. Trim is honoured by seeking to trim_start on load and
+  // looping back to it whenever we reach trim_end.
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -432,12 +548,28 @@ function TourPlayerInner({
     }
     if (!ambientUrl) return;
     const a = new Audio(ambientUrl);
-    a.loop = true;
+    // We manage loop ourselves so we can honour a custom end-trim.
+    a.loop = trimEnd == null && trimStart <= 0;
     a.volume = Math.max(0, Math.min(1, ambientVolume));
     audioRef.current = a;
-    // Broadcast time updates so the SubtitleOverlay (mounted below)
-    // can pick the current segment. Fires ~4×/sec while playing.
+
+    const applyStart = () => {
+      if (trimStart > 0 && a.currentTime < trimStart) {
+        try {
+          a.currentTime = trimStart;
+        } catch {}
+      }
+    };
+    a.addEventListener("loadedmetadata", applyStart);
+    a.addEventListener("canplay", applyStart);
+
     const onTime = () => {
+      // Loop back to trim_start when we cross trim_end.
+      if (trimEnd != null && a.currentTime >= trimEnd) {
+        try {
+          a.currentTime = trimStart || 0;
+        } catch {}
+      }
       window.dispatchEvent(
         new CustomEvent("factour:audio-time", {
           detail: { currentTime: a.currentTime, url: ambientUrl },
@@ -445,15 +577,25 @@ function TourPlayerInner({
       );
     };
     a.addEventListener("timeupdate", onTime);
+    // If native loop kicks in (no custom end), still respect trim_start.
+    a.addEventListener("ended", () => {
+      try {
+        a.currentTime = trimStart || 0;
+        a.play().catch(() => {});
+      } catch {}
+    });
+
     a.play().catch(() => {
       /* browsers may block autoplay until user interaction — silently ignore */
     });
     return () => {
+      a.removeEventListener("loadedmetadata", applyStart);
+      a.removeEventListener("canplay", applyStart);
       a.removeEventListener("timeupdate", onTime);
       a.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ambientUrl]);
+  }, [ambientUrl, trimStart, trimEnd]);
 
   // Effect 2: adjust volume in place without restarting playback.
   useEffect(() => {
@@ -462,16 +604,23 @@ function TourPlayerInner({
     }
   }, [ambientVolume]);
 
-  // Effect 3: react to the mute toggle. Pause on mute, resume on unmute.
+  // Effect 3: react to the global mute toggle OR the per-scene local
+  // pause. Any one being true silences the clip.
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
-    if (audioMuted) {
+    if (audioMuted || audioPaused) {
       a.pause();
     } else {
       a.play().catch(() => {});
     }
-  }, [audioMuted]);
+  }, [audioMuted, audioPaused]);
+
+  // Reset the per-scene local pause whenever the scene changes — a fresh
+  // scene should start playing its clip.
+  useEffect(() => {
+    setAudioPaused(false);
+  }, [activeSceneId]);
 
   // Preload immediate neighbors — any scene reachable via a nav hotspot
   // (per-scene or master) from the active scene. Cached in a Set so we
@@ -969,6 +1118,18 @@ function TourPlayerInner({
               <TitleChip tourTitle={tour.title} orgName={orgName} />
             </div>
           </>
+        )}
+
+        {/* Per-scene audio chip — only shown when the current scene has
+            an ambient clip. Single click = mute/unmute, double click =
+            play/pause. Sits above the bottom-right control pill. */}
+        {ambientUrl && (
+          <SceneAudioChip
+            muted={audioMuted}
+            paused={audioPaused}
+            onMuteToggle={() => setAudioMuted((v) => !v)}
+            onPlayPauseToggle={() => setAudioPaused((v) => !v)}
+          />
         )}
 
         {/* Consolidated glass control pill — bottom-right. Fans out on
