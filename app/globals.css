@@ -156,6 +156,205 @@ details > summary::-webkit-details-marker { display: none; }
   will-change: transform, opacity;
 }
 
+/* ============================================================
+   Premium hotspot SKINS. All colour-driven via `--hs-glow`, which
+   the HotspotSkin component sets from the hotspot's own colour.
+   Purely presentational — no layout impact.
+   ============================================================ */
+
+/* 1. Precision Ring — 3 concentric spinning rings + breathing halo. */
+@keyframes hs-skin-ring-spin { to { transform: rotate(360deg); } }
+@keyframes hs-skin-ring-breathe {
+  0%,100% { transform: scale(1);    opacity: 0.85; }
+  50%     { transform: scale(1.08); opacity: 1;    }
+}
+.hs-skin-ring-outer,
+.hs-skin-ring-mid,
+.hs-skin-ring-inner {
+  pointer-events: none;
+  border-style: solid;
+  border-color: var(--hs-glow);
+  box-shadow: 0 0 18px 2px color-mix(in oklab, var(--hs-glow) 60%, transparent);
+  will-change: transform, opacity;
+}
+.hs-skin-ring-outer {
+  border-width: 1.5px;
+  border-top-color: transparent;
+  animation: hs-skin-ring-spin 3.2s linear infinite,
+             hs-skin-ring-breathe 2.6s ease-in-out infinite;
+}
+.hs-skin-ring-mid {
+  border-width: 1px;
+  border-color: color-mix(in oklab, var(--hs-glow) 70%, transparent);
+  border-bottom-color: transparent;
+  animation: hs-skin-ring-spin 4.5s linear infinite reverse;
+}
+.hs-skin-ring-inner {
+  border-width: 1px;
+  border-color: color-mix(in oklab, var(--hs-glow) 50%, transparent);
+  opacity: 0.7;
+  animation: hs-skin-ring-breathe 2s ease-in-out infinite;
+}
+
+/* 2. Glowing Core — soft radial halo pulsing behind the icon. */
+@keyframes hs-skin-core-pulse {
+  0%,100% { transform: scale(1);   opacity: 0.55; }
+  50%     { transform: scale(1.2); opacity: 0.95; }
+}
+.hs-skin-core-halo {
+  pointer-events: none;
+  background: radial-gradient(circle at center,
+    color-mix(in oklab, var(--hs-glow) 90%, transparent) 0%,
+    color-mix(in oklab, var(--hs-glow) 40%, transparent) 40%,
+    transparent 70%);
+  filter: blur(6px);
+  animation: hs-skin-core-pulse 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+.hs-skin-core-ring {
+  pointer-events: none;
+  border: 1.5px solid var(--hs-glow);
+  box-shadow: 0 0 22px 4px color-mix(in oklab, var(--hs-glow) 55%, transparent),
+              inset 0 0 12px color-mix(in oklab, var(--hs-glow) 40%, transparent);
+}
+
+/* 3. Tech Crosshair — 4 corner arms + pulsing centre halo. */
+@keyframes hs-skin-crosshair-halo-kf {
+  0%,100% { transform: scale(1);    opacity: 0.7; }
+  50%     { transform: scale(1.12); opacity: 1;   }
+}
+.hs-skin-crosshair {
+  pointer-events: none;
+  background:
+    /* top */    linear-gradient(90deg, transparent 42%, var(--hs-glow) 42% 58%, transparent 58%) top    / 100% 2px no-repeat,
+    /* bottom */ linear-gradient(90deg, transparent 42%, var(--hs-glow) 42% 58%, transparent 58%) bottom / 100% 2px no-repeat,
+    /* left */   linear-gradient(180deg, transparent 42%, var(--hs-glow) 42% 58%, transparent 58%) left  / 2px 100% no-repeat,
+    /* right */  linear-gradient(180deg, transparent 42%, var(--hs-glow) 42% 58%, transparent 58%) right / 2px 100% no-repeat;
+  filter: drop-shadow(0 0 4px color-mix(in oklab, var(--hs-glow) 70%, transparent));
+}
+.hs-skin-crosshair-halo {
+  pointer-events: none;
+  border: 1.5px solid color-mix(in oklab, var(--hs-glow) 80%, transparent);
+  box-shadow: 0 0 22px 2px color-mix(in oklab, var(--hs-glow) 55%, transparent);
+  animation: hs-skin-crosshair-halo-kf 2.2s ease-in-out infinite;
+}
+
+/* 4. Hexagon — clip-path frame with glowing stroke via inset shadow. */
+.hs-skin-hexagon,
+.hs-skin-hexagon-inner {
+  pointer-events: none;
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
+  background: transparent;
+}
+.hs-skin-hexagon {
+  border: 1.5px solid var(--hs-glow);
+  /* clip-path hides real border, so we simulate a stroke with an inner box. */
+  background:
+    linear-gradient(var(--hs-glow), var(--hs-glow)) padding-box,
+    linear-gradient(var(--hs-glow), var(--hs-glow));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  padding: 1.5px;
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--hs-glow) 65%, transparent));
+  animation: hs-skin-ring-breathe 2.6s ease-in-out infinite;
+}
+.hs-skin-hexagon-inner {
+  border: 1px solid color-mix(in oklab, var(--hs-glow) 45%, transparent);
+  background:
+    linear-gradient(color-mix(in oklab, var(--hs-glow) 50%, transparent),
+                    color-mix(in oklab, var(--hs-glow) 50%, transparent)) padding-box,
+    linear-gradient(color-mix(in oklab, var(--hs-glow) 50%, transparent),
+                    color-mix(in oklab, var(--hs-glow) 50%, transparent));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  padding: 1px;
+  opacity: 0.6;
+}
+
+/* 5. Orbit — a static ring plus 3 satellite dots rotating around. */
+@keyframes hs-skin-orbit-spin { to { transform: rotate(360deg); } }
+.hs-skin-orbit-ring {
+  pointer-events: none;
+  border: 1px dashed color-mix(in oklab, var(--hs-glow) 60%, transparent);
+  box-shadow: 0 0 14px 1px color-mix(in oklab, var(--hs-glow) 40%, transparent);
+}
+.hs-skin-orbit {
+  animation: hs-skin-orbit-spin 5s linear infinite;
+  will-change: transform;
+}
+.hs-orbit-dot {
+  position: absolute;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--hs-glow);
+  box-shadow: 0 0 8px 1.5px var(--hs-glow);
+  left: 50%; top: 50%;
+  margin: -3px 0 0 -3px;
+  transform-origin: 3px 3px;
+}
+.hs-orbit-dot:nth-child(1) { transform: rotate(0deg)   translate(0, -50%) translateY(-2px); }
+.hs-orbit-dot:nth-child(2) { transform: rotate(120deg) translate(0, -50%) translateY(-2px); }
+.hs-orbit-dot:nth-child(3) { transform: rotate(240deg) translate(0, -50%) translateY(-2px); }
+
+/* 6. Scanner — 4 L-shaped corner brackets pulsing. */
+@keyframes hs-skin-scanner-pulse {
+  0%,100% { opacity: 0.75; transform: scale(1);    }
+  50%     { opacity: 1;    transform: scale(1.05); }
+}
+.hs-skin-scanner {
+  pointer-events: none;
+  background:
+    /* TL corner */ linear-gradient(var(--hs-glow), var(--hs-glow)) top left    / 25% 2px no-repeat,
+    linear-gradient(var(--hs-glow), var(--hs-glow)) top left    / 2px 25% no-repeat,
+    /* TR */       linear-gradient(var(--hs-glow), var(--hs-glow)) top right   / 25% 2px no-repeat,
+    linear-gradient(var(--hs-glow), var(--hs-glow)) top right   / 2px 25% no-repeat,
+    /* BL */       linear-gradient(var(--hs-glow), var(--hs-glow)) bottom left / 25% 2px no-repeat,
+    linear-gradient(var(--hs-glow), var(--hs-glow)) bottom left / 2px 25% no-repeat,
+    /* BR */       linear-gradient(var(--hs-glow), var(--hs-glow)) bottom right/ 25% 2px no-repeat,
+    linear-gradient(var(--hs-glow), var(--hs-glow)) bottom right/ 2px 25% no-repeat;
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--hs-glow) 70%, transparent));
+  animation: hs-skin-scanner-pulse 1.8s ease-in-out infinite;
+}
+.hs-skin-scanner-halo {
+  pointer-events: none;
+  box-shadow: inset 0 0 22px color-mix(in oklab, var(--hs-glow) 25%, transparent),
+              0 0 22px color-mix(in oklab, var(--hs-glow) 35%, transparent);
+}
+
+/* Premium card popup — glass + neon border + zoom-in entrance. */
+@keyframes hs-card-in-kf {
+  0%   { transform: scale(0.94) translateY(6px); opacity: 0; }
+  100% { transform: scale(1)    translateY(0);   opacity: 1; }
+}
+.hs-premium-card {
+  background: linear-gradient(180deg, rgba(15,20,35,0.85), rgba(15,20,35,0.78));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in oklab, var(--hs-glow) 60%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -18px rgba(0,0,0,0.7),
+              0 0 32px -8px color-mix(in oklab, var(--hs-glow) 55%, transparent),
+              inset 0 0 0 1px rgba(255,255,255,0.05);
+  animation: hs-card-in-kf 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hs-premium-connector {
+  position: absolute;
+  pointer-events: none;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg,
+    color-mix(in oklab, var(--hs-glow) 90%, transparent),
+    color-mix(in oklab, var(--hs-glow) 20%, transparent));
+  box-shadow: 0 0 8px 1px color-mix(in oklab, var(--hs-glow) 70%, transparent);
+  border-radius: 2px;
+}
+
 /* Warp + Blur transition — one-shot motion blur over the canvas that peaks
    mid-fly-through and clears by the end. animation-duration is set inline to
    match the transition length. Only applied for the warp_blur effect, so

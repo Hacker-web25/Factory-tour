@@ -241,6 +241,26 @@ export type LabelFont =
 
 export type LabelPosition = "top" | "bottom" | "left" | "right";
 
+/** Premium overlays wrapped around a hotspot's icon. Purely cosmetic — the
+ *  underlying icon / image is untouched, and click / drag / labels stay the
+ *  same. Add / rename freely; the renderer treats an unknown value as "none". */
+export type HotspotSkin =
+  | "none"
+  | "ring"        // Precision Ring — animated glowing circle
+  | "core"        // Glowing Core — pulsing halo behind the icon
+  | "crosshair"   // Tech Crosshair — bracketed target
+  | "hexagon"     // Hex frame around the icon
+  | "orbit"       // 3 dots orbiting the icon
+  | "scanner";    // 4 scanner corner brackets
+
+/** Frame shape drawn around the icon inside a skin. Circle is the classic. */
+export type HotspotIconShape =
+  | "circle"
+  | "square"
+  | "diamond"
+  | "hexagon"
+  | "octagon";
+
 /** Resolved hotspot micro-interaction flags (all concrete values). */
 export type HotspotFx = {
   breathing: boolean;
@@ -317,6 +337,17 @@ export type Hotspot = {
 
   // subtle animation on hover
   animation: HotspotAnimation;
+
+  /** Premium "skin" overlay wrapped around the hotspot icon.
+   *  none = plain marker (current behaviour). Others add glowing rings,
+   *  crosshairs, hexagon frames, orbiting dots, scanner brackets etc. */
+  skin?: HotspotSkin;
+  /** Neon glow colour used by every skin (defaults to `color`). */
+  glow_color?: string | null;
+  /** Frame shape wrapped around a built-in / uploaded icon. */
+  icon_shape?: HotspotIconShape;
+  /** Show a glowing connector line from the icon to its popup card. */
+  card_connector?: boolean;
 
   // label typography extras
   label_font: LabelFont;

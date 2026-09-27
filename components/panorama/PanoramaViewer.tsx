@@ -18,6 +18,7 @@ import {
 } from "./math";
 import PolygonHotspot from "./PolygonHotspot";
 import SceneTransition from "./SceneTransition";
+import HotspotSkinFrame from "./HotspotSkin";
 import {
   type ImageAdjustments,
   normalizeAdjustments,
@@ -1077,11 +1078,23 @@ function HtmlBillboard({
               gap: 4,
             }}
           >
-            {/* Text-type hotspots render label ONLY — no icon marker. */}
+            {/* Text-type hotspots render label ONLY — no icon marker.
+                Non-text hotspots pass through the premium HotspotSkinFrame,
+                which layers on the chosen skin (glowing ring, hexagon,
+                crosshair etc.) + shape mask. Skin defaults to "none" so
+                pre-existing hotspots look identical until the author picks
+                a different one. */}
             {h.type === "video" && h.video_show_thumbnail ? (
               <VideoCard hotspot={h} />
             ) : h.type !== "text" ? (
-              <IconOrImage hotspot={h} width={w} height={hh} />
+              <HotspotSkinFrame
+                skin={h.skin}
+                shape={h.icon_shape}
+                size={Math.max(w, hh)}
+                glow={h.glow_color || h.color || "#22d3ee"}
+              >
+                <IconOrImage hotspot={h} width={w} height={hh} />
+              </HotspotSkinFrame>
             ) : null}
             {showLabel && (
               <span

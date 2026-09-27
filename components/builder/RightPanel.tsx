@@ -7,6 +7,8 @@ import type {
   HotspotAnimation,
   LabelFont,
   LabelPosition,
+  HotspotSkin,
+  HotspotIconShape,
   Scene,
   Tour,
   TransitionEffect,
@@ -2987,6 +2989,118 @@ function AddonTab({
             </div>
           </Section>
         </>
+      )}
+
+      {/* PREMIUM SKIN + shape frame. Cosmetic upgrade to any icon
+          hotspot — cross-icon glow / crosshair / hexagon / orbit etc. */}
+      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
+        <Section title="Premium skin">
+          <div>
+            <div className="eyebrow mb-1.5">Style</div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { k: "none", label: "None" },
+                  { k: "ring", label: "Ring" },
+                  { k: "core", label: "Core" },
+                  { k: "crosshair", label: "Crosshair" },
+                  { k: "hexagon", label: "Hexagon" },
+                  { k: "orbit", label: "Orbit" },
+                  { k: "scanner", label: "Scanner" },
+                ] as { k: HotspotSkin; label: string }[]
+              ).map(({ k, label }) => {
+                const active = (hotspot.skin ?? "none") === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => onChange({ ...hotspot, skin: k })}
+                    className={`py-1.5 rounded-md border text-[11px] transition-colors ${
+                      active
+                        ? "bg-accent text-black border-accent"
+                        : "bg-panelSoft border-border text-neutral-300 hover:border-neutral-500"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="eyebrow mb-1.5">Icon shape</div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {(
+                [
+                  { k: "circle", label: "●" },
+                  { k: "square", label: "■" },
+                  { k: "diamond", label: "◆" },
+                  { k: "hexagon", label: "⬢" },
+                  { k: "octagon", label: "⯃" },
+                ] as { k: HotspotIconShape; label: string }[]
+              ).map(({ k, label }) => {
+                const active = (hotspot.icon_shape ?? "circle") === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() => onChange({ ...hotspot, icon_shape: k })}
+                    title={k}
+                    className={`py-1.5 rounded-md border text-[14px] transition-colors ${
+                      active
+                        ? "bg-accent text-black border-accent"
+                        : "bg-panelSoft border-border text-neutral-300 hover:border-neutral-500"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <FieldMini label="Neon glow colour">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={hotspot.glow_color ?? hotspot.color}
+                  onChange={(e) =>
+                    onChange({ ...hotspot, glow_color: e.target.value })
+                  }
+                  className="w-8 h-7 rounded bg-panelSoft border border-border cursor-pointer"
+                />
+                {hotspot.glow_color && (
+                  <button
+                    onClick={() => onChange({ ...hotspot, glow_color: null })}
+                    className="text-[10px] text-neutral-400 hover:text-white"
+                  >
+                    match icon color
+                  </button>
+                )}
+              </div>
+            </FieldMini>
+          </div>
+
+          <label className="flex items-start gap-2 text-xs cursor-pointer py-1 mt-2">
+            <input
+              type="checkbox"
+              checked={hotspot.card_connector !== false}
+              onChange={(e) =>
+                onChange({ ...hotspot, card_connector: e.target.checked })
+              }
+              className="mt-0.5 accent-accent"
+            />
+            <span>
+              <span className="text-neutral-200">
+                Glowing connector line to card
+              </span>
+              <span className="block text-[10.5px] text-neutral-500">
+                A neon line links the icon to its popup card for that
+                sci-fi HUD feel.
+              </span>
+            </span>
+          </label>
+        </Section>
       )}
 
       {/* LABEL — hidden for person hotspots. Person uses its own Details

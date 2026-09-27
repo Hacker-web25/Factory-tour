@@ -1257,18 +1257,36 @@ function TourPlayerInner({
       {/* Info / image popup */}
       {infoModal && (
         <div
-          className="absolute inset-0 grid place-items-center bg-black/70 z-10"
+          className="absolute inset-0 grid place-items-center bg-black/60 backdrop-blur-sm z-10"
           onClick={() => setInfoModal(null)}
+          style={
+            {
+              // Expose the hotspot's glow colour so the premium card border
+              // inherits it via `--hs-glow`.
+              ["--hs-glow" as any]:
+                infoModal.glow_color || infoModal.color || "#22d3ee",
+            } as React.CSSProperties
+          }
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-panel border border-border rounded-lg p-5"
+            className="hs-premium-card p-6 text-white/90 relative"
             style={{
               width: `${infoModal.card_size_pct ?? 80}%`,
               maxWidth: "1200px",
             }}
           >
-            <h3 className="font-semibold mb-2">
+            {/* Neon accent line at the top of the card */}
+            <div
+              className="absolute top-0 left-6 right-6 h-[2px] rounded-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, var(--hs-glow), transparent)",
+                boxShadow:
+                  "0 0 12px 1px color-mix(in oklab, var(--hs-glow) 60%, transparent)",
+              }}
+            />
+            <h3 className="font-semibold mb-3 text-[18px] tracking-tight">
               {t(infoModal.info_title || infoModal.label) || t("Info")}
             </h3>
             {(infoModal.action === "image_popup" ||
@@ -1278,18 +1296,28 @@ function TourPlayerInner({
                 <img
                   src={infoModal.image_url}
                   alt=""
-                  className="mb-2 mx-auto rounded object-contain"
-                  style={{ maxHeight: "70vh", width: "100%" }}
+                  className="mb-3 mx-auto rounded-lg object-contain"
+                  style={{
+                    maxHeight: "70vh",
+                    width: "100%",
+                    boxShadow:
+                      "0 12px 30px -12px rgba(0,0,0,0.6), 0 0 20px -8px color-mix(in oklab, var(--hs-glow) 55%, transparent)",
+                  }}
                 />
               )}
             {infoModal.info_body && (
-              <p className="text-sm text-neutral-300 whitespace-pre-wrap">
+              <p className="text-[13.5px] text-white/85 whitespace-pre-wrap leading-relaxed">
                 {t(infoModal.info_body)}
               </p>
             )}
             <button
               onClick={() => setInfoModal(null)}
-              className="mt-4 text-sm bg-accent text-black px-3 py-1.5 rounded"
+              className="mt-5 text-[12.5px] font-semibold px-4 py-1.5 rounded-full text-black"
+              style={{
+                background: "var(--hs-glow)",
+                boxShadow:
+                  "0 8px 22px -8px color-mix(in oklab, var(--hs-glow) 65%, transparent)",
+              }}
             >
               Close
             </button>
