@@ -344,8 +344,13 @@ export type Hotspot = {
   skin?: HotspotSkin;
   /** Neon glow colour used by every skin (defaults to `color`). */
   glow_color?: string | null;
+  /** Glow strength, 0–200 (%). 0 = no glow, 100 = default, 200 = intense. */
+  glow_intensity?: number | null;
   /** Frame shape wrapped around a built-in / uploaded icon. */
   icon_shape?: HotspotIconShape;
+  /** Fill colour of the shape frame behind the icon (glassy backing).
+   *  null = a neutral dark glass. Accepts any hex; alpha applied in CSS. */
+  shape_fill_color?: string | null;
   /** Show a glowing connector line from the icon to its popup card. */
   card_connector?: boolean;
 

@@ -3058,8 +3058,36 @@ function AddonTab({
             </div>
           </div>
 
-          <div className="mt-3">
-            <FieldMini label="Neon glow colour">
+          {/* Colours: icon glyph, neon glow, and shape backing — three
+              separate pickers so nothing is ambiguous. */}
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-300">Icon colour</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={hotspot.icon_tint ?? "#ffffff"}
+                  onChange={(e) =>
+                    onChange({ ...hotspot, icon_tint: e.target.value })
+                  }
+                  className="w-8 h-7 rounded bg-panelSoft border border-border cursor-pointer"
+                />
+                {hotspot.icon_tint &&
+                  hotspot.icon_tint.toLowerCase() !== "#ffffff" && (
+                    <button
+                      onClick={() =>
+                        onChange({ ...hotspot, icon_tint: "#ffffff" })
+                      }
+                      className="text-[10px] text-neutral-400 hover:text-white"
+                    >
+                      reset
+                    </button>
+                  )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-300">Neon glow colour</span>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -3074,11 +3102,47 @@ function AddonTab({
                     onClick={() => onChange({ ...hotspot, glow_color: null })}
                     className="text-[10px] text-neutral-400 hover:text-white"
                   >
-                    match icon color
+                    reset
                   </button>
                 )}
               </div>
-            </FieldMini>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-neutral-300">Shape fill colour</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={hotspot.shape_fill_color ?? "#0a101e"}
+                  onChange={(e) =>
+                    onChange({ ...hotspot, shape_fill_color: e.target.value })
+                  }
+                  className="w-8 h-7 rounded bg-panelSoft border border-border cursor-pointer"
+                />
+                {hotspot.shape_fill_color && (
+                  <button
+                    onClick={() =>
+                      onChange({ ...hotspot, shape_fill_color: null })
+                    }
+                    className="text-[10px] text-neutral-400 hover:text-white"
+                  >
+                    reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Glow intensity — 0 kills the glow, 200 is intense. */}
+          <div className="mt-3">
+            <SliderRow
+              label="Glow"
+              value={hotspot.glow_intensity ?? 100}
+              valueLabel={`${Math.round(hotspot.glow_intensity ?? 100)}%`}
+              min={0}
+              max={200}
+              onChange={(v) => onChange({ ...hotspot, glow_intensity: v })}
+            />
           </div>
 
           <label className="flex items-start gap-2 text-xs cursor-pointer py-1 mt-2">

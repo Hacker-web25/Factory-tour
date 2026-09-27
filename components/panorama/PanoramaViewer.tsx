@@ -1092,6 +1092,8 @@ function HtmlBillboard({
                 shape={h.icon_shape}
                 size={Math.max(w, hh)}
                 glow={h.glow_color || h.color || "#22d3ee"}
+                intensity={h.glow_intensity}
+                fill={h.shape_fill_color}
               >
                 <IconOrImage hotspot={h} width={w} height={hh} />
               </HotspotSkinFrame>
