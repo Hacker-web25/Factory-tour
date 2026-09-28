@@ -79,28 +79,86 @@ export default function HotspotSkinFrame({
       className="relative grid place-items-center"
       style={{ width: frameSize, height: frameSize, ...cssVars }}
     >
+      {/* Wide atmospheric outer glow — the soft blue "cloud" from the
+          reference art. Sits furthest back. */}
+      {hasFrame && (
+        <span
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            width: "88%",
+            height: "88%",
+            background:
+              "radial-gradient(circle, color-mix(in srgb, var(--hs-glow) 55%, transparent) 0%, transparent 70%)",
+            filter: "blur(6px)",
+          }}
+        />
+      )}
+
+      {/* Lens-flare cross — the 4-point sparkle seen on core/crosshair/hex. */}
+      {(effectiveSkin === "core" ||
+        effectiveSkin === "crosshair" ||
+        effectiveSkin === "hexagon" ||
+        effectiveSkin === "scanner") && (
+        <span className="absolute inset-0 hs-lensflare" aria-hidden />
+      )}
+
       {/* Skin overlay — behind the icon. */}
       {effectiveSkin !== "none" && <SkinLayer skin={effectiveSkin} />}
 
       {/* Icon holder with the chosen shape + glass backing. Only draws a
           backing/glow when the author actually picked a shape or skin, so a
-          plain circle hotspot is untouched (no gray disc, no double ring). */}
+          plain circle hotspot is untouched (no gray disc, no double ring).
+          The multi-layer boxShadow gives the reference look: a bright white
+          inner edge, a coloured inner glow, and a wide coloured outer halo. */}
       <div
-        className="relative grid place-items-center"
+        className="relative grid place-items-center overflow-hidden"
         style={{
           width: size,
           height: size,
           clipPath: clipFor(effectiveShape),
-          background: hasFrame ? "var(--hs-fill)" : undefined,
+          background: hasFrame
+            ? `linear-gradient(160deg, color-mix(in srgb, var(--hs-glow) 30%, var(--hs-fill)) 0%, var(--hs-fill) 55%)`
+            : undefined,
           borderRadius: effectiveShape === "circle" ? "50%" : undefined,
           backdropFilter: hasFrame ? "blur(6px)" : undefined,
           WebkitBackdropFilter: hasFrame ? "blur(6px)" : undefined,
           boxShadow: hasFrame
-            ? `0 0 var(--hs-blur) var(--hs-spread) color-mix(in srgb, var(--hs-glow) 70%, transparent), inset 0 0 0 1.5px color-mix(in srgb, var(--hs-glow) 85%, transparent)`
+            ? [
+                // wide coloured outer halo (scales with intensity)
+                `0 0 var(--hs-blur) var(--hs-spread) color-mix(in srgb, var(--hs-glow) 65%, transparent)`,
+                // tight bright outer ring
+                `0 0 6px 1px color-mix(in srgb, var(--hs-glow) 90%, transparent)`,
+                // bright white inner edge (the crisp neon tube)
+                `inset 0 0 0 2px rgba(255,255,255,0.92)`,
+                // coloured inner glow just inside the edge
+                `inset 0 0 12px 1px color-mix(in srgb, var(--hs-glow) 75%, transparent)`,
+              ].join(", ")
             : undefined,
         }}
       >
-        {children}
+        {/* Top glass highlight — the glossy sheen across the upper half. */}
+        {hasFrame && (
+          <span
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 38%, transparent 60%)",
+            }}
+          />
+        )}
+        <span
+          className="relative grid place-items-center"
+          style={
+            hasFrame
+              ? {
+                  filter:
+                    "drop-shadow(0 0 3px color-mix(in srgb, var(--hs-glow) 85%, transparent)) drop-shadow(0 0 6px rgba(255,255,255,0.5))",
+                }
+              : undefined
+          }
+        >
+          {children}
+        </span>
       </div>
     </div>
   );

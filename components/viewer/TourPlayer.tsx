@@ -25,6 +25,7 @@ import {
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 import ViewerPill from "@/components/viewer/ViewerPill";
+import PremiumInfoCard from "@/components/viewer/PremiumInfoCard";
 import TitleChip from "@/components/viewer/TitleChip";
 import ViewerLogoBadge from "@/components/viewer/ViewerLogoBadge";
 
@@ -240,6 +241,20 @@ function TourPlayerInner({
   }, [scenes, activeSceneId]);
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
   const [infoModal, setInfoModal] = useState<Hotspot | null>(null);
+  // Where the info card should anchor its connector arm — the point in the
+  // stage where the user clicked the hotspot (stage-relative px). Falls back
+  // to stage centre if we somehow don't have a click position.
+  const [cardAnchor, setCardAnchor] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  // The scene stage element + its measured size, so the premium card can
+  // position itself and draw the connector line within it.
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const [stageSize, setStageSize] = useState<{ w: number; h: number }>({
+    w: 0,
+    h: 0,
+  });
   const [videoModal, setVideoModal] = useState<Hotspot | null>(null);
   const [pdfModal, setPdfModal] = useState<Hotspot | null>(null);
   const [audioPopup, setAudioPopup] = useState<Hotspot | null>(null);
@@ -622,6 +637,29 @@ function TourPlayerInner({
     setAudioPaused(false);
   }, [activeSceneId]);
 
+  // Track the stage size (for anchored card placement) and the last pointer
+  // position within the stage (for the connector arm origin).
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setStageSize({ w: r.width, h: r.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const onPointer = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      lastPointerRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    el.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, []);
+
   // Preload immediate neighbors — any scene reachable via a nav hotspot
   // (per-scene or master) from the active scene. Cached in a Set so we
   // don't refetch. Kills the "black frame" stutter during transition.
@@ -901,6 +939,12 @@ function TourPlayerInner({
     } else if (action === "url" && h.url) {
       window.open(h.url, "_blank");
     } else if (action === "info_popup" || action === "image_popup") {
+      // Anchor the premium card's connector arm at the click point (or the
+      // stage centre as a fallback).
+      const p = lastPointerRef.current;
+      setCardAnchor(
+        p ?? { x: stageSize.w / 2, y: stageSize.h / 2 }
+      );
       setInfoModal(h);
     } else if (action === "video_popup") {
       // Virtual card checkbox controls the destination:
@@ -944,7 +988,7 @@ function TourPlayerInner({
   }, [scenes]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-black">
+    <div className="h-full w-full flex flex-col bg-black relative" ref={stageRef}>
       {/* Live-translated subtitles — attaches to whichever source
           (ambient audio, audio hotspot, video hotspot) is currently
           firing time-update events. Hidden when the presenter mutes
@@ -1254,75 +1298,18 @@ function TourPlayerInner({
         </div>
       )}
 
-      {/* Info / image popup */}
-      {infoModal && (
-        <div
-          className="absolute inset-0 grid place-items-center bg-black/60 backdrop-blur-sm z-10"
-          onClick={() => setInfoModal(null)}
-          style={
-            {
-              // Expose the hotspot's glow colour so the premium card border
-              // inherits it via `--hs-glow`.
-              ["--hs-glow" as any]:
-                infoModal.glow_color || infoModal.color || "#22d3ee",
-            } as React.CSSProperties
-          }
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="hs-premium-card p-6 text-white/90 relative"
-            style={{
-              width: `${infoModal.card_size_pct ?? 80}%`,
-              maxWidth: "1200px",
-            }}
-          >
-            {/* Neon accent line at the top of the card */}
-            <div
-              className="absolute top-0 left-6 right-6 h-[2px] rounded-full"
-              style={{
-                background:
-                  "linear-gradient(90deg, transparent, var(--hs-glow), transparent)",
-                boxShadow:
-                  "0 0 12px 1px color-mix(in oklab, var(--hs-glow) 60%, transparent)",
-              }}
-            />
-            <h3 className="font-semibold mb-3 text-[18px] tracking-tight">
-              {t(infoModal.info_title || infoModal.label) || t("Info")}
-            </h3>
-            {(infoModal.action === "image_popup" ||
-              infoModal.type === "image") &&
-              infoModal.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={infoModal.image_url}
-                  alt=""
-                  className="mb-3 mx-auto rounded-lg object-contain"
-                  style={{
-                    maxHeight: "70vh",
-                    width: "100%",
-                    boxShadow:
-                      "0 12px 30px -12px rgba(0,0,0,0.6), 0 0 20px -8px color-mix(in oklab, var(--hs-glow) 55%, transparent)",
-                  }}
-                />
-              )}
-            {infoModal.info_body && (
-              <p className="text-[13.5px] text-white/85 whitespace-pre-wrap leading-relaxed">
-                {t(infoModal.info_body)}
-              </p>
-            )}
-            <button
-              onClick={() => setInfoModal(null)}
-              className="mt-5 text-[12.5px] font-semibold px-4 py-1.5 rounded-full text-black"
-              style={{
-                background: "var(--hs-glow)",
-                boxShadow:
-                  "0 8px 22px -8px color-mix(in oklab, var(--hs-glow) 65%, transparent)",
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
+      {/* Info / image popup — anchored premium glass card with a glowing
+          connector arm from the clicked hotspot. */}
+      {infoModal && cardAnchor && (
+        <PremiumInfoCard
+          hotspot={infoModal}
+          anchor={cardAnchor}
+          containerW={stageSize.w}
+          containerH={stageSize.h}
+          glow={infoModal.glow_color || infoModal.color || "#22d3ee"}
+          t={t}
+          onClose={() => setInfoModal(null)}
+        />
       )}
 
       {/* Video popup */}
