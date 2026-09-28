@@ -3,15 +3,19 @@
 /**
  * HotspotSkin — the premium overlay wrapper drawn around a hotspot's icon.
  *
- * Renders a glowing frame / crosshair / hexagon / orbit / scanner behind the
- * icon, plus an optional shape backing (circle / square / diamond / hexagon /
- * octagon) in a chosen fill colour. Everything is driven by CSS custom
- * properties so a single set of keyframes handles every colour + intensity:
+ * Renders the neon-glass marker from the VPV reference art: a bright
+ * white-cored icon wrapped in layered coloured glow, optionally seated on a
+ * glass tile (circle / square / diamond / hexagon / octagon) and framed by a
+ * skin (precision ring, glowing core, crosshair, hexagon, orbit, scanner).
+ *
+ * Everything is driven by CSS custom properties so a single set of keyframes
+ * handles every colour + intensity:
  *
  *   --hs-glow        neon colour
  *   --hs-blur        glow blur radius in px (from glow_intensity)
  *   --hs-spread      glow spread radius in px (from glow_intensity)
  *   --hs-fill        shape backing colour (rgba)
+ *   --hs-boost       1 at rest, >1 while hovered (brightens the whole marker)
  *
  * Cosmetic only — click / drag / label behaviour is unchanged.
  */
@@ -29,6 +33,11 @@ type Props = {
   intensity?: number | null;
   /** Shape backing fill (hex). null → neutral dark glass. */
   fill?: string | null;
+  /** True while the pointer is over the marker — lifts the glow. */
+  hovered?: boolean;
+  /** Neon treatment on the icon itself. On by default; the editor can turn
+   *  it down so authors see the raw artwork while placing markers. */
+  neon?: boolean;
   children: React.ReactNode;
 };
 
@@ -51,6 +60,8 @@ export default function HotspotSkinFrame({
   glow,
   intensity,
   fill,
+  hovered = false,
+  neon = true,
   children,
 }: Props) {
   const effectiveSkin: HotspotSkin = skin ?? "none";
@@ -64,26 +75,30 @@ export default function HotspotSkinFrame({
   const hasFrame = effectiveSkin !== "none" || effectiveShape !== "circle";
   const frameSize = hasFrame ? Math.round(size * 1.85) : size;
 
-  // Shape backing: glassy tint of the chosen fill (or a neutral dark glass).
-  const backing = fill ? hexToRgba(fill, 0.55) : "rgba(10,16,30,0.45)";
+  // Shape backing: glassy tint of the chosen fill (or the deep navy glass
+  // from the reference tiles).
+  const backing = fill ? hexToRgba(fill, 0.55) : "rgba(9,15,32,0.55)";
 
   const cssVars = {
-    ["--hs-glow" as any]: glow,
-    ["--hs-blur" as any]: `${blur}px`,
-    ["--hs-spread" as any]: `${spread}px`,
-    ["--hs-fill" as any]: backing,
+    ["--hs-glow" as string]: glow,
+    ["--hs-blur" as string]: `${blur}px`,
+    ["--hs-spread" as string]: `${spread}px`,
+    ["--hs-fill" as string]: backing,
+    ["--hs-boost" as string]: hovered ? "1.45" : "1",
   } as React.CSSProperties;
 
   return (
     <div
-      className="relative grid place-items-center"
+      className={`relative grid place-items-center hs-marker${
+        hovered ? " is-hovered" : ""
+      }`}
       style={{ width: frameSize, height: frameSize, ...cssVars }}
     >
       {/* Wide atmospheric outer glow — the soft blue "cloud" from the
-          reference art. Sits furthest back. */}
+          reference art. Sits furthest back and breathes on hover. */}
       {hasFrame && (
         <span
-          className="absolute rounded-full pointer-events-none"
+          className="absolute rounded-full pointer-events-none hs-marker__aura"
           style={{
             width: "88%",
             height: "88%",
@@ -107,31 +122,45 @@ export default function HotspotSkinFrame({
 
       {/* Icon holder with the chosen shape + glass backing. Only draws a
           backing/glow when the author actually picked a shape or skin, so a
-          plain circle hotspot is untouched (no gray disc, no double ring).
-          The multi-layer boxShadow gives the reference look: a bright white
-          inner edge, a coloured inner glow, and a wide coloured outer halo. */}
+          plain circle hotspot keeps its clean silhouette. The multi-layer
+          boxShadow gives the reference tile: a bright inner edge, a coloured
+          inner glow, and a wide coloured outer halo. */}
       <div
-        className="relative grid place-items-center overflow-hidden"
+        className={`relative grid place-items-center overflow-hidden hs-marker__tile${
+          hasFrame ? " has-frame" : ""
+        }`}
         style={{
           width: size,
           height: size,
           clipPath: clipFor(effectiveShape),
           background: hasFrame
-            ? `linear-gradient(160deg, color-mix(in srgb, var(--hs-glow) 30%, var(--hs-fill)) 0%, var(--hs-fill) 55%)`
+            ? `linear-gradient(158deg,
+                 color-mix(in srgb, var(--hs-glow) 34%, var(--hs-fill)) 0%,
+                 color-mix(in srgb, var(--hs-glow) 12%, var(--hs-fill)) 46%,
+                 var(--hs-fill) 100%)`
             : undefined,
-          borderRadius: effectiveShape === "circle" ? "50%" : undefined,
-          backdropFilter: hasFrame ? "blur(6px)" : undefined,
-          WebkitBackdropFilter: hasFrame ? "blur(6px)" : undefined,
+          borderRadius:
+            effectiveShape === "circle"
+              ? "50%"
+              : effectiveShape === "square"
+              ? "24%"
+              : undefined,
+          backdropFilter: hasFrame ? "blur(8px) saturate(140%)" : undefined,
+          WebkitBackdropFilter: hasFrame
+            ? "blur(8px) saturate(140%)"
+            : undefined,
           boxShadow: hasFrame
             ? [
-                // wide coloured outer halo (scales with intensity)
-                `0 0 var(--hs-blur) var(--hs-spread) color-mix(in srgb, var(--hs-glow) 65%, transparent)`,
+                // wide coloured outer halo (scales with intensity + hover)
+                `0 0 calc(var(--hs-blur) * var(--hs-boost)) var(--hs-spread) color-mix(in srgb, var(--hs-glow) 65%, transparent)`,
                 // tight bright outer ring
                 `0 0 6px 1px color-mix(in srgb, var(--hs-glow) 90%, transparent)`,
-                // bright white inner edge (the crisp neon tube)
-                `inset 0 0 0 2px rgba(255,255,255,0.92)`,
+                // bright inner edge (the crisp neon tube)
+                `inset 0 0 0 1.5px rgba(255,255,255,0.88)`,
                 // coloured inner glow just inside the edge
-                `inset 0 0 12px 1px color-mix(in srgb, var(--hs-glow) 75%, transparent)`,
+                `inset 0 0 14px 1px color-mix(in srgb, var(--hs-glow) 70%, transparent)`,
+                // deep base so the tile reads as glass, not a flat chip
+                `inset 0 -8px 18px -10px rgba(0,0,0,0.9)`,
               ].join(", ")
             : undefined,
         }}
@@ -142,20 +171,14 @@ export default function HotspotSkinFrame({
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 38%, transparent 60%)",
+                "linear-gradient(180deg, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0.06) 40%, transparent 62%)",
             }}
           />
         )}
         <span
-          className="relative grid place-items-center"
-          style={
-            hasFrame
-              ? {
-                  filter:
-                    "drop-shadow(0 0 3px color-mix(in srgb, var(--hs-glow) 85%, transparent)) drop-shadow(0 0 6px rgba(255,255,255,0.5))",
-                }
-              : undefined
-          }
+          className={`relative grid place-items-center${
+            neon ? " hs-neon" : ""
+          }`}
         >
           {children}
         </span>

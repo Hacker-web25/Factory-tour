@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import type { Hotspot } from "@/lib/types";
+import type { Hotspot, HotspotFx } from "@/lib/types";
 import { HOTSPOT_RADIUS, SPHERE_RADIUS, sphericalToVec3 } from "./math";
+import HotspotHoverCard from "@/components/viewer/HotspotHoverCard";
 
 /**
  * A polygon-shaped hotspot: user traces the outline of an object (e.g. a TV,
@@ -22,21 +23,32 @@ export default function PolygonHotspot({
   hotspot: h,
   selected,
   editable,
+  fx,
+  scenesLookup,
   onClick,
   onDoubleClick,
+  onHover,
   onDragStart,
   setOrbitEnabled,
 }: {
   hotspot: Hotspot;
   editable: boolean;
   selected: boolean;
+  fx?: HotspotFx;
   mirrored: boolean;
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled: (v: boolean) => void;
 }) {
   const points = h.polygon_points ?? [];
+
+  // Hovering a traced region floats the same premium card every other
+  // hotspot kind uses, anchored at the polygon's centroid.
+  const [hovered, setHovered] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
 
   // Convert each (yaw,pitch) → world position on the hotspot sphere.
   const worldPoints = useMemo(
@@ -171,7 +183,41 @@ export default function PolygonHotspot({
   const strokeWidth = Math.max(1, h.polygon_stroke_width ?? 2);
 
   return (
-    <group onPointerDown={handlePointerDown}>
+    <group
+      onPointerDown={handlePointerDown}
+      onPointerOver={() => {
+        setHovered(true);
+        if (!editable && onHover) {
+          if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+          hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
+        }
+      }}
+      onPointerOut={() => {
+        setHovered(false);
+        if (hoverTimerRef.current) {
+          window.clearTimeout(hoverTimerRef.current);
+          hoverTimerRef.current = null;
+        }
+      }}
+    >
+      {/* Premium hover card, floated above the centroid of the traced
+          region. Pointer-events stay off so the polygon keeps its clicks. */}
+      {hovered && !editable && fx?.hoverCard !== false && (
+        <Html
+          position={centroid.toArray()}
+          center
+          distanceFactor={400}
+          zIndexRange={[10, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <HotspotHoverCard
+            hotspot={h}
+            scenesLookup={scenesLookup}
+            scale={fx?.hoverCardScale ?? 1}
+          />
+        </Html>
+      )}
+
       {/* Draggable vertex handles — visible only in edit mode when this
           polygon is selected. Grab and move any corner to nudge the
           traced shape into place. Fires a window custom event on drag

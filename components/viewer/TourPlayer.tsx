@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, publicUrl } from "@/lib/supabase";
-import type { Hotspot, Scene, Tour } from "@/lib/types";
+import type { Hotspot, HotspotAction, Scene, Tour } from "@/lib/types";
 import { resolveHotspotFx } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
 import FlatViewer from "@/components/panorama/FlatViewer";
@@ -966,6 +966,28 @@ function TourPlayerInner({
     }
   }
 
+  /** Run a single action on demand — used by the rows inside the premium
+   *  card, so one hotspot can offer "Process Video", "Documents" and
+   *  "Product Samples" side by side and each opens the right viewer. */
+  function runHotspotIntent(intent: HotspotAction, h: Hotspot) {
+    if (intent === "nav" && h.target_scene_id) {
+      navigateTo(h.target_scene_id, {
+        cinematic: true,
+        direction: { yaw: h.yaw, pitch: h.pitch },
+      });
+    } else if (intent === "url" && h.url) {
+      window.open(h.url, "_blank");
+    } else if (intent === "video_popup") {
+      if (h.video_show_thumbnail && h.video_url) setVideoModal(h);
+      else if (h.video_url) window.open(h.video_url, "_blank");
+      else setVideoModal(h);
+    } else if (intent === "pdf_popup") {
+      setPdfModal(h);
+    } else if (intent === "audio_popup") {
+      setAudioPopup(h);
+    }
+  }
+
   if (!active) {
     return (
       <div className="h-full grid place-items-center text-neutral-500">
@@ -1018,6 +1040,8 @@ function TourPlayerInner({
             imageUrl={publicUrl(active.image_path)}
             adjustments={activeAdjustments}
             hotspots={hotspots}
+            hotspotFx={hotspotFx}
+            scenesLookup={scenesLookup}
             onHotspotClick={onHotspotClick}
           />
         ) : (
@@ -1308,6 +1332,8 @@ function TourPlayerInner({
           containerH={stageSize.h}
           glow={infoModal.glow_color || infoModal.color || "#22d3ee"}
           t={t}
+          scenesLookup={scenesLookup}
+          onIntent={runHotspotIntent}
           onClose={() => setInfoModal(null)}
         />
       )}

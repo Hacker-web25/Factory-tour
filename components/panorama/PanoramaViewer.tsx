@@ -5,7 +5,6 @@ import { OrbitControls, Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createPortal } from "react-dom";
 import type { Hotspot, HotspotFx } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { useT } from "@/lib/TranslationContext";
@@ -19,6 +18,7 @@ import {
 import PolygonHotspot from "./PolygonHotspot";
 import SceneTransition from "./SceneTransition";
 import HotspotSkinFrame from "./HotspotSkin";
+import HotspotHoverCard from "@/components/viewer/HotspotHoverCard";
 import {
   type ImageAdjustments,
   normalizeAdjustments,
@@ -846,32 +846,9 @@ function HtmlBillboard({
   });
   const activeDistanceFactor = scaleOnZoom ? 400 : dynFactor;
 
-  // Navigation preview: when hovering over a nav hotspot (nav type or a
-  // hotspot with an action that navigates), show a small card with the
-  // target scene's thumbnail + name.
-  const isNav =
-    (h.type === "nav" || h.action === "nav") && !!h.target_scene_id;
-  const navTarget =
-    isNav && h.target_scene_id ? scenesLookup?.get(h.target_scene_id) : null;
-
-  // Video preview: any hotspot that has a video URL AND isn't already
-  // rendered as an inline VideoCard gets a rich hover preview with the
-  // thumbnail + play button + title. Catches all three configurations:
-  //   • type="video"  + video_show_thumbnail=false → small icon, show preview
-  //   • type="video"  + video_show_thumbnail=true  → inline card already visible, no preview
-  //   • type="icon" / other + action="video_popup" + video_url → show preview
-  const hasVideoUrl = !!h.video_url;
+  // A video hotspot set to "virtual card" already paints its thumbnail
+  // directly on the panorama, so it doesn't also get a hover card.
   const rendersAsInlineCard = h.type === "video" && !!h.video_show_thumbnail;
-  const showVideoPreview = hasVideoUrl && !rendersAsInlineCard;
-  const videoYtId = showVideoPreview
-    ? extractYouTubeVideoId(h.video_url ?? "")
-    : null;
-  const videoPreviewThumb = showVideoPreview
-    ? h.video_thumbnail_url ||
-      (videoYtId
-        ? `https://img.youtube.com/vi/${videoYtId}/hqdefault.jpg`
-        : null)
-    : null;
 
   return (
     <Html
@@ -941,70 +918,18 @@ function HtmlBillboard({
           />
         )}
 
-        {/* Nav preview card — floats above the hotspot on hover, shows
-            where this hotspot takes you. */}
-        {hovered && navTarget && !editable && fx.hoverCard && (
-          <div
-            className="pointer-events-none"
-            style={{
-              position: "absolute",
-              bottom: "calc(100% + 6px)",
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "rgba(15, 15, 20, 0.92)",
-              border: "1px solid rgba(34, 211, 238, 0.55)",
-              borderRadius: 6,
-              padding: 8,
-              width: Math.round(260 * fx.hoverCardScale),
-              boxShadow: "0 8px 24px rgba(0,0,0,0.55)",
-              backdropFilter: "blur(6px)",
-              WebkitBackdropFilter: "blur(6px)",
-              zIndex: 20,
-              animation: "hs-nav-preview-in 0.18s ease-out",
-            }}
-          >
-            {navTarget.thumbnailUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={navTarget.thumbnailUrl}
-                alt=""
-                draggable={false}
-                style={{
-                  width: "100%",
-                  height: Math.round(150 * fx.hoverCardScale),
-                  objectFit: "cover",
-                  borderRadius: 4,
-                  display: "block",
-                }}
-              />
-            )}
-            <div
-              style={{
-                marginTop: navTarget.thumbnailUrl ? 4 : 0,
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-                textAlign: "center",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              → {navTarget.name}
-            </div>
-          </div>
-        )}
-
-        {/* Video preview card — floats above the hotspot on hover for
-            any hotspot with a video URL that isn't already rendered as
-            an inline VideoCard. Shows thumbnail + play button + title.
-            Click bubbles up to the hotspot's onClick so the video opens
-            normally (modal or inline). */}
-        {hovered && showVideoPreview && !editable && fx.hoverCard && (
-          <VideoPreviewCard
+        {/* Premium hover card — one card for every hotspot kind. It builds
+            itself from whatever the hotspot carries (nav destination,
+            video, image, PDF, audio, link, description), so nav previews,
+            video previews and info previews are now visibly the same
+            object. Pointer-events stay off so the marker keeps every
+            click. Suppressed for the inline VideoCard, which already shows
+            its own thumbnail on the panorama. */}
+        {hovered && !editable && fx.hoverCard && !rendersAsInlineCard && (
+          <HotspotHoverCard
             hotspot={h}
-            thumbnail={videoPreviewThumb}
-            cardScale={fx.hoverCardScale}
+            scenesLookup={scenesLookup}
+            scale={fx.hoverCardScale}
           />
         )}
 
@@ -1094,6 +1019,7 @@ function HtmlBillboard({
                 glow={h.glow_color || h.color || "#22d3ee"}
                 intensity={h.glow_intensity}
                 fill={h.shape_fill_color}
+                hovered={hovered}
               >
                 <IconOrImage hotspot={h} width={w} height={hh} />
               </HotspotSkinFrame>
@@ -1250,188 +1176,6 @@ function IconOrImage({
         border: "2px solid #fff",
       }}
     />
-  );
-}
-
-/* -------- Hover preview card for video hotspots rendered as icons ---------
- * Mounted only while the user hovers a video hotspot that ISN'T already
- * showing an inline VideoCard. Renders a full YouTube-style thumbnail
- * with title + play button — click bubbles up to the underlying hotspot
- * so the actual video (modal or inline) opens on click. */
-function VideoPreviewCard({
-  hotspot: h,
-  thumbnail,
-  cardScale = 1,
-}: {
-  hotspot: Hotspot;
-  thumbnail: string | null;
-  /** Tour-wide hover-card size multiplier (fx.hoverCardScale). */
-  cardScale?: number;
-}) {
-  const [meta, setMeta] = useState<{ title: string; author?: string } | null>(
-    () => (h.video_url ? videoMetaCache.get(h.video_url) ?? null : null)
-  );
-  const ytId = useMemo(
-    () => extractYouTubeVideoId(h.video_url ?? ""),
-    [h.video_url]
-  );
-
-  // Fetch YouTube title/author via oEmbed on mount (cached).
-  useEffect(() => {
-    if (meta || !ytId || !h.video_url) return;
-    const url = h.video_url;
-    let cancelled = false;
-    fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(
-        url
-      )}&format=json`
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (cancelled || !d) return;
-        const entry = { title: d.title as string, author: d.author_name };
-        videoMetaCache.set(url, entry);
-        setMeta(entry);
-      })
-      .catch(() => {
-        /* silent — falls back to hotspot label / info_title */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [meta, ytId, h.video_url]);
-
-  const { t: tVid } = useT();
-  // meta.title comes from YouTube's own API — don't push that through
-  // MyMemory (would waste a round-trip). Only translate the fields the
-  // tour author entered.
-  const title =
-    meta?.title ||
-    tVid(h.info_title) ||
-    tVid(h.label) ||
-    (ytId ? "YouTube video" : "Video");
-  const subtitle = meta?.author ?? (ytId ? "YouTube" : "");
-
-  const thumbScale = ((h.thumbnail_size_pct ?? 100) / 100) * cardScale;
-  const cardW = Math.round(300 * thumbScale);
-  const thumbH = Math.round(168 * thumbScale);
-
-  return (
-    <div
-      className="pointer-events-none"
-      style={{
-        position: "absolute",
-        bottom: "calc(100% + 6px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: cardW,
-        background: "rgba(15, 15, 20, 0.95)",
-        border: "1px solid rgba(220, 20, 20, 0.55)",
-        borderRadius: 8,
-        overflow: "hidden",
-        boxShadow: "0 10px 32px rgba(0,0,0,0.7)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        zIndex: 20,
-        animation: "hs-nav-preview-in 0.18s ease-out",
-      }}
-    >
-      {thumbnail ? (
-        <div style={{ position: "relative", width: "100%", height: thumbH }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={thumbnail}
-            alt=""
-            draggable={false}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-          {/* Play button */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background:
-                "linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.55))",
-            }}
-          >
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: "50%",
-                background: "rgba(220, 20, 20, 0.92)",
-                border: "3px solid #ffffff",
-                display: "grid",
-                placeItems: "center",
-                boxShadow: "0 6px 20px rgba(0,0,0,0.7)",
-              }}
-            >
-              <div
-                style={{
-                  width: 0,
-                  height: 0,
-                  marginLeft: 5,
-                  borderLeft: "18px solid white",
-                  borderTop: "12px solid transparent",
-                  borderBottom: "12px solid transparent",
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            height: 168,
-            background: "#111",
-            display: "grid",
-            placeItems: "center",
-            color: "#666",
-            fontSize: 11,
-          }}
-        >
-          No thumbnail
-        </div>
-      )}
-      <div style={{ padding: "10px 12px" }}>
-        <div
-          style={{
-            color: "#fff",
-            fontSize: 12.5,
-            fontWeight: 600,
-            lineHeight: 1.3,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical" as const,
-            overflow: "hidden",
-          }}
-        >
-          {title}
-        </div>
-        {subtitle && (
-          <div
-            style={{
-              color: "rgba(255,255,255,0.65)",
-              fontSize: 10.5,
-              marginTop: 3,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {subtitle}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -1830,26 +1574,31 @@ function InfoHotspot({
   hotspot: h,
   editable,
   selected,
+  fx = DEFAULT_FX,
+  scenesLookup,
   onClick,
   onDoubleClick,
+  onHover,
   onDragStart,
 }: {
   hotspot: Hotspot;
   editable: boolean;
   selected: boolean;
+  fx?: HotspotFx;
   mirrored: boolean;
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
-  // Two states: hover (pill morph) and open (body panel unfolded).
-  // The `closing` flag runs the reverse animation before the panel
-  // actually unmounts, so the fold-back is visible.
+  // The pill is the marker; the premium card is the payload. Hovering
+  // expands the pill AND floats the shared hotspot card above it; clicking
+  // hands off to the parent, which opens the anchored popup with the
+  // glowing connector arm.
   const [hovered, setHovered] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [closing, setClosing] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -1885,31 +1634,13 @@ function InfoHotspot({
     window.addEventListener("pointerup", up);
   }
 
-  // Public-mode click: toggle the body panel with a graceful close if it
-  // was already open (so the fold-back animation plays before unmount).
-  function togglePublicClick() {
-    if (open) {
-      setClosing(true);
-      window.setTimeout(() => {
-        setOpen(false);
-        setClosing(false);
-      }, 260); // matches info-body-fold duration
-    } else {
-      setOpen(true);
-    }
-  }
-
   // Pill title = info_title from the info config (the "Title" a visitor
   // sees inside the pill). label is a SEPARATE caption rendered below the
   // pill (like a signpost saying "Info about the boiler room").
   const { t } = useT();
   const title = t(h.info_title) || t("Info");
-  const body = t(h.info_body) || "";
   const caption = t(h.label) || null;
-  // When the body panel is open, we keep the pill in its hovered/pill
-  // state so the title stays visible — closing the panel snaps back to
-  // idle if the cursor has left.
-  const pillOpen = hovered || open;
+  const pillOpen = hovered;
 
   return (
     <Html
@@ -1931,25 +1662,44 @@ function InfoHotspot({
           } as React.CSSProperties
         }
       >
-        {/* The morphing pill — click anywhere on it (icon or title) to
-            toggle the body panel. Hovering just expands the pill. */}
+        {/* Premium hover card — the same card every other hotspot kind
+            opens, floated above the pill. */}
+        {hovered && !editable && fx.hoverCard && (
+          <HotspotHoverCard
+            hotspot={h}
+            scenesLookup={scenesLookup}
+            scale={fx.hoverCardScale}
+          />
+        )}
+
+        {/* The morphing pill — hovering expands it, clicking opens the
+            anchored premium card. */}
         <div
-          className={`info-pill ${pillOpen ? "is-hovered" : ""} ${open ? "is-open" : ""}`}
+          className={`info-pill ${pillOpen ? "is-hovered" : ""}`}
           style={{
             outline: selected ? "2px solid rgb(34,211,238)" : "none",
             outlineOffset: 3,
           }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          onMouseEnter={() => {
+            setHovered(true);
+            if (!editable && onHover) {
+              if (hoverTimerRef.current)
+                window.clearTimeout(hoverTimerRef.current);
+              hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
+            }
+          }}
+          onMouseLeave={() => {
+            setHovered(false);
+            if (hoverTimerRef.current) {
+              window.clearTimeout(hoverTimerRef.current);
+              hoverTimerRef.current = null;
+            }
+          }}
           onPointerDown={handlePointerDown}
           onClick={(e) => {
             if (!editable) {
               e.stopPropagation();
-              // Pill click ONLY toggles the inline body dropdown.
-              // The parent's onClick (which pops the full-screen modal)
-              // now fires from the body-panel click below, so users
-              // don't get a big modal just from tapping the title.
-              togglePublicClick();
+              onClick();
             }
           }}
         >
@@ -1995,42 +1745,6 @@ function InfoHotspot({
           </div>
         )}
 
-        {/* Body panel — unfolds down from behind the pill, sits at z-index
-            -1 relative to the pill so its top edge tucks under the pill.
-            Clicking anywhere on the body opens the full-screen modal
-            (that's the parent's onClick path). The × button just closes
-            the inline dropdown and does NOT open the modal. */}
-        {open && (
-          <div
-            className={`info-body ${closing ? "is-closing" : ""}`}
-            onClick={(e) => {
-              if (editable) return;
-              e.stopPropagation();
-              onClick();
-            }}
-            role="button"
-            title="Open full view"
-            style={{ cursor: editable ? "default" : "zoom-in" }}
-          >
-            <button
-              className="info-body__close"
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePublicClick();
-              }}
-              aria-label="Close info"
-            >
-              ×
-            </button>
-            <div className="info-body__scroll">
-              {body || (
-                <div style={{ opacity: 0.55, fontStyle: "italic" }}>
-                  No description added yet.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </Html>
   );
@@ -2048,23 +1762,28 @@ function PersonTag({
   hotspot: h,
   editable,
   selected,
+  fx = DEFAULT_FX,
+  scenesLookup,
   onClick,
   onDoubleClick,
+  onHover,
   onDragStart,
 }: {
   hotspot: Hotspot;
   editable: boolean;
   selected: boolean;
+  fx?: HotspotFx;
   mirrored: boolean;
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
-  // Two states: hover (expands balloon) and pinned (stays open after click)
+  // The name pill stays the marker; the premium card carries the detail.
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -2111,10 +1830,6 @@ function PersonTag({
   const bigW = Math.round(240 * bigScale);
   const bigH = Math.round(240 * bigScale);
 
-  // Public-mode: hover opens; click pins. Editable-mode: stays mini so
-  // authors can see and drag the marker.
-  const open = !editable && (hovered || pinned);
-
   return (
     <Html
       position={pos.toArray()}
@@ -2124,7 +1839,7 @@ function PersonTag({
       style={{ pointerEvents: "auto" }}
     >
       <div
-        className={`human-hs ${open ? "is-open" : ""}`}
+        className="human-hs"
         style={
           {
             "--hs-bg": bg,
@@ -2144,16 +1859,38 @@ function PersonTag({
             borderRadius: "50%",
           } as React.CSSProperties
         }
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseEnter={() => {
+          setHovered(true);
+          if (!editable && onHover) {
+            if (hoverTimerRef.current)
+              window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
+          }
+        }}
+        onMouseLeave={() => {
+          setHovered(false);
+          if (hoverTimerRef.current) {
+            window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+          }
+        }}
       >
+        {/* Premium hover card — avatar, name, role and any attached media,
+            in the same card language as every other hotspot. */}
+        {hovered && !editable && fx.hoverCard && (
+          <HotspotHoverCard
+            hotspot={h}
+            scenesLookup={scenesLookup}
+            scale={fx.hoverCardScale}
+          />
+        )}
+
         <div
           className="human-hs__bubble"
           onPointerDown={handlePointerDown}
           onClick={(e) => {
             if (editable) return;
             e.stopPropagation();
-            setPinned((p) => !p);
             // Fire the parent onClick so hotspot_click analytics
             // events attribute to this hotspot.
             onClick();
@@ -2191,25 +1928,28 @@ function MediaHotspot({
   hotspot: h,
   editable,
   selected,
+  fx = DEFAULT_FX,
+  scenesLookup,
   onClick,
   onDoubleClick,
+  onHover,
   onDragStart,
 }: {
   hotspot: Hotspot;
   editable: boolean;
   selected: boolean;
+  fx?: HotspotFx;
   mirrored: boolean;
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onClick: () => void;
   onDoubleClick: () => void;
+  onHover?: () => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
+  // The glass circle is the marker; the premium card carries the image.
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  // Fullscreen image viewer — clicking the image inside the card opens
-  // a full-viewport overlay INSIDE the tour (never a new browser tab).
-  const [fullscreen, setFullscreen] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -2250,16 +1990,9 @@ function MediaHotspot({
   const cardH = Math.round(300 * cardScale);
   const headerH = Math.max(48, Math.min(80, iconSize));
 
-  const { t: tImg } = useT();
-  const caption = tImg(h.info_body) || null;
-  const imageUrl = h.image_url || null;
   // Bubble colour comes from h.color; falls back to the default blue.
   const bubbleColor = h.color && h.color !== "#22c55e" ? h.color : "#29b6f6";
   const iconColor = h.label_color || "#ffffff";
-
-  // Public-mode: hover opens; click pins. In editable mode, the card
-  // never auto-opens — authors need to see the marker while editing.
-  const open = !editable && (hovered || pinned);
 
   return (
     <Html
@@ -2270,9 +2003,7 @@ function MediaHotspot({
       style={{ pointerEvents: "auto" }}
     >
       <div
-        className={`media-hs ${open ? "is-open" : ""} ${
-          pinned ? "is-pinned" : ""
-        }`}
+        className="media-hs"
         style={
           {
             "--media-icon": `${iconSize}px`,
@@ -2284,18 +2015,42 @@ function MediaHotspot({
             outlineOffset: 4,
           } as React.CSSProperties
         }
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseEnter={() => {
+          setHovered(true);
+          if (!editable && onHover) {
+            if (hoverTimerRef.current)
+              window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
+          }
+        }}
+        onMouseLeave={() => {
+          setHovered(false);
+          if (hoverTimerRef.current) {
+            window.clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+          }
+        }}
       >
+        {/* Premium hover card — the photo, its caption and any other
+            payload, in the shared card language. Clicking the marker hands
+            off to the anchored popup with the full-size image. */}
+        {hovered && !editable && fx.hoverCard && (
+          <HotspotHoverCard
+            hotspot={h}
+            scenesLookup={scenesLookup}
+            scale={fx.hoverCardScale}
+          />
+        )}
+
         <div
           className="media-hs__card"
           onPointerDown={handlePointerDown}
           onClick={(e) => {
             if (editable) return;
             e.stopPropagation();
-            setPinned((p) => !p);
             // Fire the parent onClick so hotspot_click analytics
-            // events attribute to this hotspot.
+            // events attribute to this hotspot, and the anchored premium
+            // card opens with the image.
             onClick();
           }}
         >
@@ -2315,83 +2070,7 @@ function MediaHotspot({
               <circle cx="12" cy="13" r="4" />
             </svg>
           </div>
-          <div className="media-hs__body">
-            <div
-              className="media-hs__image"
-              onClick={(e) => {
-                // Click the image → open a fullscreen viewer INSIDE the
-                // tour (no browser tab). Stops propagation so we don't
-                // also toggle the pinned state on the parent card.
-                if (imageUrl && !editable) {
-                  e.stopPropagation();
-                  setFullscreen(true);
-                }
-              }}
-            >
-              {imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imageUrl} alt="" draggable={false} />
-              ) : (
-                <span
-                  style={{
-                    color: "#8a8f96",
-                    fontSize: 12,
-                    fontStyle: "italic",
-                  }}
-                >
-                  Add an image URL
-                </span>
-              )}
-            </div>
-            {caption && <div className="media-hs__caption">{caption}</div>}
-          </div>
-          <button
-            className="media-hs__close"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPinned(false);
-              setHovered(false);
-            }}
-            aria-label="Close"
-          >
-            ×
-          </button>
         </div>
-
-        {/* Fullscreen viewer — must be portalled to document.body because
-            our parent is inside drei's <Html>, which applies a matrix3d
-            transform. A `position: fixed` element with a transformed
-            ancestor is contained by that ancestor instead of the
-            viewport, which is why the "fullscreen" image previously
-            rendered at card size. Portalling escapes the transform
-            stack entirely so it truly fills the viewport. */}
-        {fullscreen &&
-          imageUrl &&
-          typeof document !== "undefined" &&
-          createPortal(
-            <div
-              className="media-hs__fullscreen"
-              onClick={() => setFullscreen(false)}
-            >
-              <button
-                className="media-hs__fullscreen-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFullscreen(false);
-                }}
-                aria-label="Close fullscreen"
-              >
-                ×
-              </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl}
-                alt=""
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>,
-            document.body
-          )}
       </div>
     </Html>
   );

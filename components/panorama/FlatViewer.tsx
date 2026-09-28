@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Hotspot } from "@/lib/types";
+import type { Hotspot, HotspotFx } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { fontFor } from "@/lib/fonts";
+import HotspotSkinFrame from "./HotspotSkin";
+import HotspotHoverCard from "@/components/viewer/HotspotHoverCard";
 import {
   type ImageAdjustments,
   normalizeAdjustments,
@@ -36,10 +38,16 @@ export default function FlatViewer({
   onHotspotDrag,
   onHotspotDragEnd,
   adjustments,
+  hotspotFx,
+  scenesLookup,
 }: {
   imageUrl: string;
   hotspots?: Hotspot[];
   editable?: boolean;
+  /** Tour-wide hotspot micro-interaction flags. Undefined = all on. */
+  hotspotFx?: HotspotFx;
+  /** Scene lookup so nav hover cards can name their destination. */
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   /** Per-scene colour grading — applied to the flat image + overlays. */
   adjustments?: Partial<ImageAdjustments> | null;
   selectedHotspotId?: string | null;
@@ -454,6 +462,8 @@ export default function FlatViewer({
               (selectedHotspotIds ? selectedHotspotIds.has(h.id) : false)
             }
             editable={editable}
+            fx={hotspotFx}
+            scenesLookup={scenesLookup}
             onPointerDown={(e) => {
               if (editable) {
                 e.stopPropagation();
@@ -493,6 +503,8 @@ function FlatHotspot({
   hotspot: h,
   selected,
   editable,
+  fx,
+  scenesLookup,
   onPointerDown,
   onClick,
   onDoubleClick,
@@ -500,6 +512,8 @@ function FlatHotspot({
   hotspot: Hotspot;
   selected: boolean;
   editable: boolean;
+  fx?: HotspotFx;
+  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
   onPointerDown: (e: React.PointerEvent) => void;
   onClick: () => void;
   onDoubleClick: () => void;
@@ -557,6 +571,16 @@ function FlatHotspot({
             : "column",
       }}
     >
+      {/* Premium hover card — the same card the 360° viewer floats, so
+          flat scenes and panoramas read as one product. */}
+      {hovered && !editable && fx?.hoverCard !== false && (
+        <HotspotHoverCard
+          hotspot={h}
+          scenesLookup={scenesLookup}
+          scale={fx?.hoverCardScale ?? 1}
+        />
+      )}
+
       {/* Inner wrapper: OWNS the animation only. Its own transform is safe
           to be replaced by hs-anim-* keyframes without breaking centering. */}
       <div
@@ -583,37 +607,47 @@ function FlatHotspot({
           data-part="icon"
           style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
         >
-          {url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={url}
-              alt=""
-              draggable={false}
-              style={{
-                width: w,
-                height: hh,
-                objectFit: "contain",
-                display: "block",
-                pointerEvents: "none",
-              }}
-            />
-          ) : iconEntry ? (
-            <iconEntry.Icon
-              size={Math.min(w, hh)}
-              color={h.icon_tint ?? "#ffffff"}
-              strokeWidth={2}
-            />
-          ) : (
-            <div
-              style={{
-                width: w,
-                height: hh,
-                borderRadius: "50%",
-                background: h.color ?? "#22c55e",
-                border: "2px solid #fff",
-              }}
-            />
-          )}
+          <HotspotSkinFrame
+            skin={h.skin}
+            shape={h.icon_shape}
+            size={Math.max(w, hh)}
+            glow={h.glow_color || h.color || "#22d3ee"}
+            intensity={h.glow_intensity}
+            fill={h.shape_fill_color}
+            hovered={hovered}
+          >
+            {url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={url}
+                alt=""
+                draggable={false}
+                style={{
+                  width: w,
+                  height: hh,
+                  objectFit: "contain",
+                  display: "block",
+                  pointerEvents: "none",
+                }}
+              />
+            ) : iconEntry ? (
+              <iconEntry.Icon
+                size={Math.min(w, hh)}
+                color={h.icon_tint ?? "#ffffff"}
+                strokeWidth={2}
+              />
+            ) : (
+              <div
+                style={{
+                  width: w,
+                  height: hh,
+                  borderRadius: "50%",
+                  background: h.color ?? "#22c55e",
+                  border: "2px solid #fff",
+                }}
+              />
+            )}
+          </HotspotSkinFrame>
         </div>
       )}
       {h.label && (
