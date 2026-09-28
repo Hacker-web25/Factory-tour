@@ -1382,12 +1382,14 @@ details > summary::-webkit-details-marker { display: none; }
         thumbnail + title header, spec table or description, icon action
         rows, and a glowing circular arrow.
 
-   Motion throughout uses two curves:
-     • cubic-bezier(0.32, 0.72, 0, 1)  — the "settle" curve for anything
-       that travels (cards arriving, rows rising). Fast out, long soft stop.
-     • cubic-bezier(0.34, 1.56, 0.64, 1) — a light overshoot, used only on
-       small elements (arrow, nodes) where a bounce reads as responsive
-       rather than bouncy.
+   Motion throughout uses three curves:
+     • cubic-bezier(0.32, 0.72, 0, 1)   — the "settle": fast out, long soft
+       stop. Anything that travels a distance uses this.
+     • cubic-bezier(0.34, 1.56, 0.64, 1) — a light overshoot, only on small
+       elements (arrow, nodes) where a bounce reads as responsive.
+     • cubic-bezier(0.4, 0, 1, 1)       — the exit: things leave faster than
+       they arrive, which is what makes dismissal feel decisive.
+
    Everything honours prefers-reduced-motion at the bottom of this block.
    ===================================================================== */
 
@@ -1417,6 +1419,12 @@ details > summary::-webkit-details-marker { display: none; }
    one object waking up rather than several layers reacting. */
 .hs-marker {
   transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* Press feedback — the marker yields under the cursor, then springs back.
+   Composes with the hover scale applied by the parent wrapper. */
+.hs-marker:active {
+  transform: scale(0.92);
+  transition-duration: 90ms;
 }
 .hs-marker__tile {
   transition: box-shadow 320ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -1467,9 +1475,11 @@ details > summary::-webkit-details-marker { display: none; }
   color: #fff;
   text-align: left;
   font-family: inherit;
+  transform-style: preserve-3d;
 }
 
-/* Neon hairline along the top edge — the card's tie back to the marker. */
+/* Neon hairline along the top edge — the card's tie back to the marker.
+   On open, the light runs along it once, left to right. */
 .vpv-hc__rim {
   position: absolute;
   inset: 0 0 auto 0;
@@ -1482,13 +1492,63 @@ details > summary::-webkit-details-marker { display: none; }
     color-mix(in srgb, var(--hc-accent) 90%, transparent) 75%,
     transparent 100%
   );
+  background-size: 260% 100%;
   box-shadow: 0 0 14px 1px
     color-mix(in srgb, var(--hc-accent) 70%, transparent);
   pointer-events: none;
   z-index: 2;
+  animation: vpv-hc-rim-run 900ms cubic-bezier(0.32, 0.72, 0, 1) 80ms both;
+}
+@keyframes vpv-hc-rim-run {
+  from {
+    background-position: 130% 0;
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    background-position: 50% 0;
+    opacity: 1;
+  }
+}
+
+/* A single diagonal pass of light across the whole card as it settles —
+   the thing that sells it as a physical pane of glass catching a highlight
+   rather than a panel fading in. Runs once, then never again. */
+.vpv-hc__sweep {
+  position: absolute;
+  inset: -40% -60%;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    102deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.085) 47%,
+    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.085) 53%,
+    transparent 62%
+  );
+  transform: translateX(-62%);
+  animation: vpv-hc-sweep 1100ms cubic-bezier(0.32, 0.72, 0, 1) 130ms both;
+}
+@keyframes vpv-hc-sweep {
+  from {
+    transform: translateX(-62%);
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(62%);
+    opacity: 0;
+  }
 }
 
 .vpv-hc__inner {
+  position: relative;
+  z-index: 1;
   padding: var(--hc-pad);
   display: flex;
   flex-direction: column;
@@ -1515,6 +1575,25 @@ details > summary::-webkit-details-marker { display: none; }
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.8),
     0 0 18px -8px color-mix(in srgb, var(--hc-accent) 70%, transparent);
+}
+/* The artwork itself drifts in slightly slower than its frame, which reads
+   as depth rather than a flat fade. */
+.vpv-hc__thumb img,
+.vpv-hc__hero img {
+  animation: vpv-hc-thumb-in 900ms cubic-bezier(0.32, 0.72, 0, 1) 110ms both;
+}
+@keyframes vpv-hc-thumb-in {
+  from {
+    transform: scale(1.14);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 .vpv-hc__thumb img {
   width: 100%;
@@ -1571,6 +1650,17 @@ details > summary::-webkit-details-marker { display: none; }
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  animation: vpv-hc-badge-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) 280ms both;
+}
+@keyframes vpv-hc-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .vpv-hc__badge--inline {
   position: static;
@@ -1671,6 +1761,7 @@ details > summary::-webkit-details-marker { display: none; }
 }
 
 .vpv-hc__row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1684,21 +1775,46 @@ details > summary::-webkit-details-marker { display: none; }
   font: inherit;
   text-align: left;
   cursor: default;
+  overflow: hidden;
   transition: background 220ms cubic-bezier(0.32, 0.72, 0, 1),
     transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.vpv-hc--popup .vpv-hc__row {
+.vpv-hc.is-interactive .vpv-hc__row {
   cursor: pointer;
 }
-.vpv-hc--popup .vpv-hc__row:hover {
+.vpv-hc.is-interactive .vpv-hc__row:hover {
   background: rgba(255, 255, 255, 0.07);
   transform: translateX(2px);
 }
-.vpv-hc--popup .vpv-hc__row:active {
+.vpv-hc.is-interactive .vpv-hc__row:active {
   transform: translateX(2px) scale(0.985);
+  transition-duration: 90ms;
+}
+/* A soft accent wash sweeps in from the left on hover — cheaper on the eye
+   than a hard background flip, and it points the way to the action. */
+.vpv-hc.is-interactive .vpv-hc__row::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--hc-accent) 20%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transform: translateX(-12%);
+  transition: opacity 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+.vpv-hc.is-interactive .vpv-hc__row:hover::before {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .vpv-hc__row-ico {
+  position: relative;
   flex: 0 0 auto;
   width: calc(25px * var(--hc-scale));
   height: calc(25px * var(--hc-scale));
@@ -1711,15 +1827,18 @@ details > summary::-webkit-details-marker { display: none; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 0 12px -6px color-mix(in srgb, var(--hc-accent) 90%, transparent);
   transition: background 220ms cubic-bezier(0.32, 0.72, 0, 1),
-    box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.vpv-hc--popup .vpv-hc__row:hover .vpv-hc__row-ico {
+.vpv-hc.is-interactive .vpv-hc__row:hover .vpv-hc__row-ico {
   background: color-mix(in srgb, var(--hc-accent) 26%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 0 16px -4px color-mix(in srgb, var(--hc-accent) 90%, transparent);
+  transform: scale(1.09) rotate(-3deg);
 }
 
 .vpv-hc__row-label {
+  position: relative;
   min-width: 0;
   font-size: calc(12.5px * var(--hc-scale));
   font-weight: 500;
@@ -1727,6 +1846,10 @@ details > summary::-webkit-details-marker { display: none; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 220ms ease;
+}
+.vpv-hc.is-interactive .vpv-hc__row:hover .vpv-hc__row-label {
+  color: #fff;
 }
 
 /* ---- Circular arrow ---- */
@@ -1735,7 +1858,7 @@ details > summary::-webkit-details-marker { display: none; }
   position: absolute;
   right: 11px;
   bottom: 11px;
-  z-index: 3;
+  z-index: 4;
   width: calc(30px * var(--hc-scale));
   height: calc(30px * var(--hc-scale));
   display: grid;
@@ -1755,31 +1878,57 @@ details > summary::-webkit-details-marker { display: none; }
     inset 0 1px 0 rgba(255, 255, 255, 0.45);
   transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 260ms cubic-bezier(0.32, 0.72, 0, 1);
-  animation: vpv-hc-arrow-in 460ms cubic-bezier(0.34, 1.56, 0.64, 1) 220ms both;
+  animation: vpv-hc-arrow-in 520ms cubic-bezier(0.34, 1.56, 0.64, 1) 240ms both;
 }
 .vpv-hc__arrow svg {
+  position: relative;
+  z-index: 1;
   transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.vpv-hc--popup .vpv-hc__arrow {
+
+/* A halo that breathes outward on a slow loop, so the arrow reads as the
+   card's live affordance instead of a static dot. */
+.vpv-hc__arrow-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--hc-accent) 80%, transparent);
+  animation: vpv-hc-arrow-halo 2600ms ease-out 900ms infinite;
+  pointer-events: none;
+}
+@keyframes vpv-hc-arrow-halo {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  60%,
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+.vpv-hc.is-interactive .vpv-hc__arrow {
   cursor: pointer;
 }
-.vpv-hc--popup .vpv-hc__arrow:hover {
+.vpv-hc.is-interactive .vpv-hc__arrow:hover {
   transform: scale(1.09);
   box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--hc-accent) 95%, transparent),
     0 0 26px -2px color-mix(in srgb, var(--hc-accent) 80%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
-.vpv-hc--popup .vpv-hc__arrow:hover svg {
+.vpv-hc.is-interactive .vpv-hc__arrow:hover svg {
   transform: translateX(1.5px);
 }
-.vpv-hc--popup .vpv-hc__arrow:active {
+.vpv-hc.is-interactive .vpv-hc__arrow:active {
   transform: scale(0.93);
+  transition-duration: 90ms;
 }
 
 @keyframes vpv-hc-arrow-in {
   from {
     opacity: 0;
-    transform: scale(0.4) rotate(-25deg);
+    transform: scale(0.4) rotate(-30deg);
   }
   to {
     opacity: 1;
@@ -1793,7 +1942,7 @@ details > summary::-webkit-details-marker { display: none; }
   position: absolute;
   top: 9px;
   right: 9px;
-  z-index: 4;
+  z-index: 5;
   width: 24px;
   height: 24px;
   display: grid;
@@ -1810,66 +1959,78 @@ details > summary::-webkit-details-marker { display: none; }
 .vpv-hc__close:hover {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  transform: scale(1.06);
+  transform: scale(1.06) rotate(90deg);
 }
 .vpv-hc__close:active {
-  transform: scale(0.92);
+  transform: scale(0.92) rotate(90deg);
 }
 
 /* ---------------------------------------------------------------------
    3. MOTION
    ------------------------------------------------------------------ */
 
-/* The card arrives: lifts, settles, and pulls into focus. The blur is what
-   makes it feel like glass resolving rather than a div appearing. */
+/* The card arrives: lifts, tips back into place, and pulls into focus.
+   The blur is what makes it feel like glass resolving rather than a div
+   appearing; the rotateX gives it a plane to settle onto. */
 @keyframes vpv-hc-in {
   0% {
     opacity: 0;
-    transform: scale(0.92) translateY(10px);
-    filter: blur(8px);
+    transform: perspective(900px) translateY(12px) translateZ(-40px)
+      rotateX(9deg) scale(0.94);
+    filter: blur(9px);
   }
-  60% {
+  55% {
     opacity: 1;
     filter: blur(0);
   }
+  72% {
+    transform: perspective(900px) translateY(-2px) translateZ(0) rotateX(-1deg)
+      scale(1.008);
+  }
   100% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: perspective(900px) translateY(0) translateZ(0) rotateX(0)
+      scale(1);
     filter: blur(0);
   }
 }
 @keyframes vpv-hc-out {
   0% {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0) scale(1);
     filter: blur(0);
   }
   100% {
     opacity: 0;
-    transform: scale(0.95) translateY(6px);
+    transform: translateY(5px) scale(0.955);
     filter: blur(6px);
   }
 }
 
-.vpv-hc--hover {
-  animation: vpv-hc-in 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
-  pointer-events: none;
-}
 .vpv-hc--popup {
-  animation: vpv-hc-in 420ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: vpv-hc-in 460ms cubic-bezier(0.32, 0.72, 0, 1) both;
   transform-origin: inherit;
 }
+/* The hover card's enter/exit is driven by its float wrapper, so the same
+   element can animate both ways without remounting. */
+.vpv-hc-float.is-open .vpv-hc--hover {
+  animation: vpv-hc-in 380ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.vpv-hc-float.is-closing .vpv-hc--hover {
+  animation: vpv-hc-out 190ms cubic-bezier(0.4, 0, 1, 1) both;
+}
 
-/* Content rises in behind the card, one block at a time. Delays are set
-   inline by HotspotCard so the rhythm stays even across layouts. */
+/* Content rises in behind the card, one block at a time, each with a hint
+   of lateral travel so the sequence reads as a deal of cards rather than a
+   stack of fades. Delays are set inline by HotspotCard. */
 @keyframes vpv-hc-rise {
   from {
     opacity: 0;
-    transform: translateY(9px);
+    transform: translate3d(-7px, 10px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 .vpv-hc__head,
@@ -1877,7 +2038,7 @@ details > summary::-webkit-details-marker { display: none; }
 .vpv-hc__body,
 .vpv-hc__spec,
 .vpv-hc__row {
-  animation: vpv-hc-rise 420ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: vpv-hc-rise 460ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 /* Exit — PremiumInfoCard adds .vpv-hc-exit to its root, which reverses the
@@ -1893,13 +2054,13 @@ details > summary::-webkit-details-marker { display: none; }
 }
 
 /* ---------------------------------------------------------------------
-   4. HOVER FLOAT + CONNECTOR STEM
+   4. HOVER FLOAT, CONNECTOR STEM + POINTER BRIDGE
    ------------------------------------------------------------------ */
 
 .vpv-hc-float {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 20px);
+  bottom: calc(100% + var(--hc-stem, 20px));
   transform: translateX(-50%);
   z-index: 30;
   pointer-events: none;
@@ -1907,7 +2068,38 @@ details > summary::-webkit-details-marker { display: none; }
 }
 .vpv-hc-float--bottom {
   bottom: auto;
-  top: calc(100% + 20px);
+  top: calc(100% + var(--hc-stem, 20px));
+}
+/* A live card takes pointer events so it can actually be read and clicked;
+   a passive one stays transparent to the pointer. */
+.vpv-hc-float.is-live {
+  pointer-events: auto;
+}
+.vpv-hc--hover {
+  pointer-events: none;
+}
+.vpv-hc--hover.is-interactive {
+  pointer-events: auto;
+}
+
+/* The bridge: an invisible span covering the gap the stem crosses. Without
+   it the pointer passes over dead space on its way to the card and the
+   hover drops, which is exactly what makes so many hover cards unusable. */
+.vpv-hc-bridge {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  height: calc(var(--hc-stem, 20px) + 16px);
+  pointer-events: none;
+}
+.vpv-hc-float.is-live .vpv-hc-bridge {
+  pointer-events: auto;
+}
+.vpv-hc-float--bottom .vpv-hc-bridge {
+  top: auto;
+  bottom: 100%;
 }
 
 .vpv-hc-stem {
@@ -1915,13 +2107,17 @@ details > summary::-webkit-details-marker { display: none; }
   left: 50%;
   top: 100%;
   width: 2px;
-  height: 20px;
+  height: var(--hc-stem, 20px);
   transform: translateX(-50%);
   pointer-events: none;
 }
 .vpv-hc-float--bottom .vpv-hc-stem {
   top: auto;
   bottom: 100%;
+}
+.vpv-hc-float.is-closing .vpv-hc-stem {
+  opacity: 0;
+  transition: opacity 140ms ease;
 }
 
 .vpv-hc-stem__line {
@@ -1936,8 +2132,43 @@ details > summary::-webkit-details-marker { display: none; }
   box-shadow: 0 0 10px 1px
     color-mix(in srgb, var(--hc-accent, #3b9dff) 70%, transparent);
   transform-origin: top center;
-  animation: vpv-hc-stem-draw 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation: vpv-hc-stem-draw 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+
+/* A bead of light runs down the stem on a loop — a small signal that the
+   card and its marker are one connected object. */
+.vpv-hc-stem__pulse {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px 2px
+    color-mix(in srgb, var(--hc-accent, #3b9dff) 90%, transparent);
+  animation: vpv-hc-stem-pulse 2400ms cubic-bezier(0.55, 0, 0.45, 1) 600ms
+    infinite;
+}
+@keyframes vpv-hc-stem-pulse {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(calc(var(--hc-stem, 20px) - 4px));
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(calc(var(--hc-stem, 20px) - 4px));
+    opacity: 0;
+  }
+}
+
 .vpv-hc-stem__node {
   position: absolute;
   left: 50%;
@@ -1949,7 +2180,7 @@ details > summary::-webkit-details-marker { display: none; }
   background: #fff;
   box-shadow: 0 0 10px 2px
     color-mix(in srgb, var(--hc-accent, #3b9dff) 85%, transparent);
-  animation: vpv-hc-node-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+  animation: vpv-hc-node-in 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 130ms both;
 }
 
 @keyframes vpv-hc-stem-draw {
@@ -1980,16 +2211,28 @@ details > summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .vpv-hc--hover,
   .vpv-hc--popup,
+  .vpv-hc-float.is-open .vpv-hc--hover,
+  .vpv-hc-float.is-closing .vpv-hc--hover,
   .vpv-hc__head,
   .vpv-hc__hero,
   .vpv-hc__body,
   .vpv-hc__spec,
   .vpv-hc__row,
   .vpv-hc__arrow,
+  .vpv-hc__rim,
+  .vpv-hc__sweep,
+  .vpv-hc__badge,
+  .vpv-hc__thumb img,
+  .vpv-hc__hero img,
   .vpv-hc-stem__line,
   .vpv-hc-stem__node {
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
+  }
+  .vpv-hc__arrow-halo,
+  .vpv-hc-stem__pulse {
+    animation: none !important;
+    opacity: 0 !important;
   }
   .hs-neon,
   .hs-marker,
@@ -1997,4 +2240,10 @@ details > summary::-webkit-details-marker { display: none; }
   .hs-marker__aura {
     transition-duration: 1ms !important;
   }
+}
+
+/* The anchored popup's positioning wrapper — gives the card a plane to
+   rotate against during its entrance. */
+.vpv-hc-anchor {
+  perspective: 900px;
 }

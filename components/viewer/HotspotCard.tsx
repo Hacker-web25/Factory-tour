@@ -77,6 +77,9 @@ export default memo(function HotspotCard({
   /** "row" puts the thumbnail beside the title (the reference default);
    *  "hero" runs it full-width above, for image-first popups. */
   layout = "row",
+  /** Whether rows and the arrow respond to clicks. Popups always are;
+   *  a hover card becomes interactive once it's given an action handler. */
+  interactive: interactiveProp,
   onAction,
   onPrimary,
   onClose,
@@ -88,13 +91,14 @@ export default memo(function HotspotCard({
   width?: number;
   scale?: number;
   layout?: "row" | "hero";
+  interactive?: boolean;
   onAction?: (intent: HotspotAction, action: HotspotCardAction) => void;
   onPrimary?: () => void;
   onClose?: () => void;
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const interactive = variant === "popup";
+  const interactive = interactiveProp ?? variant === "popup";
   const { accent, title, subtitle, body, thumbnail, badge, specs, actions } =
     model;
 
@@ -106,7 +110,15 @@ export default memo(function HotspotCard({
 
   return (
     <div
-      className={`vpv-hc vpv-hc--${variant} vpv-hc--${layout} ${className}`}
+      className={[
+        "vpv-hc",
+        `vpv-hc--${variant}`,
+        `vpv-hc--${layout}`,
+        interactive ? "is-interactive" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={
         {
           "--hc-accent": accent,
@@ -115,8 +127,12 @@ export default memo(function HotspotCard({
           ...style,
         } as React.CSSProperties
       }
-      onClick={interactive ? (e) => e.stopPropagation() : undefined}
+      onClick={variant === "popup" ? (e) => e.stopPropagation() : undefined}
     >
+      {/* Specular sweep — a single pass of light across the glass as the
+          card settles, then it's gone. */}
+      <span className="vpv-hc__sweep" aria-hidden />
+
       {/* Neon hairline along the top edge. */}
       <span className="vpv-hc__rim" aria-hidden />
 
@@ -226,6 +242,9 @@ export default memo(function HotspotCard({
             : undefined
         }
       >
+        {/* Slow halo that breathes outward, so the arrow reads as the
+            card's live affordance rather than a static dot. */}
+        <span className="vpv-hc__arrow-halo" aria-hidden />
         <ChevronRight size={16} strokeWidth={2.75} />
       </button>
 

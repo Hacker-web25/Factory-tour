@@ -5,8 +5,18 @@ import { OrbitControls, Html, Edges } from "@react-three/drei";
 import * as THREE from "three";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Hotspot, HotspotFx } from "@/lib/types";
+import type { Hotspot, HotspotAction, HotspotFx } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
+import { useHoverCard } from "@/lib/useHoverCard";
+import {
+  FileText,
+  Headphones,
+  Info as InfoGlyph,
+  Link2,
+  Navigation,
+  Play,
+  User as UserGlyph,
+} from "lucide-react";
 import { useT } from "@/lib/TranslationContext";
 import { fontFor } from "@/lib/fonts";
 import {
@@ -92,6 +102,10 @@ type Props = {
   /** Fired once when the viewer meaningfully hovers a hotspot (after a
    *  short dwell so fly-overs don't count). Used for analytics. */
   onHotspotHover?: (h: Hotspot) => void;
+  /** Fired when a row or the arrow inside a hover card is clicked, so the
+   *  player can open the matching viewer (video, PDF, image, audio, link)
+   *  straight from the hover card. */
+  onHotspotIntent?: (intent: HotspotAction, h: Hotspot) => void;
   onHotspotDrag?: (id: string, yaw: number, pitch: number) => void;
   initialYaw?: number;
   initialPitch?: number;
@@ -243,6 +257,7 @@ function Scene({
   onHotspotClick,
   onHotspotDoubleClick,
   onHotspotHover,
+  onHotspotIntent,
   onHotspotDrag,
   initialYaw = 0,
   initialPitch = 0,
@@ -643,6 +658,11 @@ function Scene({
           onClick={() => onHotspotClick?.(h)}
           onDoubleClick={() => onHotspotDoubleClick?.(h)}
           onHover={() => onHotspotHover?.(h)}
+          onIntent={
+            onHotspotIntent
+              ? (intent) => onHotspotIntent(intent, h)
+              : undefined
+          }
           onDragStart={() => setDragId(h.id)}
           setOrbitEnabled={(v) => {
             if (orbitRef.current) orbitRef.current.enabled = v;
@@ -695,6 +715,7 @@ function HotspotMarker(props: {
   onClick: () => void;
   onDoubleClick: () => void;
   onHover?: () => void;
+  onIntent?: (intent: HotspotAction) => void;
   onDragStart: () => void;
   setOrbitEnabled: (v: boolean) => void;
 }) {
@@ -711,10 +732,12 @@ function HotspotMarker(props: {
   // dot that expands to a name pill on hover/click.
   if (h.type === "person") return <PersonTag {...props} />;
 
-  // INFO hotspots — premium i-in-circle marker with breathing pulse ring.
-  // Overrides the generic icon renderer to guarantee the classic "info"
-  // affordance every visitor recognises instantly.
-  if (h.type === "info") return <InfoHotspot {...props} />;
+  // INFO hotspots go through the standard billboard so they inherit every
+  // styling control — skin, shape, glow colour, intensity, size. Without an
+  // icon of their own they fall back to the classic "i" glyph inside
+  // IconOrImage, so the familiar affordance survives while the author can
+  // now dress it like any other marker.
+  if (h.type === "info") return <HtmlBillboard {...props} />;
 
   // IMAGE hotspots — blue circle that morphs into a card with a blue
   // header and white image/caption body. Skips the 3D-plane router so
@@ -752,6 +775,7 @@ function HtmlBillboard({
   onClick,
   onDoubleClick,
   onHover,
+  onIntent,
   onDragStart,
 }: {
   hotspot: Hotspot;
@@ -762,11 +786,15 @@ function HtmlBillboard({
   onClick: () => void;
   onDoubleClick: () => void;
   onHover?: () => void;
+  onIntent?: (intent: HotspotAction) => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
   const { t } = useT();
   const [hovered, setHovered] = useState(false);
+  // Hover-intent for the floating card: it survives the trip from marker
+  // to card and plays a real exit instead of blinking out.
+  const card = useHoverCard();
   // Analytics dwell timer — fire onHover once the pointer lingers ~400ms so
   // brushing past a marker doesn't register as a "hover". Cleared on leave.
   const hoverTimerRef = useRef<number | null>(null);
@@ -877,6 +905,7 @@ function HtmlBillboard({
         }}
         onMouseEnter={() => {
           setHovered(true);
+          card.show();
           // Fire a fresh ripple each time the pointer enters.
           setRippleKey((k) => k + 1);
           // Analytics: count a hover only after a short dwell.
@@ -887,6 +916,7 @@ function HtmlBillboard({
         }}
         onMouseLeave={() => {
           setHovered(false);
+          card.hide();
           if (hoverTimerRef.current) {
             window.clearTimeout(hoverTimerRef.current);
             hoverTimerRef.current = null;
@@ -925,11 +955,22 @@ function HtmlBillboard({
             object. Pointer-events stay off so the marker keeps every
             click. Suppressed for the inline VideoCard, which already shows
             its own thumbnail on the panorama. */}
-        {hovered && !editable && fx.hoverCard && !rendersAsInlineCard && (
+        {card.mounted && !editable && fx.hoverCard && !rendersAsInlineCard && (
           <HotspotHoverCard
             hotspot={h}
+            open={card.open}
             scenesLookup={scenesLookup}
             scale={fx.hoverCardScale}
+            onPointerEnter={card.keep}
+            onPointerLeave={card.hide}
+            onIntent={
+              onIntent
+                ? (intent) => {
+                    onIntent(intent);
+                    card.close();
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -1165,6 +1206,30 @@ function IconOrImage({
     );
   }
 
+  // No icon chosen — fall back to the glyph that matches the hotspot's
+  // kind. This is what lets an info hotspot keep its familiar "i" while
+  // still flowing through the normal styling pipeline (skin, shape, glow),
+  // instead of needing a bespoke renderer of its own.
+  const TypeGlyph = defaultGlyphFor(h);
+  if (TypeGlyph) {
+    const size = Math.min(width, height);
+    return (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <TypeGlyph
+          size={size}
+          color={h.icon_tint ?? "#ffffff"}
+          strokeWidth={2}
+        />
+      </div>
+    );
+  }
+
   // Last-resort marker
   return (
     <div
@@ -1177,6 +1242,35 @@ function IconOrImage({
       }}
     />
   );
+}
+
+/** The glyph a hotspot falls back to when its author hasn't picked one. */
+function defaultGlyphFor(h: Hotspot) {
+  switch (h.type) {
+    case "info":
+      return InfoGlyph;
+    case "video":
+      return Play;
+    case "audio":
+      return Headphones;
+    case "pdf":
+      return FileText;
+    case "url":
+      return Link2;
+    case "nav":
+      return Navigation;
+    case "person":
+      return UserGlyph;
+    default:
+      // An action can imply the glyph even when the type doesn't.
+      if (h.action === "info_popup") return InfoGlyph;
+      if (h.action === "video_popup") return Play;
+      if (h.action === "audio_popup") return Headphones;
+      if (h.action === "pdf_popup") return FileText;
+      if (h.action === "url") return Link2;
+      if (h.action === "nav") return Navigation;
+      return null;
+  }
 }
 
 /* --------- Inline video card (thumbnail + play, expands to player) ---------- */
@@ -1553,203 +1647,6 @@ function useHotspotFaceTexture(h: Hotspot): {
   return { tex, failed, aspect };
 }
 
-/* ---------- Info hotspot (premium state-driven marker) ------------------
- *
- * State machine:
- *   IDLE      – just the marker; subtle idle breathe
- *   HOVER     – marker scales, pulse ring appears
- *   COMPACT   – small card next to the marker (title + first line)
- *   EXPANDED  – full panel (title + full body + close ×)
- *   CLOSING   – running the collapse animation
- *
- * The panel is spatially anchored to the marker via transform-origin so it
- * appears to grow OUT of the dot rather than dropping in from nowhere. All
- * children reveal in a staggered sequence via the .hs-stage class.
- *
- * Coordination: uses the shared hotspot bus so opening this closes any
- * other open hotspot. Escape and click-outside also close via the bus. */
-type InfoPhase = "idle" | "hover" | "compact" | "expanded" | "closing";
-
-function InfoHotspot({
-  hotspot: h,
-  editable,
-  selected,
-  fx = DEFAULT_FX,
-  scenesLookup,
-  onClick,
-  onDoubleClick,
-  onHover,
-  onDragStart,
-}: {
-  hotspot: Hotspot;
-  editable: boolean;
-  selected: boolean;
-  fx?: HotspotFx;
-  mirrored: boolean;
-  scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
-  onClick: () => void;
-  onDoubleClick: () => void;
-  onHover?: () => void;
-  onDragStart: () => void;
-  setOrbitEnabled?: (v: boolean) => void;
-}) {
-  // The pill is the marker; the premium card is the payload. Hovering
-  // expands the pill AND floats the shared hotspot card above it; clicking
-  // hands off to the parent, which opens the anchored popup with the
-  // glowing connector arm.
-  const [hovered, setHovered] = useState(false);
-  const hoverTimerRef = useRef<number | null>(null);
-  const pos = useMemo(
-    () => sphericalToVec3(h.yaw, h.pitch),
-    [h.yaw, h.pitch]
-  );
-  const lastClickRef = useRef(0);
-
-  function handlePointerDown(e: React.PointerEvent) {
-    if (!editable) return;
-    e.stopPropagation();
-    const sx = e.clientX,
-      sy = e.clientY;
-    let dragged = false;
-    const move = (ev: PointerEvent) => {
-      if (dragged) return;
-      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > DRAG_THRESHOLD_PX) {
-        dragged = true;
-        onDragStart();
-      }
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      if (dragged) return;
-      const now = performance.now();
-      if (now - lastClickRef.current < 350) {
-        onDoubleClick();
-      } else {
-        onClick();
-      }
-      lastClickRef.current = now;
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  }
-
-  // Pill title = info_title from the info config (the "Title" a visitor
-  // sees inside the pill). label is a SEPARATE caption rendered below the
-  // pill (like a signpost saying "Info about the boiler room").
-  const { t } = useT();
-  const title = t(h.info_title) || t("Info");
-  const caption = t(h.label) || null;
-  const pillOpen = hovered;
-
-  return (
-    <Html
-      position={pos.toArray()}
-      center
-      distanceFactor={400}
-      zIndexRange={[10, 0]}
-      style={{ pointerEvents: "auto" }}
-    >
-      <div
-        style={
-          {
-            position: "relative",
-            filter: "drop-shadow(0 3px 8px rgba(0,0,0,0.55))",
-            // Pill height is driven by width_pct so the existing Width
-            // slider in the panel controls icon size. Default width_pct
-            // is 80 → 42px pill; 160 → 84px; 40 → 21px.
-            "--pill-h": `${Math.max(22, Math.min(96, (h.width_pct ?? 80) * 0.525))}px`,
-          } as React.CSSProperties
-        }
-      >
-        {/* Premium hover card — the same card every other hotspot kind
-            opens, floated above the pill. */}
-        {hovered && !editable && fx.hoverCard && (
-          <HotspotHoverCard
-            hotspot={h}
-            scenesLookup={scenesLookup}
-            scale={fx.hoverCardScale}
-          />
-        )}
-
-        {/* The morphing pill — hovering expands it, clicking opens the
-            anchored premium card. */}
-        <div
-          className={`info-pill ${pillOpen ? "is-hovered" : ""}`}
-          style={{
-            outline: selected ? "2px solid rgb(34,211,238)" : "none",
-            outlineOffset: 3,
-          }}
-          onMouseEnter={() => {
-            setHovered(true);
-            if (!editable && onHover) {
-              if (hoverTimerRef.current)
-                window.clearTimeout(hoverTimerRef.current);
-              hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
-            }
-          }}
-          onMouseLeave={() => {
-            setHovered(false);
-            if (hoverTimerRef.current) {
-              window.clearTimeout(hoverTimerRef.current);
-              hoverTimerRef.current = null;
-            }
-          }}
-          onPointerDown={handlePointerDown}
-          onClick={(e) => {
-            if (!editable) {
-              e.stopPropagation();
-              onClick();
-            }
-          }}
-        >
-          <div className="info-pill__icon">i</div>
-          <div className="info-pill__title-cell">
-            <div className="info-pill__title">{title}</div>
-          </div>
-        </div>
-
-        {/* Caption line — the "Label" field, rendered as a signpost text
-            under the icon so it always identifies what this dot represents,
-            even before the pill is expanded. Styled from the Label panel
-            (color / size / font / bold / background). */}
-        {caption && (
-          <div
-            style={{
-              position: "absolute",
-              top: "calc(var(--pill-h, 42px) + 6px)",
-              left: "50%",
-              transform: "translateX(-50%)",
-              color: h.label_color ?? "#ffffff",
-              fontSize: h.label_size ?? 12,
-              fontWeight: h.label_bold ? 700 : 500,
-              fontFamily: fontFor(h.label_font),
-              background: h.label_bg ?? "transparent",
-              padding: h.label_bg ? "2px 8px" : 0,
-              borderRadius: h.label_bg ? 4 : 0,
-              // pre-wrap preserves the user's newlines. width:max-content
-              // sizes the label to its actual content (rather than
-              // inheriting a narrow parent width and wrapping every
-              // word), capped by max-width for very long lines.
-              whiteSpace: "pre-wrap",
-              textAlign: "center",
-              width: "max-content",
-              maxWidth: 320,
-              wordBreak: "break-word",
-              textShadow: h.label_bg ? "none" : "0 1px 3px rgba(0,0,0,0.7)",
-              pointerEvents: "none",
-              userSelect: "none",
-            }}
-          >
-            {caption}
-          </div>
-        )}
-
-      </div>
-    </Html>
-  );
-}
-
 /* ---------- Person tag (human-tag hotspot renderer) --------------------
  * Compact "who is this" marker for tagging people in a scene. Reads:
  *   label      → person's name (main line)
@@ -1767,6 +1664,7 @@ function PersonTag({
   onClick,
   onDoubleClick,
   onHover,
+  onIntent,
   onDragStart,
 }: {
   hotspot: Hotspot;
@@ -1778,12 +1676,14 @@ function PersonTag({
   onClick: () => void;
   onDoubleClick: () => void;
   onHover?: () => void;
+  onIntent?: (intent: HotspotAction) => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
   // The name pill stays the marker; the premium card carries the detail.
   const [hovered, setHovered] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
+  const card = useHoverCard();
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -1861,6 +1761,7 @@ function PersonTag({
         }
         onMouseEnter={() => {
           setHovered(true);
+          card.show();
           if (!editable && onHover) {
             if (hoverTimerRef.current)
               window.clearTimeout(hoverTimerRef.current);
@@ -1869,6 +1770,7 @@ function PersonTag({
         }}
         onMouseLeave={() => {
           setHovered(false);
+          card.hide();
           if (hoverTimerRef.current) {
             window.clearTimeout(hoverTimerRef.current);
             hoverTimerRef.current = null;
@@ -1877,11 +1779,22 @@ function PersonTag({
       >
         {/* Premium hover card — avatar, name, role and any attached media,
             in the same card language as every other hotspot. */}
-        {hovered && !editable && fx.hoverCard && (
+        {card.mounted && !editable && fx.hoverCard && (
           <HotspotHoverCard
             hotspot={h}
+            open={card.open}
             scenesLookup={scenesLookup}
             scale={fx.hoverCardScale}
+            onPointerEnter={card.keep}
+            onPointerLeave={card.hide}
+            onIntent={
+              onIntent
+                ? (intent) => {
+                    onIntent(intent);
+                    card.close();
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -1933,6 +1846,7 @@ function MediaHotspot({
   onClick,
   onDoubleClick,
   onHover,
+  onIntent,
   onDragStart,
 }: {
   hotspot: Hotspot;
@@ -1944,12 +1858,14 @@ function MediaHotspot({
   onClick: () => void;
   onDoubleClick: () => void;
   onHover?: () => void;
+  onIntent?: (intent: HotspotAction) => void;
   onDragStart: () => void;
   setOrbitEnabled?: (v: boolean) => void;
 }) {
   // The glass circle is the marker; the premium card carries the image.
   const [hovered, setHovered] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
+  const card = useHoverCard();
   const pos = useMemo(
     () => sphericalToVec3(h.yaw, h.pitch),
     [h.yaw, h.pitch]
@@ -2017,6 +1933,7 @@ function MediaHotspot({
         }
         onMouseEnter={() => {
           setHovered(true);
+          card.show();
           if (!editable && onHover) {
             if (hoverTimerRef.current)
               window.clearTimeout(hoverTimerRef.current);
@@ -2025,6 +1942,7 @@ function MediaHotspot({
         }}
         onMouseLeave={() => {
           setHovered(false);
+          card.hide();
           if (hoverTimerRef.current) {
             window.clearTimeout(hoverTimerRef.current);
             hoverTimerRef.current = null;
@@ -2034,11 +1952,22 @@ function MediaHotspot({
         {/* Premium hover card — the photo, its caption and any other
             payload, in the shared card language. Clicking the marker hands
             off to the anchored popup with the full-size image. */}
-        {hovered && !editable && fx.hoverCard && (
+        {card.mounted && !editable && fx.hoverCard && (
           <HotspotHoverCard
             hotspot={h}
+            open={card.open}
             scenesLookup={scenesLookup}
             scale={fx.hoverCardScale}
+            onPointerEnter={card.keep}
+            onPointerLeave={card.hide}
+            onIntent={
+              onIntent
+                ? (intent) => {
+                    onIntent(intent);
+                    card.close();
+                  }
+                : undefined
+            }
           />
         )}
 

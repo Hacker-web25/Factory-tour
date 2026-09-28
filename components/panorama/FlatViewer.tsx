@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Hotspot, HotspotFx } from "@/lib/types";
+import type { Hotspot, HotspotAction, HotspotFx } from "@/lib/types";
 import { findIcon } from "@/lib/iconLibrary";
 import { fontFor } from "@/lib/fonts";
 import HotspotSkinFrame from "./HotspotSkin";
 import HotspotHoverCard from "@/components/viewer/HotspotHoverCard";
+import { useHoverCard } from "@/lib/useHoverCard";
 import {
   type ImageAdjustments,
   normalizeAdjustments,
@@ -40,6 +41,7 @@ export default function FlatViewer({
   adjustments,
   hotspotFx,
   scenesLookup,
+  onHotspotIntent,
 }: {
   imageUrl: string;
   hotspots?: Hotspot[];
@@ -48,6 +50,8 @@ export default function FlatViewer({
   hotspotFx?: HotspotFx;
   /** Scene lookup so nav hover cards can name their destination. */
   scenesLookup?: Map<string, { name: string; thumbnailUrl: string | null }>;
+  /** Fired when a row inside a hover card is clicked. */
+  onHotspotIntent?: (intent: HotspotAction, h: Hotspot) => void;
   /** Per-scene colour grading — applied to the flat image + overlays. */
   adjustments?: Partial<ImageAdjustments> | null;
   selectedHotspotId?: string | null;
@@ -464,6 +468,11 @@ export default function FlatViewer({
             editable={editable}
             fx={hotspotFx}
             scenesLookup={scenesLookup}
+            onIntent={
+              onHotspotIntent
+                ? (intent) => onHotspotIntent(intent, h)
+                : undefined
+            }
             onPointerDown={(e) => {
               if (editable) {
                 e.stopPropagation();
@@ -508,6 +517,7 @@ function FlatHotspot({
   onPointerDown,
   onClick,
   onDoubleClick,
+  onIntent,
 }: {
   hotspot: Hotspot;
   selected: boolean;
@@ -517,8 +527,10 @@ function FlatHotspot({
   onPointerDown: (e: React.PointerEvent) => void;
   onClick: () => void;
   onDoubleClick: () => void;
+  onIntent?: (intent: HotspotAction) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const card = useHoverCard();
   const w = Math.max(20, h.width_pct ?? 40);
   const hh = Math.max(20, h.height_pct ?? 40);
   const url = h.icon_url ?? (h.type === "image" ? h.image_url : null);
@@ -532,8 +544,14 @@ function FlatHotspot({
   return (
     <div
       onPointerDown={onPointerDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => {
+        setHovered(true);
+        card.show();
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        card.hide();
+      }}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -573,11 +591,22 @@ function FlatHotspot({
     >
       {/* Premium hover card — the same card the 360° viewer floats, so
           flat scenes and panoramas read as one product. */}
-      {hovered && !editable && fx?.hoverCard !== false && (
+      {card.mounted && !editable && fx?.hoverCard !== false && (
         <HotspotHoverCard
           hotspot={h}
+          open={card.open}
           scenesLookup={scenesLookup}
           scale={fx?.hoverCardScale ?? 1}
+          onPointerEnter={card.keep}
+          onPointerLeave={card.hide}
+          onIntent={
+            onIntent
+              ? (intent) => {
+                  onIntent(intent);
+                  card.close();
+                }
+              : undefined
+          }
         />
       )}
 

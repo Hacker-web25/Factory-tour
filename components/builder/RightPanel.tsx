@@ -17,6 +17,11 @@ import { supabase, publicUrl } from "@/lib/supabase";
 import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
+import {
+  CONNECTOR_DEFAULT,
+  CONNECTOR_MAX,
+  CONNECTOR_MIN,
+} from "@/lib/hotspotCard";
 import IconPicker from "./IconPicker";
 import EditSceneTab from "./EditSceneTab";
 import AudioTab from "./AudioTab";
@@ -3164,6 +3169,30 @@ function AddonTab({
               </span>
             </span>
           </label>
+
+          {/* Connector length — how far the card floats from the marker.
+              Short keeps the card tight to the icon; long gives the card
+              room to breathe over a busy part of the scene. */}
+          {hotspot.card_connector !== false && (
+            <div className="mt-2">
+              <SliderRow
+                label="Connector length"
+                value={hotspot.connector_length ?? CONNECTOR_DEFAULT}
+                valueLabel={`${Math.round(
+                  hotspot.connector_length ?? CONNECTOR_DEFAULT
+                )} px`}
+                min={CONNECTOR_MIN}
+                max={CONNECTOR_MAX}
+                onChange={(v) =>
+                  onChange({ ...hotspot, connector_length: v })
+                }
+              />
+              <div className="text-[10px] text-neutral-500 mt-1.5">
+                Distance between the marker and its card. Raise it when the
+                card would otherwise cover what the hotspot points at.
+              </div>
+            </div>
+          )}
         </Section>
       )}
 

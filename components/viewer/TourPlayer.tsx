@@ -985,6 +985,10 @@ function TourPlayerInner({
       setPdfModal(h);
     } else if (intent === "audio_popup") {
       setAudioPopup(h);
+    } else if (intent === "info_popup" || intent === "image_popup") {
+      const p = lastPointerRef.current;
+      setCardAnchor(p ?? { x: stageSize.w / 2, y: stageSize.h / 2 });
+      setInfoModal(h);
     }
   }
 
@@ -1042,6 +1046,7 @@ function TourPlayerInner({
             hotspots={hotspots}
             hotspotFx={hotspotFx}
             scenesLookup={scenesLookup}
+            onHotspotIntent={runHotspotIntent}
             onHotspotClick={onHotspotClick}
           />
         ) : (
@@ -1052,6 +1057,7 @@ function TourPlayerInner({
           idleSpin={tour.fx_idle_spin !== false}
           hotspots={hotspots}
           onHotspotHover={onHotspotHover}
+          onHotspotIntent={runHotspotIntent}
           mirrored={tour.mirrored ?? false}
           hideStitching={active.hide_stitching ?? false}
           hideTripod={active.hide_tripod ?? false}

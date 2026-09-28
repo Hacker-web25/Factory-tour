@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import type { Hotspot, HotspotFx } from "@/lib/types";
+import type { Hotspot, HotspotAction, HotspotFx } from "@/lib/types";
 import { HOTSPOT_RADIUS, SPHERE_RADIUS, sphericalToVec3 } from "./math";
 import HotspotHoverCard from "@/components/viewer/HotspotHoverCard";
+import { useHoverCard } from "@/lib/useHoverCard";
 
 /**
  * A polygon-shaped hotspot: user traces the outline of an object (e.g. a TV,
@@ -28,6 +29,7 @@ export default function PolygonHotspot({
   onClick,
   onDoubleClick,
   onHover,
+  onIntent,
   onDragStart,
   setOrbitEnabled,
 }: {
@@ -40,15 +42,19 @@ export default function PolygonHotspot({
   onClick: () => void;
   onDoubleClick: () => void;
   onHover?: () => void;
+  onIntent?: (intent: HotspotAction) => void;
   onDragStart: () => void;
   setOrbitEnabled: (v: boolean) => void;
 }) {
   const points = h.polygon_points ?? [];
 
   // Hovering a traced region floats the same premium card every other
-  // hotspot kind uses, anchored at the polygon's centroid.
-  const [hovered, setHovered] = useState(false);
+  // hotspot kind uses, anchored at the polygon's centroid. The polygon
+  // lives in the 3D event system and the card in the DOM, so the shared
+  // hover-intent hook is what bridges the two — without it, moving onto
+  // the card would read as leaving the polygon.
   const hoverTimerRef = useRef<number | null>(null);
+  const card = useHoverCard();
 
   // Convert each (yaw,pitch) → world position on the hotspot sphere.
   const worldPoints = useMemo(
@@ -186,14 +192,14 @@ export default function PolygonHotspot({
     <group
       onPointerDown={handlePointerDown}
       onPointerOver={() => {
-        setHovered(true);
+        card.show();
         if (!editable && onHover) {
           if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
           hoverTimerRef.current = window.setTimeout(() => onHover(), 400);
         }
       }}
       onPointerOut={() => {
-        setHovered(false);
+        card.hide();
         if (hoverTimerRef.current) {
           window.clearTimeout(hoverTimerRef.current);
           hoverTimerRef.current = null;
@@ -201,8 +207,9 @@ export default function PolygonHotspot({
       }}
     >
       {/* Premium hover card, floated above the centroid of the traced
-          region. Pointer-events stay off so the polygon keeps its clicks. */}
-      {hovered && !editable && fx?.hoverCard !== false && (
+          region. It takes pointer events so it can be read and clicked;
+          the polygon itself stays clickable everywhere else. */}
+      {card.mounted && !editable && fx?.hoverCard !== false && (
         <Html
           position={centroid.toArray()}
           center
@@ -212,8 +219,19 @@ export default function PolygonHotspot({
         >
           <HotspotHoverCard
             hotspot={h}
+            open={card.open}
             scenesLookup={scenesLookup}
             scale={fx?.hoverCardScale ?? 1}
+            onPointerEnter={card.keep}
+            onPointerLeave={card.hide}
+            onIntent={
+              onIntent
+                ? (intent) => {
+                    onIntent(intent);
+                    card.close();
+                  }
+                : undefined
+            }
           />
         </Html>
       )}

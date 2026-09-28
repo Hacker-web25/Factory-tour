@@ -353,6 +353,10 @@ export type Hotspot = {
   shape_fill_color?: string | null;
   /** Show a glowing connector line from the icon to its popup card. */
   card_connector?: boolean;
+  /** Length of that connector, in px, at the default zoom. Drives the stem
+   *  under the hover card and the diagonal arm on the anchored popup.
+   *  null / undefined = the 20px default. Range 8–160. */
+  connector_length?: number | null;
 
   // label typography extras
   label_font: LabelFont;

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Hotspot, HotspotAction } from "@/lib/types";
 import HotspotCard from "./HotspotCard";
-import { buildHotspotCard } from "@/lib/hotspotCard";
+import { buildHotspotCard, resolveConnectorLength } from "@/lib/hotspotCard";
 
 type Anchor = { x: number; y: number };
 
@@ -97,8 +97,12 @@ export default function PremiumInfoCard({
   useLayoutEffect(() => {
     const el = cardRef.current;
     const cardH = el ? el.offsetHeight : 240;
-    const armX = 86;
-    const armY = 64;
+    // The author's connector length drives how far the card sits from the
+    // marker. The arm runs diagonally, so the length is split across both
+    // axes rather than applied twice.
+    const reach = resolveConnectorLength(hotspot);
+    const armX = Math.round(48 + reach * 1.9);
+    const armY = Math.round(24 + reach * 2);
     const margin = 16;
 
     let side: "right" | "left" = "right";
@@ -113,7 +117,7 @@ export default function PremiumInfoCard({
     top = Math.max(margin, Math.min(top, containerH - cardH - margin));
 
     setPlaced({ left, top, side });
-  }, [anchor.x, anchor.y, containerW, containerH, cardW]);
+  }, [anchor.x, anchor.y, containerW, containerH, cardW, hotspot]);
 
   // Connector endpoints: from the hotspot node (anchor) to the card's near edge.
   const cardH = cardRef.current?.offsetHeight ?? 240;
@@ -215,7 +219,7 @@ export default function PremiumInfoCard({
       {/* The card itself. */}
       <div
         ref={cardRef}
-        className="absolute"
+        className="absolute vpv-hc-anchor"
         style={{
           left: placed?.left ?? -9999,
           top: placed?.top ?? -9999,

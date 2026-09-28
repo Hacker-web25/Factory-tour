@@ -82,6 +82,20 @@ export type BuildCardCtx = {
 /** The default premium blue, used when a hotspot has no colour of its own. */
 export const VPV_ACCENT = "#3b9dff";
 
+/** Default gap between a marker and its card, in px. */
+export const CONNECTOR_DEFAULT = 20;
+export const CONNECTOR_MIN = 8;
+export const CONNECTOR_MAX = 160;
+
+/** The author's connector length, clamped to something renderable. */
+export function resolveConnectorLength(h: {
+  connector_length?: number | null;
+}): number {
+  const n = h.connector_length;
+  if (typeof n !== "number" || !Number.isFinite(n)) return CONNECTOR_DEFAULT;
+  return Math.max(CONNECTOR_MIN, Math.min(CONNECTOR_MAX, Math.round(n)));
+}
+
 /** Module-level cache for YouTube oEmbed lookups, shared by every card. */
 export const videoMetaCache = new Map<
   string,
@@ -383,10 +397,16 @@ export function buildHotspotCard(
     });
   }
 
-  // Never let the subtitle duplicate the body we're about to render, and
-  // never show raw spec text as a subtitle.
+  // The description is only rendered as prose when it isn't a spec table.
   const body = specs.length > 0 ? null : bodyText || null;
-  if (subtitle && body && subtitle.trim() === body.trim()) subtitle = null;
+
+  // Never say the same thing twice. A subtitle that fell back to the
+  // description duplicates the paragraph below it; one that fell back to a
+  // spec-formatted description duplicates the whole table, flattened onto
+  // one line — which is what makes it look broken.
+  if (subtitle && bodyText && subtitle.trim() === bodyText.trim()) {
+    subtitle = null;
+  }
 
   return {
     accent,
