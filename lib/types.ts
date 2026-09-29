@@ -67,6 +67,9 @@ export type Tour = {
   /** Storage path for the tour's company / brand logo shown in the
    *  header strip (uploaded via the editor's Photo tab). */
   company_logo_path?: string | null;
+  /** Company logo size in the presenter's header strip, as a % of the
+   *  default height. 100 = 30px, 50 = 15px, 200 = 60px. Null = 100. */
+  company_logo_size_pct?: number | null;
 
   /** Nadir patch — circular image at the south pole of every scene. */
   nadir_image_path: string | null;

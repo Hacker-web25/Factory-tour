@@ -67,7 +67,23 @@ export default function ClientPickerModal({
     setLoading(true);
     try {
       const rows = await listClientsForPresenter(presenterId);
-      setClients(rows.filter((c) => c.status === "active" || c.status === "moved_ahead"));
+      // Show every client the presenter has, including closed/lost —
+      // they might be re-engaging. Closed rows sort to the bottom.
+      const priority: Record<string, number> = {
+        active: 0,
+        moved_ahead: 1,
+        closed: 2,
+        lost: 3,
+      };
+      setClients(
+        rows
+          .slice()
+          .sort(
+            (a, b) =>
+              (priority[a.status] ?? 9) - (priority[b.status] ?? 9) ||
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          )
+      );
     } finally {
       setLoading(false);
     }

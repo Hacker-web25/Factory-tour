@@ -1195,7 +1195,20 @@ function TourPlayerInner({
             top-left logo pill + top-right title cluster (original layout). */}
         {tour.top_strip_enabled ? (
           <div className="absolute top-0 left-0 right-0 z-30 h-14 flex items-center justify-between px-4 bg-white/25 backdrop-blur-xl border-b border-white/40 shadow-[0_6px_20px_-12px_rgba(11,61,145,0.35)]">
-            <ViewerLogoBadge height={36} />
+            {/* VPV logo — pushed right when the scene menu occupies the
+                top-left corner. --vpv-menu-left-inset is set by
+                MenuOverlay whenever the menu sits on the left; it
+                smoothly transitions between the button/pinned widths. */}
+            <div
+              style={{
+                paddingLeft: "var(--vpv-menu-left-inset, 0px)",
+                transition: "padding-left 300ms cubic-bezier(0.16, 1, 0.3, 1)",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <ViewerLogoBadge height={36} />
+            </div>
             <div className="flex-1 grid place-items-center">
               {tour.company_logo_path && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1206,11 +1219,15 @@ function TourPlayerInner({
                   alt="Company logo"
                   draggable={false}
                   style={{
-                    height: 30,
+                    height: Math.max(
+                      12,
+                      Math.min(80, Math.round(30 * ((tour.company_logo_size_pct ?? 100) / 100)))
+                    ),
                     width: "auto",
-                    maxWidth: "35vw",
+                    maxWidth: "45vw",
                     display: "block",
                     filter: "drop-shadow(0 1px 3px rgba(255,255,255,0.6))",
+                    transition: "height 240ms cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 />
               )}
@@ -1222,8 +1239,16 @@ function TourPlayerInner({
           </div>
         ) : (
           <>
-            {/* Top-left: VPV brand pill — subtle, translucent. */}
-            <div className="absolute top-4 left-4 z-30">
+            {/* Top-left: VPV brand pill — subtle, translucent. Shifts
+                right when the scene menu occupies the top-left corner
+                (see --vpv-menu-left-inset). */}
+            <div
+              className="absolute top-4 z-30"
+              style={{
+                left: "calc(1rem + var(--vpv-menu-left-inset, 0px))",
+                transition: "left 300ms cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
+            >
               <ViewerLogoBadge />
             </div>
             {/* Top-right cluster: recording pill + tour/org title chip. */}

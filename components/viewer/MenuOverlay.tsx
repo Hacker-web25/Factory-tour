@@ -65,13 +65,33 @@ export default function MenuOverlay({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open, pinned]);
 
-  if (!tour.menu_enabled) return null;
-
+  const enabled = tour.menu_enabled;
   const size = Math.max(28, Math.min(120, tour.menu_size ?? 44));
   const opacity = Math.max(0.15, Math.min(1, tour.menu_opacity ?? 0.75));
   const pos = (tour.menu_position ?? "top-left") as MenuPosition;
   const thumbSize: ThumbSize = (tour.menu_thumb_size ?? "md") as ThumbSize;
   const side: "left" | "right" = pos.endsWith("right") ? "right" : "left";
+
+  // Publish the menu's horizontal footprint as a CSS variable so the
+  // header strip can shift the VPV logo out of the way. Only fires
+  // when the menu sits on the LEFT — right-side menus don't collide
+  // with the logo. Cleaned up on unmount so other pages aren't affected.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const el = document.documentElement;
+    const leftInset =
+      enabled && side === "left"
+        ? pinned
+          ? railWidth(thumbSize) + 12
+          : size + 24
+        : 0;
+    el.style.setProperty("--vpv-menu-left-inset", `${leftInset}px`);
+    return () => {
+      el.style.removeProperty("--vpv-menu-left-inset");
+    };
+  }, [enabled, pinned, side, size, thumbSize]);
+
+  if (!enabled) return null;
 
   return (
     <div ref={wrapRef} className="select-none">

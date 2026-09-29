@@ -2579,9 +2579,37 @@ function TopStripSettings({
               )}
             </div>
             <div className="text-[10.5px] text-neutral-500 mt-1.5">
-              Transparent PNG works best. Height auto-scales to match the VPV
-              logo.
+              Transparent PNG works best. Use the slider below to tune the
+              size shown in the presenter's header strip.
             </div>
+
+            {/* Logo size slider — 50%..200% of the default 30px height. */}
+            {logoUrl && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] text-neutral-400">Logo size</span>
+                  <span className="text-[11px] text-neutral-500 tabular-nums">
+                    {tour.company_logo_size_pct ?? 100}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={200}
+                  step={5}
+                  value={tour.company_logo_size_pct ?? 100}
+                  onChange={(e) =>
+                    onPatch({ company_logo_size_pct: Number(e.target.value) })
+                  }
+                  className="w-full accent-accent"
+                />
+                <div className="flex items-center justify-between text-[9.5px] text-neutral-600 mt-0.5">
+                  <span>Small</span>
+                  <span>Default</span>
+                  <span>Large</span>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

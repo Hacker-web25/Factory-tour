@@ -13,7 +13,6 @@ import {
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
-import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import ClientsTab from "@/components/dashboard/ClientsTab";
 import ClientPickerModal from "@/components/dashboard/ClientPickerModal";
@@ -35,7 +34,7 @@ import {
   ArrowRight,
   Play,
   Zap,
-  Rocket,
+
   Copy as CopyIcon,
   Check,
 } from "lucide-react";
@@ -466,47 +465,6 @@ export default function SalesDashboardPage() {
             sparkColor="#19B8F2"
           />
         </div>
-
-        {/* Quick launch — the most-recent tour, huge CTA */}
-        {tours.length > 0 && (
-          <div className="px-10 mb-8">
-            <div className="rounded-2xl overflow-hidden bg-vpv-grad p-5 flex items-center gap-4 shadow-[0_18px_44px_-18px_rgba(11,61,145,0.55)]">
-              <div className="w-14 h-14 rounded-xl bg-white/15 border border-white/25 grid place-items-center backdrop-blur-sm">
-                <Rocket size={26} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] uppercase tracking-[0.15em] text-white/80 mb-0.5">
-                  Quick launch
-                </div>
-                <div className="text-[16px] font-semibold text-white truncate">
-                  {tours[0].title}
-                </div>
-                <div className="text-[11px] text-white/70 truncate">
-                  Open in a new tab and start presenting.
-                </div>
-              </div>
-              <a
-                href={`/tour/${tours[0].id}?presenter=${me?.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 px-5 py-2.5 bg-white text-vpv-navy text-[13px] font-semibold rounded-full hover:bg-vpv-tint flex items-center gap-2 shadow-lg"
-              >
-                <Play size={14} /> Start
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Calendar — presenter's own schedule */}
-        {me && org && (
-          <div className="px-10 mb-6">
-            <CalendarWidget
-              orgId={org.id}
-              currentUserId={me.id}
-              myEventsOnly
-            />
-          </div>
-        )}
 
         {/* Tour carousel */}
         <div className="px-10 mb-10">
