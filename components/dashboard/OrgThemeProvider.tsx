@@ -42,7 +42,7 @@ export default function OrgThemeProvider({
     }
     (async () => {
       const { data, error } = await supabase
-        .from("orgs")
+        .from("organizations")
         .select("theme")
         .eq("id", orgId)
         .maybeSingle();

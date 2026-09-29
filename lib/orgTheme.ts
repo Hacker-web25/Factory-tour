@@ -1,7 +1,7 @@
 /**
  * lib/orgTheme — per-org dashboard theming.
  *
- * The theme lives in `orgs.theme` (jsonb). It is applied at the top of
+ * The theme lives in `organizations.theme` (jsonb). It is applied at the top of
  * the dashboard wrapper as inline CSS variables, so only signed-in
  * members of that org see it. Public tour pages and other orgs' shells
  * are untouched.

@@ -77,7 +77,7 @@ export function DashboardThemeModal({
     let cancelled = false;
     (async () => {
       const { data } = await supabase
-        .from("orgs")
+        .from("organizations")
         .select("theme")
         .eq("id", orgId)
         .maybeSingle();
@@ -135,7 +135,7 @@ export function DashboardThemeModal({
     if (!draft) return;
     setSaving(true);
     const { error } = await supabase
-      .from("orgs")
+      .from("organizations")
       .update({ theme: draft })
       .eq("id", orgId);
     setSaving(false);

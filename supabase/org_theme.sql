@@ -34,7 +34,7 @@
 --
 -- Run once in Supabase → SQL editor. Safe to re-run.
 
-alter table public.orgs
+alter table public.organizations
   add column if not exists theme jsonb not null default '{}'::jsonb;
 
 notify pgrst, 'reload schema';
