@@ -6,12 +6,12 @@ import Link from "next/link";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
-import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import AssignTourModal from "@/components/dashboard/AssignTourModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import { startPresence } from "@/lib/presence";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
+import SalesTeamMIS from "@/components/dashboard/SalesTeamMIS";
 import { timeGreeting } from "@/lib/greeting";
 import {
   getMyProfile,
@@ -640,16 +640,11 @@ export default function ClientDashboardPage() {
           </div>
         )}
 
-        {/* Team table */}
-        {/* Calendar widget — shows team-wide meetings/plans; org_admin
-            can create + assign to any team member. */}
-        {me?.org_id && (
-          <div className="px-10 pb-6">
-            <CalendarWidget
-              orgId={me.org_id}
-              currentUserId={me.id}
-              teammates={team as any}
-            />
+        {/* Sales Team MIS — org_admin analytics dashboard, using real
+            data from tour_events + presentation_sessions. */}
+        {me?.org_id && me?.role === "org_admin" && (
+          <div className="px-6 pb-6">
+            <SalesTeamMIS orgId={me.org_id} />
           </div>
         )}
 

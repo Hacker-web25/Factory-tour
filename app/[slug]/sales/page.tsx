@@ -13,7 +13,6 @@ import {
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
-import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import { startPresence } from "@/lib/presence";
@@ -448,17 +447,6 @@ export default function SalesDashboardPage() {
                 <Play size={14} /> Start
               </a>
             </div>
-          </div>
-        )}
-
-        {/* Calendar — presenter's own schedule */}
-        {me && org && (
-          <div className="px-10 mb-6">
-            <CalendarWidget
-              orgId={org.id}
-              currentUserId={me.id}
-              myEventsOnly
-            />
           </div>
         )}
 
