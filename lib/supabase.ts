@@ -18,6 +18,15 @@ export const supabase = createClient(url, key, {
 
 export const PANORAMA_BUCKET = "panoramas";
 
+/** Public URL for a panorama-bucket path. Kept as the default for
+ *  back-compat with the many callers that only ever meant panoramas. */
 export function publicUrl(path: string) {
   return supabase.storage.from(PANORAMA_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** Public URL for an object in ANY bucket — used for company logos
+ *  (stored in "tours"), recordings, and anything else that lives
+ *  outside the panorama bucket. */
+export function publicUrlIn(bucket: string, path: string) {
+  return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }

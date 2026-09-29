@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, publicUrl } from "@/lib/supabase";
+import { supabase, publicUrl, publicUrlIn } from "@/lib/supabase";
 import type { Hotspot, HotspotAction, Scene, Tour } from "@/lib/types";
 import { resolveHotspotFx } from "@/lib/types";
 import PanoramaViewer from "@/components/panorama/PanoramaViewer";
@@ -1197,7 +1197,9 @@ function TourPlayerInner({
               {tour.company_logo_path && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={publicUrl(tour.company_logo_path) ?? ""}
+                  // Company logos live in the "tours" bucket, not
+                  // "panoramas" — publicUrl() defaults to panoramas.
+                  src={publicUrlIn("tours", tour.company_logo_path)}
                   alt="Company logo"
                   draggable={false}
                   style={{

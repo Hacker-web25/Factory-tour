@@ -13,7 +13,7 @@ import type {
   Tour,
   TransitionEffect,
 } from "@/lib/types";
-import { supabase, publicUrl } from "@/lib/supabase";
+import { supabase, publicUrl, publicUrlIn } from "@/lib/supabase";
 import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
@@ -2493,7 +2493,8 @@ function TopStripSettings({
   const [uploading, setUploading] = useState(false);
   const enabled = tour.top_strip_enabled === true;
   const logoPath = tour.company_logo_path ?? null;
-  const logoUrl = logoPath ? publicUrl(logoPath) : null;
+  // Logos live in the "tours" bucket — publicUrl() defaults to panoramas.
+  const logoUrl = logoPath ? publicUrlIn("tours", logoPath) : null;
 
   async function handleUpload(file: File) {
     setUploading(true);
