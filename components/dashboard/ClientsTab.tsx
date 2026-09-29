@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   listClientsForPresenter,
   createClient,
@@ -138,9 +139,9 @@ export default function ClientsTab({ orgId, presenterId, onPresentToClient }: Pr
           <button
             key={k}
             onClick={() => setFilter(k)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`vpv-chip px-3 py-1 rounded-full text-xs font-medium ${
               filter === k
-                ? "bg-vpv-navy text-white"
+                ? "bg-vpv-navy text-white shadow-[0_6px_16px_-6px_rgba(11,61,145,0.5)]"
                 : "bg-white border border-vpv-line text-vpv-muted hover:text-vpv-ink"
             }`}
           >
@@ -185,13 +186,14 @@ export default function ClientsTab({ orgId, presenterId, onPresentToClient }: Pr
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => {
+            {filtered.map((c, i) => {
               const s = stats.get(c.id);
               const color = STATUS_COLORS[c.status];
               return (
                 <tr
                   key={c.id}
-                  className="border-b border-vpv-line last:border-0 hover:bg-vpv-canvas/40"
+                  className="border-b border-vpv-line last:border-0 vpv-table-row vpv-fade-up"
+                  style={{ animationDelay: `${Math.min(i * 30, 240)}ms` }}
                 >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -419,6 +421,24 @@ function ClientEditorModal({
     next_follow_up_at: initial?.next_follow_up_at?.slice(0, 10) ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const EXIT_MS = 200;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const requestClose = useCallback(() => {
+    setClosing(true);
+    window.setTimeout(onClose, EXIT_MS);
+  }, [onClose]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && requestClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [requestClose]);
 
   const save = async () => {
     if (!form.name.trim()) return;
@@ -453,126 +473,119 @@ function ClientEditorModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-black/50" onClick={onClose}>
+  if (typeof document === "undefined") return null;
+  const isOpen = mounted && !closing;
+
+  const content = (
+    <div
+      className={`vpv-modal-portal ${isOpen ? "is-open" : ""} ${closing ? "is-closing" : ""}`}
+      onClick={requestClose}
+    >
+      <div className="vpv-modal-scrim" />
       <div
-        className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden"
+        className="vpv-modal-panel vpv-modal-md"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
-        <div className="px-5 py-4 border-b border-vpv-line flex items-center">
-          <h3 className="text-base font-semibold text-vpv-ink mr-auto">
+        <div className="vpv-modal-header">
+          <h3 className="vpv-modal-title" style={{ flex: 1 }}>
             {initial ? "Edit client" : "Add client"}
           </h3>
-          <button onClick={onClose} className="p-1 rounded hover:bg-vpv-tint text-vpv-muted">
-            <X className="w-4 h-4" />
+          <button className="vpv-modal-close" onClick={requestClose} aria-label="Close">
+            <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
-        <div className="p-5 grid grid-cols-2 gap-3">
-          <Field label="Name *" wide>
+        <div className="vpv-modal-body vpv-form-grid">
+          <ModalField label="Name *" wide>
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="Rajesh Kumar"
               autoFocus
             />
-          </Field>
-          <Field label="Company">
+          </ModalField>
+          <ModalField label="Company">
             <input
               value={form.company}
               onChange={(e) => setForm({ ...form, company: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="Acme Textiles"
             />
-          </Field>
-          <Field label="Industry">
+          </ModalField>
+          <ModalField label="Industry">
             <input
               value={form.industry}
               onChange={(e) => setForm({ ...form, industry: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="Textiles"
             />
-          </Field>
-          <Field label="Email">
+          </ModalField>
+          <ModalField label="Email">
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="rajesh@acme.com"
             />
-          </Field>
-          <Field label="Phone">
+          </ModalField>
+          <ModalField label="Phone">
             <input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="+91 …"
             />
-          </Field>
-          <Field label="Estimated deal value">
+          </ModalField>
+          <ModalField label="Estimated deal value">
             <input
               type="number"
               value={form.estimated_value}
               onChange={(e) => setForm({ ...form, estimated_value: e.target.value })}
-              className="input"
+              className="vpv-input"
               placeholder="100000"
             />
-          </Field>
-          <Field label="Next follow-up date">
+          </ModalField>
+          <ModalField label="Next follow-up date">
             <input
               type="date"
               value={form.next_follow_up_at}
               onChange={(e) => setForm({ ...form, next_follow_up_at: e.target.value })}
-              className="input"
+              className="vpv-input"
             />
-          </Field>
-          <Field label="Notes" wide>
+          </ModalField>
+          <ModalField label="Notes" wide>
             <textarea
               rows={3}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="input"
+              className="vpv-input vpv-input--multi"
               placeholder="Interested in production line automation; follow up next Tuesday…"
             />
-          </Field>
+          </ModalField>
         </div>
-        <div className="px-5 py-3 border-t border-vpv-line flex items-center justify-end gap-2 bg-vpv-canvas/40">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-sm text-vpv-muted hover:text-vpv-ink"
-          >
+        <div className="vpv-modal-footer">
+          <button onClick={requestClose} className="vpv-btn vpv-btn--text">
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving || !form.name.trim()}
-            className="px-4 py-1.5 rounded-md text-sm bg-vpv-grad text-white font-medium disabled:opacity-50 flex items-center gap-1.5"
+            className="vpv-btn vpv-btn--primary"
           >
-            <Check className="w-3.5 h-3.5" />
+            <Check style={{ width: 14, height: 14 }} />
             {saving ? "Saving…" : "Save client"}
           </button>
         </div>
       </div>
-      <style jsx>{`
-        .input {
-          width: 100%;
-          padding: 0.5rem 0.75rem;
-          border: 1px solid #e5e7eb;
-          border-radius: 0.5rem;
-          font-size: 0.875rem;
-          outline: none;
-          transition: border-color 120ms;
-        }
-        .input:focus {
-          border-color: #19b8f2;
-        }
-      `}</style>
     </div>
   );
+  return createPortal(content, document.body);
 }
 
-function Field({
+function ModalField({
   label,
   wide,
   children,
@@ -582,8 +595,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={wide ? "col-span-2" : ""}>
-      <label className="block text-[11px] text-vpv-muted mb-1 font-medium">{label}</label>
+    <div className={wide ? "vpv-field-wide" : "vpv-field"}>
+      <label className="vpv-label">{label}</label>
       {children}
     </div>
   );

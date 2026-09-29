@@ -2474,3 +2474,379 @@ html.vpv-preview-theme.has-gradient body {
   background-image: var(--vpv-preview-gradient);
   background-attachment: fixed;
 }
+
+/* ============================================================
+   MODAL PORTAL + APPLE-GRADE MOTION
+   Portalled to document.body so the org's dashboard theme cannot
+   affect any element inside. Every colour is hard-coded here.
+
+   Motion recipe:
+     - scrim fades in over 220ms (linear)
+     - panel enters with translateY + scale + blur relief on a
+       spring curve (~380ms) then settles
+     - reduce-motion collapses all of it
+   ============================================================ */
+
+.vpv-modal-portal {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding: 20px;
+  pointer-events: auto;
+}
+.vpv-modal-scrim {
+  position: absolute; inset: 0;
+  background: rgba(11, 15, 28, 0.62);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.vpv-modal-portal.is-open .vpv-modal-scrim { opacity: 1; }
+.vpv-modal-portal.is-closing .vpv-modal-scrim { opacity: 0; }
+
+.vpv-modal-panel {
+  position: relative;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 16px;
+  box-shadow:
+    0 32px 80px -24px rgba(11, 15, 28, 0.55),
+    0 12px 32px -12px rgba(11, 15, 28, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  width: 100%;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(14px) scale(0.96);
+  filter: blur(4px);
+  transition:
+    opacity 380ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 380ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity, filter;
+}
+.vpv-modal-portal.is-open .vpv-modal-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+.vpv-modal-portal.is-closing .vpv-modal-panel {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  filter: blur(2px);
+  transition-duration: 200ms, 200ms, 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+.vpv-modal-sm { max-width: 460px; }
+.vpv-modal-md { max-width: 620px; }
+
+.vpv-modal-header {
+  display: flex;
+  align-items: flex-start;
+  padding: 18px 20px;
+  border-bottom: 1px solid #eef2f7;
+  gap: 12px;
+}
+.vpv-modal-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.vpv-modal-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.vpv-modal-close {
+  padding: 6px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: grid; place-items: center;
+  transition: background 160ms, color 160ms, transform 160ms;
+}
+.vpv-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  transform: rotate(90deg);
+}
+.vpv-modal-body {
+  padding: 18px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.vpv-modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #eef2f7;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Form fields — locked-down sizing so the org theme can't inflate them. */
+.vpv-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 12px;
+}
+.vpv-field { min-width: 0; }
+.vpv-field-wide { grid-column: 1 / -1; min-width: 0; }
+.vpv-label {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+.vpv-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 160ms, box-shadow 160ms, background 160ms;
+  font-family: inherit;
+}
+.vpv-input::placeholder { color: #94a3b8; }
+.vpv-input:focus {
+  border-color: #19b8f2;
+  box-shadow: 0 0 0 3px rgba(25, 184, 242, 0.15);
+}
+.vpv-input--multi { resize: vertical; min-height: 72px; }
+.vpv-input--search { padding-left: 30px; border-radius: 999px; }
+
+.vpv-hint { font-size: 11px; color: #94a3b8; }
+
+/* Buttons */
+.vpv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 160ms, background 160ms, opacity 160ms;
+  will-change: transform;
+}
+.vpv-btn:active { transform: scale(0.96); }
+.vpv-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.vpv-btn--primary {
+  background: linear-gradient(135deg, #1468d8, #19b8f2);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 8px 20px -8px rgba(20, 104, 216, 0.6);
+}
+.vpv-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 12px 26px -8px rgba(20, 104, 216, 0.75);
+  transform: translateY(-1px);
+}
+.vpv-btn--ghost {
+  background: transparent;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+.vpv-btn--ghost:hover { background: #f1f5f9; color: #0f172a; }
+.vpv-btn--text {
+  background: transparent;
+  color: #64748b;
+  border-color: transparent;
+  padding: 6px 10px;
+}
+.vpv-btn--text:hover { color: #0f172a; }
+
+/* Empty / loading */
+.vpv-empty {
+  display: grid; place-items: center;
+  padding: 32px 16px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Client list rows in the picker */
+.vpv-client-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vpv-client-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 180ms, border-color 180ms, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.vpv-client-row:hover { background: #f8fafc; }
+.vpv-client-row.is-picked {
+  background: #eff6ff;
+  border-color: rgba(25, 184, 242, 0.4);
+  transform: scale(1.005);
+}
+.vpv-avatar {
+  width: 32px; height: 32px; border-radius: 999px;
+  background: linear-gradient(135deg, #22d3ee, #1468d8);
+  color: #ffffff;
+  font-size: 11px; font-weight: 700;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.vpv-client-name {
+  font-size: 13.5px; font-weight: 500; color: #0f172a;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vpv-client-sub {
+  font-size: 11px; color: #94a3b8;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vpv-status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 500;
+  flex-shrink: 0;
+}
+.vpv-status-dot { width: 6px; height: 6px; border-radius: 999px; }
+.vpv-radio {
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 2px solid #e2e8f0;
+  display: grid; place-items: center;
+  transition: border-color 180ms, background 180ms;
+  flex-shrink: 0;
+}
+.vpv-radio.is-picked { border-color: #1468d8; background: #1468d8; }
+.vpv-radio-dot {
+  width: 6px; height: 6px; border-radius: 999px; background: #fff;
+  animation: vpv-radio-in 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes vpv-radio-in {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.vpv-add-btn {
+  width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px; border-radius: 10px;
+  border: 1px dashed #cbd5e1;
+  background: transparent;
+  color: #1468d8;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms, color 160ms, background 160ms, transform 140ms;
+}
+.vpv-add-btn:hover {
+  border-color: #19b8f2;
+  color: #0b5cbf;
+  background: rgba(25, 184, 242, 0.06);
+  transform: translateY(-1px);
+}
+
+/* Staggered fade-up used across lists. */
+@keyframes vpv-fade-up-kf {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.vpv-fade-up {
+  opacity: 0;
+  animation: vpv-fade-up-kf 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Spinner reuse */
+@keyframes vpv-spin-kf { to { transform: rotate(360deg); } }
+.vpv-spin { animation: vpv-spin-kf 700ms linear infinite; }
+
+/* Row hover lift used across cards + client rows. */
+.vpv-hover-lift {
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.vpv-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -14px rgba(11, 61, 145, 0.28);
+}
+
+/* Sales page — sidebar-tab underline animation. */
+.vpv-tab-btn {
+  position: relative;
+}
+.vpv-tab-btn::before {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px; bottom: 0; height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #1468d8, #19b8f2);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.vpv-tab-btn.is-active::before { transform: scaleX(1); }
+
+/* Cross-fade between "My Tours" and "Clients" panes. */
+.vpv-tab-pane {
+  animation: vpv-tab-in 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes vpv-tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Filter chip active-state morph. */
+.vpv-chip {
+  transition: background 200ms, color 200ms, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 200ms;
+}
+.vpv-chip:hover { transform: translateY(-1px); }
+
+/* Table row shimmer on hover. */
+.vpv-table-row {
+  transition: background 200ms;
+}
+.vpv-table-row:hover { background: rgba(148, 163, 184, 0.06); }
+
+/* Reduce motion — collapse every transition + animation. */
+@media (prefers-reduced-motion: reduce) {
+  .vpv-modal-panel,
+  .vpv-modal-scrim,
+  .vpv-modal-close,
+  .vpv-fade-up,
+  .vpv-btn,
+  .vpv-client-row,
+  .vpv-add-btn,
+  .vpv-radio-dot,
+  .vpv-hover-lift,
+  .vpv-tab-btn::before,
+  .vpv-tab-pane,
+  .vpv-chip {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

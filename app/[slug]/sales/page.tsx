@@ -333,7 +333,7 @@ export default function SalesDashboardPage() {
         <nav className="px-3 space-y-0.5">
           <button
             onClick={() => setActiveTab("tours")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${
+            className={`vpv-tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${activeTab === "tours" ? "is-active " : ""}${
               activeTab === "tours"
                 ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
                 : "text-vpv-muted hover:text-vpv-ink hover:bg-vpv-canvas"
@@ -344,7 +344,7 @@ export default function SalesDashboardPage() {
           </button>
           <button
             onClick={() => setActiveTab("clients")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${
+            className={`vpv-tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${activeTab === "clients" ? "is-active " : ""}${
               activeTab === "clients"
                 ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
                 : "text-vpv-muted hover:text-vpv-ink hover:bg-vpv-canvas"
@@ -417,7 +417,7 @@ export default function SalesDashboardPage() {
         </div>
 
         {activeTab === "clients" ? (
-          <div className="px-10 mb-8">
+          <div key="clients" className="px-10 mb-8 vpv-tab-pane">
             {me?.org_id && (
               <ClientsTab
                 orgId={me.org_id}
@@ -435,7 +435,7 @@ export default function SalesDashboardPage() {
             )}
           </div>
         ) : (
-          <>
+          <div key="tours" className="vpv-tab-pane">
         {/* KPIs (only 2 — presentations count + avg time) */}
         <div className="px-10 grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <KpiCard
@@ -617,7 +617,7 @@ export default function SalesDashboardPage() {
             )}
           </div>
         </div>
-          </>
+          </div>
         )}
 
         {/* PRESENT flow — pick which client this presentation is for. */}

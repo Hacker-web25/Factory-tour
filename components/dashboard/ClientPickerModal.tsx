@@ -4,12 +4,21 @@
  * ClientPickerModal — the dialog that appears when a salesperson
  * clicks Present, asking them which client this presentation is for.
  *
- * Single-select. Shows every active + moved-ahead client, with a
- * quick "+ new client" affordance and "skip / no client" option.
- * Emits the picked `Client` (or null) via `onPicked`.
+ * Single-select. Rendered as a portal to document.body so the org's
+ * dashboard theme (dark canvas / colored surfaces) never bleeds into
+ * it. Uses inline styles for the surfaces so the CSS overrides that
+ * remap `bg-white` etc. can't touch it.
+ *
+ * Motion:
+ *  - Scrim fades in over 220ms.
+ *  - Panel enters with a subtle lift+scale on a spring curve
+ *    (~380ms) then settles. Exit reverses it.
+ *  - Rows stagger in with a 24ms cascade on mount.
+ *  - Each row springs on selection.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   listClientsForPresenter,
   createClient,
@@ -17,7 +26,9 @@ import {
   STATUS_COLORS,
   type Client,
 } from "@/lib/clients";
-import { Search, X, Plus, Play, Loader2, UserRound } from "lucide-react";
+import { Search, X, Plus, Play, Loader2 } from "lucide-react";
+
+const EXIT_MS = 200;
 
 export default function ClientPickerModal({
   orgId,
@@ -30,9 +41,6 @@ export default function ClientPickerModal({
   presenterId: string;
   tourTitle?: string;
   onClose: () => void;
-  /** Called with the picked client, or null if the presenter chose
-   *  "skip". Parent is expected to navigate to the tour URL with the
-   *  right query string. */
   onPicked: (client: Client | null) => void;
 }) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -43,13 +51,22 @@ export default function ClientPickerModal({
   const [newName, setNewName] = useState("");
   const [newCompany, setNewCompany] = useState("");
   const [adding, setAdding] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const requestClose = useCallback(() => {
+    setClosing(true);
+    window.setTimeout(onClose, EXIT_MS);
+  }, [onClose]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const rows = await listClientsForPresenter(presenterId);
-      // Only offer clients that are still in play — hide closed/lost
-      // so a stale row isn't picked by accident.
       setClients(rows.filter((c) => c.status === "active" || c.status === "moved_ahead"));
     } finally {
       setLoading(false);
@@ -62,7 +79,7 @@ export default function ClientPickerModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") requestClose();
       if (e.key === "Enter" && pickedId) {
         const c = clients.find((x) => x.id === pickedId);
         if (c) onPicked(c);
@@ -70,7 +87,7 @@ export default function ClientPickerModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, onPicked, pickedId, clients]);
+  }, [requestClose, onPicked, pickedId, clients]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -100,96 +117,99 @@ export default function ClientPickerModal({
     }
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  const isOpen = mounted && !closing;
+  const content = (
     <div
-      className="fixed inset-0 z-[100] grid place-items-center bg-black/55 backdrop-blur-sm"
-      onClick={onClose}
+      className={`vpv-modal-portal ${isOpen ? "is-open" : ""} ${closing ? "is-closing" : ""}`}
+      onClick={requestClose}
     >
+      <div className="vpv-modal-scrim" />
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="vpv-modal-panel vpv-modal-sm"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
-        <div className="px-5 py-4 border-b border-vpv-line flex items-start">
-          <div className="mr-auto">
-            <h3 className="text-base font-semibold text-vpv-ink">Who is this for?</h3>
-            <p className="text-xs text-vpv-muted mt-0.5">
-              {tourTitle ? `Presenting "${tourTitle}".` : "Pick a client."} We'll count
-              this presentation toward their pipeline.
+        <div className="vpv-modal-header">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3 className="vpv-modal-title">Who is this for?</h3>
+            <p className="vpv-modal-sub">
+              {tourTitle ? `Presenting "${tourTitle}".` : "Pick a client."} We'll
+              count this presentation toward their pipeline.
             </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-vpv-tint text-vpv-muted">
-            <X className="w-4 h-4" />
+          <button className="vpv-modal-close" onClick={requestClose} aria-label="Close">
+            <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
 
         {!showAdd ? (
           <>
-            <div className="px-5 pt-4">
-              <div className="relative">
-                <Search className="w-4 h-4 text-vpv-muted absolute left-2.5 top-2" />
+            <div style={{ padding: "16px 20px 0" }}>
+              <div style={{ position: "relative" }}>
+                <Search
+                  style={{
+                    width: 16,
+                    height: 16,
+                    color: "#94a3b8",
+                    position: "absolute",
+                    left: 10,
+                    top: 9,
+                  }}
+                />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search clients…"
-                  className="w-full pl-8 pr-3 py-1.5 rounded-full border border-vpv-line bg-white text-sm focus:outline-none focus:border-vpv-blue"
                   autoFocus
+                  className="vpv-input vpv-input--search"
                 />
               </div>
             </div>
-            <div className="px-5 py-3 max-h-[300px] overflow-y-auto">
+            <div className="vpv-modal-body" style={{ maxHeight: 320 }}>
               {loading ? (
-                <div className="grid place-items-center py-8 text-slate-400">
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                <div className="vpv-empty">
+                  <Loader2 style={{ width: 20, height: 20 }} className="vpv-spin" />
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="text-center py-6 text-vpv-muted text-sm">
+                <div className="vpv-empty">
                   {clients.length === 0
                     ? "No clients yet — add one below."
                     : "No matches."}
                 </div>
               ) : (
-                <ul className="space-y-1">
-                  {filtered.map((c) => {
+                <ul className="vpv-client-list">
+                  {filtered.map((c, i) => {
                     const color = STATUS_COLORS[c.status];
                     const picked = pickedId === c.id;
                     return (
-                      <li key={c.id}>
+                      <li
+                        key={c.id}
+                        className="vpv-fade-up"
+                        style={{ animationDelay: `${i * 24}ms` }}
+                      >
                         <button
                           onClick={() => setPickedId(c.id)}
-                          className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-left transition-colors ${
-                            picked
-                              ? "bg-vpv-tint ring-2 ring-vpv-blue/40"
-                              : "hover:bg-vpv-canvas/60"
-                          }`}
+                          className={`vpv-client-row ${picked ? "is-picked" : ""}`}
                         >
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-[11px] font-bold grid place-items-center flex-shrink-0">
-                            {initials(c.name)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-vpv-ink truncate">
-                              {c.name}
-                            </div>
-                            <div className="text-[11px] text-vpv-muted truncate">
-                              {c.company ?? "—"}
-                            </div>
+                          <div className="vpv-avatar">{initials(c.name)}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="vpv-client-name">{c.name}</div>
+                            <div className="vpv-client-sub">{c.company ?? "—"}</div>
                           </div>
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 ${color.bg} ${color.text}`}
+                            className={`vpv-status-pill ${color.bg} ${color.text}`}
                           >
-                            <span className={`w-1.5 h-1.5 rounded-full ${color.dot}`} />
+                            <span className={`vpv-status-dot ${color.dot}`} />
                             {STATUS_LABELS[c.status]}
                           </span>
-                          {/* Single tick to confirm selection. */}
                           <span
-                            className={`w-4 h-4 rounded-full border-2 flex-shrink-0 grid place-items-center transition-colors ${
-                              picked
-                                ? "border-vpv-blue bg-vpv-blue"
-                                : "border-vpv-line"
-                            }`}
+                            className={`vpv-radio ${picked ? "is-picked" : ""}`}
+                            aria-hidden
                           >
-                            {picked && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                            )}
+                            {picked && <span className="vpv-radio-dot" />}
                           </span>
                         </button>
                       </li>
@@ -198,60 +218,53 @@ export default function ClientPickerModal({
                 </ul>
               )}
             </div>
-            <div className="px-5 pb-2">
-              <button
-                onClick={() => setShowAdd(true)}
-                className="w-full py-2 rounded-lg border border-dashed border-vpv-line hover:border-vpv-blue text-sm text-vpv-blue flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" /> Add new client
+            <div style={{ padding: "0 20px 8px" }}>
+              <button className="vpv-add-btn" onClick={() => setShowAdd(true)}>
+                <Plus style={{ width: 16, height: 16 }} /> Add new client
               </button>
             </div>
           </>
         ) : (
-          <div className="px-5 py-4 space-y-3">
-            <div>
-              <label className="block text-[11px] text-vpv-muted mb-1 font-medium">
-                Client name *
-              </label>
+          <div style={{ padding: "16px 20px" }} className="vpv-fade-up">
+            <div style={{ marginBottom: 12 }}>
+              <label className="vpv-label">Client name *</label>
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Rajesh Kumar"
                 autoFocus
-                className="w-full px-3 py-2 border border-vpv-line rounded-lg text-sm focus:border-vpv-blue outline-none"
+                className="vpv-input"
               />
             </div>
-            <div>
-              <label className="block text-[11px] text-vpv-muted mb-1 font-medium">
-                Company
-              </label>
+            <div style={{ marginBottom: 12 }}>
+              <label className="vpv-label">Company</label>
               <input
                 value={newCompany}
                 onChange={(e) => setNewCompany(e.target.value)}
                 placeholder="Acme Textiles"
-                className="w-full px-3 py-2 border border-vpv-line rounded-lg text-sm focus:border-vpv-blue outline-none"
+                className="vpv-input"
               />
             </div>
-            <div className="text-[11px] text-vpv-muted">
-              You can fill in more details later from the Clients tab.
-            </div>
-            <div className="flex gap-2 pt-1">
+            <div className="vpv-hint">You can fill in more details later.</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button
                 onClick={() => setShowAdd(false)}
-                className="flex-1 py-2 rounded-lg border border-vpv-line text-sm text-vpv-muted"
+                className="vpv-btn vpv-btn--ghost"
+                style={{ flex: 1 }}
               >
                 Cancel
               </button>
               <button
                 onClick={quickAdd}
                 disabled={!newName.trim() || adding}
-                className="flex-1 py-2 rounded-lg bg-vpv-grad text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="vpv-btn vpv-btn--primary"
+                style={{ flex: 1 }}
               >
                 {adding ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 style={{ width: 16, height: 16 }} className="vpv-spin" />
                 ) : (
                   <>
-                    <Plus className="w-4 h-4" /> Add & present
+                    <Plus style={{ width: 16, height: 16 }} /> Add & present
                   </>
                 )}
               </button>
@@ -260,10 +273,11 @@ export default function ClientPickerModal({
         )}
 
         {!showAdd && (
-          <div className="px-5 py-3 border-t border-vpv-line flex items-center gap-2 bg-vpv-canvas/40">
+          <div className="vpv-modal-footer">
             <button
               onClick={() => onPicked(null)}
-              className="text-[11px] text-vpv-muted hover:text-vpv-ink mr-auto"
+              className="vpv-btn vpv-btn--text"
+              style={{ marginRight: "auto" }}
             >
               Skip — no client
             </button>
@@ -273,9 +287,9 @@ export default function ClientPickerModal({
                 if (c) onPicked(c);
               }}
               disabled={!pickedId}
-              className="px-4 py-1.5 rounded-md bg-vpv-grad text-white text-sm font-medium disabled:opacity-50 flex items-center gap-1.5"
+              className="vpv-btn vpv-btn--primary"
             >
-              <Play className="w-3.5 h-3.5" />
+              <Play style={{ width: 14, height: 14 }} />
               Start presenting
             </button>
           </div>
@@ -283,6 +297,8 @@ export default function ClientPickerModal({
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }
 
 function initials(name: string): string {
