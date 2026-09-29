@@ -272,6 +272,68 @@ export default function RightPanel({
   );
 }
 
+/** Miniature preview of a Premium Neon skin, used as a picker thumbnail.
+ *  Draws a stripped-down version of each skin at 72×72 in the same
+ *  whitish-blue as the live marker, so the author can pick by look. */
+function NeonThumb({ kind }: { kind: HotspotSkin }) {
+  return (
+    <span
+      className="absolute inset-0 grid place-items-center"
+      style={{
+        background:
+          "radial-gradient(circle at center, rgba(31,120,180,0.28) 0%, rgba(4,10,22,0.85) 70%)",
+      }}
+    >
+      <svg viewBox="0 0 100 100" width="76%" height="76%" aria-hidden style={{ overflow: "visible" }}>
+        <defs>
+          <filter id={`nt-bloom-${kind}`} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" />
+          </filter>
+        </defs>
+        {kind === "neon-hex" && (
+          <g stroke="#7cd7ff" strokeWidth="2" fill="none" filter={`url(#nt-bloom-${kind})`}>
+            <polygon points="50,10 84,30 84,70 50,90 16,70 16,30" />
+            <polygon points="50,22 74,36 74,64 50,78 26,64 26,36" opacity="0.5" stroke="#fff" />
+          </g>
+        )}
+        {kind === "neon-radar" && (
+          <g stroke="#7cd7ff" strokeWidth="1.5" fill="none" filter={`url(#nt-bloom-${kind})`}>
+            <circle cx="50" cy="50" r="34" />
+            <circle cx="50" cy="50" r="22" />
+            <circle cx="50" cy="50" r="10" />
+            <circle cx="50" cy="16" r="3" fill="#fff" />
+            <circle cx="84" cy="50" r="3" fill="#fff" />
+            <circle cx="50" cy="84" r="3" fill="#fff" />
+            <circle cx="16" cy="50" r="3" fill="#fff" />
+          </g>
+        )}
+        {kind === "neon-crosshair" && (
+          <g stroke="#7cd7ff" strokeWidth="1.6" fill="none" filter={`url(#nt-bloom-${kind})`}>
+            <path d="M 20 50 L 34 50 M 66 50 L 80 50 M 50 20 L 50 34 M 50 66 L 50 80" />
+            <circle cx="50" cy="50" r="30" strokeDasharray="18 12" />
+            <circle cx="50" cy="50" r="8" />
+            <circle cx="50" cy="50" r="2.4" fill="#fff" stroke="none" />
+          </g>
+        )}
+        {kind === "neon-pulse" && (
+          <g stroke="#7cd7ff" strokeWidth="1.4" fill="none" filter={`url(#nt-bloom-${kind})`}>
+            <circle cx="50" cy="50" r="16" />
+            <circle cx="50" cy="50" r="26" />
+            <circle cx="50" cy="50" r="36" opacity="0.6" />
+            <path d="M 50 6 L 50 20 M 50 80 L 50 94 M 6 50 L 20 50 M 80 50 L 94 50" stroke="#fff" opacity="0.7" />
+            <circle cx="50" cy="50" r="6" fill="#fff" stroke="none" />
+          </g>
+        )}
+        {/* satellite arm — shared by all four */}
+        <g stroke="#fff" strokeWidth="1" filter={`url(#nt-bloom-${kind})`}>
+          <line x1="72" y1="28" x2="90" y2="10" />
+          <circle cx="90" cy="10" r="3" fill="#fff" />
+        </g>
+      </svg>
+    </span>
+  );
+}
+
 function VisibilityBtn({
   active,
   onClick,
@@ -2994,6 +3056,58 @@ function AddonTab({
             </div>
           </Section>
         </>
+      )}
+
+      {/* PREMIUM NEON — the reference sci-fi HUD family. Renders in a
+          separate section from the classic skins so authors can browse
+          them visually. Selecting one still writes to `hotspot.skin`,
+          and unselecting drops back to "None". */}
+      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
+        <Section title="Premium neon">
+          <div className="text-[11px] text-neutral-400 mb-2 leading-snug">
+            Bright whitish-blue neon signage with a satellite arm. Overrides
+            the neon glow colour to keep the reference look consistent.
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { k: "neon-hex",       label: "Hexagon" },
+                { k: "neon-radar",     label: "Radar"   },
+                { k: "neon-crosshair", label: "Target"  },
+                { k: "neon-pulse",     label: "Pulse"   },
+              ] as { k: HotspotSkin; label: string }[]
+            ).map(({ k, label }) => {
+              const active = hotspot.skin === k;
+              return (
+                <button
+                  key={k}
+                  onClick={() =>
+                    onChange({ ...hotspot, skin: active ? "none" : k })
+                  }
+                  className={`group relative aspect-square rounded-lg border transition-all overflow-hidden ${
+                    active
+                      ? "border-accent bg-[#0a1424] ring-2 ring-accent/40"
+                      : "border-border bg-panelSoft hover:border-neutral-500"
+                  }`}
+                  title={label}
+                >
+                  <NeonThumb kind={k} />
+                  <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${active ? "text-accent" : "text-neutral-300"}`}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {hotspot.skin && ["neon-hex","neon-radar","neon-crosshair","neon-pulse"].includes(hotspot.skin) && (
+            <button
+              onClick={() => onChange({ ...hotspot, skin: "none" })}
+              className="mt-2 text-[10px] text-neutral-400 hover:text-white"
+            >
+              Clear neon
+            </button>
+          )}
+        </Section>
       )}
 
       {/* PREMIUM SKIN + shape frame. Cosmetic upgrade to any icon

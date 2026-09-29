@@ -2247,3 +2247,130 @@ details > summary::-webkit-details-marker { display: none; }
 .vpv-hc-anchor {
   perspective: 900px;
 }
+
+/* ============================================================
+   PREMIUM NEON hotspot family. Reference-art sci-fi HUD look:
+   crisp SVG rims with layered bloom, an intense white core, and
+   the signature top-right satellite arm.
+
+   Shapes render inside .hs-neon-frame which sizes the SVG canvas.
+   The frame owns the ambient atmosphere; every SVG piece pulses
+   or breathes independently so the marker never feels static.
+   ============================================================ */
+
+/* Wide atmospheric bloom around the whole neon marker. */
+@keyframes hs-neon-aura-kf {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
+}
+.hs-neon-frame .hs-neon-aura {
+  background: radial-gradient(circle at center,
+    color-mix(in srgb, var(--hs-glow) 65%, transparent) 0%,
+    color-mix(in srgb, var(--hs-glow) 22%, transparent) 42%,
+    transparent 72%);
+  filter: blur(12px);
+  animation: hs-neon-aura-kf 3.4s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.hs-neon-frame.is-hovered .hs-neon-aura {
+  opacity: 1;
+  animation-duration: 2s;
+}
+
+/* The SVG artwork stack itself. Sits on top of the aura. */
+.hs-neon-svg {
+  overflow: visible;
+}
+
+/* Icon holder — the centered glyph gets a white-core neon treatment on
+   top of whatever the icon already draws. */
+.hs-neon-icon {
+  filter:
+    drop-shadow(0 0 4px #ffffff)
+    drop-shadow(0 0 10px color-mix(in srgb, var(--hs-glow) 90%, transparent))
+    drop-shadow(0 0 24px color-mix(in srgb, var(--hs-glow) 60%, transparent));
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hs-neon-frame.is-hovered .hs-neon-icon {
+  transform: scale(1.06);
+}
+
+/* Slow breathing scale — used by the hex rim, the crosshair core and
+   the pulse core. */
+@keyframes hs-neon-breathe-kf {
+  0%, 100% { opacity: 0.9; transform: scale(1);    }
+  50%      { opacity: 1;   transform: scale(1.05); }
+}
+.hs-neon-breathe {
+  transform-origin: 100px 100px;
+  animation: hs-neon-breathe-kf 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Vertex sparkles — twinkle staggered per element via inline delay. */
+@keyframes hs-neon-spark-kf {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+.hs-neon-spark {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: hs-neon-spark-kf 2.2s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+/* Radar sweep line rotates once every couple of seconds. */
+@keyframes hs-neon-radar-sweep-kf { to { transform: rotate(360deg); } }
+.hs-neon-radar-sweep {
+  animation: hs-neon-radar-sweep-kf 3.6s linear infinite;
+  will-change: transform;
+}
+
+/* Ripple rings expand outward from the pulse core, fading as they grow. */
+@keyframes hs-neon-ripple-kf {
+  0%   { r: 20; opacity: 0.9; stroke-width: 1.4; }
+  100% { r: 78; opacity: 0;   stroke-width: 0.6; }
+}
+.hs-neon-ripple {
+  transform-origin: 100px 100px;
+  animation: hs-neon-ripple-kf 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: r, opacity;
+}
+
+/* Satellite arm — the little offshoot going up-right into a ringed node.
+   The arm itself is static; the node rotates a subtle orbit and the
+   inner anchor twinkles. */
+.hs-neon-arm {
+  overflow: visible;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--hs-glow) 80%, transparent));
+}
+@keyframes hs-neon-arm-orbit-kf {
+  0%   { transform: rotate(0deg)   scale(1);    opacity: 0.9; }
+  50%  { transform: rotate(180deg) scale(1.15); opacity: 1;   }
+  100% { transform: rotate(360deg) scale(1);    opacity: 0.9; }
+}
+.hs-neon-arm-orbit {
+  transform-origin: 188px 12px;
+  transform-box: fill-box;
+  animation: hs-neon-arm-orbit-kf 3.2s ease-in-out infinite;
+}
+@keyframes hs-neon-arm-node-kf {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1;   }
+}
+.hs-neon-arm-node {
+  animation: hs-neon-arm-node-kf 1.6s ease-in-out infinite;
+}
+
+/* Reduced motion: keep the look, kill the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .hs-neon-aura,
+  .hs-neon-breathe,
+  .hs-neon-spark,
+  .hs-neon-radar-sweep,
+  .hs-neon-ripple,
+  .hs-neon-arm-orbit,
+  .hs-neon-arm-node {
+    animation: none !important;
+  }
+}

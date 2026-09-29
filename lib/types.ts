@@ -251,7 +251,14 @@ export type HotspotSkin =
   | "crosshair"   // Tech Crosshair — bracketed target
   | "hexagon"     // Hex frame around the icon
   | "orbit"       // 3 dots orbiting the icon
-  | "scanner";    // 4 scanner corner brackets
+  | "scanner"     // 4 scanner corner brackets
+  // Premium Neon — reference-art "sci-fi HUD" family. Each renders as
+  // crisp SVG with an intense whitish-blue bloom and the signature
+  // top-right satellite arm + orbiting node.
+  | "neon-hex"        // hexagon rim + gear-badge style
+  | "neon-radar"      // orbital rings with satellite dots
+  | "neon-crosshair"  // precision target with tick marks
+  | "neon-pulse";     // concentric rings around a bright core
 
 /** Frame shape drawn around the icon inside a skin. Circle is the classic. */
 export type HotspotIconShape =
