@@ -131,10 +131,17 @@ export default function HotspotSkinFrame({
         {/* Signature satellite arm going up-right, with the pulsing node. */}
         <NeonSatelliteArm frameSize={frameSize} />
 
-        {/* Icon sits centered, boosted white-blue for the neon look. */}
+        {/* Icon sits centered inside the shape's interior, boosted
+            white-blue for the neon look. No fixed-size holder — the icon
+            keeps its natural size and we scale it up so it visually fills
+            the shape rather than looking lost inside a 2.35× frame. */}
         <span
           className="relative grid place-items-center hs-neon-icon"
-          style={{ width: size * 0.62, height: size * 0.62 }}
+          style={{
+            width: size,
+            height: size,
+            transform: "scale(1.15)",
+          }}
         >
           <span className={`grid place-items-center${neon ? " hs-neon" : ""}`}>
             {children}
@@ -655,12 +662,14 @@ function arcPath(cx: number, cy: number, r: number, a1: number, a2: number): str
  * the frame so it stays crisp at any hotspot scale.
  */
 function NeonSatelliteArm({ frameSize }: { frameSize: number }) {
-  // Anchor point on the shape (inside the marker canvas) and the far node.
-  // Coordinates in the same 200×200 space as the SkinSvg for consistency.
+  // Anchor point on the OUTSIDE of the shape (roughly the top-right vertex
+  // of a hex at radius ~66) and the far node. Coordinates in the same
+  // 200×200 space as the SkinSvg for consistency. Starting outside every
+  // shape means the line reads as an offshoot rather than crossing the rim.
   const cx = 100;
   const cy = 100;
-  const start = { x: cx + 46, y: cy - 46 };
-  const end = { x: cx + 88, y: cy - 88 };
+  const start = { x: cx + 54, y: cy - 54 };
+  const end = { x: cx + 92, y: cy - 92 };
   return (
     <svg
       className="absolute inset-0 pointer-events-none hs-neon-arm"

@@ -2633,6 +2633,10 @@ function AddonTab({
   onTest: () => void;
 }) {
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  // Whether the classic Premium Skin picker is expanded. Collapsed by
+  // default — the Premium Neon tiles are the primary control now, and
+  // authors reveal the older options only if they want them.
+  const [showClassicSkin, setShowClassicSkin] = useState(false);
 
   function setW(w: number) {
     if (hotspot.link_wh) {
@@ -3058,61 +3062,96 @@ function AddonTab({
         </>
       )}
 
-      {/* PREMIUM NEON — the reference sci-fi HUD family. Renders in a
-          separate section from the classic skins so authors can browse
-          them visually. Selecting one still writes to `hotspot.skin`,
-          and unselecting drops back to "None". */}
-      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
-        <Section title="Premium neon">
-          <div className="text-[11px] text-neutral-400 mb-2 leading-snug">
-            Bright whitish-blue neon signage with a satellite arm. Overrides
-            the neon glow colour to keep the reference look consistent.
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                { k: "neon-hex",       label: "Hexagon" },
-                { k: "neon-radar",     label: "Radar"   },
-                { k: "neon-crosshair", label: "Target"  },
-                { k: "neon-pulse",     label: "Pulse"   },
-              ] as { k: HotspotSkin; label: string }[]
-            ).map(({ k, label }) => {
-              const active = hotspot.skin === k;
-              return (
-                <button
-                  key={k}
-                  onClick={() =>
-                    onChange({ ...hotspot, skin: active ? "none" : k })
-                  }
-                  className={`group relative aspect-square rounded-lg border transition-all overflow-hidden ${
-                    active
-                      ? "border-accent bg-[#0a1424] ring-2 ring-accent/40"
-                      : "border-border bg-panelSoft hover:border-neutral-500"
-                  }`}
-                  title={label}
-                >
-                  <NeonThumb kind={k} />
-                  <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${active ? "text-accent" : "text-neutral-300"}`}>
-                    {label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {hotspot.skin && ["neon-hex","neon-radar","neon-crosshair","neon-pulse"].includes(hotspot.skin) && (
-            <button
-              onClick={() => onChange({ ...hotspot, skin: "none" })}
-              className="mt-2 text-[10px] text-neutral-400 hover:text-white"
-            >
-              Clear neon
-            </button>
-          )}
-        </Section>
-      )}
+      {/* PREMIUM NEON — the reference sci-fi HUD family. The 5-tile
+          picker (None + 4 variants) is the primary skin control. When
+          set to None, a small trigger below opens the classic Premium
+          Skin section for the older ring / core / crosshair / hex / orbit
+          / scanner styles; when a neon variant is picked, that section is
+          hidden entirely since only one skin can be active at a time. */}
+      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (() => {
+        const NEON_KEYS: HotspotSkin[] = ["neon-hex","neon-radar","neon-crosshair","neon-pulse"];
+        const isNeon = !!hotspot.skin && NEON_KEYS.includes(hotspot.skin);
+        return (
+          <Section title="Premium neon">
+            <div className="text-[11px] text-neutral-400 mb-2 leading-snug">
+              Bright whitish-blue neon signage with a satellite arm. Overrides
+              the neon glow colour to keep the reference look consistent.
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {/* None tile — clears any skin. Sits first so it's the
+                  easiest thing to reach after picking a wrong variant. */}
+              <button
+                onClick={() => onChange({ ...hotspot, skin: "none" })}
+                className={`group relative aspect-square rounded-lg border transition-all overflow-hidden ${
+                  !hotspot.skin || hotspot.skin === "none"
+                    ? "border-accent bg-[#0a1424] ring-2 ring-accent/40"
+                    : "border-border bg-panelSoft hover:border-neutral-500"
+                }`}
+                title="None"
+              >
+                <span className="absolute inset-0 grid place-items-center">
+                  <svg viewBox="0 0 32 32" width="42%" height="42%" aria-hidden>
+                    <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-500" />
+                    <line x1="7" y1="7" x2="25" y2="25" stroke="currentColor" strokeWidth="2" className="text-neutral-500" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${(!hotspot.skin || hotspot.skin === "none") ? "text-accent" : "text-neutral-300"}`}>
+                  None
+                </span>
+              </button>
+              {(
+                [
+                  { k: "neon-hex",       label: "Hexagon" },
+                  { k: "neon-radar",     label: "Radar"   },
+                  { k: "neon-crosshair", label: "Target"  },
+                  { k: "neon-pulse",     label: "Pulse"   },
+                ] as { k: HotspotSkin; label: string }[]
+              ).map(({ k, label }) => {
+                const active = hotspot.skin === k;
+                return (
+                  <button
+                    key={k}
+                    onClick={() =>
+                      onChange({ ...hotspot, skin: active ? "none" : k })
+                    }
+                    className={`group relative aspect-square rounded-lg border transition-all overflow-hidden ${
+                      active
+                        ? "border-accent bg-[#0a1424] ring-2 ring-accent/40"
+                        : "border-border bg-panelSoft hover:border-neutral-500"
+                    }`}
+                    title={label}
+                  >
+                    <NeonThumb kind={k} />
+                    <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${active ? "text-accent" : "text-neutral-300"}`}>
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-      {/* PREMIUM SKIN + shape frame. Cosmetic upgrade to any icon
-          hotspot — cross-icon glow / crosshair / hexagon / orbit etc. */}
-      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && (
+            {/* When neon is None, offer the classic Premium Skin picker
+                behind a compact trigger. When a neon variant is active
+                the classic section is hidden so only one skin system is
+                ever visible. */}
+            {!isNeon && (
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowClassicSkin(v => !v)}
+                  className="w-full px-2.5 py-2 rounded-md border border-border bg-panelSoft hover:border-neutral-500 text-[11px] text-neutral-300 flex items-center justify-between transition-colors"
+                >
+                  <span>{showClassicSkin ? "Hide" : "Apply"} classic premium skin</span>
+                  <span className={`text-neutral-500 transition-transform ${showClassicSkin ? "rotate-180" : ""}`}>▾</span>
+                </button>
+              </div>
+            )}
+          </Section>
+        );
+      })()}
+
+      {/* PREMIUM SKIN + shape frame. Hidden unless the author explicitly
+          opens it via the trigger above, AND no neon variant is active. */}
+      {hotspot.type !== "text" && hotspot.type !== "person" && hotspot.type !== "polygon" && showClassicSkin && !(["neon-hex","neon-radar","neon-crosshair","neon-pulse"] as string[]).includes(hotspot.skin ?? "") && (
         <Section title="Premium skin">
           <div>
             <div className="eyebrow mb-1.5">Style</div>

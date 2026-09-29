@@ -2350,7 +2350,7 @@ details > summary::-webkit-details-marker { display: none; }
   100% { transform: rotate(360deg) scale(1);    opacity: 0.9; }
 }
 .hs-neon-arm-orbit {
-  transform-origin: 188px 12px;
+  transform-origin: 192px 8px;
   transform-box: fill-box;
   animation: hs-neon-arm-orbit-kf 3.2s ease-in-out infinite;
 }
