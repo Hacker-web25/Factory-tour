@@ -3078,25 +3078,34 @@ function AddonTab({
               the neon glow colour to keep the reference look consistent.
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {/* None tile — clears any skin. Sits first so it's the
+              {/* Classic tile — clears every skin AND shape frame so the
+                  hotspot renders as the original plain icon with no
+                  glow, drop-shadow or backing. Sits first so it's the
                   easiest thing to reach after picking a wrong variant. */}
               <button
-                onClick={() => onChange({ ...hotspot, skin: "none" })}
+                onClick={() =>
+                  onChange({
+                    ...hotspot,
+                    skin: "none",
+                    icon_shape: "circle",
+                  })
+                }
                 className={`group relative aspect-square rounded-lg border transition-all overflow-hidden ${
-                  !hotspot.skin || hotspot.skin === "none"
+                  (!hotspot.skin || hotspot.skin === "none") &&
+                  (!hotspot.icon_shape || hotspot.icon_shape === "circle")
                     ? "border-accent bg-[#0a1424] ring-2 ring-accent/40"
                     : "border-border bg-panelSoft hover:border-neutral-500"
                 }`}
-                title="None"
+                title="Classic — plain hotspot, no glow"
               >
                 <span className="absolute inset-0 grid place-items-center">
-                  <svg viewBox="0 0 32 32" width="42%" height="42%" aria-hidden>
-                    <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" strokeWidth="2" className="text-neutral-500" />
-                    <line x1="7" y1="7" x2="25" y2="25" stroke="currentColor" strokeWidth="2" className="text-neutral-500" strokeLinecap="round" />
+                  {/* A simple filled dot — reads as "the plain original marker". */}
+                  <svg viewBox="0 0 32 32" width="46%" height="46%" aria-hidden>
+                    <circle cx="16" cy="16" r="9" fill="currentColor" className="text-neutral-400" />
                   </svg>
                 </span>
-                <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${(!hotspot.skin || hotspot.skin === "none") ? "text-accent" : "text-neutral-300"}`}>
-                  None
+                <span className={`absolute left-1.5 bottom-1 text-[10px] font-medium ${((!hotspot.skin || hotspot.skin === "none") && (!hotspot.icon_shape || hotspot.icon_shape === "circle")) ? "text-accent" : "text-neutral-300"}`}>
+                  Classic
                 </span>
               </button>
               {(
@@ -3158,7 +3167,7 @@ function AddonTab({
             <div className="grid grid-cols-3 gap-1.5">
               {(
                 [
-                  { k: "none", label: "None" },
+                  { k: "none", label: "Classic" },
                   { k: "ring", label: "Ring" },
                   { k: "core", label: "Core" },
                   { k: "crosshair", label: "Crosshair" },

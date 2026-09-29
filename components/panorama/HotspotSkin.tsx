@@ -231,9 +231,13 @@ export default function HotspotSkinFrame({
             }}
           />
         )}
+        {/* Neon bloom on the icon itself is only applied when there is
+            an actual skin or shape frame. A truly "classic" hotspot
+            (no skin, plain circle) renders as its raw icon with no
+            drop-shadow at all — matching the original pre-skin look. */}
         <span
           className={`relative grid place-items-center${
-            neon ? " hs-neon" : ""
+            neon && hasFrame ? " hs-neon" : ""
           }`}
         >
           {children}
