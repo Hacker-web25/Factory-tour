@@ -100,10 +100,11 @@ export default function HotspotSkinFrame({
   // from the reference tiles).
   const backing = fill ? hexToRgba(fill, 0.55) : "rgba(9,15,32,0.55)";
 
-  // Neon skins lock the glow to the reference whitish-blue so the effect
-  // stays consistent with the artwork. Authors can still tint the icon
-  // itself; only the aura is clamped.
-  const effectiveGlow = neonFamily ? "#7cd7ff" : glow;
+  // Callers pre-resolve the glow — neon skins fall back to the
+  // reference whitish-blue at the call site (see PanoramaViewer /
+  // FlatViewer) so an author's glow_color override flows through
+  // untouched.
+  const effectiveGlow = glow;
 
   const cssVars = {
     ["--hs-glow" as string]: effectiveGlow,

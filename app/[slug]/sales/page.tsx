@@ -15,6 +15,7 @@ import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
 import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import { startPresence } from "@/lib/presence";
 import { timeGreeting } from "@/lib/greeting";
 import {
@@ -301,6 +302,7 @@ export default function SalesDashboardPage() {
   }
 
   return (
+    <OrgThemeProvider orgId={me?.org_id ?? null}>
     <div
       className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
       style={{
@@ -573,6 +575,7 @@ export default function SalesDashboardPage() {
         </div>
       </main>
     </div>
+    </OrgThemeProvider>
   );
 }
 

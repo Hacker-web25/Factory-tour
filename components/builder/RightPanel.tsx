@@ -3139,6 +3139,36 @@ function AddonTab({
               })}
             </div>
 
+            {/* Neon glow colour picker — visible only when a neon variant
+                is active. Defaults to the reference whitish-blue (#7cd7ff);
+                the author can override to any brand colour. */}
+            {isNeon && (
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-neutral-300">Neon glow colour</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={hotspot.glow_color ?? "#7cd7ff"}
+                    onChange={(e) =>
+                      onChange({ ...hotspot, glow_color: e.target.value })
+                    }
+                    className="w-8 h-7 rounded bg-panelSoft border border-border cursor-pointer"
+                    title="Neon glow colour"
+                  />
+                  {hotspot.glow_color && (
+                    <button
+                      onClick={() =>
+                        onChange({ ...hotspot, glow_color: null })
+                      }
+                      className="text-[10px] text-neutral-400 hover:text-white"
+                    >
+                      reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* When neon is None, offer the classic Premium Skin picker
                 behind a compact trigger. When a neon variant is active
                 the classic section is hidden so only one skin system is

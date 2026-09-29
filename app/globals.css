@@ -2374,3 +2374,103 @@ details > summary::-webkit-details-marker { display: none; }
     animation: none !important;
   }
 }
+
+/* ============================================================
+   ORG DASHBOARD THEME
+   Overrides scoped to `.vpv-themed` (set by <OrgThemeProvider>).
+   Nothing outside this wrapper is touched — the public tour viewer,
+   the login screen, and other orgs' dashboards keep their stock look.
+
+   The dashboard uses Tailwind classes like `bg-vpv-canvas`,
+   `text-vpv-ink`, `border-vpv-line`, `hover:bg-vpv-tint`. Those keep
+   working stock; we override them to CSS vars when the wrapper is
+   present. Same trick for buttons and gradient overlay.
+   ============================================================ */
+
+/* The wrapper itself provides the base surface colour. */
+.vpv-themed {
+  background-color: var(--vpv-canvas, #fafafa);
+  color: var(--vpv-ink, #0a0a0a);
+  min-height: 100%;
+}
+.vpv-themed.has-gradient {
+  /* gradient set as inline style on the wrapper via themeToStyle */
+}
+
+/* Tailwind class overrides — swap the hardcoded values used across
+   the dashboard for the theme vars. */
+.vpv-themed .bg-vpv-canvas   { background-color: var(--vpv-canvas) !important; }
+.vpv-themed .bg-vpv-tint     { background-color: var(--vpv-tint) !important; }
+.vpv-themed .hover\:bg-vpv-tint:hover { background-color: var(--vpv-tint) !important; }
+.vpv-themed .text-vpv-ink    { color: var(--vpv-ink) !important; }
+.vpv-themed .text-vpv-muted  { color: var(--vpv-muted) !important; }
+.vpv-themed .border-vpv-line { border-color: var(--vpv-line) !important; }
+
+/* White cards / panels — very common on the stock dashboard. */
+.vpv-themed .bg-white { background-color: var(--vpv-canvas) !important; }
+
+/* Buttons default to the button-bg/button-text vars via a helper
+   class the settings modal encourages, but we also catch the common
+   `bg-black`, `bg-slate-900`, `bg-neutral-900` fills used across the
+   dashboard for primary actions. */
+.vpv-themed .bg-black,
+.vpv-themed .bg-slate-900,
+.vpv-themed .bg-neutral-900 {
+  background-color: var(--vpv-button-bg) !important;
+  color: var(--vpv-button-text) !important;
+}
+.vpv-themed button:not(.vpv-themed-skip) {
+  transition: background-color 200ms, backdrop-filter 200ms;
+}
+
+/* Translucent bg — every white / canvas surface becomes glass. */
+.vpv-themed.is-translucent-bg .bg-white,
+.vpv-themed.is-translucent-bg .bg-vpv-canvas {
+  background-color: color-mix(in srgb, var(--vpv-canvas) 55%, transparent) !important;
+  backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(140%);
+}
+
+/* Translucent buttons. */
+.vpv-themed.is-translucent-btn .bg-black,
+.vpv-themed.is-translucent-btn .bg-slate-900,
+.vpv-themed.is-translucent-btn .bg-neutral-900 {
+  background-color: color-mix(in srgb, var(--vpv-button-bg) 55%, transparent) !important;
+  backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--vpv-button-text) 20%, transparent);
+}
+
+/* Live-preview companion — same rules apply when the settings modal
+   is open and writing vars to <html> instead of a wrapper element. */
+html.vpv-preview-theme { background-color: var(--vpv-canvas); }
+html.vpv-preview-theme .bg-white,
+html.vpv-preview-theme .bg-vpv-canvas   { background-color: var(--vpv-canvas) !important; }
+html.vpv-preview-theme .bg-vpv-tint     { background-color: var(--vpv-tint) !important; }
+html.vpv-preview-theme .hover\:bg-vpv-tint:hover { background-color: var(--vpv-tint) !important; }
+html.vpv-preview-theme .text-vpv-ink    { color: var(--vpv-ink) !important; }
+html.vpv-preview-theme .text-vpv-muted  { color: var(--vpv-muted) !important; }
+html.vpv-preview-theme .border-vpv-line { border-color: var(--vpv-line) !important; }
+html.vpv-preview-theme .bg-black,
+html.vpv-preview-theme .bg-slate-900,
+html.vpv-preview-theme .bg-neutral-900 {
+  background-color: var(--vpv-button-bg) !important;
+  color: var(--vpv-button-text) !important;
+}
+html.vpv-preview-theme.is-translucent-bg .bg-white,
+html.vpv-preview-theme.is-translucent-bg .bg-vpv-canvas {
+  background-color: color-mix(in srgb, var(--vpv-canvas) 55%, transparent) !important;
+  backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(140%);
+}
+html.vpv-preview-theme.is-translucent-btn .bg-black,
+html.vpv-preview-theme.is-translucent-btn .bg-slate-900,
+html.vpv-preview-theme.is-translucent-btn .bg-neutral-900 {
+  background-color: color-mix(in srgb, var(--vpv-button-bg) 55%, transparent) !important;
+  backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--vpv-blur, 14px)) saturate(160%);
+}
+html.vpv-preview-theme.has-gradient body {
+  background-image: var(--vpv-preview-gradient);
+  background-attachment: fixed;
+}

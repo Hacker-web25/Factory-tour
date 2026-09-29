@@ -640,7 +640,15 @@ function FlatHotspot({
             skin={h.skin}
             shape={h.icon_shape}
             size={Math.max(w, hh)}
-            glow={h.glow_color || h.color || "#22d3ee"}
+            glow={
+              h.glow_color ||
+              (h.skin === "neon-hex" ||
+              h.skin === "neon-radar" ||
+              h.skin === "neon-crosshair" ||
+              h.skin === "neon-pulse"
+                ? "#7cd7ff"
+                : h.color || "#22d3ee")
+            }
             intensity={h.glow_intensity}
             fill={h.shape_fill_color}
             hovered={hovered}

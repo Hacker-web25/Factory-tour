@@ -11,6 +11,8 @@ import AssignTourModal from "@/components/dashboard/AssignTourModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import { startPresence } from "@/lib/presence";
+import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
+import { DashboardThemeButton } from "@/components/dashboard/DashboardThemeSettings";
 import { timeGreeting } from "@/lib/greeting";
 import {
   getMyProfile,
@@ -431,6 +433,7 @@ export default function ClientDashboardPage() {
   }
 
   return (
+    <OrgThemeProvider orgId={me?.org_id ?? null}>
     <div
       className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
       style={{
@@ -467,6 +470,9 @@ export default function ClientDashboardPage() {
           <div className="flex items-center gap-3">
             {me?.org_id && (
               <NotificationsBell orgId={me.org_id} currentUserId={me.id} />
+            )}
+            {me?.org_id && me?.role === "org_admin" && (
+              <DashboardThemeButton orgId={me.org_id} />
             )}
             <div className="relative">
               <button
@@ -784,6 +790,7 @@ export default function ClientDashboardPage() {
         }
       `}</style>
     </div>
+    </OrgThemeProvider>
   );
 }
 
