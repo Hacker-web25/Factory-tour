@@ -264,17 +264,17 @@ function KpiCard({
     rose: "bg-rose-100 text-rose-600",
   }[tone];
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <div className="flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-full grid place-items-center ${bg}`}>{icon}</div>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-slate-500 font-medium">{title}</div>
-          <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums truncate">{value}</div>
-          {typeof delta === "number" ? <DeltaLabel value={delta} /> : subtext ? (
-            <div className="text-xs text-slate-500 mt-0.5">{subtext}</div>
-          ) : null}
-        </div>
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-w-0">
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className={`w-10 h-10 rounded-full grid place-items-center flex-shrink-0 ${bg}`}>{icon}</div>
+        <div className="text-[11px] text-slate-500 font-medium leading-tight">{title}</div>
       </div>
+      <div className="text-2xl font-bold text-slate-900 tabular-nums whitespace-nowrap">{value}</div>
+      {typeof delta === "number" ? (
+        <DeltaLabel value={delta} />
+      ) : subtext ? (
+        <div className="text-[11px] text-slate-500 mt-0.5">{subtext}</div>
+      ) : null}
     </div>
   );
 }
@@ -282,17 +282,21 @@ function KpiCard({
 function DeltaLabel({ value }: { value: number }) {
   if (value === 0)
     return (
-      <div className="flex items-center gap-1 text-xs mt-0.5 text-slate-500">
+      <div className="flex items-center gap-1 text-[11px] mt-0.5 text-slate-500 whitespace-nowrap">
         <Minus className="w-3 h-3" />
-        <span>0% vs previous</span>
+        <span>0% vs prev.</span>
       </div>
     );
   const up = value > 0;
   const Icon = up ? TrendingUp : TrendingDown;
   return (
-    <div className={`flex items-center gap-1 text-xs mt-0.5 ${up ? "text-emerald-600" : "text-rose-600"}`}>
+    <div
+      className={`flex items-center gap-1 text-[11px] mt-0.5 whitespace-nowrap ${
+        up ? "text-emerald-600" : "text-rose-600"
+      }`}
+    >
       <Icon className="w-3 h-3" />
-      <span>{Math.abs(value)}% vs previous</span>
+      <span>{Math.abs(value)}% vs prev.</span>
     </div>
   );
 }
@@ -324,21 +328,21 @@ function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: 
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-[13px] table-auto">
           <thead>
-            <tr className="text-xs uppercase tracking-wider text-slate-500 border-b border-slate-200">
-              <th className="px-3 py-3 text-left w-8">#</th>
-              <th className="px-3 py-3 text-left">Salesperson</th>
-              <th className="px-3 py-3 text-left">Presentations ↓</th>
-              <th className="px-3 py-3 text-left">vs Last Period</th>
-              <th className="px-3 py-3 text-left">Total Viewing Time</th>
-              <th className="px-3 py-3 text-left">Avg Duration</th>
-              <th className="px-3 py-3 text-left">Unique Buyers</th>
-              <th className="px-3 py-3 text-left">Repeat Buyers</th>
-              <th className="px-3 py-3 text-left">Deals Closed</th>
-              <th className="px-3 py-3 text-left">Top Areas Viewed</th>
-              <th className="px-3 py-3 text-left">Weekly Trend</th>
-              <th className="px-3 py-3 text-left">Last Presentation</th>
+            <tr className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+              <th className="px-2 py-3 text-left w-6">#</th>
+              <th className="px-2 py-3 text-left">Salesperson</th>
+              <th className="px-2 py-3 text-left">Pres. ↓</th>
+              <th className="px-2 py-3 text-left">vs Prev</th>
+              <th className="px-2 py-3 text-left">Total Time</th>
+              <th className="px-2 py-3 text-left">Avg Dur.</th>
+              <th className="px-2 py-3 text-left">Unique</th>
+              <th className="px-2 py-3 text-left">Repeat</th>
+              <th className="px-2 py-3 text-left">Deals</th>
+              <th className="px-2 py-3 text-left">Top Areas Viewed</th>
+              <th className="px-2 py-3 text-left">Weekly Trend</th>
+              <th className="px-2 py-3 text-left">Last Presentation</th>
             </tr>
           </thead>
           <tbody>
@@ -351,20 +355,20 @@ function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: 
             )}
             {rows.map((r, i) => (
               <tr key={r.member.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
-                <td className="px-3 py-3 text-slate-400">{i + 1}</td>
-                <td className="px-3 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-[10px] font-bold grid place-items-center">
+                <td className="px-2 py-3 text-slate-400">{i + 1}</td>
+                <td className="px-2 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-[10px] font-bold grid place-items-center flex-shrink-0">
                       {initials(r.member.full_name || r.member.email)}
                     </div>
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800 truncate">
                       {r.member.full_name || r.member.email.split("@")[0]}
                     </span>
                   </div>
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <span
-                    className={`inline-block font-semibold tabular-nums px-2 py-0.5 rounded ${
+                    className={`inline-block font-semibold tabular-nums px-2 py-0.5 rounded text-xs ${
                       r.stats.presentations >= 15
                         ? "bg-emerald-100 text-emerald-800"
                         : r.stats.presentations >= 10
@@ -375,22 +379,22 @@ function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: 
                     {r.stats.presentations}
                   </span>
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <MiniDelta value={r.vsPrev} />
                 </td>
-                <td className="px-3 py-3 text-slate-700 tabular-nums">
+                <td className="px-2 py-3 text-slate-700 tabular-nums whitespace-nowrap">
                   {formatDurationShort(r.stats.totalSeconds)}
                 </td>
-                <td className="px-3 py-3 text-slate-700 tabular-nums">
+                <td className="px-2 py-3 text-slate-700 tabular-nums whitespace-nowrap">
                   {formatDurationShort(r.stats.avgSeconds)}
                 </td>
-                <td className="px-3 py-3 text-slate-700 tabular-nums">{r.stats.uniqueProspects}</td>
-                <td className="px-3 py-3 text-slate-700 tabular-nums">
-                  {Math.max(0, r.stats.uniqueProspects - r.stats.presentations >= 0 ? 0 : r.stats.presentations - r.stats.uniqueProspects)}
+                <td className="px-2 py-3 text-slate-700 tabular-nums">{r.stats.uniqueProspects}</td>
+                <td className="px-2 py-3 text-slate-700 tabular-nums">
+                  {repeatBuyerCount(r.stats, overview.allEvents, r.member.id)}
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <span
-                    className={`inline-block font-semibold tabular-nums px-2 py-0.5 rounded ${
+                    className={`inline-block font-semibold tabular-nums px-2 py-0.5 rounded text-xs ${
                       r.deals >= 2
                         ? "bg-emerald-100 text-emerald-800"
                         : r.deals === 1
@@ -401,18 +405,18 @@ function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: 
                     {r.deals}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-slate-600 text-xs">
+                <td className="px-2 py-3 text-slate-600 text-xs max-w-[180px] truncate">
                   {r.topAreas.length === 0
                     ? "—"
                     : r.topAreas
                         .slice(0, 2)
-                        .map((a) => overview.scenesById.get(a.sceneId) || "Scene")
+                        .map((a) => overview.scenesById.get(a.sceneId)?.name || "Scene")
                         .join(", ")}
                 </td>
-                <td className="px-3 py-3">
+                <td className="px-2 py-3">
                   <Sparkline data={r.stats.sparkline} />
                 </td>
-                <td className="px-3 py-3 text-slate-500 text-xs whitespace-nowrap">
+                <td className="px-2 py-3 text-slate-500 text-xs whitespace-nowrap">
                   {r.lastPres ? formatDateShort(r.lastPres) : "—"}
                 </td>
               </tr>
@@ -808,6 +812,32 @@ function rangeLabelFor(windowDays: number): string {
   const fmt = (d: Date) =>
     `${d.getDate()} ${d.toLocaleString("en", { month: "short" })} ${d.getFullYear()}`;
   return `${fmt(start)}  –  ${fmt(end)}`;
+}
+
+/** Repeat buyers = distinct viewers who appear in more than one session
+ *  for this presenter. A rough proxy: count viewer_fingerprints that
+ *  appear across >1 session_id for this member. */
+function repeatBuyerCount(
+  stats: MemberStats,
+  events: TeamOverview["allEvents"],
+  memberId: string
+): number {
+  const bySession = new Map<string, Set<string>>();
+  for (const e of events) {
+    if (e.presenter_user_id !== memberId) continue;
+    if (!e.viewer_fingerprint || !e.session_id) continue;
+    let s = bySession.get(e.viewer_fingerprint);
+    if (!s) {
+      s = new Set();
+      bySession.set(e.viewer_fingerprint, s);
+    }
+    s.add(e.session_id);
+  }
+  let repeats = 0;
+  for (const sessions of bySession.values()) {
+    if (sessions.size > 1) repeats += 1;
+  }
+  return repeats;
 }
 
 function sparklineDelta(spark: number[]): number {

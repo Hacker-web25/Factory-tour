@@ -11,7 +11,6 @@ import VpvLogo from "@/components/dashboard/VpvLogo";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import { startPresence } from "@/lib/presence";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
-import SalesTeamMIS from "@/components/dashboard/SalesTeamMIS";
 import { timeGreeting } from "@/lib/greeting";
 import {
   getMyProfile,
@@ -637,14 +636,6 @@ export default function ClientDashboardPage() {
                 />
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Sales Team MIS — org_admin analytics dashboard, using real
-            data from tour_events + presentation_sessions. */}
-        {me?.org_id && me?.role === "org_admin" && (
-          <div className="px-6 pb-6">
-            <SalesTeamMIS orgId={me.org_id} />
           </div>
         )}
 
