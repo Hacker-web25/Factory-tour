@@ -28,6 +28,11 @@ import {
   formatHours,
 } from "@/lib/salesAnalytics";
 import {
+  dealsClosedByMember,
+  pipelineBreakdown,
+  type ClientStatus,
+} from "@/lib/clients";
+import {
   Calendar,
   Download,
   Users,
@@ -64,6 +69,7 @@ type PerMemberExtra = {
 
 type BackfillData = {
   dealsByMember: Map<string, number>;
+  pipelineByMember: Map<string, Record<ClientStatus, number>>;
   topSceneCountsByMember: Map<string, Array<{ sceneId: string; count: number }>>;
   perMemberLastPres: Map<string, string>;
   globalScenes: SceneAggregate[];
@@ -637,23 +643,17 @@ async function computeBackfill(
   ov: TeamOverview,
   windowDays: number
 ): Promise<BackfillData> {
-  // Deals closed per member — from presentation_sessions.outcome. Fails
-  // gracefully to empty map if the migration hasn't been run yet.
-  const dealsByMember = new Map<string, number>();
-  const sinceIso = new Date(Date.now() - windowDays * 24 * 3600 * 1000).toISOString();
+  // Deals closed per member — from the clients pipeline table. Falls
+  // back to an empty map if the migration hasn't been run yet.
+  let dealsByMember = new Map<string, number>();
+  let pipelineByMember = new Map<string, Record<ClientStatus, number>>();
   try {
-    const { data: dealRows } = await supabase
-      .from("presentation_sessions")
-      .select("presenter_user_id, outcome, started_at")
-      .eq("org_id", orgId)
-      .eq("outcome", "closed")
-      .gte("started_at", sinceIso);
-    for (const r of (dealRows ?? []) as { presenter_user_id: string | null }[]) {
-      if (!r.presenter_user_id) continue;
-      dealsByMember.set(r.presenter_user_id, (dealsByMember.get(r.presenter_user_id) ?? 0) + 1);
-    }
+    [dealsByMember, pipelineByMember] = await Promise.all([
+      dealsClosedByMember(orgId, windowDays),
+      pipelineBreakdown(orgId),
+    ]);
   } catch {
-    /* migration not run — leave map empty */
+    /* migration not run — leave maps empty */
   }
 
   // Per-member "top viewed areas" — count scene_view events per member.
@@ -754,6 +754,7 @@ async function computeBackfill(
 
   return {
     dealsByMember,
+    pipelineByMember,
     topSceneCountsByMember,
     perMemberLastPres,
     globalScenes,

@@ -339,10 +339,12 @@ function TourPlayerInner({
   const [recording, setRecording] = useState(false);
   useEffect(() => {
     if (!analyticsOn || typeof window === "undefined") return;
-    const presenterId = new URLSearchParams(window.location.search).get(
-      "presenter"
-    );
+    const qs = new URLSearchParams(window.location.search);
+    const presenterId = qs.get("presenter");
     if (!presenterId) return; // only sales-led sessions are tracked here
+    // Optional client the presenter is pitching to — comes from the
+    // sales dashboard's client picker.
+    const clientId = qs.get("client") || null;
     const sessionId = getSessionId();
     const orgId = (tour as unknown as { org_id?: string | null }).org_id ?? null;
 
@@ -358,6 +360,7 @@ function TourPlayerInner({
         tourId: tour.id,
         orgId,
         presenterId,
+        clientId,
       }).catch(() => {});
 
       // 2) Voice — only if the org turned auto-record on.

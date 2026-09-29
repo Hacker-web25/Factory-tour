@@ -43,8 +43,12 @@ export async function startPresentationSession(args: {
   tourId: string;
   orgId: string | null;
   presenterId: string | null;
+  /** Optional client the presenter is pitching to. When set, the
+   *  session counts toward that client's presentation history and the
+   *  MIS can filter every metric by client. */
+  clientId?: string | null;
 }): Promise<void> {
-  const { sessionId, tourId, orgId, presenterId } = args;
+  const { sessionId, tourId, orgId, presenterId, clientId } = args;
   // Insert the base row immediately so the session shows up even if the
   // user denies location.
   await supabase
@@ -55,11 +59,19 @@ export async function startPresentationSession(args: {
         tour_id: tourId,
         org_id: orgId,
         presenter_user_id: presenterId,
+        client_id: clientId ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "session_id" }
     )
     .then(() => {});
+
+  // Fire-and-forget: bump the client's last_presented_at + first_presented_at.
+  if (clientId) {
+    import("@/lib/clients").then((m) =>
+      m.touchClientOnPresentation(clientId).catch(() => {})
+    );
+  }
 
   // Geolocation is async + permission-gated — enrich the row when it lands.
   const pos = await getPosition();

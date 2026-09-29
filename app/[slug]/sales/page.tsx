@@ -13,7 +13,12 @@ import {
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
+import CalendarWidget from "@/components/dashboard/CalendarWidget";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import ClientsTab from "@/components/dashboard/ClientsTab";
+import ClientPickerModal from "@/components/dashboard/ClientPickerModal";
+import type { Client } from "@/lib/clients";
+import { Users as UsersIcon } from "lucide-react";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import { startPresence } from "@/lib/presence";
 import { timeGreeting } from "@/lib/greeting";
@@ -63,6 +68,10 @@ export default function SalesDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Two-tab navigation: My Tours (default) and Clients pipeline.
+  const [activeTab, setActiveTab] = useState<"tours" | "clients">("tours");
+  // Modal state for the "who is this for?" prompt when Present is clicked.
+  const [presentingTour, setPresentingTour] = useState<TourCard | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const salesTourIdsRef = useRef<string[]>([]);
 
@@ -322,10 +331,28 @@ export default function SalesDashboardPage() {
           <VpvLogo />
         </div>
         <nav className="px-3 space-y-0.5">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]">
-            <Box size={16} className="text-vpv-blue" />
+          <button
+            onClick={() => setActiveTab("tours")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${
+              activeTab === "tours"
+                ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
+                : "text-vpv-muted hover:text-vpv-ink hover:bg-vpv-canvas"
+            }`}
+          >
+            <Box size={16} className={activeTab === "tours" ? "text-vpv-blue" : ""} />
             My Tours
-          </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("clients")}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${
+              activeTab === "clients"
+                ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
+                : "text-vpv-muted hover:text-vpv-ink hover:bg-vpv-canvas"
+            }`}
+          >
+            <UsersIcon size={16} className={activeTab === "clients" ? "text-vpv-blue" : ""} />
+            Clients
+          </button>
         </nav>
 
         {/* Marketing / countdown deliberately hidden for presenters —
@@ -389,6 +416,26 @@ export default function SalesDashboardPage() {
           </div>
         </div>
 
+        {activeTab === "clients" ? (
+          <div className="px-10 mb-8">
+            {me?.org_id && (
+              <ClientsTab
+                orgId={me.org_id}
+                presenterId={me.id}
+                onPresentToClient={(client) => {
+                  // Pick the most-recently-viewed tour and go straight in.
+                  const t = tours[0];
+                  if (!t) return;
+                  window.open(
+                    `/tour/${t.id}?presenter=${me.id}&client=${client.id}`,
+                    "_blank"
+                  );
+                }}
+              />
+            )}
+          </div>
+        ) : (
+          <>
         {/* KPIs (only 2 — presentations count + avg time) */}
         <div className="px-10 grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <KpiCard
@@ -447,6 +494,17 @@ export default function SalesDashboardPage() {
                 <Play size={14} /> Start
               </a>
             </div>
+          </div>
+        )}
+
+        {/* Calendar — presenter's own schedule */}
+        {me && org && (
+          <div className="px-10 mb-6">
+            <CalendarWidget
+              orgId={org.id}
+              currentUserId={me.id}
+              myEventsOnly
+            />
           </div>
         )}
 
@@ -514,14 +572,12 @@ export default function SalesDashboardPage() {
                         <span>{t.view_count} sessions</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <a
-                          href={`/tour/${t.id}?presenter=${me?.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => setPresentingTour(t)}
                           className="py-2 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-medium flex items-center justify-center gap-1.5 shadow-[0_8px_20px_-10px_rgba(20,104,216,0.6)]"
                         >
                           <Play size={11} /> Present
-                        </a>
+                        </button>
                         <button
                           onClick={() => copyLink(t)}
                           className="py-2 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-vpv-navy text-[12px] font-medium flex items-center justify-center gap-1.5"
@@ -561,6 +617,26 @@ export default function SalesDashboardPage() {
             )}
           </div>
         </div>
+          </>
+        )}
+
+        {/* PRESENT flow — pick which client this presentation is for. */}
+        {presentingTour && me?.org_id && me?.id && (
+          <ClientPickerModal
+            orgId={me.org_id}
+            presenterId={me.id}
+            tourTitle={presentingTour.title}
+            onClose={() => setPresentingTour(null)}
+            onPicked={(client) => {
+              const t = presentingTour;
+              setPresentingTour(null);
+              const q = client
+                ? `?presenter=${me.id}&client=${client.id}`
+                : `?presenter=${me.id}`;
+              window.open(`/tour/${t.id}${q}`, "_blank");
+            }}
+          />
+        )}
       </main>
     </div>
     </OrgThemeProvider>
