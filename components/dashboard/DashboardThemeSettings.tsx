@@ -41,15 +41,17 @@ import { Palette, X, Plus, Trash2, Check } from "lucide-react";
 export function DashboardThemeButton({ orgId }: { orgId: string | null | undefined }) {
   const [open, setOpen] = useState(false);
   if (!orgId) return null;
+  // Styled to fit the tour editor's dark chrome bar. Sits next to
+  // Preview / Backup / Share and reads as a secondary action.
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-vpv-tint border border-vpv-line text-vpv-ink text-sm transition-colors"
-        title="Customise dashboard"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border bg-panelSoft hover:bg-neutral-800 text-neutral-200 text-[11px] transition-colors"
+        title="Customise this client's dashboard"
       >
-        <Palette className="w-4 h-4" />
-        <span className="hidden sm:inline">Customise</span>
+        <Palette size={11} />
+        <span>Dashboard</span>
       </button>
       {open && (
         <DashboardThemeModal orgId={orgId} onClose={() => setOpen(false)} />

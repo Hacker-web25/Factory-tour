@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase, publicUrl } from "@/lib/supabase";
 import type { Hotspot, HotspotAction, Scene, Tour } from "@/lib/types";
 import { resolveHotspotFx } from "@/lib/types";
@@ -258,6 +259,13 @@ function TourPlayerInner({
   const [videoModal, setVideoModal] = useState<Hotspot | null>(null);
   const [pdfModal, setPdfModal] = useState<Hotspot | null>(null);
   const [audioPopup, setAudioPopup] = useState<Hotspot | null>(null);
+  // Cross-tour nav guard — set when a hotspot points at a tour the
+  // viewer can't open. Shown as a dismissible overlay message.
+  const [crossTourError, setCrossTourError] = useState<{
+    tourId: string;
+    reason: "not-allowed" | "not-found";
+  } | null>(null);
+  const router = useRouter();
   // Ref for the panorama viewer's zoom-reset function.
   const zoomResetRef = useRef<null | (() => void)>(null);
   // Measure tool state + click-capture promise handoff
@@ -971,6 +979,33 @@ function TourPlayerInner({
    *  "Product Samples" side by side and each opens the right viewer. */
   function runHotspotIntent(intent: HotspotAction, h: Hotspot) {
     if (intent === "nav" && h.target_scene_id) {
+      // Cross-tour navigation — nav_tour_id points at a scene in a
+      // different tour. We check the viewer's access to that tour
+      // client-side (RLS enforces it server-side either way); if they
+      // can't read it we show an inline access-denied message rather
+      // than a hard error.
+      if (h.nav_tour_id && h.nav_tour_id !== tour?.id) {
+        (async () => {
+          const { data, error } = await supabase
+            .from("tours")
+            .select("id")
+            .eq("id", h.nav_tour_id!)
+            .maybeSingle();
+          if (error || !data) {
+            setCrossTourError({
+              tourId: h.nav_tour_id!,
+              reason: error ? "not-allowed" : "not-found",
+            });
+            return;
+          }
+          // Landing on the scene: append ?scene=… so the target tour's
+          // player opens on the right scene rather than the first one.
+          router.push(
+            `/tour/${h.nav_tour_id}?scene=${encodeURIComponent(h.target_scene_id!)}`
+          );
+        })();
+        return;
+      }
       navigateTo(h.target_scene_id, {
         cinematic: true,
         direction: { yaw: h.yaw, pitch: h.pitch },
@@ -1360,6 +1395,38 @@ function TourPlayerInner({
           hotspot={audioPopup}
           onClose={() => setAudioPopup(null)}
         />
+      )}
+
+      {/* Cross-tour navigation blocker — shown when a nav hotspot
+          points at a tour the current viewer can't open. */}
+      {crossTourError && (
+        <div
+          className="absolute inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setCrossTourError(null)}
+        >
+          <div
+            className="max-w-sm bg-[#0b0f16] border border-neutral-800 rounded-xl p-6 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-4xl mb-2">🔒</div>
+            <div className="text-white font-semibold text-lg mb-1">
+              {crossTourError.reason === "not-found"
+                ? "Tour not found"
+                : "Access denied"}
+            </div>
+            <div className="text-neutral-400 text-sm mb-4">
+              {crossTourError.reason === "not-found"
+                ? "The tour this hotspot links to no longer exists."
+                : "You don't have permission to open the tour this hotspot links to."}
+            </div>
+            <button
+              onClick={() => setCrossTourError(null)}
+              className="px-4 py-2 rounded-md bg-cyan-500 text-black text-sm font-medium hover:bg-cyan-400"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Polygon fullscreen viewer is now mounted at the root layout

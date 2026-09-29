@@ -3639,27 +3639,11 @@ function AddonTab({
         </div>
 
         {hotspot.action === "nav" && (
-          <Field label="Target scene">
-            <select
-              value={hotspot.target_scene_id ?? ""}
-              onChange={(e) =>
-                onChange({
-                  ...hotspot,
-                  target_scene_id: e.target.value || null,
-                })
-              }
-              className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
-            >
-              <option value="">— pick scene —</option>
-              {scenes
-                .filter((s) => s.id !== hotspot.scene_id)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
+          <NavTargetPicker
+            hotspot={hotspot}
+            scenes={scenes}
+            onChange={onChange}
+          />
         )}
 
         {hotspot.action === "info_popup" && (
@@ -3723,6 +3707,30 @@ function AddonTab({
 
         {(hotspot.action === "audio_popup" || hotspot.type === "audio") && (
           <AudioConfig hotspot={hotspot} onChange={onChange} />
+        )}
+
+        {/* Bonus image — any hotspot (except the dedicated image type,
+            which already uses this field for its primary payload) can
+            attach an image. It shows up as an "Image" row inside the
+            preview card, and clicking it opens the image popup on top
+            of the main action. Useful for annotating a nav hotspot with
+            a photo of the destination, or adding a product photo to a
+            text/info hotspot. */}
+        {hotspot.type !== "image" && hotspot.action !== "image_popup" && (
+          <Field label="Attach image (optional)">
+            <input
+              value={hotspot.image_url ?? ""}
+              onChange={(e) =>
+                onChange({ ...hotspot, image_url: e.target.value || null })
+              }
+              placeholder="https://…"
+              className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+            />
+            <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
+              Adds an "Image" row to the preview card. Leave blank for
+              none.
+            </div>
+          </Field>
         )}
       </Section>
       )}
@@ -4176,6 +4184,129 @@ function ThumbnailSizeField({
         Controls the inline video card and the hover preview thumbnail.
       </div>
     </div>
+  );
+}
+
+/** Nav target picker — pick a scene, and (optionally) a scene in ANOTHER
+ *  tour the org has access to. When a different tour is picked, the
+ *  scene list swaps to that tour's scenes. */
+function NavTargetPicker({
+  hotspot,
+  scenes,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  scenes: Scene[];
+  onChange: (h: Hotspot) => void;
+}) {
+  const [tours, setTours] = useState<Array<{ id: string; title: string }>>([]);
+  // When the target is in another tour, we need that tour's scene list
+  // — fetched lazily as soon as the picker changes.
+  const [otherScenes, setOtherScenes] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  const targetTourId = hotspot.nav_tour_id ?? null;
+
+  // Load the org's other tours once so the picker has options.
+  useEffect(() => {
+    (async () => {
+      const { data: me } = await supabase.auth.getUser();
+      if (!me.user) return;
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", me.user.id)
+        .maybeSingle();
+      if (!prof?.org_id) return;
+      const { data } = await supabase
+        .from("tours")
+        .select("id, title")
+        .eq("org_id", prof.org_id)
+        .order("created_at", { ascending: false });
+      setTours((data ?? []).filter((t) => t.title));
+    })();
+  }, []);
+
+  // Load scenes of the target tour when the author picks one.
+  useEffect(() => {
+    if (!targetTourId) {
+      setOtherScenes([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("scenes")
+        .select("id, name, order_index")
+        .eq("tour_id", targetTourId)
+        .order("order_index", { ascending: true });
+      if (cancelled) return;
+      setOtherScenes(data ?? []);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [targetTourId]);
+
+  const sceneOptions = targetTourId
+    ? otherScenes
+    : scenes.filter((s) => s.id !== hotspot.scene_id);
+
+  return (
+    <>
+      <Field label="Target tour">
+        <select
+          value={targetTourId ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...hotspot,
+              nav_tour_id: e.target.value || null,
+              // Reset the scene id when switching tours so we don't
+              // point at a scene that doesn't exist in the new tour.
+              target_scene_id: null,
+            })
+          }
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
+        >
+          <option value="">This tour</option>
+          {tours.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.title}
+            </option>
+          ))}
+        </select>
+        {targetTourId && (
+          <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
+            Visitors need access to that tour to open the hotspot — otherwise
+            they'll see an "access denied" message.
+          </div>
+        )}
+      </Field>
+      <Field label="Target scene">
+        <select
+          value={hotspot.target_scene_id ?? ""}
+          onChange={(e) =>
+            onChange({
+              ...hotspot,
+              target_scene_id: e.target.value || null,
+            })
+          }
+          disabled={loading}
+          className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm disabled:opacity-50"
+        >
+          <option value="">
+            {loading ? "Loading scenes…" : "— pick scene —"}
+          </option>
+          {sceneOptions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </>
   );
 }
 

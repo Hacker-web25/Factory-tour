@@ -374,6 +374,16 @@ export type Hotspot = {
 
   // type-specific payload
   target_scene_id?: string | null;
+  /** For cross-tour navigation: when set, the hotspot navigates to a
+   *  scene in a DIFFERENT tour. `target_scene_id` still identifies the
+   *  scene, and `nav_tour_id` says which tour it lives in. Null (the
+   *  default) means the target is in the current tour — the existing
+   *  same-tour navigation behaviour.
+   *
+   *  The viewer checks the current user's access to the target tour
+   *  before jumping; if they don't have permission it shows an
+   *  access-denied message instead of navigating. */
+  nav_tour_id?: string | null;
   info_title?: string | null;
   info_body?: string | null;
   image_url?: string | null;

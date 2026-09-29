@@ -14,6 +14,7 @@ import LanguagePicker from "@/components/viewer/LanguagePicker";
 import RightPanel from "@/components/builder/RightPanel";
 import SceneStrip from "@/components/builder/SceneStrip";
 import ShareModal from "@/components/builder/ShareModal";
+import { DashboardThemeButton } from "@/components/dashboard/DashboardThemeSettings";
 import {
   X,
   Share2,
@@ -1922,6 +1923,9 @@ export default function TourEditPage() {
           error={lastSaveError}
           onForceSave={handleSave}
         />
+        {tour?.org_id && (
+          <DashboardThemeButton orgId={tour.org_id} />
+        )}
         <button
           onClick={() => setShareOpen(true)}
           className="flex items-center gap-1.5 bg-accent hover:bg-accentHover text-black font-medium px-3 py-1.5 rounded text-[11px] transition-colors"
