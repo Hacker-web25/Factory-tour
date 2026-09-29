@@ -1442,12 +1442,12 @@ function TourPlayerInner({
             <div className="text-white font-semibold text-lg mb-1">
               {crossTourError.reason === "not-found"
                 ? "Tour not found"
-                : "Access denied"}
+                : "Restricted"}
             </div>
             <div className="text-neutral-400 text-sm mb-4">
               {crossTourError.reason === "not-found"
                 ? "The tour this hotspot links to no longer exists."
-                : "You don't have permission to open the tour this hotspot links to."}
+                : "This hotspot links to a tour you don't have access to. Please ask the presenter to unlock it for you."}
             </div>
             <button
               onClick={() => setCrossTourError(null)}
