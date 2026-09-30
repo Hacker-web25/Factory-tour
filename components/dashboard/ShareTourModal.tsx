@@ -27,6 +27,10 @@ import {
   Loader2,
   ArrowLeft,
   Sparkles,
+  Lock,
+  Eye,
+  EyeOff,
+  Shuffle,
 } from "lucide-react";
 
 const EXIT_MS = 200;
@@ -60,6 +64,9 @@ export default function ShareTourModal({
   const [customUnit, setCustomUnit] = useState<"min" | "hr" | "day">("hr");
   const [customValue, setCustomValue] = useState<string>("");
   const [oneTime, setOneTime] = useState(false);
+  const [passwordOn, setPasswordOn] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [transparentQR, setTransparentQR] = useState(false);
   const [withLogo, setWithLogo] = useState(true);
 
@@ -106,18 +113,38 @@ export default function ShareTourModal({
   }, [expiresAt]);
 
   const generate = async () => {
+    // Guard: password enabled but blank — treat as user error, don't
+    // silently create an unprotected link.
+    if (passwordOn && !password.trim()) {
+      alert("Enter a password (or turn off password protection).");
+      return;
+    }
     setCreating(true);
     try {
       const created = await createViewerLink({
         tourId,
-        label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}`,
+        label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}${passwordOn ? " · locked" : ""}`,
         expiresAt,
         viewLimit: oneTime ? 1 : null,
+        password: passwordOn ? password.trim() : undefined,
       });
       if (created) setLink(created);
     } finally {
       setCreating(false);
     }
+  };
+
+  /** Generate a memorable-but-strong random password (like "juniper-42"). */
+  const suggestPassword = () => {
+    const words = [
+      "juniper", "cobalt", "harbor", "mango", "quartz", "spruce",
+      "opal", "willow", "amber", "sable", "hazel", "cedar",
+      "azure", "coral", "linen", "onyx", "sage", "cypress",
+    ];
+    const w = words[Math.floor(Math.random() * words.length)];
+    const n = Math.floor(Math.random() * 90) + 10;
+    setPassword(`${w}-${n}`);
+    setShowPassword(true);
   };
 
   const reset = () => {
@@ -317,6 +344,105 @@ export default function ShareTourModal({
                 </button>
               </div>
 
+              {/* Password protection */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  padding: 12,
+                  background: passwordOn ? "#f0f9ff" : "#f8fafc",
+                  border: `1px solid ${passwordOn ? "#7dd3fc" : "#e2e8f0"}`,
+                  borderRadius: 10,
+                  marginBottom: 14,
+                  transition: "background 220ms, border-color 220ms",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <Lock
+                    style={{
+                      width: 16,
+                      height: 16,
+                      color: passwordOn ? "#0284c7" : "#94a3b8",
+                      marginTop: 2,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                      Password protect
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, lineHeight: 1.5 }}>
+                      Visitors must enter the password before the tour opens.
+                      Combines with the time + one-time limits.
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPasswordOn((v) => !v)}
+                    className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
+                      passwordOn ? "bg-sky-500" : "bg-slate-300"
+                    }`}
+                    aria-pressed={passwordOn}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform ${
+                        passwordOn ? "translate-x-4" : "translate-x-0.5"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {passwordOn && (
+                  <div className="vpv-fade-up" style={{ display: "flex", gap: 6 }}>
+                    <div style={{ position: "relative", flex: 1 }}>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Password"
+                        className="vpv-input"
+                        style={{ paddingRight: 34, fontFamily: showPassword ? "ui-monospace, SFMono-Regular, monospace" : undefined }}
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => setShowPassword((v) => !v)}
+                        style={{
+                          position: "absolute",
+                          right: 6,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          padding: 4,
+                          border: 0,
+                          background: "transparent",
+                          cursor: "pointer",
+                          color: "#64748b",
+                          display: "grid",
+                          placeItems: "center",
+                        }}
+                        title={showPassword ? "Hide" : "Show"}
+                        type="button"
+                      >
+                        {showPassword ? (
+                          <EyeOff style={{ width: 14, height: 14 }} />
+                        ) : (
+                          <Eye style={{ width: 14, height: 14 }} />
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      onClick={suggestPassword}
+                      className="vpv-btn vpv-btn--ghost"
+                      style={{ padding: "6px 10px", fontSize: 12 }}
+                      title="Generate a memorable password"
+                      type="button"
+                    >
+                      <Shuffle style={{ width: 12, height: 12 }} />
+                      Suggest
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* QR-only options */}
               {kind === "qr" && (
                 <div
@@ -378,9 +504,51 @@ export default function ShareTourModal({
               <Check style={{ width: 16, height: 16, color: "#16a34a", flexShrink: 0 }} />
               <div style={{ flex: 1, fontSize: 12, color: "#166534" }}>
                 <strong>Generated.</strong> {expiresLabel}
-                {oneTime && " · one-time"}.
+                {oneTime && " · one-time"}
+                {passwordOn && " · password required"}.
               </div>
             </div>
+
+            {/* Password reminder — the plaintext isn't stored on the
+                server (only its hash), so this is the one moment the
+                sender can copy it. */}
+            {passwordOn && password && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  background: "#f0f9ff",
+                  border: "1px solid #7dd3fc",
+                  borderRadius: 10,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ fontSize: 11, color: "#075985", fontWeight: 500, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Lock style={{ width: 12, height: 12 }} />
+                  Share the password too — visitors need it to open the tour.
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    readOnly
+                    value={password}
+                    onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+                    className="vpv-input"
+                    style={{ flex: 1, fontFamily: "ui-monospace, SFMono-Regular, monospace", fontSize: 13 }}
+                  />
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(password);
+                      } catch {}
+                    }}
+                    className="vpv-btn vpv-btn--ghost"
+                    style={{ padding: "6px 12px", flexShrink: 0 }}
+                  >
+                    <Copy style={{ width: 14, height: 14 }} />
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* URL row (always shown) */}
             <div style={{ marginBottom: kind === "qr" ? 18 : 0 }}>

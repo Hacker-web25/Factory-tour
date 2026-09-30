@@ -808,7 +808,7 @@ function Sidebar({
           icon={<Users size={16} />}
           label="Team"
         />
-        <NavItem href="#" icon={<Eye size={16} />} label="Visitors" disabled />
+        <NavItem href="/visitors" icon={<Eye size={16} />} label="Visitors" />
         <NavItem
           href="/team/analytics"
           icon={<BarChart3 size={16} />}
