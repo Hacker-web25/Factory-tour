@@ -39,6 +39,7 @@ import {
   Check,
   Crown,
   Mic,
+  Settings,
 } from "lucide-react";
 
 /**
@@ -813,6 +814,11 @@ function Sidebar({
           href="/team/analytics"
           icon={<BarChart3 size={16} />}
           label="Analytics"
+        />
+        <NavItem
+          href="/settings"
+          icon={<Settings size={16} />}
+          label="Settings"
         />
       </nav>
 
