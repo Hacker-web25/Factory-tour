@@ -3630,6 +3630,7 @@ function AddonTab({
           <option value="none">No action</option>
           <option value="nav">Navigate to another scene</option>
           <option value="info_popup">Open info popup</option>
+          <option value="image_popup">Show image</option>
           <option value="video_popup">Open video (YouTube / upload)</option>
           <option value="audio_popup">Play audio / voice note</option>
           <option value="pdf_popup">Open document (PDF)</option>
@@ -3673,15 +3674,8 @@ function AddonTab({
 
         {hotspot.action === "image_popup" && (
           <>
-            <Field label="Popup image URL">
-              <input
-                value={hotspot.image_url ?? ""}
-                onChange={(e) =>
-                  onChange({ ...hotspot, image_url: e.target.value })
-                }
-                placeholder="https://…"
-                className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
-              />
+            <Field label="Image">
+              <BonusImageUploader hotspot={hotspot} onChange={onChange} />
             </Field>
             <CardSizeField hotspot={hotspot} onChange={onChange} />
           </>
@@ -3710,21 +3704,6 @@ function AddonTab({
           <AudioConfig hotspot={hotspot} onChange={onChange} />
         )}
 
-        {/* Bonus image — any hotspot (except the dedicated image type,
-            which already uses this field for its primary payload) can
-            attach an image. It shows up as an "Image" row inside the
-            preview card, and clicking it opens the image popup on top
-            of the main action. Author can upload a file OR paste a
-            URL; both end up in the same image_url field. */}
-        {hotspot.type !== "image" && hotspot.action !== "image_popup" && (
-          <Field label="Attach image (optional)">
-            <BonusImageUploader hotspot={hotspot} onChange={onChange} />
-            <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
-              Adds an "Image" row to the preview card. Leave blank for
-              none.
-            </div>
-          </Field>
-        )}
       </Section>
       )}
 

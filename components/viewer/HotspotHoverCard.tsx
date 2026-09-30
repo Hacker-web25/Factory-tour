@@ -104,11 +104,22 @@ export default function HotspotHoverCard({
     [h, t, scenesLookup, meta, videoThumb]
   );
 
-  if (!cardIsWorthShowing(model)) return null;
-
   const stem = resolveConnectorLength(h);
   const showStem = h.card_connector !== false;
   const live = !!onIntent;
+
+  /* Image-only preview — when the action is "show image", the hover card
+     drops every ornament (title, subtitle, badge, CTA row) and just
+     shows the image at the author-controlled size. Clicking anywhere on
+     the image fires the popup. */
+  const imageOnly =
+    h.action === "image_popup" && !!(h.image_url && h.image_url.trim());
+
+  if (!imageOnly && !cardIsWorthShowing(model)) return null;
+
+  const imgPct = Math.max(20, Math.min(150, h.card_size_pct ?? 80));
+  const imgBase = 300; // matches HotspotCard's default hover width
+  const imgWidth = Math.round(imgBase * (imgPct / 100) * scale);
 
   return (
     <div
@@ -117,6 +128,7 @@ export default function HotspotHoverCard({
         `vpv-hc-float--${placement}`,
         open ? "is-open" : "is-closing",
         live ? "is-live" : "",
+        imageOnly ? "is-image-only" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -129,18 +141,46 @@ export default function HotspotHoverCard({
       onMouseEnter={onPointerEnter}
       onMouseLeave={onPointerLeave}
     >
-      <HotspotCard
-        model={model}
-        variant="hover"
-        interactive={live}
-        width={300}
-        scale={scale}
-        onAction={(intent) => onIntent?.(intent)}
-        onPrimary={() => {
-          const intent = model.cta?.intent;
-          if (intent) onIntent?.(intent);
-        }}
-      />
+      {imageOnly ? (
+        <div
+          className="vpv-hc-image-only"
+          style={{
+            width: imgWidth,
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow:
+              "0 20px 40px -14px rgba(15,23,42,0.55), 0 0 0 1px rgba(255,255,255,0.08)",
+            background: "#0b1220",
+            cursor: live ? "zoom-in" : "default",
+          }}
+          onClick={() => live && onIntent?.("image_popup")}
+        >
+          <img
+            src={h.image_url ?? ""}
+            alt=""
+            draggable={false}
+            style={{
+              display: "block",
+              width: "100%",
+              height: "auto",
+              userSelect: "none",
+            }}
+          />
+        </div>
+      ) : (
+        <HotspotCard
+          model={model}
+          variant="hover"
+          interactive={live}
+          width={300}
+          scale={scale}
+          onAction={(intent) => onIntent?.(intent)}
+          onPrimary={() => {
+            const intent = model.cta?.intent;
+            if (intent) onIntent?.(intent);
+          }}
+        />
+      )}
 
       {/* Connector stem + node back down to the marker, and the invisible
           bridge that keeps the hover alive while crossing the gap. */}
