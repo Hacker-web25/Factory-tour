@@ -51,7 +51,7 @@ const RESERVED = new Set([
 
 // Paths that live INSIDE a [slug] segment when accessed via a
 // per-org subdomain. Everything else is org-agnostic.
-const SLUG_SCOPED_PREFIXES = ["/owner", "/sales"];
+const SLUG_SCOPED_PREFIXES = ["/owner", "/sales", "/settings"];
 
 function isSlugScopedPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "") return true;
@@ -110,8 +110,14 @@ export function middleware(req: NextRequest) {
 
   // Rewrite slug-scoped bare paths to the internal [slug] route.
   if (isSlugScopedPath(url.pathname)) {
-    const tail =
+    let tail =
       url.pathname === "/" || url.pathname === "" ? "/owner" : url.pathname;
+    // /settings pages physically live under /owner/settings/... in the
+    // app tree, but customers see them at the bare /settings URL. Nest
+    // the tail here so the rewrite lands at the real folder.
+    if (tail === "/settings" || tail.startsWith("/settings/")) {
+      tail = `/owner${tail}`;
+    }
     url.pathname = `/${slug}${tail}`;
     return NextResponse.rewrite(url);
   }
