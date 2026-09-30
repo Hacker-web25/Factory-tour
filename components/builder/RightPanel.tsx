@@ -2579,37 +2579,9 @@ function TopStripSettings({
               )}
             </div>
             <div className="text-[10.5px] text-neutral-500 mt-1.5">
-              Transparent PNG works best. Use the slider below to tune the
-              size shown in the presenter's header strip.
+              Transparent PNG works best. Height auto-scales to match the VPV
+              logo.
             </div>
-
-            {/* Logo size slider — 50%..200% of the default 30px height. */}
-            {logoUrl && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] text-neutral-400">Logo size</span>
-                  <span className="text-[11px] text-neutral-500 tabular-nums">
-                    {tour.company_logo_size_pct ?? 100}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={50}
-                  max={200}
-                  step={5}
-                  value={tour.company_logo_size_pct ?? 100}
-                  onChange={(e) =>
-                    onPatch({ company_logo_size_pct: Number(e.target.value) })
-                  }
-                  className="w-full accent-accent"
-                />
-                <div className="flex items-center justify-between text-[9.5px] text-neutral-600 mt-0.5">
-                  <span>Small</span>
-                  <span>Default</span>
-                  <span>Large</span>
-                </div>
-              </div>
-            )}
           </div>
         </>
       )}
@@ -3742,19 +3714,11 @@ function AddonTab({
             which already uses this field for its primary payload) can
             attach an image. It shows up as an "Image" row inside the
             preview card, and clicking it opens the image popup on top
-            of the main action. Useful for annotating a nav hotspot with
-            a photo of the destination, or adding a product photo to a
-            text/info hotspot. */}
+            of the main action. Author can upload a file OR paste a
+            URL; both end up in the same image_url field. */}
         {hotspot.type !== "image" && hotspot.action !== "image_popup" && (
           <Field label="Attach image (optional)">
-            <input
-              value={hotspot.image_url ?? ""}
-              onChange={(e) =>
-                onChange({ ...hotspot, image_url: e.target.value || null })
-              }
-              placeholder="https://…"
-              className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
-            />
+            <BonusImageUploader hotspot={hotspot} onChange={onChange} />
             <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
               Adds an "Image" row to the preview card. Leave blank for
               none.
@@ -4216,9 +4180,98 @@ function ThumbnailSizeField({
   );
 }
 
+/** Small uploader for the "Attach image" bonus field.
+ *
+ *  Presents three affordances stacked:
+ *    - Upload button (opens the OS file picker; uploads to panoramas)
+ *    - Preview thumbnail with a Remove button when an image is set
+ *    - URL input (falls back to link-only when the author already has a hosted image)
+ *  All three write to the same `hotspot.image_url` field. */
+function BonusImageUploader({
+  hotspot,
+  onChange,
+}: {
+  hotspot: Hotspot;
+  onChange: (h: Hotspot) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const url = hotspot.image_url ?? "";
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "png";
+      const path = `hotspot-images/${hotspot.id}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from("panoramas")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (error) {
+        alert("Upload failed: " + error.message);
+        return;
+      }
+      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      onChange({ ...hotspot, image_url: data.publicUrl });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Upload + Remove row */}
+      <div className="flex items-center gap-2">
+        <label
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-[11px] bg-panelSoft hover:border-neutral-500 cursor-pointer ${
+            uploading ? "opacity-60 pointer-events-none" : ""
+          }`}
+        >
+          {uploading ? "Uploading…" : url ? "Replace" : "Upload image"}
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.currentTarget.value = "";
+            }}
+          />
+        </label>
+        {url && (
+          <>
+            {/* Live thumbnail — proves the URL resolves. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt=""
+              className="w-8 h-8 rounded object-cover border border-border"
+            />
+            <button
+              onClick={() => onChange({ ...hotspot, image_url: null })}
+              className="text-[10px] text-red-300 hover:text-red-200 px-1"
+            >
+              Remove
+            </button>
+          </>
+        )}
+      </div>
+      {/* URL fallback — for when the author already has a hosted image. */}
+      <input
+        value={url}
+        onChange={(e) => onChange({ ...hotspot, image_url: e.target.value || null })}
+        placeholder="…or paste an image URL"
+        className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-[11px]"
+      />
+    </div>
+  );
+}
+
 /** Nav target picker — pick a scene, and (optionally) a scene in ANOTHER
- *  tour the org has access to. When a different tour is picked, the
- *  scene list swaps to that tour's scenes. */
+ *  tour the current user can see (RLS filters the list). When a
+ *  different tour is picked, the scene list swaps to that tour's
+ *  scenes. Cross-tour permission at view time is enforced separately
+ *  in TourPlayer — RLS filters the target tour lookup there too, so a
+ *  viewer without access sees the "restricted" screen. */
 function NavTargetPicker({
   hotspot,
   scenes,
@@ -4236,21 +4289,17 @@ function NavTargetPicker({
 
   const targetTourId = hotspot.nav_tour_id ?? null;
 
-  // Load the org's other tours once so the picker has options.
+  // Load every tour the current user can see (RLS decides which those
+  // are). We don't filter by org — for a super-owner that means every
+  // tour on the platform; for an org_admin that means their org's
+  // tours. The client-side permission check in TourPlayer still
+  // enforces "no access = restricted screen" at click time, so the
+  // author is free to link to any tour without breaking viewers.
   useEffect(() => {
     (async () => {
-      const { data: me } = await supabase.auth.getUser();
-      if (!me.user) return;
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("org_id")
-        .eq("id", me.user.id)
-        .maybeSingle();
-      if (!prof?.org_id) return;
       const { data } = await supabase
         .from("tours")
-        .select("id, title")
-        .eq("org_id", prof.org_id)
+        .select("id, title, org_id")
         .order("created_at", { ascending: false });
       setTours((data ?? []).filter((t) => t.title));
     })();
@@ -4308,8 +4357,8 @@ function NavTargetPicker({
         </select>
         {targetTourId && (
           <div className="text-[10px] text-neutral-500 mt-1 leading-snug">
-            Visitors need access to that tour to open the hotspot — otherwise
-            they'll see an "access denied" message.
+            Any viewer with access to that tour opens it directly. Anyone
+            without access sees a "restricted" screen and stays in this tour.
           </div>
         )}
       </Field>
