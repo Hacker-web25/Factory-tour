@@ -16,7 +16,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createViewerLink, type ShareLink } from "@/lib/shareLinks";
 import BrandedQRCode from "./BrandedQRCode";
-import { VPV_LOGO_URL } from "./VpvLogo";
 import {
   Link2,
   QrCode,
@@ -32,9 +31,32 @@ import {
   Eye,
   EyeOff,
   Shuffle,
+  Smartphone,
+  ShieldCheck,
 } from "lucide-react";
 
 const EXIT_MS = 200;
+
+/**
+ * Inline VPV wordmark as an SVG data URI. Using a data URI (instead of
+ * loading the PNG from myvpv.com) lets the QR-download canvas embed the
+ * logo without needing CORS headers on the asset host. Same visual as
+ * the header VpvLogo — bold blue "VPV" wordmark on transparent bg.
+ */
+const VPV_QR_LOGO_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60">
+    <defs>
+      <linearGradient id="vpvg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#1468d8"/>
+        <stop offset="100%" stop-color="#19b8f2"/>
+      </linearGradient>
+    </defs>
+    <text x="60" y="46" text-anchor="middle"
+      font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+      font-weight="900" font-size="44" letter-spacing="-2"
+      fill="url(#vpvg)">VPV</text>
+  </svg>`
+)}`;
 
 type TimePreset = { label: string; minutes: number | null };
 const PRESETS: TimePreset[] = [
@@ -68,6 +90,8 @@ export default function ShareTourModal({
   const [passwordOn, setPasswordOn] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [deviceLimitOn, setDeviceLimitOn] = useState(false);
+  const [deviceLimit, setDeviceLimit] = useState<number>(1);
 
   // Result
   const [creating, setCreating] = useState(false);
@@ -122,10 +146,11 @@ export default function ShareTourModal({
     try {
       const created = await createViewerLink({
         tourId,
-        label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}${passwordOn ? " · locked" : ""}`,
+        label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}${passwordOn ? " · locked" : ""}${deviceLimitOn ? ` · ${deviceLimit} dev` : ""}`,
         expiresAt,
         viewLimit: oneTime ? 1 : null,
         password: passwordOn ? password.trim() : undefined,
+        deviceLimit: deviceLimitOn ? deviceLimit : undefined,
       });
       if (created) setLink(created);
     } finally {
@@ -428,6 +453,92 @@ export default function ShareTourModal({
                 )}
               </div>
 
+              {/* Device limit */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  padding: 14,
+                  background: deviceLimitOn ? "rgba(220, 252, 231, 0.7)" : "rgba(255, 255, 255, 0.5)",
+                  border: `1px solid ${deviceLimitOn ? "#86efac" : "rgba(226, 232, 240, 0.9)"}`,
+                  borderRadius: 14,
+                  marginBottom: 14,
+                  transition: "background 220ms, border-color 220ms",
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <Smartphone
+                    style={{
+                      width: 16,
+                      height: 16,
+                      color: deviceLimitOn ? "#059669" : "#94a3b8",
+                      marginTop: 2,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0f172a" }}>
+                      Limit devices
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, lineHeight: 1.5 }}>
+                      Only this many separate devices can open the link — if the
+                      visitor forwards it, other people see "restricted".
+                    </div>
+                  </div>
+                  <GlassToggle
+                    on={deviceLimitOn}
+                    onChange={setDeviceLimitOn}
+                    color="#059669"
+                    label="Limit devices"
+                  />
+                </div>
+                {deviceLimitOn && (
+                  <div className="vpv-fade-up" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={deviceLimit}
+                      onChange={(e) => setDeviceLimit(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                      className="vpv-input"
+                      style={{ width: 80 }}
+                    />
+                    <span style={{ fontSize: 12, color: "#64748b" }}>
+                      {deviceLimit === 1 ? "device max" : "devices max"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Screen-capture protection notice — always ON, no toggle. */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  padding: 12,
+                  background: "rgba(238, 242, 255, 0.7)",
+                  border: "1px solid rgba(199, 210, 254, 0.9)",
+                  borderRadius: 14,
+                  marginBottom: 6,
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                <ShieldCheck
+                  style={{ width: 16, height: 16, color: "#4f46e5", marginTop: 2, flexShrink: 0 }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: "#0f172a" }}>
+                    Screen-capture protection <span style={{ color: "#4f46e5", fontWeight: 400 }}>·  always on</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, lineHeight: 1.5 }}>
+                    Content blacks out when the tab loses focus or gets recorded on
+                    the desktop / phone, and every session carries an invisible
+                    watermark tied to the visitor's fingerprint.
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="vpv-modal-footer">
@@ -542,15 +653,15 @@ export default function ShareTourModal({
             </div>
 
             {/* QR itself — VPV logo is always rendered in the centre.
-                Uses the absolute myvpv.com asset so it works on every
-                subdomain, and error-correction level H (in
-                BrandedQRCode) keeps it scannable. */}
+                We pass a self-contained SVG data URI (see VPV_QR_LOGO_SVG
+                below) so the canvas-rasterised PNG download embeds the
+                mark without cross-origin issues. */}
             {kind === "qr" && (
               <div style={{ display: "grid", placeItems: "center" }}>
                 <BrandedQRCode
                   value={shareUrl}
                   size={240}
-                  logoUrl={VPV_LOGO_URL}
+                  logoUrl={VPV_QR_LOGO_SVG}
                   bgColor="#ffffff"
                 />
               </div>

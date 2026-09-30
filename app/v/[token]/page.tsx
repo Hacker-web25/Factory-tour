@@ -1,34 +1,40 @@
 "use client";
 
+/**
+ * /v/[token] — the public viewer route with liquid-glass gating.
+ *
+ *   1. Load link. If missing / revoked / expired / view-limit or
+ *      device-limit hit, show a liquid-glass "blocked" screen.
+ *   2. If password_hash — glass password prompt.
+ *   3. If require_email — glass email prompt.
+ *   4. Load tour + scenes. Set attribution, bump view count,
+ *      recordLinkOpen (last_opened_at). Mount TourPlayer with the
+ *      ScreenCaptureShield overlay.
+ *
+ * Every gate + the tour itself sit on top of the tour's org theme
+ * (via OrgThemeProvider fetched by tour_id → org_id), so a customised
+ * dashboard palette carries through to the visitor's password screen.
+ */
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
+import ScreenCaptureShield from "@/components/viewer/ScreenCaptureShield";
+import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import {
-  bumpViewCount,
   checkPassword,
   getViewerEmail,
   getViewerFingerprint,
   loadByToken,
+  recordLinkOpen,
   setViewerEmail,
   type ShareLink,
 } from "@/lib/shareLinks";
 import { setAttribution } from "@/lib/analytics";
+import { Lock, Mail, ShieldAlert, Loader2 } from "lucide-react";
 
-/**
- * Public viewer route (`/v/[token]`).
- *
- * Flow:
- *  1. Load the link. If missing / revoked / expired / view-limit-hit,
- *     show a friendly block screen.
- *  2. If `password_hash` is set — show a password prompt first.
- *  3. If `require_email` is on — collect the visitor's email before
- *     starting (captured leads).
- *  4. Load the tour + scenes. Set attribution (viewer_fingerprint +
- *     optional viewer_email) so every event tags the visitor. Bump
- *     view_count. Render the tour.
- */
 export default function ViewerPage() {
   const params = useParams();
   const token = String(params?.token ?? "");
@@ -40,6 +46,7 @@ export default function ViewerPage() {
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
+  const [orgId, setOrgId] = useState<string | null>(null);
 
   // Step 1 — load link.
   useEffect(() => {
@@ -64,17 +71,23 @@ export default function ViewerPage() {
         return;
       }
       setLink(res.link);
-      // Pre-authorise if no password + no email required.
       if (!res.link.password_hash) setPasswordOk(true);
       if (!res.link.require_email || getViewerEmail()) setEmailOk(true);
       setLoading(false);
+      // Pull org_id off the tour so we can theme the gates too.
+      const { data: t } = await supabase
+        .from("tours")
+        .select("org_id")
+        .eq("id", res.link.tour_id)
+        .maybeSingle();
+      if (!cancelled) setOrgId((t as { org_id: string | null } | null)?.org_id ?? null);
     })();
     return () => {
       cancelled = true;
     };
   }, [token]);
 
-  // Step 4 — once gates pass, load tour and set attribution.
+  // Step 4 — once gates pass, load tour + attribution.
   useEffect(() => {
     if (!link || !passwordOk || !emailOk) return;
     let cancelled = false;
@@ -97,7 +110,7 @@ export default function ViewerPage() {
         viewer_fingerprint: getViewerFingerprint(),
         viewer_email: getViewerEmail(),
       });
-      bumpViewCount(link.id);
+      recordLinkOpen(link);
       setTour(t as Tour);
       setScenes((s ?? []) as Scene[]);
     })();
@@ -106,47 +119,156 @@ export default function ViewerPage() {
     };
   }, [link, passwordOk, emailOk]);
 
+  // Loading state.
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-black text-neutral-500 text-sm">
-        Loading…
-      </div>
+      <GateShell orgId={orgId}>
+        <div className="grid place-items-center py-12 text-white/70 text-sm">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      </GateShell>
     );
   }
+
+  // Blocked (link missing / revoked / expired / limits hit).
   if (blocked) {
     return (
-      <div className="min-h-screen grid place-items-center bg-black text-white p-6">
-        <div className="max-w-sm text-center">
-          <div className="text-lg font-semibold mb-2">Not available</div>
-          <div className="text-sm text-neutral-400">{blocked}</div>
-        </div>
-      </div>
+      <GateShell orgId={orgId}>
+        <GatePanel
+          icon={<ShieldAlert style={{ width: 28, height: 28 }} />}
+          title="Not available"
+          sub={blocked}
+        />
+      </GateShell>
     );
   }
+
   if (link && !passwordOk) {
     return (
-      <PasswordGate
-        link={link}
-        onPass={() => setPasswordOk(true)}
-      />
+      <GateShell orgId={orgId}>
+        <PasswordGate link={link} onPass={() => setPasswordOk(true)} />
+      </GateShell>
     );
   }
   if (link && !emailOk) {
-    return <EmailGate onSubmit={(email) => {
-      setViewerEmail(email);
-      setEmailOk(true);
-    }} />;
+    return (
+      <GateShell orgId={orgId}>
+        <EmailGate
+          onSubmit={(email) => {
+            setViewerEmail(email);
+            setEmailOk(true);
+          }}
+        />
+      </GateShell>
+    );
   }
   if (tour) {
     return (
-      <div className="h-screen w-screen bg-black">
-        <TourPlayer tour={tour} scenes={scenes} />
-      </div>
+      <OrgThemeProvider orgId={orgId}>
+        <div className="h-screen w-screen bg-black relative">
+          <TourPlayer tour={tour} scenes={scenes} />
+          {/* Screen-capture protection — always on for shared links. */}
+          <ScreenCaptureShield
+            fingerprint={getViewerFingerprint()}
+            email={getViewerEmail()}
+          />
+        </div>
+      </OrgThemeProvider>
     );
   }
   return (
-    <div className="min-h-screen grid place-items-center bg-black text-neutral-500 text-sm">
-      Loading tour…
+    <GateShell orgId={orgId}>
+      <div className="grid place-items-center py-12 text-white/70 text-sm">
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    </GateShell>
+  );
+}
+
+/* ---------- Liquid-glass shell used by every gate screen ------------ */
+
+function GateShell({
+  orgId,
+  children,
+}: {
+  orgId: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <OrgThemeProvider orgId={orgId}>
+      <div
+        className="min-h-screen w-full grid place-items-center p-6"
+        style={{
+          /* Aurora backdrop — same visual family as the share modal so
+             the viewer sees a themed continuation, not a blank page. */
+          background:
+            "radial-gradient(60% 60% at 20% 30%, rgba(59,130,246,0.35), transparent 65%)," +
+            "radial-gradient(50% 60% at 80% 70%, rgba(147,51,234,0.28), transparent 65%)," +
+            "linear-gradient(135deg, #0b1220 0%, #131a35 50%, #1e1b4b 100%)",
+        }}
+      >
+        {children}
+      </div>
+    </OrgThemeProvider>
+  );
+}
+
+function GatePanel({
+  icon,
+  title,
+  sub,
+  children,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  sub?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="vpv-modal-panel vpv-modal-sm" style={{ padding: 0 }}>
+      <div style={{ padding: "32px 28px", textAlign: "center" }}>
+        {icon && (
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              margin: "0 auto 16px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.6)",
+              display: "grid",
+              placeItems: "center",
+              color: "#0f172a",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9), 0 10px 24px -8px rgba(15,23,42,0.25)",
+            }}
+          >
+            {icon}
+          </div>
+        )}
+        <h1
+          style={{
+            fontSize: 18,
+            fontWeight: 600,
+            color: "#0f172a",
+            margin: 0,
+            letterSpacing: "-0.015em",
+          }}
+        >
+          {title}
+        </h1>
+        {sub && (
+          <p
+            style={{
+              fontSize: 13,
+              color: "#475569",
+              margin: "8px 0 20px",
+              lineHeight: 1.55,
+            }}
+          >
+            {sub}
+          </p>
+        )}
+        {children}
+      </div>
     </div>
   );
 }
@@ -161,7 +283,7 @@ function PasswordGate({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  async function submit(e: React.FormEvent) {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     const ok = await checkPassword(link, password);
@@ -171,55 +293,67 @@ function PasswordGate({
       return;
     }
     onPass();
-  }
+  };
   return (
-    <div className="min-h-screen grid place-items-center bg-black text-white p-6">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-sm bg-panel border border-border rounded-lg p-6 shadow-panel"
-      >
-        <h1 className="text-base font-semibold mb-1">Password required</h1>
-        <p className="text-xs text-neutral-500 mb-4">
-          Enter the password to view this tour.
-        </p>
+    <GatePanel
+      icon={<Lock style={{ width: 24, height: 24 }} />}
+      title="Password required"
+      sub="Enter the password to view this tour."
+    >
+      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <input
           type="password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoFocus
-          className="field w-full mb-3"
+          placeholder="••••••••"
+          className="vpv-input"
+          style={{ textAlign: "center", fontSize: 14, letterSpacing: "0.06em" }}
         />
         {error && (
-          <div className="text-xs text-red-400 mb-3">{error}</div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#dc2626",
+              background: "rgba(254, 226, 226, 0.7)",
+              padding: "6px 10px",
+              borderRadius: 8,
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            {error}
+          </div>
         )}
         <button
           type="submit"
           disabled={busy}
-          className="w-full bg-accent hover:bg-accentHover text-black font-medium py-2 rounded disabled:opacity-50"
+          className="vpv-btn vpv-btn--primary"
+          style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}
         >
+          {busy ? <Loader2 style={{ width: 14, height: 14 }} className="vpv-spin" /> : null}
           {busy ? "Checking…" : "Continue"}
         </button>
       </form>
-    </div>
+    </GatePanel>
   );
 }
 
 function EmailGate({ onSubmit }: { onSubmit: (email: string) => void }) {
   const [email, setEmail] = useState("");
   return (
-    <div className="min-h-screen grid place-items-center bg-black text-white p-6">
+    <GatePanel
+      icon={<Mail style={{ width: 24, height: 24 }} />}
+      title="Almost there"
+      sub="Enter your email to view this tour. It's only shared with the tour owner."
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (email.trim()) onSubmit(email.trim().toLowerCase());
         }}
-        className="w-full max-w-sm bg-panel border border-border rounded-lg p-6 shadow-panel"
+        style={{ display: "flex", flexDirection: "column", gap: 10 }}
       >
-        <h1 className="text-base font-semibold mb-1">Almost there</h1>
-        <p className="text-xs text-neutral-500 mb-4">
-          Enter your email to view this tour.
-        </p>
         <input
           type="email"
           required
@@ -227,18 +361,17 @@ function EmailGate({ onSubmit }: { onSubmit: (email: string) => void }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
           autoFocus
-          className="field w-full mb-3"
+          className="vpv-input"
+          style={{ textAlign: "center", fontSize: 14 }}
         />
         <button
           type="submit"
-          className="w-full bg-accent hover:bg-accentHover text-black font-medium py-2 rounded"
+          className="vpv-btn vpv-btn--primary"
+          style={{ width: "100%", justifyContent: "center", padding: "10px 16px" }}
         >
           Continue
         </button>
-        <p className="text-[10px] text-neutral-500 mt-3 text-center">
-          Your email is only shared with the tour owner.
-        </p>
       </form>
-    </div>
+    </GatePanel>
   );
 }

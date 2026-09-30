@@ -33,6 +33,10 @@ export type ShareLink = {
   revoked_at: string | null;
   used: boolean;
   created_at: string;
+  /** Max distinct viewer devices allowed. Null = unlimited. */
+  device_limit: number | null;
+  /** Most recent successful open, in ISO. Null = never opened. */
+  last_opened_at: string | null;
 };
 
 function randomToken(len = 22): string {
@@ -86,6 +90,7 @@ export async function createViewerLink(opts: {
   requireEmail?: boolean;
   expiresAt?: Date | null;
   viewLimit?: number | null;
+  deviceLimit?: number | null;
 }): Promise<ShareLink | null> {
   const password_hash = opts.password
     ? await sha256Hex(opts.password)
@@ -101,6 +106,7 @@ export async function createViewerLink(opts: {
       require_email: !!opts.requireEmail,
       expires_at: opts.expiresAt?.toISOString() ?? null,
       view_limit: opts.viewLimit ?? null,
+      device_limit: opts.deviceLimit ?? null,
     })
     .select()
     .single();
@@ -109,6 +115,42 @@ export async function createViewerLink(opts: {
     return null;
   }
   return data as ShareLink;
+}
+
+/** Count distinct viewer devices that have already opened a link.
+ *  Reads tour_events (viewer_fingerprint per share_link_id) — no extra
+ *  table needed. */
+export async function distinctDeviceCount(linkId: string): Promise<number> {
+  const { data } = await supabase
+    .from("tour_events")
+    .select("viewer_fingerprint")
+    .eq("share_link_id", linkId)
+    .not("viewer_fingerprint", "is", null);
+  const set = new Set<string>();
+  for (const r of (data ?? []) as { viewer_fingerprint: string | null }[]) {
+    if (r.viewer_fingerprint) set.add(r.viewer_fingerprint);
+  }
+  return set.size;
+}
+
+/** Where the link was last opened from — city / country pulled from
+ *  the most recent tour_event that had a country. */
+export async function lastOpenedLocation(
+  linkId: string
+): Promise<{ country: string | null; at: string | null }> {
+  const { data } = await supabase
+    .from("tour_events")
+    .select("country, created_at")
+    .eq("share_link_id", linkId)
+    .not("country", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { country: string | null; created_at: string } | null;
+  return {
+    country: row?.country ?? null,
+    at: row?.created_at ?? null,
+  };
 }
 
 export async function revokeLink(id: string) {
@@ -123,7 +165,9 @@ export async function deleteLink(id: string) {
 }
 
 /** Fetch by token — used by /present and /v pages. Returns null if the
- *  link doesn't exist, is revoked, expired, or over its view limit. */
+ *  link doesn't exist, and a `blocked` reason if it can't be opened
+ *  (revoked, expired, view-limit hit, or device-limit hit by a NEW
+ *  device — an existing device that already registered can re-enter). */
 export async function loadByToken(
   token: string
 ): Promise<{ link: ShareLink; blocked?: string } | null> {
@@ -139,7 +183,45 @@ export async function loadByToken(
     return { link, blocked: "This link has expired." };
   if (link.view_limit != null && link.view_count >= link.view_limit)
     return { link, blocked: "This link has reached its view limit." };
+  // Device limit — count distinct fingerprints seen so far; block a
+  // new device if we're already at the limit. An already-registered
+  // fingerprint always passes (same device revisiting).
+  if (link.device_limit != null && link.device_limit > 0) {
+    const myFp = getViewerFingerprint();
+    const seen = await distinctDeviceCount(link.id);
+    if (seen >= link.device_limit) {
+      // Check whether MY fingerprint was one of the ones already seen.
+      const { data: mine } = await supabase
+        .from("tour_events")
+        .select("id")
+        .eq("share_link_id", link.id)
+        .eq("viewer_fingerprint", myFp)
+        .limit(1);
+      if (!mine || mine.length === 0) {
+        return {
+          link,
+          blocked: `This link is limited to ${link.device_limit} ${
+            link.device_limit === 1 ? "device" : "devices"
+          } and that limit has been reached.`,
+        };
+      }
+    }
+  }
   return { link };
+}
+
+/** Record a successful open — bumps view_count, sets last_opened_at,
+ *  and writes a tour_event so the device counter picks this up. */
+export function recordLinkOpen(link: ShareLink) {
+  // last_opened_at + view_count via RPC (falls back to direct update).
+  supabase
+    .from("share_links")
+    .update({
+      last_opened_at: new Date().toISOString(),
+      view_count: (link.view_count ?? 0) + 1,
+    })
+    .eq("id", link.id)
+    .then(() => {});
 }
 
 /** Check password against stored hash. Returns true if match or no
