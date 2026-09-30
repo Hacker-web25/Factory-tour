@@ -15,9 +15,10 @@ import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import ClientsTab from "@/components/dashboard/ClientsTab";
+import VisitorsTab from "@/components/dashboard/VisitorsTab";
 import ClientPickerModal from "@/components/dashboard/ClientPickerModal";
 import type { Client } from "@/lib/clients";
-import { Users as UsersIcon } from "lucide-react";
+import { Users as UsersIcon, Share2 as ShareIcon } from "lucide-react";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import { startPresence } from "@/lib/presence";
 import { timeGreeting } from "@/lib/greeting";
@@ -68,7 +69,7 @@ export default function SalesDashboardPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Two-tab navigation: My Tours (default) and Clients pipeline.
-  const [activeTab, setActiveTab] = useState<"tours" | "clients">("tours");
+  const [activeTab, setActiveTab] = useState<"tours" | "clients" | "visitors">("tours");
   // Modal state for the "who is this for?" prompt when Present is clicked.
   const [presentingTour, setPresentingTour] = useState<TourCard | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -352,6 +353,17 @@ export default function SalesDashboardPage() {
             <UsersIcon size={16} className={activeTab === "clients" ? "text-vpv-blue" : ""} />
             Clients
           </button>
+          <button
+            onClick={() => setActiveTab("visitors")}
+            className={`vpv-tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${activeTab === "visitors" ? "is-active " : ""}${
+              activeTab === "visitors"
+                ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
+                : "text-vpv-muted hover:text-vpv-ink hover:bg-vpv-canvas"
+            }`}
+          >
+            <ShareIcon size={16} className={activeTab === "visitors" ? "text-vpv-blue" : ""} />
+            Visitors
+          </button>
         </nav>
 
         {/* Marketing / countdown deliberately hidden for presenters —
@@ -415,7 +427,16 @@ export default function SalesDashboardPage() {
           </div>
         </div>
 
-        {activeTab === "clients" ? (
+        {activeTab === "visitors" ? (
+          <div key="visitors" className="px-10 mb-8 vpv-tab-pane">
+            {me?.id && (
+              <VisitorsTab
+                tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+                presenterId={me.id}
+              />
+            )}
+          </div>
+        ) : activeTab === "clients" ? (
           <div key="clients" className="px-10 mb-8 vpv-tab-pane">
             {me?.org_id && (
               <ClientsTab
