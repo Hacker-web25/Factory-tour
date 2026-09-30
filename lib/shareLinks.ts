@@ -37,6 +37,11 @@ export type ShareLink = {
   device_limit: number | null;
   /** Most recent successful open, in ISO. Null = never opened. */
   last_opened_at: string | null;
+  /** Optional email address the sender says they gave this link to.
+   *  Used in analytics ("sent to rajesh@acme.com"). */
+  shared_to_email: string | null;
+  /** Optional phone number (typically for WhatsApp shares). */
+  shared_to_phone: string | null;
 };
 
 function randomToken(len = 22): string {
@@ -91,6 +96,8 @@ export async function createViewerLink(opts: {
   expiresAt?: Date | null;
   viewLimit?: number | null;
   deviceLimit?: number | null;
+  sharedToEmail?: string | null;
+  sharedToPhone?: string | null;
 }): Promise<ShareLink | null> {
   const password_hash = opts.password
     ? await sha256Hex(opts.password)
@@ -107,6 +114,8 @@ export async function createViewerLink(opts: {
       expires_at: opts.expiresAt?.toISOString() ?? null,
       view_limit: opts.viewLimit ?? null,
       device_limit: opts.deviceLimit ?? null,
+      shared_to_email: opts.sharedToEmail?.trim() || null,
+      shared_to_phone: opts.sharedToPhone?.trim() || null,
     })
     .select()
     .single();
@@ -208,6 +217,143 @@ export async function loadByToken(
     }
   }
   return { link };
+}
+
+/** Deep per-link analytics — sessions, total time, forwarded flag,
+ *  top scenes (with per-scene time), top hotspots. Computed client-side
+ *  from tour_events; heavy but fine for the MSME session sizes we
+ *  expect (a few hundred events per link at most). */
+export type LinkAnalytics = {
+  sessions: number;
+  totalSeconds: number;
+  avgSessionSec: number;
+  distinctDevices: number;
+  distinctViewers: number; // by fingerprint OR viewer_email (whichever's set)
+  /** Heuristic: if distinct devices > declared device_limit OR > 1
+   *  when a specific recipient email was set, we mark it forwarded. */
+  forwarded: boolean;
+  /** Top scenes viewed with time-in-scene per session summed. */
+  scenes: Array<{ sceneId: string; views: number; seconds: number }>;
+  /** Top hotspots clicked. */
+  hotspots: Array<{ hotspotId: string; clicks: number }>;
+};
+
+export async function loadLinkAnalytics(
+  link: ShareLink
+): Promise<LinkAnalytics> {
+  const { data } = await supabase
+    .from("tour_events")
+    .select("event_type, scene_id, hotspot_id, session_id, viewer_fingerprint, viewer_email, created_at")
+    .eq("share_link_id", link.id)
+    .order("created_at", { ascending: true })
+    .limit(10_000);
+
+  type Row = {
+    event_type: string;
+    scene_id: string | null;
+    hotspot_id: string | null;
+    session_id: string | null;
+    viewer_fingerprint: string | null;
+    viewer_email: string | null;
+    created_at: string;
+  };
+  const rows = (data ?? []) as Row[];
+
+  // Per-session bounds → first + last event timestamp per session_id.
+  // Also per-session per-scene timing: attribute time between two
+  // consecutive scene_view events (in the same session) to the first one.
+  const sessionBounds = new Map<string, { first: number; last: number }>();
+  const sceneTime = new Map<string, number>();
+  const sceneViews = new Map<string, number>();
+  const hotspotClicks = new Map<string, number>();
+  const distinctFps = new Set<string>();
+  const distinctViewers = new Set<string>();
+
+  // First pass — per-session ordered events (rows are already sorted asc).
+  const bySession = new Map<string, Row[]>();
+  for (const r of rows) {
+    if (r.viewer_fingerprint) distinctFps.add(r.viewer_fingerprint);
+    if (r.viewer_email || r.viewer_fingerprint)
+      distinctViewers.add(r.viewer_email ?? r.viewer_fingerprint!);
+    if (!r.session_id) continue;
+    const list = bySession.get(r.session_id) ?? [];
+    list.push(r);
+    bySession.set(r.session_id, list);
+  }
+
+  for (const [sid, list] of bySession) {
+    if (list.length === 0) continue;
+    const firstMs = new Date(list[0].created_at).getTime();
+    const lastMs = new Date(list[list.length - 1].created_at).getTime();
+    sessionBounds.set(sid, { first: firstMs, last: lastMs });
+
+    // Per-scene time within this session.
+    const sceneViewsInSession = list.filter(
+      (r) => r.event_type === "scene_view" && r.scene_id
+    );
+    for (let i = 0; i < sceneViewsInSession.length; i++) {
+      const cur = sceneViewsInSession[i];
+      const next = sceneViewsInSession[i + 1];
+      const start = new Date(cur.created_at).getTime();
+      const end = next ? new Date(next.created_at).getTime() : lastMs;
+      const dur = Math.max(0, Math.floor((end - start) / 1000));
+      sceneTime.set(cur.scene_id!, (sceneTime.get(cur.scene_id!) ?? 0) + dur);
+      sceneViews.set(
+        cur.scene_id!,
+        (sceneViews.get(cur.scene_id!) ?? 0) + 1
+      );
+    }
+
+    // Hotspot clicks in this session.
+    for (const r of list) {
+      if (r.event_type === "hotspot_click" && r.hotspot_id) {
+        hotspotClicks.set(
+          r.hotspot_id,
+          (hotspotClicks.get(r.hotspot_id) ?? 0) + 1
+        );
+      }
+    }
+  }
+
+  const sessions = bySession.size;
+  let totalSeconds = 0;
+  for (const { first, last } of sessionBounds.values()) {
+    totalSeconds += Math.max(0, Math.floor((last - first) / 1000));
+  }
+  const avgSessionSec = sessions > 0 ? Math.floor(totalSeconds / sessions) : 0;
+
+  // Forwarded heuristic: distinct devices >= 2 AND either (a) a
+  // specific recipient was named (email/phone), or (b) the link had a
+  // device_limit >= 1 and we exceeded it plus 0 (already the same as
+  // (a)). Even without a recipient, "we thought it was for one person
+  // but 3 devices opened it" is a real signal.
+  const recipientNamed = !!(link.shared_to_email || link.shared_to_phone);
+  const forwarded =
+    distinctFps.size >= 2 &&
+    (recipientNamed || (link.device_limit != null && distinctFps.size > link.device_limit));
+
+  const scenes = Array.from(sceneViews.entries())
+    .map(([sceneId]) => ({
+      sceneId,
+      views: sceneViews.get(sceneId) ?? 0,
+      seconds: sceneTime.get(sceneId) ?? 0,
+    }))
+    .sort((a, b) => b.seconds - a.seconds);
+
+  const hotspots = Array.from(hotspotClicks.entries())
+    .map(([hotspotId, clicks]) => ({ hotspotId, clicks }))
+    .sort((a, b) => b.clicks - a.clicks);
+
+  return {
+    sessions,
+    totalSeconds,
+    avgSessionSec,
+    distinctDevices: distinctFps.size,
+    distinctViewers: distinctViewers.size,
+    forwarded,
+    scenes,
+    hotspots,
+  };
 }
 
 /** Record a successful open — bumps view_count, sets last_opened_at,

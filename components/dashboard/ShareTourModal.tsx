@@ -33,6 +33,8 @@ import {
   Shuffle,
   Smartphone,
   ShieldCheck,
+  AtSign,
+  MessageCircle,
 } from "lucide-react";
 
 const EXIT_MS = 200;
@@ -92,6 +94,8 @@ export default function ShareTourModal({
   const [showPassword, setShowPassword] = useState(false);
   const [deviceLimitOn, setDeviceLimitOn] = useState(false);
   const [deviceLimit, setDeviceLimit] = useState<number>(1);
+  const [sharedToEmail, setSharedToEmail] = useState("");
+  const [sharedToPhone, setSharedToPhone] = useState("");
 
   // Result
   const [creating, setCreating] = useState(false);
@@ -151,6 +155,8 @@ export default function ShareTourModal({
         viewLimit: oneTime ? 1 : null,
         password: passwordOn ? password.trim() : undefined,
         deviceLimit: deviceLimitOn ? deviceLimit : undefined,
+        sharedToEmail: sharedToEmail.trim() || undefined,
+        sharedToPhone: sharedToPhone.trim() || undefined,
       });
       if (created) setLink(created);
     } finally {
@@ -250,6 +256,64 @@ export default function ShareTourModal({
                   title="QR code"
                   sub="Scan on any phone"
                 />
+              </div>
+
+              {/* Recipient contact — email / WhatsApp. Optional but
+                  the analytics UI reads much better when populated. */}
+              <div style={{ marginBottom: 14 }}>
+                <label
+                  className="vpv-label"
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  <AtSign style={{ width: 12, height: 12 }} /> Sending to
+                  <span style={{ color: "#94a3b8", fontWeight: 400 }}>
+                    · optional
+                  </span>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ position: "relative" }}>
+                    <AtSign
+                      style={{
+                        width: 13,
+                        height: 13,
+                        color: "#94a3b8",
+                        position: "absolute",
+                        left: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                      }}
+                    />
+                    <input
+                      type="email"
+                      value={sharedToEmail}
+                      onChange={(e) => setSharedToEmail(e.target.value)}
+                      placeholder="email address"
+                      className="vpv-input"
+                      style={{ paddingLeft: 30 }}
+                    />
+                  </div>
+                  <div style={{ position: "relative" }}>
+                    <MessageCircle
+                      style={{
+                        width: 13,
+                        height: 13,
+                        color: "#25D366",
+                        position: "absolute",
+                        left: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                      }}
+                    />
+                    <input
+                      type="tel"
+                      value={sharedToPhone}
+                      onChange={(e) => setSharedToPhone(e.target.value)}
+                      placeholder="WhatsApp number"
+                      className="vpv-input"
+                      style={{ paddingLeft: 30 }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Time preset chips */}
