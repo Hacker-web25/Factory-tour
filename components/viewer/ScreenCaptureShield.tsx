@@ -38,9 +38,18 @@ export default function ScreenCaptureShield({
   email?: string | null;
 }) {
   const [hidden, setHidden] = useState(false);
-
-  // 1. Visibility-change blackout.
+  // Grace-period after mount — some mobile browsers report
+  // visibilityState = "hidden" for the first ~100 ms while the page
+  // paints, which would otherwise flash a blackout over a fresh view.
+  const [armed, setArmed] = useState(false);
   useEffect(() => {
+    const t = window.setTimeout(() => setArmed(true), 600);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // 1. Visibility-change blackout — only after the arm delay.
+  useEffect(() => {
+    if (!armed) return;
     const onVis = () => setHidden(document.visibilityState !== "visible");
     const onBlur = () => setHidden(true);
     const onFocus = () => setHidden(document.visibilityState !== "visible");
@@ -52,7 +61,7 @@ export default function ScreenCaptureShield({
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [armed]);
 
   // 2. Watermark — a repeating faint stamp of the viewer's fingerprint
   //    + a live-updating timestamp. Any screen recording captures the

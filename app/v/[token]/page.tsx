@@ -225,7 +225,7 @@ function GatePanel({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="vpv-modal-panel vpv-modal-sm" style={{ padding: 0 }}>
+    <div className="vpv-glass-panel" style={{ maxWidth: 420, width: "100%" }}>
       <div style={{ padding: "32px 28px", textAlign: "center" }}>
         {icon && (
           <div
