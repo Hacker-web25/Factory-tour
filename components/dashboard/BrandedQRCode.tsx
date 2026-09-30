@@ -12,7 +12,7 @@
  * scanning cameras average.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import { Copy, Download, Check, Loader2 } from "lucide-react";
 
@@ -37,6 +37,25 @@ export default function BrandedQRCode({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<null | "copy" | "download">(null);
+  // Track whether the logo image actually loaded — if not, we don't
+  // render its container so the QR doesn't have a broken-image square
+  // in the middle. The canvas rasterisation also skips the logo
+  // gracefully via its own try/catch.
+  const [logoOk, setLogoOk] = useState(false);
+  useEffect(() => {
+    if (!logoUrl) {
+      setLogoOk(false);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => !cancelled && setLogoOk(true);
+    img.onerror = () => !cancelled && setLogoOk(false);
+    img.src = logoUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [logoUrl]);
 
   /** Rasterise the QR wrapper (SVG + logo) to a PNG dataURL. */
   const toPng = useCallback(async (): Promise<string | null> => {
@@ -138,12 +157,15 @@ export default function BrandedQRCode({
       {/* QR + logo overlay */}
       <div
         ref={wrapRef}
-        className="relative rounded-xl p-3"
+        className="relative rounded-2xl p-4 vpv-qr-frame"
         style={{
           background: bgColor === "transparent" ? "transparent" : bgColor,
-          width: size + 24,
-          height: size + 24,
-          boxShadow: bgColor === "transparent" ? "none" : "0 4px 12px -6px rgba(15,23,42,0.15)",
+          width: size + 32,
+          height: size + 32,
+          boxShadow:
+            bgColor === "transparent"
+              ? "none"
+              : "0 20px 40px -20px rgba(15,23,42,0.35), 0 0 0 1px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.9)",
         }}
       >
         <QRCode
@@ -154,18 +176,18 @@ export default function BrandedQRCode({
           bgColor={bgColor === "transparent" ? "#ffffff00" : bgColor}
           style={{ display: "block" }}
         />
-        {logoUrl && (
+        {logoUrl && logoOk && (
           <div
             className="absolute grid place-items-center"
             style={{
               left: "50%",
               top: "50%",
               transform: "translate(-50%, -50%)",
-              width: size * 0.28,
-              height: size * 0.28,
+              width: size * 0.26,
+              height: size * 0.26,
               background: "#ffffff",
-              borderRadius: 12,
-              boxShadow: "0 2px 6px -2px rgba(15,23,42,0.25)",
+              borderRadius: 14,
+              boxShadow: "0 4px 12px -2px rgba(15,23,42,0.25), 0 0 0 4px #ffffff",
               padding: size * 0.03,
             }}
           >
@@ -174,6 +196,7 @@ export default function BrandedQRCode({
               src={logoUrl}
               alt=""
               draggable={false}
+              crossOrigin="anonymous"
               style={{
                 width: "100%",
                 height: "100%",

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createViewerLink, type ShareLink } from "@/lib/shareLinks";
 import BrandedQRCode from "./BrandedQRCode";
+import { VPV_LOGO_URL } from "./VpvLogo";
 import {
   Link2,
   QrCode,
@@ -67,8 +68,6 @@ export default function ShareTourModal({
   const [passwordOn, setPasswordOn] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [transparentQR, setTransparentQR] = useState(false);
-  const [withLogo, setWithLogo] = useState(true);
 
   // Result
   const [creating, setCreating] = useState(false);
@@ -443,26 +442,6 @@ export default function ShareTourModal({
                 )}
               </div>
 
-              {/* QR-only options */}
-              {kind === "qr" && (
-                <div
-                  className="vpv-fade-up"
-                  style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 6 }}
-                >
-                  <ToggleLine
-                    label="Transparent background"
-                    hint="Overlay the QR on printed or coloured material."
-                    checked={transparentQR}
-                    onChange={setTransparentQR}
-                  />
-                  <ToggleLine
-                    label="Show VPV logo in centre"
-                    hint="Uses high error-correction so scanning still works."
-                    checked={withLogo}
-                    onChange={setWithLogo}
-                  />
-                </div>
-              )}
             </div>
 
             <div className="vpv-modal-footer">
@@ -576,14 +555,17 @@ export default function ShareTourModal({
               </div>
             </div>
 
-            {/* QR itself */}
+            {/* QR itself — VPV logo is always rendered in the centre.
+                Uses the absolute myvpv.com asset so it works on every
+                subdomain, and error-correction level H (in
+                BrandedQRCode) keeps it scannable. */}
             {kind === "qr" && (
               <div style={{ display: "grid", placeItems: "center" }}>
                 <BrandedQRCode
                   value={shareUrl}
-                  size={220}
-                  logoUrl={withLogo ? "/vpv-mark.png" : null}
-                  bgColor={transparentQR ? "transparent" : "#ffffff"}
+                  size={240}
+                  logoUrl={VPV_LOGO_URL}
+                  bgColor="#ffffff"
                 />
               </div>
             )}
@@ -635,44 +617,3 @@ function KindTile({
   );
 }
 
-function ToggleLine({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "8px 12px",
-        background: "#f8fafc",
-        borderRadius: 8,
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: "#0f172a" }}>{label}</div>
-        {hint && <div style={{ fontSize: 10.5, color: "#94a3b8" }}>{hint}</div>}
-      </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
-          checked ? "bg-cyan-500" : "bg-slate-300"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform ${
-            checked ? "translate-x-4" : "translate-x-0.5"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
