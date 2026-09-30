@@ -108,6 +108,14 @@ export default function HotspotHoverCard({
   const showStem = h.card_connector !== false;
   const live = !!onIntent;
 
+  /* "No action" hotspots are purely decorative — a marker on the wall
+     with nothing behind it. Suppress the hover card entirely so the
+     visitor doesn't get a preview that goes nowhere on click. This
+     check is on the AUTHOR-SET action only, not on the type fallback,
+     so a legacy typed hotspot (nav / info / video / etc.) still
+     previews as before. */
+  if (h.action === "none") return null;
+
   /* Image-only preview — when the action is "show image", the hover card
      drops every ornament (title, subtitle, badge, CTA row) and just
      shows the image at the author-controlled size. Clicking anywhere on
