@@ -328,19 +328,12 @@ export default function ShareTourModal({
                     Combines with the time limit above.
                   </div>
                 </div>
-                <button
-                  onClick={() => setOneTime((v) => !v)}
-                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
-                    oneTime ? "bg-amber-500" : "bg-slate-300"
-                  }`}
-                  aria-pressed={oneTime}
-                >
-                  <span
-                    className={`absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform ${
-                      oneTime ? "translate-x-4" : "translate-x-0.5"
-                    }`}
-                  />
-                </button>
+                <GlassToggle
+                  on={oneTime}
+                  onChange={setOneTime}
+                  color="#f59e0b"
+                  label="One-time use"
+                />
               </div>
 
               {/* Password protection */}
@@ -376,19 +369,12 @@ export default function ShareTourModal({
                       Combines with the time + one-time limits.
                     </div>
                   </div>
-                  <button
-                    onClick={() => setPasswordOn((v) => !v)}
-                    className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
-                      passwordOn ? "bg-sky-500" : "bg-slate-300"
-                    }`}
-                    aria-pressed={passwordOn}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-4 w-4 bg-white rounded-full transition-transform ${
-                        passwordOn ? "translate-x-4" : "translate-x-0.5"
-                      }`}
-                    />
-                  </button>
+                  <GlassToggle
+                    on={passwordOn}
+                    onChange={setPasswordOn}
+                    color="#0284c7"
+                    label="Password protect"
+                  />
                 </div>
 
                 {passwordOn && (
@@ -579,6 +565,63 @@ export default function ShareTourModal({
 }
 
 /* ---------- Little bits --------------------------------------------- */
+
+/**
+ * GlassToggle — a pill switch built entirely from inline styles so
+ * Tailwind version drift and org-theme overrides can never move the
+ * dot outside the track or invert its state. The track is 40×22 with
+ * a 16×16 dot that sits at left=3px (off) or left=21px (on), leaving
+ * a clean 3px margin on both sides.
+ */
+function GlassToggle({
+  on,
+  onChange,
+  color,
+  label,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  color: string;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      aria-pressed={on}
+      aria-label={label}
+      type="button"
+      style={{
+        position: "relative",
+        width: 40,
+        height: 22,
+        borderRadius: 999,
+        background: on ? color : "#cbd5e1",
+        border: 0,
+        padding: 0,
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 260ms cubic-bezier(0.32, 0.72, 0, 1)",
+        boxShadow: on
+          ? `0 2px 6px -1px ${color}80, inset 0 1px 0 rgba(255,255,255,0.25)`
+          : "inset 0 1px 2px rgba(0,0,0,0.06)",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: on ? 21 : 3,
+          width: 16,
+          height: 16,
+          background: "#ffffff",
+          borderRadius: 999,
+          boxShadow: "0 2px 4px rgba(15,23,42,0.25), 0 0 0 0.5px rgba(15,23,42,0.06)",
+          transition: "left 300ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}
+      />
+    </button>
+  );
+}
 
 function KindTile({
   active,

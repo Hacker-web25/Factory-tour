@@ -37,24 +37,12 @@ export default function BrandedQRCode({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<null | "copy" | "download">(null);
-  // Track whether the logo image actually loaded — if not, we don't
-  // render its container so the QR doesn't have a broken-image square
-  // in the middle. The canvas rasterisation also skips the logo
-  // gracefully via its own try/catch.
-  const [logoOk, setLogoOk] = useState(false);
+  // If the DOM image errors out we hide its container so no broken-
+  // image icon sits in the middle. Optimistic default = true so a
+  // slow-to-load logo doesn't flash a missing centre.
+  const [logoBroken, setLogoBroken] = useState(false);
   useEffect(() => {
-    if (!logoUrl) {
-      setLogoOk(false);
-      return;
-    }
-    let cancelled = false;
-    const img = new Image();
-    img.onload = () => !cancelled && setLogoOk(true);
-    img.onerror = () => !cancelled && setLogoOk(false);
-    img.src = logoUrl;
-    return () => {
-      cancelled = true;
-    };
+    setLogoBroken(false);
   }, [logoUrl]);
 
   /** Rasterise the QR wrapper (SVG + logo) to a PNG dataURL. */
@@ -176,7 +164,7 @@ export default function BrandedQRCode({
           bgColor={bgColor === "transparent" ? "#ffffff00" : bgColor}
           style={{ display: "block" }}
         />
-        {logoUrl && logoOk && (
+        {logoUrl && !logoBroken && (
           <div
             className="absolute grid place-items-center"
             style={{
@@ -191,12 +179,18 @@ export default function BrandedQRCode({
               padding: size * 0.03,
             }}
           >
+            {/* No crossOrigin on the DOM img — browsers only need CORS
+                for canvas rasterisation, and demanding it for display
+                breaks servers that don't send CORS headers (like the
+                myvpv.com asset host today). Canvas rasterisation in
+                toPng() handles CORS separately, and falls back to a
+                logo-less download if the origin blocks it. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={logoUrl}
               alt=""
               draggable={false}
-              crossOrigin="anonymous"
+              onError={() => setLogoBroken(true)}
               style={{
                 width: "100%",
                 height: "100%",

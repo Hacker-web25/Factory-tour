@@ -2509,60 +2509,91 @@ html.vpv-preview-theme.has-gradient body {
 .vpv-modal-portal.is-open .vpv-modal-scrim { opacity: 1; }
 .vpv-modal-portal.is-closing .vpv-modal-scrim { opacity: 0; }
 
-/* Panel — a glass-morphism sheet:
-   - translucent white with heavy backdrop-blur so the aurora shows through
-   - hairline gradient border (transparent-to-white sheen at the top edge)
-   - stacked shadow: big soft drop + inner highlight + inner base tint
-   - subtle rotate on enter for tactile life */
+/* Panel — LIQUID GLASS, in the style of Apple's iOS 26 / visionOS
+   Liquid Glass sheets. Very translucent so the aurora shows straight
+   through, heavy backdrop-blur, layered inner highlights (top-left
+   specular + bottom-left ambient), soft outer refraction shadow. The
+   whole sheet reads as a physical piece of frosted acrylic catching
+   light rather than a solid panel. */
 .vpv-modal-panel {
   position: relative;
-  background: linear-gradient(
-    150deg,
-    rgba(255, 255, 255, 0.92) 0%,
-    rgba(248, 250, 255, 0.88) 60%,
-    rgba(240, 245, 255, 0.86) 100%
-  );
+  /* Very light tint — most of the colour comes from what's behind. */
+  background:
+    /* Subtle gradient tint so the sheet isn't purely transparent */
+    linear-gradient(
+      140deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(240, 248, 255, 0.28) 45%,
+      rgba(228, 236, 255, 0.32) 100%
+    );
   color: #0f172a;
-  border-radius: 22px;
+  border-radius: 28px;
   overflow: hidden;
   width: 100%;
   max-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  /* Heavier blur + saturation for the "liquid glass" refraction feel. */
+  backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+  -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow:
-    0 40px 100px -28px rgba(15, 23, 42, 0.55),
-    0 16px 40px -14px rgba(59, 130, 246, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(226, 232, 240, 0.5);
+    /* Big soft outer shadow — pulls the sheet off its background. */
+    0 50px 100px -30px rgba(15, 23, 42, 0.5),
+    0 20px 60px -20px rgba(59, 130, 246, 0.22),
+    /* Thin outer ring — glass edge catching light from below. */
+    0 0 0 0.5px rgba(255, 255, 255, 0.5),
+    /* Inner top-edge specular — the bright hairline. */
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    /* Inner top-left glow — light catching the top-left corner. */
+    inset 3px 3px 10px rgba(255, 255, 255, 0.35),
+    /* Inner bottom-right shadow — where light can't reach. */
+    inset -2px -2px 12px rgba(148, 163, 184, 0.15);
   opacity: 0;
-  transform: translateY(20px) scale(0.94) rotate(-0.3deg);
-  filter: blur(6px);
+  transform: translateY(24px) scale(0.92) rotate(-0.4deg);
+  filter: blur(8px);
   transition:
-    opacity 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    filter 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 500ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 560ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter 340ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, opacity, filter;
 }
-/* Top-edge specular sheen — one bright hairline the design catches on. */
+/* Top specular arc — a long bright hairline near the top edge that
+   catches the eye first, the way Apple's Liquid Glass does. */
 .vpv-modal-panel::before {
   content: "";
   position: absolute;
-  left: 12%; right: 12%; top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,1), transparent);
+  left: 8%; right: 8%; top: 0; height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 20%,
+    rgba(255, 255, 255, 1) 50%,
+    rgba(255, 255, 255, 0.4) 80%,
+    transparent 100%
+  );
+  filter: blur(0.5px);
   pointer-events: none;
+  z-index: 3;
 }
-/* Soft ambient highlight in the top-right corner (aurora catching the glass). */
+/* Ambient corner reflections — one warm blue in the top-right, one
+   softer glow in the bottom-left. Layered as bg-images on ::after so
+   they inherit the panel's mask (rounded corners). */
 .vpv-modal-panel::after {
   content: "";
   position: absolute;
-  top: -40px; right: -40px;
-  width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.14), transparent 70%);
+  inset: 0;
+  background:
+    radial-gradient(220px 220px at 100% 0%, rgba(96, 165, 250, 0.22), transparent 65%),
+    radial-gradient(200px 240px at 0% 100%, rgba(196, 181, 253, 0.18), transparent 60%);
   pointer-events: none;
-  filter: blur(20px);
+  z-index: 1;
+  border-radius: inherit;
+}
+/* Bump the actual content above the ambient layer. */
+.vpv-modal-panel > * {
+  position: relative;
+  z-index: 2;
 }
 .vpv-modal-portal.is-open .vpv-modal-panel {
   opacity: 1;
@@ -2583,9 +2614,20 @@ html.vpv-preview-theme.has-gradient body {
   display: flex;
   align-items: flex-start;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  /* Frosted glass separator — a soft light-to-dark hairline rather
+     than a hard slate line so it reads as etched into the glass. */
+  border-bottom: 1px solid transparent;
+  background:
+    linear-gradient(180deg, transparent 0%, rgba(255,255,255,0) 100%) padding-box,
+    linear-gradient(90deg, transparent, rgba(148,163,184,0.35), transparent) border-box;
   gap: 12px;
   position: relative;
+}
+.vpv-modal-header::after {
+  content: "";
+  position: absolute;
+  left: 24px; right: 24px; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
 }
 .vpv-modal-title {
   font-size: 18px;
@@ -2641,14 +2683,22 @@ html.vpv-preview-theme.has-gradient body {
 
 .vpv-modal-footer {
   padding: 14px 24px;
-  border-top: 1px solid rgba(226, 232, 240, 0.6);
-  background: linear-gradient(180deg, rgba(248, 250, 255, 0.5), rgba(241, 245, 249, 0.7));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  border-top: 1px solid transparent;
+  /* Glass footer — slightly darker than the panel base for depth. */
+  background: linear-gradient(180deg, rgba(255,255,255,0.15), rgba(255,255,255,0.35));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: flex-end;
+}
+.vpv-modal-footer::before {
+  content: "";
+  position: absolute;
+  left: 24px; right: 24px; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
 }
 
 /* Form fields — locked-down sizing so the org theme can't inflate them. */
