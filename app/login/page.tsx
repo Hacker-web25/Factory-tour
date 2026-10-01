@@ -361,15 +361,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="text-[12px] text-white/50 mt-6 text-center">
-            Setting up an organisation?{" "}
-            <Link
-              href="/signup"
-              className="text-violet-300 hover:text-violet-200 font-medium"
-            >
-              Create a new org
-            </Link>
-          </div>
         </form>
       )}
     </AuthShell>
