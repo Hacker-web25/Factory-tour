@@ -10,6 +10,7 @@ import { slugForOrgId } from "@/lib/orgSlug";
 import PresenterAssignModal from "@/components/dashboard/PresenterAssignModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
+import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
 import {
   Box,
   Users,
@@ -652,18 +653,18 @@ export default function TeamPage() {
       </main>
 
       {inviteOpen && (
-        <InvitePresenterModal
+        <AddTeamMemberModal
           orgId={me?.org_id ?? null}
           onClose={() => setInviteOpen(false)}
-          onCreated={(code) =>
+          onCreated={({ codes }) =>
             setPending((list) => [
-              {
+              ...codes.map((code) => ({
                 code,
                 createdAt: new Date().toISOString(),
                 expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
                 usedCount: 0,
                 maxUses: 1,
-              },
+              })),
               ...list,
             ])
           }
