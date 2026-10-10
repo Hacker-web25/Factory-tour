@@ -25,12 +25,17 @@ export default function PublicTourPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  // Optional ?scene= in the URL — used by cross-tour nav hotspots to
+  // land the visitor on the specific scene the author pointed at.
+  const [initialSceneId, setInitialSceneId] = useState<string | null>(null);
   // session expiry: absolute wall-clock ms when the current view should be cut off
   const expiryRef = useRef<number | null>(null);
 
   async function load() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
+    const sceneParam = params.get("scene");
+    if (sceneParam) setInitialSceneId(sceneParam);
     // Editor preview: when the owner clicks "Open" in the builder we append
     // ?preview=1 so they can review their own draft without hitting the
     // private / unlisted / password gates. Anyone else who navigates here
@@ -306,7 +311,13 @@ export default function PublicTourPage() {
 
   return (
     <div className="h-screen">
-      {tour && <TourPlayer tour={tour} scenes={scenes} />}
+      {tour && (
+        <TourPlayer
+          tour={tour}
+          scenes={scenes}
+          initialSceneId={initialSceneId}
+        />
+      )}
     </div>
   );
 }

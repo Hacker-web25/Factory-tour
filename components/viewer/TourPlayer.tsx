@@ -35,6 +35,10 @@ type Props = {
   scenes: Scene[];
   hideControls?: boolean;
   autoplay?: boolean;
+  /** Scene id to open on first mount. Falls back to scenes[0] when
+   *  not supplied or not found in the scene list. Used by cross-tour
+   *  nav hotspots that pass `?scene=…` in the URL. */
+  initialSceneId?: string | null;
 };
 
 /** Per-scene audio chip — floats near the bottom-right control pill and
@@ -226,18 +230,27 @@ function TourPlayerInner({
   scenes,
   hideControls = false,
   autoplay = false,
+  initialSceneId,
 }: Props) {
   const { t } = useT();
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(
-    scenes[0]?.id ?? null
+  // Seed activeSceneId from initialSceneId when it matches a scene we
+  // know about, otherwise fall back to the first scene in order.
+  const resolveInitial = (list: Scene[]): string | null => {
+    if (initialSceneId && list.some((s) => s.id === initialSceneId)) {
+      return initialSceneId;
+    }
+    return list[0]?.id ?? null;
+  };
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(() =>
+    resolveInitial(scenes)
   );
 
   // Scenes are fetched asynchronously in the parent page, so on first mount
-  // this component often receives scenes=[]. When the real list arrives, pick
-  // the first scene automatically.
+  // this component often receives scenes=[]. When the real list arrives,
+  // honour initialSceneId if it matches, otherwise pick the first scene.
   useEffect(() => {
     if (!activeSceneId && scenes.length > 0) {
-      setActiveSceneId(scenes[0].id);
+      setActiveSceneId(resolveInitial(scenes));
     }
   }, [scenes, activeSceneId]);
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
