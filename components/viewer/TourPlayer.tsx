@@ -939,7 +939,31 @@ function TourPlayerInner({
 
     const action = h.action && h.action !== "none" ? h.action : legacyAction(h);
     if (action === "nav" && h.target_scene_id) {
-      // Nav hotspot → cinematic fly-through. The camera dollies TOWARD
+      // Cross-tour nav — if the hotspot points at a scene in a
+      // DIFFERENT tour, redirect to that tour's viewer rather than
+      // calling navigateTo (which would silently no-op because the
+      // target scene isn't in the current scene list).
+      if (h.nav_tour_id && h.nav_tour_id !== tour?.id) {
+        (async () => {
+          const { data, error } = await supabase
+            .from("tours")
+            .select("id")
+            .eq("id", h.nav_tour_id!)
+            .maybeSingle();
+          if (error || !data) {
+            setCrossTourError({
+              tourId: h.nav_tour_id!,
+              reason: error ? "not-allowed" : "not-found",
+            });
+            return;
+          }
+          router.push(
+            `/tour/${h.nav_tour_id}?scene=${encodeURIComponent(h.target_scene_id!)}`
+          );
+        })();
+        return;
+      }
+      // Same-tour nav → cinematic fly-through. The camera dollies TOWARD
       // the hotspot's own yaw/pitch, so it feels like walking through
       // the exact marker you clicked, then SLERPs to face the new
       // scene's front on landing.

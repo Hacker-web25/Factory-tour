@@ -1713,6 +1713,16 @@ export default function TourEditPage() {
     const action =
       h.action && h.action !== "none" ? h.action : legacyAction(h.type);
     if (action === "nav" && h.target_scene_id) {
+      // Cross-tour nav — if the target scene lives in a different
+      // tour, we can't just setActiveSceneId (it's not in our local
+      // scene list and the preview would blank out). Open the OTHER
+      // tour in a new tab, pre-focused on the target scene, so the
+      // author keeps editing context in this tab.
+      if (h.nav_tour_id && h.nav_tour_id !== tourId) {
+        const url = `/tour/${h.nav_tour_id}/edit?scene=${encodeURIComponent(h.target_scene_id)}`;
+        window.open(url, "_blank", "noopener");
+        return;
+      }
       setActiveSceneId(h.target_scene_id);
     } else if (action === "url" && h.url) {
       window.open(h.url, "_blank");

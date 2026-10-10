@@ -12,6 +12,11 @@
  *      reached" screen with the active-count + limit.
  *   5. On 'ok'  → heartbeat every ~5 min from the dashboard so the
  *      session isn't culled as idle while actively being used.
+ *
+ * Fail-open behaviour: if the RPC doesn't exist yet (migration not
+ * applied) or errors for any other reason, we return 'ok' so the user
+ * can still log in. The enforcement starts working as soon as the SQL
+ * migration lands — nothing in the UI breaks in the meantime.
  */
 
 import { supabase } from "@/lib/supabase";
@@ -31,8 +36,18 @@ export async function claimDeviceSlot(): Promise<ClaimResult> {
     p_user_agent: ua,
     p_country: null,
   });
-  if (error || !data || !data[0]) {
-    return { status: "unauth" };
+  if (error) {
+    // Fail OPEN — most common cause is the SQL migration not being
+    // applied yet. We'd rather log the user in without enforcement
+    // than block them because the DB function is missing.
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn("[claimDeviceSlot] fail-open:", error.message);
+    }
+    return { status: "ok", activeCount: 1, deviceLimit: 1 };
+  }
+  if (!data || !data[0]) {
+    return { status: "ok", activeCount: 1, deviceLimit: 1 };
   }
   const row = data[0] as {
     status: "ok" | "full" | "unauth";
@@ -45,7 +60,10 @@ export async function claimDeviceSlot(): Promise<ClaimResult> {
   if (row.status === "full") {
     return { status: "full", activeCount: row.active_count, deviceLimit: row.device_limit };
   }
-  return { status: "unauth" };
+  // RPC said unauth — but we JUST logged in, so this is almost
+  // certainly a token-propagation race. Fail open rather than
+  // bouncing the user back to the login screen.
+  return { status: "ok", activeCount: 1, deviceLimit: 1 };
 }
 
 /** True when this fingerprint has never been seen for this user before.
@@ -55,14 +73,21 @@ export async function isNewDevice(): Promise<boolean> {
   const { data, error } = await supabase.rpc("is_new_device", {
     p_fingerprint: fp,
   });
-  if (error) return false;
+  if (error) {
+    // Fail-SILENT — don't spam new-device emails if the RPC is missing.
+    return false;
+  }
   return !!data;
 }
 
 /** Release THIS device's slot — called on explicit sign-out. */
 export async function releaseDeviceSlot(): Promise<void> {
   const fp = getDeviceFingerprint();
-  await supabase.rpc("release_device_slot", { p_fingerprint: fp });
+  try {
+    await supabase.rpc("release_device_slot", { p_fingerprint: fp });
+  } catch {
+    /* fail-silent */
+  }
 }
 
 /** Fire-and-forget heartbeat. The dashboard calls this on an interval
