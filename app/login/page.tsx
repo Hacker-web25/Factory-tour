@@ -361,6 +361,14 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Legal footer — tiny, unobtrusive, always present. */}
+          <div className="mt-8 text-center text-[10px] text-white/35">
+            <Link href="/privacy" className="hover:text-white/60">Privacy</Link>
+            <span className="mx-2">·</span>
+            <Link href="/terms" className="hover:text-white/60">Terms</Link>
+            <span className="mx-2">·</span>
+            <Link href="/security" className="hover:text-white/60">Security</Link>
+          </div>
         </form>
       )}
     </AuthShell>

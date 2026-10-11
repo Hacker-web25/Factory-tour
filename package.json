@@ -1,13 +1,12 @@
 {
-  "name": "factory-tour",
-  "version": "0.1.0",
+  "name": "vpv",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "node scripts/copy-onnx.mjs || true"
+    "lint": "next lint"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
@@ -15,7 +14,6 @@
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.454.0",
     "next": "14.2.15",
-    "onnxruntime-web": "^1.20.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-qr-code": "^2.0.15",

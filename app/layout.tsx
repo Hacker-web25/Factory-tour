@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
@@ -13,12 +13,78 @@ const inter = Inter({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+  ],
+  colorScheme: "light dark",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
-  title: "VPV — Virtual Plant Visit",
-  description: "Real Factories. Real Confidence. 360° virtual tours for factories & manufacturing sites.",
+  metadataBase: new URL("https://myvpv.com"),
+  title: {
+    default: "VPV — Virtual Plant Visit",
+    template: "%s · VPV",
+  },
+  description:
+    "Premium 360° virtual tours for factories and manufacturing sites. Walk your clients through your plant from anywhere, with per-scene narration, hotspots and secure share links.",
+  applicationName: "VPV",
+  keywords: [
+    "virtual factory tour",
+    "360 factory tour",
+    "virtual plant visit",
+    "factory virtual tour software",
+    "manufacturing virtual tour",
+    "immersive factory walkthrough",
+    "virtual facility tour",
+    "VR factory tour",
+  ],
+  authors: [{ name: "The Next Design", url: "https://thenextdesign.com" }],
+  creator: "The Next Design",
+  publisher: "The Next Design",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://myvpv.com/",
+    siteName: "VPV",
+    title: "VPV — Virtual Plant Visit",
+    description:
+      "Premium 360° virtual tours for factories and manufacturing sites.",
+    images: [
+      {
+        url: "https://myvpv.com/vpv-og.png",
+        width: 1200,
+        height: 630,
+        alt: "VPV — Virtual Plant Visit",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VPV — Virtual Plant Visit",
+    description:
+      "Premium 360° virtual tours for factories and manufacturing sites.",
+    images: ["https://myvpv.com/vpv-og.png"],
+  },
   icons: {
     icon: "https://myvpv.com/vpv-mark.png",
     apple: "https://myvpv.com/vpv-mark.png",
+  },
+  alternates: {
+    canonical: "https://myvpv.com/",
   },
 };
 

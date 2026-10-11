@@ -1,6 +1,32 @@
+# Dependencies
 node_modules
+
+# Next.js build output + TS build cache
 .next
-.env.local
+tsconfig.tsbuildinfo
+
+# Environment / secrets — NEVER commit these
 .env
+.env.local
+.env.*.local
+
+# OS / editor
 .DS_Store
+Thumbs.db
 *.log
+.vscode/
+.idea/
+
+# Private planning / business docs — not part of the shipped app
+Claude outputs/
+vpv_feature_catalogue.csv
+vpv_pricing_thinking.md
+*.NEW_REDIRECT
+*.tmp
+
+# Vercel local
+.vercel
+
+# Optional caches
+.cache/
+.turbo/
