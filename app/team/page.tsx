@@ -10,7 +10,6 @@ import { slugForOrgId } from "@/lib/orgSlug";
 import PresenterAssignModal from "@/components/dashboard/PresenterAssignModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
-import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
 import {
   Box,
   Users,
@@ -653,18 +652,18 @@ export default function TeamPage() {
       </main>
 
       {inviteOpen && (
-        <AddTeamMemberModal
+        <InvitePresenterModal
           orgId={me?.org_id ?? null}
           onClose={() => setInviteOpen(false)}
-          onCreated={({ codes }) =>
+          onCreated={(code) =>
             setPending((list) => [
-              ...codes.map((code) => ({
+              {
                 code,
                 createdAt: new Date().toISOString(),
                 expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
                 usedCount: 0,
                 maxUses: 1,
-              })),
+              },
               ...list,
             ])
           }
@@ -786,169 +785,6 @@ function PendingInviteRow({
       >
         <Trash2 size={13} />
       </button>
-    </div>
-  );
-}
-
-/* --------------------------- Invite modal --------------------------- */
-function InvitePresenterModal({
-  orgId,
-  onClose,
-  onCreated,
-}: {
-  orgId: string | null;
-  onClose: () => void;
-  onCreated: (code: string) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [code, setCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  async function generate() {
-    if (!orgId) {
-      setError("Your account isn't linked to an organization yet.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const { createInviteCode } = await import("@/lib/inviteCodes");
-      const res = await createInviteCode({
-        orgId,
-        maxUses: 1,
-        expiresInDays: 7,
-      });
-      if ("error" in res) throw new Error(res.error);
-      setCode(res.code);
-      onCreated(res.code);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to generate code");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function copyCode() {
-    if (!code) return;
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  function emailCode() {
-    if (!code) return;
-    const subject = encodeURIComponent(
-      "You're invited to join our Factory Tour team"
-    );
-    const url =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/signup`
-        : "/signup";
-    const body = encodeURIComponent(
-      `Hi,\n\nYou've been invited to join our team on Factory Tour as a presenter.\n\n1. Sign up at ${url}\n2. When asked, pick "I'm on the Sales Team"\n3. Paste this invite code:\n\n   ${code}\n\n(Code expires in 7 days.)\n\nSee you inside!`
-    );
-    window.location.href = `mailto:${email || ""}?subject=${subject}&body=${body}`;
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-vpv-navy/30 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-[440px] max-w-[92vw] rounded-2xl bg-white border border-vpv-line p-6 shadow-[0_30px_80px_-20px_rgba(11,61,145,0.4)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1">
-              Invite team member
-            </div>
-            <div className="text-[18px] font-semibold text-vpv-ink">Add a presenter</div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-vpv-tint grid place-items-center text-vpv-muted"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        {code ? (
-          <div>
-            <div className="text-[11px] text-vpv-muted mb-3">
-              Share this code with your presenter. They&apos;ll enter it on the
-              signup page under <span className="text-vpv-navy font-medium">Sales Team</span>.
-            </div>
-            <div className="p-4 rounded-lg bg-vpv-tint border border-vpv-blue/30 font-mono text-[24px] tracking-widest text-vpv-navy text-center mb-3 select-all">
-              {code}
-            </div>
-            <div className="text-[10px] text-vpv-muted text-center mb-3">
-              Expires in 7 days · single use
-            </div>
-            <label className="block text-[10px] uppercase tracking-[0.15em] text-vpv-muted mb-1.5">
-              Their email (optional — pre-fills the email invite)
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="presenter@company.com"
-              className="w-full mb-3 bg-vpv-canvas border border-vpv-line rounded-lg px-3 py-2.5 text-[13px] text-vpv-ink outline-none focus:border-vpv-blue"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={copyCode}
-                className="py-2.5 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-vpv-navy text-[13px] font-medium flex items-center justify-center gap-2"
-              >
-                {copied ? (
-                  <>
-                    <Check size={14} className="text-emerald-500" /> Copied!
-                  </>
-                ) : (
-                  <>Copy code</>
-                )}
-              </button>
-              <button
-                onClick={emailCode}
-                className="py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[13px] font-semibold flex items-center justify-center gap-2"
-              >
-                📧 Email invite
-              </button>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-full mt-3 py-2 text-[12px] text-vpv-muted hover:text-vpv-navy"
-            >
-              Done
-            </button>
-          </div>
-        ) : (
-          <div>
-            <p className="text-[12px] text-vpv-muted mb-4">
-              Generate a one-time invite code. Share it with your presenter —
-              they&apos;ll paste it during signup to join your organization.
-            </p>
-            {error && (
-              <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
-                {error}
-              </div>
-            )}
-            <button
-              onClick={generate}
-              disabled={busy}
-              className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[13px] font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {busy ? "Generating…" : <>🔑 Generate invite code</>}
-            </button>
-            <p className="text-[10px] text-vpv-muted mt-3 text-center">
-              Expires in 7 days · single use · no email required
-            </p>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

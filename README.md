@@ -4,14 +4,33 @@ Premium 360° virtual tour platform for factories and manufacturing sites.
 Clients can walk through a plant from anywhere, with per-scene narration,
 hotspot information, and secure share links.
 
+---
+
+## Where to start reading
+
+| If you want to… | Read |
+|---|---|
+| Understand what VPV is and where every file lives | **`docs/ARCHITECTURE.md`** |
+| Match our code style for a new file / change | **`docs/CONVENTIONS.md`** |
+| Know what we do about security | **`/security`** page (served at build) + `supabase/*_security.sql` |
+| See the live privacy policy / terms | **`/privacy`**, **`/terms`** pages |
+
+**New here?** Read `docs/ARCHITECTURE.md` end to end (15 min). It maps
+the whole app — routing, data model, auth, security surface. Then skim
+`docs/CONVENTIONS.md` so your first commit matches the house style.
+
+---
+
 ## Stack
 
 - Next.js 14 (App Router)
-- React 18 · TypeScript
-- Three.js (via `@react-three/fiber` + `@react-three/drei`)
-- Supabase (Postgres + Storage + Auth)
+- React 18 + TypeScript
+- Three.js via `@react-three/fiber` + `@react-three/drei`
+- Supabase (Postgres + Storage + Auth + Realtime)
 - Tailwind CSS
-- Hosted on Vercel · wildcard `*.myvpv.com`
+- Hosted on Vercel + wildcard `*.myvpv.com` DNS
+
+---
 
 ## Local setup
 
@@ -19,20 +38,18 @@ hotspot information, and secure share links.
 npm install
 ```
 
-Create `.env.local` from `.env.local.example`:
+Copy the env template:
 
-```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-# Optional — enables "new device signed in" email alerts
-RESEND_API_KEY=
-RESEND_FROM="VPV Alerts <alerts@myvpv.com>"
+```bash
+cp .env.local.example .env.local
 ```
 
-Apply the SQL migrations in `supabase/` to your Supabase project in
-chronological order (the files are small and well-commented).
+Fill in the Supabase keys (project → Settings → API). Optionally add
+Resend keys for the "new device" email alerts; without them that
+feature silently no-ops.
 
-Then:
+Apply the SQL migrations in `supabase/` in filename order to a fresh
+Supabase project. Each file is idempotent, so re-running is safe.
 
 ```bash
 npm run dev
@@ -40,31 +57,41 @@ npm run dev
 
 Open http://localhost:3000.
 
-## Architecture
+---
 
-- `app/[slug]/owner/` — per-organisation dashboard, routed via subdomain
-  rewrite in `middleware.ts` (so `acme.myvpv.com` → `/acme/owner`).
-- `app/[slug]/sales/` — presenter dashboard for sales reps.
-- `app/tour/[id]/` — public viewer + editor for a tour.
-- `app/v/[token]/` — token-gated public viewer link.
-- `app/login/`, `app/signup/sales/`, `app/auth/reset/` — auth surfaces.
-- `components/viewer/TourPlayer.tsx` — the Three.js 360° scene player.
-- `components/builder/` — the tour authoring UI.
-- `lib/` — Supabase helpers, device-session enforcement, invite codes,
-  share links, analytics, offline cache.
+## Deployment
 
-## Security
+Pushes to `main` on GitHub trigger a Vercel build. The wildcard DNS
+record for `*.myvpv.com` points at the single `factory-tour` Vercel
+project. Subdomain → slug rewriting happens in `middleware.ts`.
 
-See [`/security`](https://myvpv.com/security) for the public-facing
-summary. Code-level highlights:
+For a new customer:
+1. Run the SQL block in `docs/ARCHITECTURE.md` → "Adding a customer".
+2. Send them the login URL + temp password printed in the SQL
+   editor's Messages panel.
+3. They log in and change the password from Settings → Security.
 
-- Row-level security on every database table (per-org isolation).
-- bcrypt password hashing via Supabase Auth.
-- Login rate-limit + account lockout (`supabase/login_security.sql`).
-- Per-user device cap, enforced in `lib/deviceSessions.ts`.
-- Content Security Policy + HSTS set in `next.config.js`.
+---
 
-To report a vulnerability: `security@myvpv.com`.
+## Scripts
+
+| Command | What |
+|---|---|
+| `npm run dev` | Start the dev server with hot-reload |
+| `npm run build` | Production build |
+| `npm run start` | Run the production build |
+| `npm run lint` | ESLint over the whole repo |
+
+---
+
+## Reporting bugs or vulnerabilities
+
+- **Bugs**: open a GitHub issue with a reproduction and the browser
+  you saw it in.
+- **Security**: email `security@myvpv.com` instead of filing publicly.
+  See `/security` for our disclosure policy.
+
+---
 
 ## License
 
