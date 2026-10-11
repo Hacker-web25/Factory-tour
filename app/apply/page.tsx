@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { enforceRateLimit } from "@/lib/rateLimit";
+import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import {
   ArrowLeft,
   ArrowRight,
@@ -435,6 +437,20 @@ export default function ApplyPage() {
     const err = validateStep();
     if (err) {
       setError(err);
+      return;
+    }
+    // Per-browser rate limit — 5 submissions per 24h. Form is open to
+    // the public so this is the only abuse-stop; the invite-code
+    // requirement doesn't apply here.
+    const rl = await enforceRateLimit(
+      `apply:fp:${getDeviceFingerprint()}`,
+      5,
+      86400
+    );
+    if (!rl.allowed) {
+      setError(
+        "You've submitted this form a few times already. Please wait a day before trying again, or email us directly at founders@myvpv.com."
+      );
       return;
     }
     setSubmitting(true);

@@ -149,11 +149,10 @@ export default function LoginPage() {
       setBusy(false);
       return;
     }
-    if (claim.status === "unauth") {
-      setError("Could not establish a session. Please try again.");
-      setBusy(false);
-      return;
-    }
+    // claim.status === 'unauth' shouldn't happen (deviceSessions fails
+    // open), but if it ever does we don't want to bounce the user — the
+    // destination page will send them back to /login if the session
+    // isn't actually there.
 
     // 6. Fire the "new device" email if applicable. Fire-and-forget —
     //    don't let a slow email provider stall the redirect.

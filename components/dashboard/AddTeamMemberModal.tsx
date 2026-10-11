@@ -311,21 +311,24 @@ function EmailTab({
 
   async function generate() {
     if (!orgId || emails.length === 0) return;
+    // Dedupe — pasting the same email twice shouldn't burn two codes.
+    const uniq = Array.from(new Set(emails));
     setBusy(true);
-    const rows: EmailRow[] = [];
-    for (const email of emails) {
-      const res = await createInviteCode({
-        orgId,
-        maxUses: 1,
-        expiresInDays,
-        deviceLimit,
-      });
-      if ("error" in res) {
-        rows.push({ email, error: res.error });
-      } else {
-        rows.push({ email, code: res.code });
+    // Parallelize — 50 emails sequential is 50 round-trips. Parallel
+    // keeps the modal responsive even on a big paste.
+    const settled = await Promise.allSettled(
+      uniq.map((email) =>
+        createInviteCode({ orgId, maxUses: 1, expiresInDays, deviceLimit })
+          .then((res) => ({ email, res }))
+      )
+    );
+    const rows: EmailRow[] = settled.map((s, i) => {
+      if (s.status === "rejected") {
+        return { email: uniq[i]!, error: "Network error" };
       }
-    }
+      const { email, res } = s.value;
+      return "error" in res ? { email, error: res.error } : { email, code: res.code };
+    });
     setBusy(false);
     setResults(rows);
     const successCodes = rows.filter((r) => r.code).map((r) => r.code!);
@@ -354,9 +357,9 @@ function EmailTab({
           matching person.
         </div>
         <div className="max-h-[280px] overflow-auto rounded-lg border border-vpv-line divide-y divide-vpv-line mb-3">
-          {results.map((r) => (
+          {results.map((r, i) => (
             <div
-              key={r.email}
+              key={`${r.email}-${i}`}
               className="flex items-center justify-between px-3 py-2 text-[12px]"
             >
               <span className="text-vpv-ink truncate pr-2">{r.email}</span>

@@ -15,7 +15,7 @@
  * the code is only redeemed on first signup).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -44,6 +44,20 @@ type Step = "details" | "code" | "verify-email";
 export default function SalesSignupPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("details");
+  // Already-signed-in presenter with no org? Must have come back after
+  // email confirmation. Skip the account form and jump straight to the
+  // code redemption step.
+  useEffect(() => {
+    (async () => {
+      const profile = await getMyProfile();
+      if (profile && !profile.org_id && profile.role !== "owner") {
+        setUserId(profile.id);
+        setEmail(profile.email);
+        setFullName(profile.full_name ?? "");
+        setStep("code");
+      }
+    })();
+  }, []);
 
   // Step 1 fields
   const [fullName, setFullName] = useState("");

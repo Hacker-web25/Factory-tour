@@ -189,10 +189,23 @@ function nextWithHeaders(requestHeaders: Headers, path: string) {
 }
 
 export const config = {
-  // Skip Next internals, static files, and API routes. Anything with a
-  // `.` in the last segment (favicon.ico, robots.txt, images) is
-  // treated as static and passes through — EXCEPT we still want our
-  // probe-path shedding to fire on /.env, so we match broadly then
-  // skip inside the function if needed.
-  matcher: ["/((?!_next/|.*\\..*).*)"],
+  // Default matcher: skip Next internals and static files (paths with
+  // a dot — favicon.ico, robots.txt, images, fonts). That keeps
+  // middleware off the hot path for assets, but it ALSO excludes
+  // dotted probe paths (/.env, /wp-login.php) — so we add those
+  // explicitly below. Everything else is covered by the broad pattern.
+  matcher: [
+    "/((?!_next/|.*\\..*).*)",
+    // Dotted probe paths we want to catch + reject with 410.
+    "/wp-login.php",
+    "/xmlrpc.php",
+    "/.env",
+    "/.env.local",
+    "/.env.production",
+    "/.git/:path*",
+    "/.aws/:path*",
+    "/vendor/phpunit/:path*",
+    "/actuator/:path*",
+    "/HNAP1",
+  ],
 };
