@@ -21,6 +21,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/auth";
 import { redeemInviteCode } from "@/lib/inviteCodes";
+import { enforceRateLimit } from "@/lib/rateLimit";
+import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
 import AuthShell from "@/components/AuthShell";
@@ -72,6 +74,24 @@ export default function SalesSignupPage() {
       setError("Please enter your mobile number.");
       return;
     }
+    // Rate-limit account creation per browser — 3 per 30 min. The
+    // real abuse-stop is the invite code requirement, but this
+    // prevents a bot from hammering signup to fish for existing
+    // email collisions.
+    const rl = await enforceRateLimit(
+      `signup-sales:fp:${getDeviceFingerprint()}`,
+      3,
+      1800
+    );
+    if (!rl.allowed) {
+      setError(
+        `Too many signup attempts. Try again in ${Math.ceil(
+          rl.retryAfter / 60
+        )} minute${rl.retryAfter > 60 ? "s" : ""}.`
+      );
+      return;
+    }
+
     setBusy(true);
 
     // Create the Supabase auth user.

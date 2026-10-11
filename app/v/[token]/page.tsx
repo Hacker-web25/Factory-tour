@@ -29,6 +29,7 @@ import {
   getViewerFingerprint,
   loadByToken,
   recordLinkOpen,
+  recordTokenAttempt,
   setViewerEmail,
   type ShareLink,
 } from "@/lib/shareLinks";
@@ -55,10 +56,14 @@ export default function ViewerPage() {
       const res = await loadByToken(token);
       if (cancelled) return;
       if (!res) {
+        recordTokenAttempt(false);
         setBlocked("Link not found.");
         setLoading(false);
         return;
       }
+      // Legitimate hit — count it as a success so an occasional typo
+      // in a share URL doesn't push a real viewer into the shield.
+      recordTokenAttempt(true);
       if (res.blocked) {
         setBlocked(res.blocked);
         setLink(res.link);

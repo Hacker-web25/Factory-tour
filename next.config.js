@@ -1,35 +1,64 @@
 /** @type {import('next').NextConfig} */
 
 /**
- * Security headers applied to every response. Keeps the viewer
- * iframe-embeddable only from allowed origins (so clients CAN embed
- * share pages on their own sites, but a hostile page can't frame the
- * dashboard for click-jacking). CSP is permissive enough for Supabase,
- * YouTube embeds, Google Fonts and the VPV mark CDN.
+ * Site-wide security headers. These apply to every response — the
+ * middleware adds a few more on auth-sensitive paths (no-store cache,
+ * strict referrer).
+ *
+ * CSP is explicit about every outbound origin we actually use:
+ *   - Supabase (project + wss realtime)
+ *   - YouTube iframes + thumbnails
+ *   - Google Fonts
+ *   - Resend (for the email alert API)
+ *   - Our own CDN (myvpv.com for the logo mark + OG image)
+ *
+ * `frame-ancestors` is set to self + *.myvpv.com so clients can embed
+ * their share-pages on their OWN sites but no attacker can iframe the
+ * dashboard for click-jacking.
  */
 const securityHeaders = [
-  // Enforce HTTPS forever (first-visit excepted) — the browser will
-  // never attempt HTTP after this.
+  // Enforce HTTPS forever — browsers never try HTTP after first visit.
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  // No MIME-sniffing — content-type is the only truth.
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Don't leak the exact path to the referred site.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Lock down ambient browser APIs we don't use. Camera + mic kept
-  // open for the presenter recorder.
+  // Lock down ambient APIs we don't use. Camera + mic kept open for
+  // the presenter recorder; screen capture kept for the presenter
+  // workflow; geolocation + payment + usb are not used anywhere.
   {
     key: "Permissions-Policy",
-    value: "geolocation=(), camera=(self), microphone=(self), payment=(), usb=()",
+    value: [
+      "geolocation=()",
+      "camera=(self)",
+      "microphone=(self)",
+      "payment=()",
+      "usb=()",
+      "autoplay=(self)",
+      "display-capture=(self)",
+      "accelerometer=()",
+      "gyroscope=()",
+      "magnetometer=()",
+      "midi=()",
+      "serial=()",
+      "fullscreen=(self)",
+    ].join(", "),
   },
-  // Prevent legacy XSS auditors from doing more harm than good.
+  // Opt out of the legacy XSS auditor (it causes more problems than
+  // it solves, and modern Chrome has removed it anyway).
   { key: "X-XSS-Protection", value: "0" },
-  // Not CSP, but a safety net for the gates — only our own domains,
-  // Supabase, YouTube iframe, Google Fonts, and inline data: images
-  // (QR, logos). Tighten further if you're not using inline scripts
-  // in third-party widgets.
+  // Belt-and-braces frame protection in addition to CSP's
+  // frame-ancestors. X-Frame-Options doesn't understand wildcards, so
+  // SAMEORIGIN covers the dashboard; CSP handles the embed case.
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  // Belt-and-braces for Edge DNS prefetch
+  { key: "X-DNS-Prefetch-Control", value: "off" },
+  // CORP — same-site resources only unless we say otherwise. Keeps our
+  // JS bundles from being pulled by other origins.
+  { key: "Cross-Origin-Resource-Policy", value: "same-site" },
+  // COOP — isolate our window from any pop-ups a hostile origin opens.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   {
     key: "Content-Security-Policy",
     value: [
@@ -46,27 +75,67 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'self' https://*.myvpv.com",
+      "upgrade-insecure-requests",
     ].join("; "),
   },
 ];
 
 const nextConfig = {
-  // Don't advertise Next.js version in the x-powered-by header.
+  // Don't advertise Next.js version in x-powered-by.
   poweredByHeader: false,
   reactStrictMode: true,
+  // Compiler-level minification + dead-code elimination
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production"
+      ? { exclude: ["error", "warn"] }
+      : false,
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
       { protocol: "https", hostname: "myvpv.com" },
       { protocol: "https", hostname: "img.youtube.com" },
     ],
+    // Clamp DoS vectors on the Image optimisation endpoint.
+    minimumCacheTTL: 60,
+    dangerouslyAllowSVG: false,
   },
   transpilePackages: ["three"],
+
+  // Per-API body size limits — anything bigger than this is refused
+  // before the handler is invoked. Larger uploads go through signed
+  // URLs direct to Supabase Storage, not through our server.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
+  },
+
   async headers() {
     return [
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      // API endpoints: short-circuit any proxy cache.
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0, must-revalidate" },
+          { key: "Pragma", value: "no-cache" },
+          // CORS: allow only our own subdomains. If the request is from
+          // a different origin, the browser blocks it. API routes that
+          // need a different CORS policy can override per-route.
+          { key: "Access-Control-Allow-Origin", value: "https://myvpv.com" },
+          { key: "Vary", value: "Origin" },
+        ],
+      },
+      // Static assets can cache aggressively.
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
       },
     ];
   },

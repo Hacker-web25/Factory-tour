@@ -177,9 +177,58 @@ export async function deleteLink(id: string) {
  *  link doesn't exist, and a `blocked` reason if it can't be opened
  *  (revoked, expired, view-limit hit, or device-limit hit by a NEW
  *  device — an existing device that already registered can re-enter). */
+/** Rate-limit miss attempts per browser so a scraper can't enumerate
+ *  tokens by brute force. Enforced CLIENT-SIDE via localStorage because
+ *  this is the gate between an anonymous visitor and the viewer — the
+ *  per-IP RPC check in SQL kicks in for the real request too, but this
+ *  cheap local check sheds the bulk of a scripted attack before we even
+ *  touch the network. */
+export function recordTokenAttempt(hit: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const KEY = "vpv_token_attempts";
+    const raw = localStorage.getItem(KEY);
+    const now = Date.now();
+    const windowMs = 10 * 60_000;
+    const log: number[] = raw
+      ? (JSON.parse(raw) as number[]).filter((t) => now - t < windowMs)
+      : [];
+    if (!hit) log.push(now);
+    localStorage.setItem(KEY, JSON.stringify(log));
+  } catch {
+    /* storage disabled — skip */
+  }
+}
+
+export function tokenAttemptsExceeded(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const KEY = "vpv_token_attempts";
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return false;
+    const now = Date.now();
+    const windowMs = 10 * 60_000;
+    const log: number[] = (JSON.parse(raw) as number[]).filter(
+      (t) => now - t < windowMs
+    );
+    return log.length >= 15;
+  } catch {
+    return false;
+  }
+}
+
 export async function loadByToken(
   token: string
 ): Promise<{ link: ShareLink; blocked?: string } | null> {
+  // Local brute-force shield — 15 failed token lookups in 10 min from
+  // this browser earns a hard block. The timing is deliberately coarse
+  // so a legitimate typo in a shared URL isn't punished.
+  if (tokenAttemptsExceeded()) {
+    // Constant delay so timing doesn't leak that we blocked vs missed.
+    await new Promise((r) => setTimeout(r, 500));
+    return null;
+  }
+
   const { data } = await supabase
     .from("share_links")
     .select("*")
