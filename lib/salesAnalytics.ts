@@ -84,6 +84,9 @@ export type TeamOverview = {
   /** ALL events in the window (not just the recent 50) — used for the
    *  precise per-session drilldown so nothing is dropped. */
   allEvents: TourEvent[];
+  /** Events from the PREVIOUS window of the same length — used for
+   *  "vs prev." deltas, including per-presenter drill-downs. */
+  prevEvents: TourEvent[];
   toursById: Map<string, string>; // tour_id → title
   scenesById: Map<string, { name: string; tour_id: string }>;
   hotspotsById: Map<string, string>; // hotspot_id → human label
@@ -194,6 +197,7 @@ export async function loadTeamOverview(
     deltas,
     recentEvents: events.slice(0, 50),
     allEvents: events,
+    prevEvents,
     toursById,
     scenesById,
     hotspotsById,
@@ -694,6 +698,46 @@ function summarizeFromRaw(events: TourEvent[], members: TeamMember[]) {
 function pctDelta(now: number, prev: number): number {
   if (prev === 0) return now > 0 ? 100 : 0;
   return Math.round(((now - prev) / prev) * 100);
+}
+
+/** Narrow a team overview to ONE presenter — same shape, so every
+ *  dashboard widget can render a presenter drill-down unchanged.
+ *  Totals and "vs prev." deltas are recomputed for that person. */
+export function scopeOverviewToMember(
+  ov: TeamOverview,
+  memberId: string
+): TeamOverview {
+  const member = ov.members.find((m) => m.id === memberId);
+  const members = member ? [member] : [];
+  const allEvents = ov.allEvents.filter((e) => e.presenter_user_id === memberId);
+  const prevEvents = ov.prevEvents.filter((e) => e.presenter_user_id === memberId);
+  const perMember = new Map<string, MemberStats>();
+  const stats = ov.perMember.get(memberId);
+  if (stats) perMember.set(memberId, stats);
+
+  const totals = summarize(perMember, allEvents, members);
+  const prevTotals = summarizeFromRaw(prevEvents, members);
+  const presentationSessions = new Map<string, PresentationSession>();
+  for (const [k, v] of ov.presentationSessions) {
+    if (v.presenter_user_id === memberId) presentationSessions.set(k, v);
+  }
+
+  return {
+    ...ov,
+    members,
+    perMember,
+    totals,
+    deltas: {
+      presentations: pctDelta(totals.presentations, prevTotals.presentations),
+      hours: pctDelta(totals.hours, prevTotals.hours),
+      uniqueProspects: pctDelta(totals.uniqueProspects, prevTotals.uniqueProspects),
+      activeMembers: pctDelta(totals.activeMembers, prevTotals.activeMembers),
+    },
+    recentEvents: allEvents.slice(0, 50),
+    allEvents,
+    prevEvents,
+    presentationSessions,
+  };
 }
 
 /* ---------------------------- Insights ---------------------------------- */

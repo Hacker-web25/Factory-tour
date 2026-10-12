@@ -204,6 +204,47 @@ header stack, `middleware.ts` for the edge layer.
 
 ---
 
+## Sales Team MIS and AI meeting analysis
+
+`/team/analytics` (org_admin only) renders `components/dashboard/SalesTeamMIS.tsx`.
+
+- **Team view** — KPIs, leaderboard, charts, then **All presentations**.
+- **Presenter drill-down** — click a leaderboard row (or pick from *Team
+  View*). URL gets `?presenter=<id>`; the same widgets render through
+  `scopeOverviewToMember()` in `lib/salesAnalytics.ts`, plus a
+  *Tours presented* table.
+- **All presentations** — `components/dashboard/mis/PresentationsList.tsx`,
+  rows built by `mis/presentationRows.ts` (tour_events ⨝
+  presentation_sessions by `session_id`). Large / Medium / Compact zoom,
+  remembered in localStorage.
+- **AI Analysis drawer** — `mis/AiAnalysisDrawer.tsx`. Tabs: Conversation,
+  AI analysis, Tour journey. ULTRA only (`organizations.plan = 'ultra'`).
+
+Pipeline (all server-side, user's own JWT, RLS applies — no service key):
+
+1. Presenter's device records the meeting (`lib/presentationRecorder.ts`,
+   only when the org has *Auto-record* on) → `recordings` bucket.
+2. `POST /api/ai/transcribe` → AssemblyAI with speaker labels. Async:
+   the client polls the same route until `completed`. Result saved to
+   `presentation_sessions.ai_dialogue` + `ai_speaker_map`.
+3. `POST /api/ai/analyze` → Claude (forced tool call, fixed JSON schema)
+   with the dialogue + scenes shown. Overall score = weighted average of
+   the 8 criteria in `RUBRIC` (`lib/ai/presentationAiTypes.ts`). Saved to
+   `ai_analysis` + `ai_score`.
+4. All `ai_*` writes go through the `save_presentation_ai` RPC, which
+   checks org_admin/owner of the session's org.
+
+Guards: plan check + org match in `lib/server/presentationAccess.ts`;
+rate limits 60 transcriptions and 60 analyses per org per day.
+
+Env (Vercel → Settings → Environment Variables):
+`ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`, optional `ANTHROPIC_MODEL`.
+Without them the buttons show "isn't switched on yet" — nothing breaks.
+
+Migration: `supabase/ai_presentation_analysis.sql`.
+
+---
+
 ## File-naming conventions
 
 Short list — the full ruleset lives in `docs/CONVENTIONS.md`.

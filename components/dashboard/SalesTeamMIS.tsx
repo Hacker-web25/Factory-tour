@@ -15,18 +15,32 @@
  *   • Presentations by day of week → bucketed from event timestamps.
  *   • Deals closed → `presentation_sessions.outcome = 'closed'`.
  *
- * The dashboard fetches once, then re-derives every chart from the
- * same cached data as the user switches Day/Week/Month.
+ * Clicking a salesperson (or picking one from "Team View") opens a
+ * drill-down: the same dashboard scoped to that person, plus the tours
+ * they presented. Both views end with the "All presentations" list,
+ * where each meeting has an AI Analysis button (ULTRA).
+ *
+ * The selected presenter lives in the URL (?presenter=<id>) so the
+ * browser Back button and shared links work.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, publicUrl } from "@/lib/supabase";
 import {
   loadTeamOverview,
+  scopeOverviewToMember,
   type TeamOverview,
   type MemberStats,
-  formatHours,
 } from "@/lib/salesAnalytics";
+import { loadOrgPlan } from "@/lib/presentationAi";
+import PresentationsList from "@/components/dashboard/mis/PresentationsList";
+import AiAnalysisDrawer, { type AiRowUpdate } from "@/components/dashboard/mis/AiAnalysisDrawer";
+import {
+  buildPresentationRows,
+  loadRowExtras,
+  type PresentationRow,
+  type RowExtras,
+} from "@/components/dashboard/mis/presentationRows";
 import {
   dealsClosedByMember,
   pipelineBreakdown,
@@ -45,6 +59,10 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  ChevronRight,
+  ChevronDown,
+  ArrowLeft,
+  Check,
 } from "lucide-react";
 
 /* ---------- Types ---------------------------------------------------- */
@@ -79,6 +97,13 @@ type BackfillData = {
 
 /* ---------- Root component ------------------------------------------ */
 
+const PRESENTER_PARAM = "presenter";
+
+function presenterFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(PRESENTER_PARAM);
+}
+
 export default function SalesTeamMIS({ orgId }: { orgId: string }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("month");
   const [overview, setOverview] = useState<TeamOverview | null>(null);
@@ -86,7 +111,41 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Drill-down + presentations list state.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [plan, setPlan] = useState<"pro" | "ultra">("pro");
+  const [rowExtras, setRowExtras] = useState<RowExtras | null>(null);
+  const [rowPatches, setRowPatches] = useState<Map<string, AiRowUpdate>>(new Map());
+  const [aiRowId, setAiRowId] = useState<string | null>(null);
+
   const windowDays = timeframe === "day" ? 1 : timeframe === "week" ? 7 : 30;
+
+  // URL ⇄ focused presenter (Back button returns to the team view).
+  useEffect(() => {
+    setFocusId(presenterFromUrl());
+    const onPop = () => setFocusId(presenterFromUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const focusPresenter = useCallback((id: string | null) => {
+    setFocusId(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set(PRESENTER_PARAM, id);
+    else url.searchParams.delete(PRESENTER_PARAM);
+    window.history.pushState(null, "", url.toString());
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadOrgPlan(orgId).then((p) => {
+      if (!cancelled) setPlan(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,12 +156,7 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
         const ov = await loadTeamOverview(orgId, windowDays);
         if (cancelled) return;
         setOverview(ov);
-        // Second pass — derive the "extras" that aren't in the base
-        // overview API: deals-closed counts, per-member top areas,
-        // day-of-week distribution, daily presentation buckets.
-        const back = await computeBackfill(orgId, ov, windowDays);
-        if (cancelled) return;
-        setExtra(back);
+        setRowPatches(new Map());
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -114,21 +168,120 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
     };
   }, [orgId, windowDays]);
 
+  // The overview actually on screen — whole team, or one presenter.
+  const view = useMemo(() => {
+    if (!overview) return null;
+    if (focusId && overview.members.some((m) => m.id === focusId)) {
+      return scopeOverviewToMember(overview, focusId);
+    }
+    return overview;
+  }, [overview, focusId]);
+  const focusedMember = view && view !== overview ? view.members[0] : null;
+
+  // Second pass — the "extras" that aren't in the base overview API:
+  // deals closed, per-member top areas, day-of-week, daily buckets.
+  // The previous result stays on screen while this recomputes.
+  useEffect(() => {
+    if (!view) return;
+    let cancelled = false;
+    computeBackfill(orgId, view, windowDays)
+      .then((back) => {
+        if (!cancelled) setExtra(back);
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, view, windowDays]);
+
+  // One row per meeting. Built from the whole team once; the drill-down
+  // filters it, so thumbnails/clients are fetched only once.
+  const teamRows = useMemo(
+    () => (overview ? buildPresentationRows(overview, windowDays) : []),
+    [overview, windowDays]
+  );
+  useEffect(() => {
+    let cancelled = false;
+    if (teamRows.length === 0) return;
+    loadRowExtras(teamRows)
+      .then((x) => {
+        if (!cancelled) setRowExtras(x);
+      })
+      .catch(() => {
+        /* intentional — thumbnails are cosmetic */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamRows]);
+
+  const rows = useMemo(() => {
+    const scoped = focusId ? teamRows.filter((r) => r.presenterId === focusId) : teamRows;
+    if (rowPatches.size === 0) return scoped;
+    return scoped.map((r) => {
+      const p = rowPatches.get(r.sessionId);
+      return p ? { ...r, ...p } : r;
+    });
+  }, [teamRows, focusId, rowPatches]);
+
+  const patchRow = useCallback((sessionId: string, patch: AiRowUpdate) => {
+    setRowPatches((prev) => {
+      const next = new Map(prev);
+      next.set(sessionId, { ...(prev.get(sessionId) ?? {}), ...patch });
+      return next;
+    });
+  }, []);
+
+  const aiRow = aiRowId ? rows.find((r) => r.sessionId === aiRowId) ?? null : null;
+  const closeAi = useCallback(() => setAiRowId(null), []);
+
   const rangeLabel = useMemo(() => rangeLabelFor(windowDays), [windowDays]);
+  const ready = view && extra && !loading;
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc] text-slate-900 p-6">
       {/* Header strip */}
       <header className="flex flex-wrap items-start gap-4 mb-6">
-        <div className="flex items-center gap-4 mr-auto">
-          {/* Logo mark — a small VPV badge. Uses the same neutral wordmark treatment as the rest of the app. */}
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 grid place-items-center text-white font-bold text-lg shadow-md">
-            VPV
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Sales Team MIS</h1>
-            <p className="text-sm text-slate-500">VPV Presentations, Buyer Engagement and Business Impact</p>
-          </div>
+        <div className="flex items-center gap-4 mr-auto min-w-0">
+          {focusedMember ? (
+            <>
+              <button
+                onClick={() => focusPresenter(null)}
+                className="w-10 h-10 rounded-xl bg-white border border-slate-200 grid place-items-center text-slate-500 hover:text-slate-900 shadow-sm flex-shrink-0"
+                aria-label="Back to whole team"
+                title="Back to whole team"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white font-bold grid place-items-center shadow-md flex-shrink-0">
+                {initials(focusedMember.full_name || focusedMember.email)}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <button onClick={() => focusPresenter(null)} className="hover:text-blue-600">Sales Team MIS</button>
+                  <ChevronRight className="w-3 h-3" />
+                  <span>Salesperson</span>
+                </div>
+                <h1 className="text-2xl font-semibold tracking-tight truncate">
+                  {focusedMember.full_name || focusedMember.email.split("@")[0]}
+                </h1>
+                <p className="text-sm text-slate-500 truncate">{focusedMember.email}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Logo mark — a small VPV badge. */}
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 grid place-items-center text-white font-bold text-lg shadow-md">
+                VPV
+              </div>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">Sales Team MIS</h1>
+                <p className="text-sm text-slate-500">VPV Presentations, Buyer Engagement and Business Impact</p>
+              </div>
+            </>
+          )}
         </div>
 
         <button className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm shadow-sm">
@@ -150,12 +303,13 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
           ))}
         </div>
 
-        <button className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm shadow-sm">
-          <Users className="w-4 h-4 text-slate-500" />
-          <span>Team View</span>
-        </button>
+        <TeamViewMenu
+          members={overview?.members ?? []}
+          focusId={focusedMember?.id ?? null}
+          onPick={focusPresenter}
+        />
         <button
-          onClick={() => overview && extra && exportCsv(overview, extra)}
+          onClick={() => view && extra && exportCsv(view, extra)}
           className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm shadow-sm"
         >
           <Download className="w-4 h-4 text-slate-500" />
@@ -174,20 +328,196 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
         </div>
       )}
 
-      {overview && extra && !loading && (
+      {ready && (
         <>
-          <KpiRow overview={overview} extra={extra} />
-          <LeaderboardTable overview={overview} extra={extra} />
-          <BottomCharts overview={overview} extra={extra} />
+          <KpiRow overview={view} extra={extra} presenterMode={!!focusedMember} />
+          {focusedMember ? (
+            <ToursPresentedTable rows={rows} extras={rowExtras} />
+          ) : (
+            <LeaderboardTable overview={view} extra={extra} onSelect={focusPresenter} />
+          )}
+          <BottomCharts overview={view} extra={extra} />
+          <PresentationsList
+            rows={rows}
+            extras={rowExtras}
+            plan={plan}
+            showPresenter={!focusedMember}
+            onOpenAi={(r) => setAiRowId(r.sessionId)}
+          />
         </>
       )}
+
+      {aiRow && overview && (
+        <AiAnalysisDrawer
+          row={aiRow}
+          thumbnail={aiRow.tourId ? rowExtras?.thumbnails.get(aiRow.tourId) ?? null : null}
+          clientLabel={aiRow.clientId ? rowExtras?.clients.get(aiRow.clientId) ?? null : null}
+          plan={plan}
+          overview={overview}
+          onClose={closeAi}
+          onUpdate={patchRow}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------- Team View menu ------------------------------------------ */
+
+function TeamViewMenu({
+  members,
+  focusId,
+  onPick,
+}: {
+  members: TeamOverview["members"];
+  focusId: string | null;
+  onPick: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm shadow-sm"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <Users className="w-4 h-4 text-slate-500" />
+        <span>Team View</span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute right-0 mt-1 w-64 max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-30 py-1"
+        >
+          <MenuItem active={!focusId} onClick={() => { onPick(null); setOpen(false); }}>
+            <Users className="w-4 h-4 text-slate-400" /> Whole team
+          </MenuItem>
+          <li className="border-t border-slate-100 my-1" />
+          {members.length === 0 && <li className="px-3 py-2 text-xs text-slate-400">No salespeople yet</li>}
+          {members.map((m) => (
+            <MenuItem key={m.id} active={focusId === m.id} onClick={() => { onPick(m.id); setOpen(false); }}>
+              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-[9px] font-bold grid place-items-center flex-shrink-0">
+                {initials(m.full_name || m.email)}
+              </span>
+              <span className="truncate">{m.full_name || m.email.split("@")[0]}</span>
+            </MenuItem>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function MenuItem({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <li>
+      <button
+        role="option"
+        aria-selected={active}
+        onClick={onClick}
+        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-slate-50 ${active ? "text-blue-700 font-medium" : "text-slate-700"}`}
+      >
+        {children}
+        {active && <Check className="w-3.5 h-3.5 ml-auto text-blue-600" />}
+      </button>
+    </li>
+  );
+}
+
+/* ---------- Tours presented (drill-down) ----------------------------- */
+
+function ToursPresentedTable({ rows, extras }: { rows: PresentationRow[]; extras: RowExtras | null }) {
+  const tours = useMemo(() => {
+    const map = new Map<string, { tourId: string | null; title: string; count: number; total: number; last: number; places: Set<string> }>();
+    for (const r of rows) {
+      const key = r.tourId ?? "none";
+      const t = map.get(key) ?? { tourId: r.tourId, title: r.tourTitle, count: 0, total: 0, last: 0, places: new Set<string>() };
+      t.count += 1;
+      t.total += r.durationSec;
+      t.last = Math.max(t.last, r.startMs);
+      if (r.place || r.country) t.places.add((r.place || r.country) as string);
+      map.set(key, t);
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [rows]);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden mb-6">
+      <div className="px-4 py-3 border-b border-slate-200">
+        <h3 className="text-sm font-semibold text-slate-900">Tours presented</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+              <th className="px-4 py-2.5 text-left">Tour</th>
+              <th className="px-2 py-2.5 text-left">Presentations</th>
+              <th className="px-2 py-2.5 text-left">Total time</th>
+              <th className="px-2 py-2.5 text-left">Avg duration</th>
+              <th className="px-2 py-2.5 text-left">Locations</th>
+              <th className="px-2 py-2.5 text-left">Last presented</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tours.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-slate-400">No presentations in this period.</td>
+              </tr>
+            )}
+            {tours.map((t) => {
+              const thumb = t.tourId ? extras?.thumbnails.get(t.tourId) : null;
+              return (
+                <tr key={t.tourId ?? "none"} className="border-b border-slate-100 last:border-0">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-12 h-8 rounded overflow-hidden bg-slate-100 flex-shrink-0">
+                        {thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumb} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300" />
+                        )}
+                      </div>
+                      <span className="font-medium text-slate-800 truncate max-w-[260px]">{t.title}</span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2.5 tabular-nums">{t.count}</td>
+                  <td className="px-2 py-2.5 tabular-nums text-slate-700">{formatDurationShort(t.total)}</td>
+                  <td className="px-2 py-2.5 tabular-nums text-slate-700">{formatDurationShort(Math.round(t.total / t.count))}</td>
+                  <td className="px-2 py-2.5 text-slate-600 text-xs max-w-[220px] truncate" title={Array.from(t.places).join(" · ")}>
+                    {t.places.size === 0 ? "—" : Array.from(t.places).slice(0, 2).join(" · ") + (t.places.size > 2 ? ` +${t.places.size - 2}` : "")}
+                  </td>
+                  <td className="px-2 py-2.5 text-slate-500 text-xs whitespace-nowrap">{formatDateShort(new Date(t.last).toISOString())}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 /* ---------- KPI row -------------------------------------------------- */
 
-function KpiRow({ overview, extra }: { overview: TeamOverview; extra: BackfillData }) {
+function KpiRow({
+  overview,
+  extra,
+  presenterMode = false,
+}: {
+  overview: TeamOverview;
+  extra: BackfillData;
+  presenterMode?: boolean;
+}) {
   const totalPres = overview.totals.presentations;
   const totalSec = Array.from(overview.perMember.values()).reduce(
     (a, m) => a + m.totalSeconds,
@@ -222,13 +552,23 @@ function KpiRow({ overview, extra }: { overview: TeamOverview; extra: BackfillDa
         value={formatDurationShort(avgSec)}
         delta={overview.deltas.presentations}
       />
-      <KpiCard
-        icon={<UserPlus className="w-5 h-5" />}
-        tone="purple"
-        title="Active Salespeople"
-        value={`${activeCount} / ${totalMembers}`}
-        subtext="used VPV this month"
-      />
+      {presenterMode ? (
+        <KpiCard
+          icon={<UserPlus className="w-5 h-5" />}
+          tone="purple"
+          title="Tours Presented"
+          value={String(overview.perMember.get(overview.members[0]?.id ?? "")?.toursPresented.length ?? 0)}
+          subtext="distinct tours shown"
+        />
+      ) : (
+        <KpiCard
+          icon={<UserPlus className="w-5 h-5" />}
+          tone="purple"
+          title="Active Salespeople"
+          value={`${activeCount} / ${totalMembers}`}
+          subtext="used VPV in this period"
+        />
+      )}
       <KpiCard
         icon={<Building2 className="w-5 h-5" />}
         tone="slate"
@@ -309,7 +649,15 @@ function DeltaLabel({ value }: { value: number }) {
 
 /* ---------- Leaderboard table --------------------------------------- */
 
-function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: BackfillData }) {
+function LeaderboardTable({
+  overview,
+  extra,
+  onSelect,
+}: {
+  overview: TeamOverview;
+  extra: BackfillData;
+  onSelect: (memberId: string) => void;
+}) {
   // Build the sorted list — presentations desc.
   const rows = useMemo(() => {
     return overview.members
@@ -360,16 +708,30 @@ function LeaderboardTable({ overview, extra }: { overview: TeamOverview; extra: 
               </tr>
             )}
             {rows.map((r, i) => (
-              <tr key={r.member.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+              <tr
+                key={r.member.id}
+                onClick={() => onSelect(r.member.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(r.member.id);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                title={`View ${r.member.full_name || r.member.email.split("@")[0]}'s presentations`}
+                className="group border-b border-slate-100 last:border-0 hover:bg-blue-50/50 cursor-pointer focus:outline-none focus-visible:bg-blue-50"
+              >
                 <td className="px-2 py-3 text-slate-400">{i + 1}</td>
                 <td className="px-2 py-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-white text-[10px] font-bold grid place-items-center flex-shrink-0">
                       {initials(r.member.full_name || r.member.email)}
                     </div>
-                    <span className="font-medium text-slate-800 truncate">
+                    <span className="font-medium text-slate-800 truncate group-hover:text-blue-700">
                       {r.member.full_name || r.member.email.split("@")[0]}
                     </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 flex-shrink-0" />
                   </div>
                 </td>
                 <td className="px-2 py-3">
@@ -655,6 +1017,9 @@ async function computeBackfill(
   } catch {
     /* migration not run — leave maps empty */
   }
+  // Only count people on screen (the whole team, or one presenter).
+  const onScreen = new Set(ov.members.map((m) => m.id));
+  dealsByMember = new Map(Array.from(dealsByMember).filter(([id]) => onScreen.has(id)));
 
   // Per-member "top viewed areas" — count scene_view events per member.
   const topSceneCountsByMember = new Map<string, Array<{ sceneId: string; count: number }>>();

@@ -24,6 +24,14 @@ export type PresentationSession = {
   transcript: string | null;
   topics: TopicHit[] | null;
   consent: boolean;
+  /* Optional — present once the matching migrations have run. */
+  client_id?: string | null;
+  outcome?: string | null;
+  ai_transcript_status?: string | null;
+  ai_dialogue?: unknown;
+  ai_speaker_map?: unknown;
+  ai_analysis?: unknown;
+  ai_score?: number | null;
 };
 
 export type TopicHit = {
