@@ -628,7 +628,16 @@ export default function SalesDashboardPage() {
                 ? `?presenter=${me.id}&client=${client.id}`
                 : `?presenter=${me.id}`;
               const url = `/tour/${t.id}${q}`;
-              presentGate.openWithGate(() => window.open(url, "_blank"));
+              presentGate.openWithGate(
+                () => window.open(url, "_blank"),
+                {
+                  tourTitle: t.title,
+                  totalScenes:
+                    typeof t.scene_count === "number"
+                      ? t.scene_count
+                      : null,
+                }
+              );
             }}
           />
         )}

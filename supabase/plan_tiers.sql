@@ -74,14 +74,18 @@ begin
   select plan, basic_scene_cap into v_plan, v_cap
   from public.organizations where id = v_org;
 
-  -- Any signed-in member of the tour's org (or the super-owner) is an
-  -- "insider" and gets to see every scene — otherwise their own editor
-  -- preview would be lying to them.
+  -- Only the SUPER-OWNER (platform super-admin, role='owner')
+  -- bypasses the cap. Org admins + presenters do NOT bypass: when
+  -- they present a Basic-plan tour to their customer, the cap should
+  -- apply — otherwise they're selling Pro to themselves and showing
+  -- the customer all scenes anyway (which defeats the whole gate).
+  -- The editor is unaffected: /tour/[id]/edit reads from `scenes`
+  -- directly, not through this RPC, so authors always see every scene.
   if auth.uid() is not null then
     select true into v_is_insider
     from public.profiles
     where id = auth.uid()
-      and (role = 'owner' or (org_id = v_org));
+      and role = 'owner';
   end if;
 
   if v_is_insider or v_plan is distinct from 'basic' then
@@ -108,4 +112,9 @@ notify pgrst, 'reload schema';
    update public.organizations set plan = 'pro'   where slug = 'dukaan';
    update public.organizations set plan = 'ultra' where slug = 'dukaan';
    update public.organizations set basic_scene_cap = 3 where slug = 'trial-xyz';
+------------------------------------------------------------------------ */
+
+/* ---------- See every org's current plan at a glance ------------------
+   select slug, name, plan, basic_scene_cap from public.organizations
+   order by name;
 ------------------------------------------------------------------------ */
