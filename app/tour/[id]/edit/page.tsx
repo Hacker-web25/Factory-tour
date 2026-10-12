@@ -269,7 +269,22 @@ export default function TourEditPage() {
       ]);
       setTour(t as Tour);
       setScenes((s ?? []) as Scene[]);
-      if (s && s.length) setActiveSceneId(s[0].id);
+      // Honour ?scene=<id> in the URL — cross-tour nav hotspots append
+      // it so the author (preview mode) or the viewer lands on the
+      // specific scene the hotspot points at, not scene 01.
+      if (s && s.length) {
+        let landingId = s[0].id;
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const requested = params.get("scene");
+          if (requested && s.some((row: any) => row.id === requested)) {
+            landingId = requested;
+          }
+        } catch {
+          /* server-side render or no window — fall back to first scene */
+        }
+        setActiveSceneId(landingId);
+      }
       // Fetch the folder's name so the resources modal has a nice title.
       const folderId = (t as any)?.folder_id;
       if (folderId) {

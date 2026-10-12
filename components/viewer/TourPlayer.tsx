@@ -244,15 +244,29 @@ function TourPlayerInner({
   const [activeSceneId, setActiveSceneId] = useState<string | null>(() =>
     resolveInitial(scenes)
   );
+  // Track whether the user (or an action) has moved past the initial
+  // scene. We only auto-apply `initialSceneId` BEFORE they navigate, so
+  // a late-arriving URL param can still correct the landing scene
+  // without overriding a user-chosen one later.
+  const userNavigatedRef = useRef(false);
 
   // Scenes are fetched asynchronously in the parent page, so on first mount
-  // this component often receives scenes=[]. When the real list arrives,
-  // honour initialSceneId if it matches, otherwise pick the first scene.
+  // this component often receives scenes=[]. When the real list — or a
+  // late `initialSceneId` from the URL — arrives, honour it (as long as
+  // the user hasn't manually clicked away yet). Falls back to the first
+  // scene if the id doesn't exist in this tour.
   useEffect(() => {
-    if (!activeSceneId && scenes.length > 0) {
-      setActiveSceneId(resolveInitial(scenes));
+    if (userNavigatedRef.current || scenes.length === 0) return;
+    if (
+      initialSceneId &&
+      scenes.some((s) => s.id === initialSceneId) &&
+      activeSceneId !== initialSceneId
+    ) {
+      setActiveSceneId(initialSceneId);
+    } else if (!activeSceneId) {
+      setActiveSceneId(scenes[0].id);
     }
-  }, [scenes, activeSceneId]);
+  }, [scenes, initialSceneId, activeSceneId]);
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
   const [infoModal, setInfoModal] = useState<Hotspot | null>(null);
   // Where the info card should anchor its connector arm — the point in the
@@ -826,6 +840,10 @@ function TourPlayerInner({
     if (inFlightRef.current) return;
     const target = scenes.find((s) => s.id === sceneId);
     if (!target) return;
+
+    // Once anything moves off the landing scene, don't let a late
+    // `initialSceneId` snap us back.
+    userNavigatedRef.current = true;
 
     // Resolve effect. Explicit override wins, else the tour default.
     const effect =
