@@ -174,16 +174,19 @@ export default function PublicTourPage() {
 
     setTour(t as Tour);
 
-    // Scenes — same offline-fallback pattern. When online, hit Supabase;
-    // if that fails or returns nothing, use the saved snapshot.
+    // Scenes — call `public_tour_scenes(tour_id)` instead of selecting
+    // directly from the scenes table. That RPC applies the plan gate
+    // server-side: BASIC-plan tours return only the first N scenes to
+    // non-insiders, PRO/ULTRA (and any org member) see everything. A
+    // tampered client can't bypass it, because the plan + membership
+    // check runs inside the function with its own credentials.
+    //
+    // Same offline-fallback pattern as before — if online fetch fails
+    // or returns nothing, fall back to the locally saved snapshot.
     let sceneRows: Scene[] = [];
     if (!usingOfflineSnapshot) {
       try {
-        const res = await supabase
-          .from("scenes")
-          .select("*")
-          .eq("tour_id", id)
-          .order("order_index");
+        const res = await supabase.rpc("public_tour_scenes", { p_tour_id: id });
         sceneRows = (res.data ?? []) as Scene[];
       } catch {
         // fall through to snapshot

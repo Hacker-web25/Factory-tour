@@ -524,9 +524,31 @@ function TourPlayerInner({
     })();
   }, [scenes, tour.id]);
 
+  // Set of scene ids the viewer actually has access to. On BASIC-plan
+  // tours the parent only receives the first N scenes (the rest are
+  // filtered server-side by `public_tour_scenes`), so any nav hotspot
+  // pointing at a scene outside this set would silently do nothing on
+  // click — confusing. We drop those hotspots entirely instead, so
+  // the viewer sees nothing to click on in the first place.
+  const visibleSceneIds = useMemo(
+    () => new Set(scenes.map((s) => s.id)),
+    [scenes]
+  );
+
   const hotspots = useMemo(
     () =>
       allHotspots.filter((h) => {
+        // Hide same-tour nav hotspots whose target isn't in the visible
+        // scene list. Cross-tour nav (nav_tour_id set) still works —
+        // the target is in a DIFFERENT tour and `visibleSceneIds` only
+        // speaks about this one.
+        if (
+          h.target_scene_id &&
+          !h.nav_tour_id &&
+          !visibleSceneIds.has(h.target_scene_id)
+        ) {
+          return false;
+        }
         if (h.scene_id === activeSceneId) return true;
         if (!h.is_master) return false;
         const allow = h.master_scene_ids;
@@ -534,7 +556,7 @@ function TourPlayerInner({
           return activeSceneId ? allow.includes(activeSceneId) : false;
         return true;
       }),
-    [allHotspots, activeSceneId]
+    [allHotspots, activeSceneId, visibleSceneIds]
   );
 
   // Auto-tour is paused whenever any modal is showing (info/video/pdf), so a

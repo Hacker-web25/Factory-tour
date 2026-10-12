@@ -17,6 +17,10 @@ import VpvLogo from "@/components/dashboard/VpvLogo";
 import ClientsTab from "@/components/dashboard/ClientsTab";
 import VisitorsTab from "@/components/dashboard/VisitorsTab";
 import ClientPickerModal from "@/components/dashboard/ClientPickerModal";
+import {
+  UpgradeCounter,
+  usePresentGate,
+} from "@/components/billing/UpgradeChrome";
 import type { Client } from "@/lib/clients";
 import { Users as UsersIcon, Share2 as ShareIcon } from "lucide-react";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
@@ -72,6 +76,10 @@ export default function SalesDashboardPage() {
   const [activeTab, setActiveTab] = useState<"tours" | "clients" | "visitors">("tours");
   // Modal state for the "who is this for?" prompt when Present is clicked.
   const [presentingTour, setPresentingTour] = useState<TourCard | null>(null);
+  // Plan gate — on BASIC orgs, interposes the upgrade pop-up between
+  // the client-picker completing and the tour tab opening. On PRO /
+  // ULTRA it's a no-op passthrough.
+  const presentGate = usePresentGate(me?.org_id ?? null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const salesTourIdsRef = useRef<string[]>([]);
 
@@ -366,8 +374,12 @@ export default function SalesDashboardPage() {
           </button>
         </nav>
 
-        {/* Marketing / countdown deliberately hidden for presenters —
-            it's for org_admin billing decisions, not sales-team focus. */}
+        {/* Tier-aware upgrade counter. Rendered for BASIC + PRO, hidden
+            on ULTRA. Reads the org plan via the shared helper so there
+            is only one place to change the pricing / messaging. */}
+        <div className="px-3 mt-6">
+          <UpgradeCounter orgId={me?.org_id ?? null} />
+        </div>
 
         {/* User card removed — top-right handles the profile pill. */}
       </aside>
@@ -599,7 +611,10 @@ export default function SalesDashboardPage() {
           </div>
         )}
 
-        {/* PRESENT flow — pick which client this presentation is for. */}
+        {/* PRESENT flow — pick which client this presentation is for.
+            On BASIC-plan orgs, `presentGate.openWithGate` shows the
+            upgrade pop-up before actually opening the tour tab;
+            PRO/ULTRA skip straight through. */}
         {presentingTour && me?.org_id && me?.id && (
           <ClientPickerModal
             orgId={me.org_id}
@@ -612,75 +627,24 @@ export default function SalesDashboardPage() {
               const q = client
                 ? `?presenter=${me.id}&client=${client.id}`
                 : `?presenter=${me.id}`;
-              window.open(`/tour/${t.id}${q}`, "_blank");
+              const url = `/tour/${t.id}${q}`;
+              presentGate.openWithGate(() => window.open(url, "_blank"));
             }}
           />
         )}
+        {/* The gate renders its own modal when staged. Keeps the host
+            page's JSX clean of billing chrome. */}
+        {presentGate.element}
       </main>
     </div>
     </OrgThemeProvider>
   );
 }
 
-/* ------------------------ Limited offer (shared design) ------------------------ */
-function LimitedOffer() {
-  const target = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    d.setHours(23, 59, 59, 0);
-    return d.getTime();
-  }, []);
-  const [now, setNow] = useState<number>(Date.now());
-  useEffect(() => {
-    const iv = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(iv);
-  }, []);
-  const remaining = Math.max(0, target - now);
-  const days = Math.floor(remaining / 86400000);
-  const hrs = Math.floor((remaining % 86400000) / 3600000);
-  const mins = Math.floor((remaining % 3600000) / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f14] p-4 text-center">
-      <div className="text-[9px] uppercase tracking-[0.15em] text-lime-300 font-semibold flex items-center justify-center gap-1 mb-3">
-        Limited Time Offer <span>🔥</span>
-      </div>
-      <div className="text-[10px] text-white/50 mb-0.5">Original Price</div>
-      <div className="text-[13px] text-white/40 line-through mb-3">
-        ₹3,00,000
-      </div>
-      <div className="text-[10px] text-white/50 mb-0.5">Special Discount</div>
-      <div className="text-[18px] font-bold text-lime-300 mb-3">
-        ₹30,000 OFF
-      </div>
-      <div className="border-t border-white/10 pt-3 mb-3">
-        <div className="text-[10px] text-white/50 mb-2">
-          Hurry! Offer ends in
-        </div>
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { v: days, l: "days" },
-            { v: hrs, l: "hrs" },
-            { v: mins, l: "min" },
-            { v: secs, l: "sec" },
-          ].map((t) => (
-            <div key={t.l}>
-              <div className="text-[16px] font-bold text-lime-300 tabular-nums leading-none">
-                {String(t.v).padStart(2, "0")}
-              </div>
-              <div className="text-[8px] uppercase text-white/40 tracking-wider mt-1">
-                {t.l}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <button className="w-full py-2 rounded-lg bg-lime-300 hover:bg-lime-200 text-black text-[12px] font-semibold flex items-center justify-center gap-1.5">
-        UPGRADE NOW <ArrowRight size={12} />
-      </button>
-    </div>
-  );
-}
+/* The old hard-coded `LimitedOffer` has been removed. The sidebar now
+   renders <UpgradeCounter orgId=…/> from
+   components/billing/UpgradeChrome.tsx, which reads the org plan and
+   pitches the right next tier (or hides itself on ULTRA). */
 
 function KpiCard({
   label,

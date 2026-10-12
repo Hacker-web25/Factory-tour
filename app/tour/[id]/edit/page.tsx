@@ -14,6 +14,7 @@ import LanguagePicker from "@/components/viewer/LanguagePicker";
 import RightPanel from "@/components/builder/RightPanel";
 import SceneStrip from "@/components/builder/SceneStrip";
 import ShareModal from "@/components/builder/ShareModal";
+import { useOrgPlan } from "@/lib/planAccess";
 import { DashboardThemeButton } from "@/components/dashboard/DashboardThemeSettings";
 import {
   X,
@@ -168,6 +169,12 @@ export default function TourEditPage() {
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
+  // Plan tier of the tour's org — drives the "Pro" chip on hidden
+  // scenes in the strip, so the author knows which rooms their
+  // customers aren't seeing yet.
+  const { plan: orgPlan, sceneCap: orgSceneCap } = useOrgPlan(
+    tour?.org_id ?? null
+  );
   // All hotspots for the tour (across scenes). Filtered per active scene below.
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(
@@ -2344,6 +2351,7 @@ export default function TourEditPage() {
         onDelete={onSceneDelete}
         onReorder={onReorder}
         tourId={tour.id}
+        basicSceneCap={orgPlan === "basic" ? orgSceneCap : undefined}
       />
 
       {shareOpen && (

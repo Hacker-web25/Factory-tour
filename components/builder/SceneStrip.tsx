@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Scene } from "@/lib/types";
 import { publicUrl } from "@/lib/supabase";
-import { Plus, Trash2, LayoutGrid, Pencil } from "lucide-react";
+import { Plus, Trash2, LayoutGrid, Pencil, Crown } from "lucide-react";
 import Link from "next/link";
 
 export default function SceneStrip({
@@ -14,6 +14,10 @@ export default function SceneStrip({
   onReorder,
   tourId,
   hidden,
+  /** When set (BASIC-plan orgs only), scenes at index >= cap are
+   *  marked with a tasteful "Pro" chip and the banner above explains
+   *  they're hidden from end-customers. Omit on PRO / ULTRA. */
+  basicSceneCap,
 }: {
   scenes: Scene[];
   activeId: string | null;
@@ -22,13 +26,31 @@ export default function SceneStrip({
   onReorder: (from: number, to: number) => void;
   tourId: string;
   hidden?: boolean;
+  basicSceneCap?: number;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [gridOpen, setGridOpen] = useState(false);
 
+  // True once there's at least one scene past the Basic cap — drives
+  // the inline banner above the strip. Author sees every scene (we
+  // don't gate the editor), but we tell them which ones their
+  // customers won't see yet.
+  const hasHiddenForBasic =
+    typeof basicSceneCap === "number" &&
+    scenes.length > basicSceneCap;
+
   return (
     <>
+      {!hidden && hasHiddenForBasic && (
+        <div className="bg-chrome border-t border-border px-3 py-1.5 text-[11px] text-neutral-300 flex items-center gap-2">
+          <Crown size={12} className="text-amber-300 shrink-0" />
+          <span className="truncate">
+            Scenes past #{basicSceneCap} are hidden from customers on your
+            Basic plan. Upgrade to Pro so they can see every room.
+          </span>
+        </div>
+      )}
       <div
         style={hidden ? { display: "none" } : undefined}
         className="h-[88px] bg-chrome border-t border-border flex items-center gap-1 px-2 relative"
@@ -41,6 +63,8 @@ export default function SceneStrip({
         <div className="flex-1 flex items-center gap-1 overflow-x-auto panel-scroll py-2">
           {scenes.map((s, i) => {
             const isDragging = dragFrom === i;
+            const hiddenFromBasic =
+              typeof basicSceneCap === "number" && i >= basicSceneCap;
             return (
               <div
                 key={s.id}
@@ -125,6 +149,14 @@ export default function SceneStrip({
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent text-[10px] px-1.5 py-0.5 truncate text-white">
                     {s.name}
                   </div>
+                  {hiddenFromBasic && (
+                    <div
+                      className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-amber-300/95 text-black text-[8.5px] font-bold uppercase tracking-wider shadow"
+                      title="Only Pro and Ultra customers see this scene when you share the tour."
+                    >
+                      <Crown size={8} /> Pro
+                    </div>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
