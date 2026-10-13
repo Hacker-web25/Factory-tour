@@ -1,146 +1,694 @@
 /**
- * /terms — VPV Terms of Service.
+ * /terms — VPV Terms & Conditions.
  *
- * Written to cover the real risks of the product (unauthorised
- * redistribution of tours, false identity in share-link recipient
- * tags, abuse of device-limit bypass). Review with legal before
- * launching paid tiers.
+ * Covers the commercial model as sold today: a one-time Basic licence,
+ * an Annual Support & Maintenance fee, and Pro / Ultra by written
+ * proposal. All numbers and windows come from lib/company.ts so this
+ * page can never disagree with /pricing or /refund-policy.
+ *
+ * Draft for legal review — see the notice in the delivery notes.
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
+import { B, Callout, L, Mail, P, UL } from "@/components/legal/prose";
+import { COMPANY, POLICY, companyIdentity } from "@/lib/company";
+import {
+  GST_LABEL,
+  PRO_MONTHLY_INR,
+  SCENE_MAX,
+  SCENE_MIN,
+  SUPPORT_ANNUAL_INR,
+  ULTRA_MONTHLY_INR,
+  inr,
+  inr2,
+  priceForScenes,
+  pricePerScene,
+  splitGst,
+} from "@/lib/pricing";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · VPV",
+  title: "Terms & Conditions",
   description:
-    "Terms governing use of the VPV (Virtual Plant Visit) platform.",
+    "The terms that govern your use of VPV (Virtual Plant Visit): licence, fees and GST, annual support, price changes with prior email notice, acceptable use and liability.",
   robots: { index: true, follow: true },
+  alternates: { canonical: "/terms" },
 };
 
-const UPDATED = "October 2026";
+const sections: LegalSection[] = [
+  {
+    id: "agreement",
+    title: "Agreement and scope",
+    body: (
+      <>
+        <P>
+          These Terms &amp; Conditions (the <B>Terms</B>) are a binding
+          agreement between {companyIdentity()} (<B>VPV</B>, <B>we</B>,{" "}
+          <B>us</B>) and the organisation that signs up for or uses VPV
+          (the <B>Customer</B>, <B>you</B>). They apply to the VPV website,
+          the dashboards, the tour builder, the viewer, the presenter tools
+          and everything else we provide under the VPV name (together, the{" "}
+          <B>Service</B>).
+        </P>
+        <P>
+          You accept the Terms when you place an order, accept a written
+          proposal, create or use a VPV account, or open a VPV workspace —
+          whichever happens first. If you are accepting for an organisation,
+          you confirm that you have authority to bind it.
+        </P>
+        <P>
+          These Terms work together with our{" "}
+          <L href="/privacy">Privacy Policy</L>,{" "}
+          <L href="/refund-policy">Cancellation &amp; Refund Policy</L>,{" "}
+          <L href="/shipping-policy">Shipping &amp; Delivery Policy</L>,{" "}
+          <L href="/cookies">Cookie Policy</L>,{" "}
+          <L href="/disclaimer">Disclaimer</L> and{" "}
+          <L href="/pricing">Pricing</L> page, all of which form part of the
+          agreement. If a signed proposal for Pro or Ultra says something
+          different from these Terms, the proposal prevails for that order.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "definitions",
+    title: "Key terms",
+    body: (
+      <UL>
+        <li>
+          <B>Workspace</B> — your organisation’s private area of VPV,
+          normally reached at <code className="text-[13px]">yourcompany.myvpv.com</code>.
+        </li>
+        <li>
+          <B>Authorised Users</B> — the administrators, presenters (sales
+          team) and other people your organisation invites to the Workspace.
+        </li>
+        <li>
+          <B>Viewers</B> — people who open a tour link you share, such as
+          your customers or prospects.
+        </li>
+        <li>
+          <B>Content</B> — everything you upload or create in VPV: panoramas,
+          logos, hotspot text, narration audio, client details, notes and
+          presentation recordings.
+        </li>
+        <li>
+          <B>Plan</B> — Basic, Pro or Ultra, as described on the{" "}
+          <L href="/pricing">Pricing</L> page or in your proposal.
+        </li>
+        <li>
+          <B>Scene</B> — one 360° location in a tour.{" "}
+          <B>Licence Fee</B> — the one-time fee for the Basic Plan, set by how
+          many Scenes you choose, and including the first year of Support &amp;
+          Maintenance.{" "}
+          <B>Subscription Fee</B> — the monthly fee for Pro or Ultra.{" "}
+          <B>Support Fee</B> — the Annual Support &amp; Maintenance fee charged
+          on Basic from the second year.
+        </li>
+      </UL>
+    ),
+  },
+  {
+    id: "eligibility",
+    title: "Eligibility and authority",
+    body: (
+      <>
+        <P>
+          VPV is a business product. It is sold to organisations and to
+          individuals acting for a business, and it is not intended for
+          personal or household use or for anyone under 18. By ordering you
+          confirm that the business details you give us — including the
+          legal name, address and GSTIN used on invoices — are accurate and
+          that you will keep them up to date.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "accounts",
+    title: "Accounts and security",
+    body: (
+      <>
+        <P>
+          Each Authorised User has a personal login. Keep credentials
+          confidential and do not share them. By default one active device is
+          allowed per user (your administrator can change this), and we
+          send an alert when an account signs in from a new device.
+        </P>
+        <P>
+          You are responsible for what happens under your Workspace,
+          including actions by Authorised Users. Tell us promptly at{" "}
+          <Mail to={COMPANY.emails.security} /> if you believe an account has
+          been compromised. We describe our safeguards on the{" "}
+          <L href="/security">Security</L> page.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "plans",
+    title: "Plans and licence",
+    body: (
+      <>
+        <P>
+          Subject to these Terms and payment of the applicable fees, we
+          grant you a non-exclusive, non-transferable, non-sublicensable
+          right to use the Service for your own internal business purposes
+          and to show your tours to your Viewers.
+        </P>
+        <UL>
+          <li>
+            <B>Basic — one-time.</B> A single Workspace. You choose how many
+            Scenes your Viewers can see, between {SCENE_MIN} and {SCENE_MAX},
+            and pay once for that number. Each additional Scene costs less than
+            the one before it, so the price per Scene falls as the number
+            rises. Your team can build, edit and preview every Scene in the
+            editor; the number you purchased is what your Viewers see. You may
+            buy more Scenes at any time and pay only the difference.
+          </li>
+          <li>
+            <B>Pro — {inr(PRO_MONTHLY_INR)} per month.</B> Every feature of
+            Basic with no limit on Scenes, and Support &amp; Maintenance
+            included. Agreed in a written proposal.
+          </li>
+          <li>
+            <B>Ultra — {inr(ULTRA_MONTHLY_INR)} per month.</B> Everything in
+            Pro, plus AI-assisted meeting review and priority support. Agreed
+            in a written proposal.
+          </li>
+        </UL>
+        <P>
+          Pro and Ultra are not sold through the website checkout. We agree the
+          scope with you, send a written proposal, and raise an invoice or a
+          payment link for it.
+        </P>
+        <P>
+          The Basic licence runs for as long as the Service is offered and
+          you are not in breach of these Terms. If we ever decide to stop
+          offering the Service, we will give you at least{" "}
+          {POLICY.retentionAfterCancelDays} days’ written notice and a way to
+          export your Content.
+        </P>
+        <P>
+          You may not resell, white-label or sublicense the Service, copy or
+          reverse-engineer it, or use it to build a competing product,
+          except as the law permits despite this restriction.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "fees",
+    title: "Fees, taxes and payment",
+    body: (
+      <>
+        <P>
+          Current prices are on the <L href="/pricing">Pricing</L> page. At the
+          time these Terms took effect:
+        </P>
+        <UL>
+          <li>
+            <B>Basic</B> starts at {inr(priceForScenes(SCENE_MIN))} for{" "}
+            {SCENE_MIN} Scenes, one time. The price per Scene falls as you add
+            more — at {SCENE_MAX} Scenes it is {inr(pricePerScene(SCENE_MAX))}{" "}
+            per Scene, {inr(priceForScenes(SCENE_MAX))} in total. The exact
+            amount for the number you choose is shown before you pay.
+          </li>
+          <li>
+            <B>Pro</B> is {inr(PRO_MONTHLY_INR)} per month and <B>Ultra</B> is{" "}
+            {inr(ULTRA_MONTHLY_INR)} per month.
+          </li>
+          <li>
+            <B>Annual Support &amp; Maintenance</B> on Basic is{" "}
+            {inr(SUPPORT_ANNUAL_INR)} per year, and the first year is included
+            free with your Licence Fee. It is included at no extra charge in Pro
+            and Ultra.
+          </li>
+        </UL>
+        <UL>
+          <li>
+            Fees are in Indian rupees and <B>include GST</B> at the prevailing
+            rate ({GST_LABEL} today) unless stated. Your tax invoice shows the
+            taxable value and the GST separately — for example,{" "}
+            {inr(priceForScenes(5))} is{" "}
+            {inr2(splitGst(priceForScenes(5)).taxable)} plus{" "}
+            {inr2(splitGst(priceForScenes(5)).gst)} GST. If tax law requires you
+            to deduct tax at source, tell us before paying so we can document it
+            correctly.
+          </li>
+          <li>
+            <B>Payment methods.</B> Online payments are processed by Razorpay
+            Software Private Limited, an RBI-authorised payment aggregator.
+            You can pay by card, UPI, net banking or supported wallets. Your
+            card or bank details go directly to Razorpay and are never stored
+            on VPV’s servers. Pro and Ultra orders may also be paid by
+            payment link or bank transfer as stated in the proposal.
+          </li>
+          <li>
+            <B>Invoices.</B> After each successful payment we e-mail a GST
+            invoice to the billing contact on record. The invoice is the
+            record of what you bought.
+          </li>
+          <li>
+            <B>Failed or disputed payments.</B> An order is confirmed only when
+            payment is received. If you dispute a charge with your bank, please
+            write to <Mail to={COMPANY.emails.billing} /> first — most issues
+            are resolved the same day. We may pause the Service for amounts
+            that remain unpaid after notice.
+          </li>
+          <li>
+            <B>Late payment.</B> Overdue invoices may attract interest at a
+            reasonable rate permitted by law, after written notice.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "price-changes",
+    title: "Price changes",
+    body: (
+      <>
+        <Callout title="In short" tone="notice">
+          We may change our prices at any time. We always give prior notice by
+          e-mail, and a change never alters something you have already paid
+          for.
+        </Callout>
+        <UL>
+          <li>
+            <B>New purchases.</B> The price shown at checkout, or in your
+            written proposal, when you place the order is the price you pay.
+          </li>
+          <li>
+            <B>Existing customers.</B> If we change a recurring price —
+            including the Annual Support &amp; Maintenance fee — we will send
+            written notice to the administrator and billing contact on record
+            by e-mail <B>at least {POLICY.priceChangeNoticeDays} days before
+            the new price applies to you</B>. The notice states the new price
+            and the date it starts.
+          </li>
+          <li>
+            <B>Paid terms are protected.</B> A price change never applies to a
+            Licence Fee you have paid, to a support period you have already
+            paid for, or to a proposal you have accepted for its stated term.
+            It applies only from your next renewal that begins after the
+            notice period.
+          </li>
+          <li>
+            <B>Your choice.</B> If you do not agree with a new recurring price,
+            you may cancel before the renewal date and you will not be charged
+            the new price. Continuing with a renewal after the notice period
+            means you accept it.
+          </li>
+          <li>
+            <B>Keep your e-mail current.</B> Notices go to the e-mail
+            addresses on your account. It is your responsibility to keep them
+            correct and to check that our messages are not filtered as spam.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "support",
+    title: "Annual Support & Maintenance",
+    body: (
+      <>
+        <P>
+          The Basic Licence Fee includes <B>the first year of Annual Support
+          &amp; Maintenance at no extra charge</B>, starting on the day your
+          Workspace is activated. After that, support continues for each further
+          year you renew at {inr(SUPPORT_ANNUAL_INR)} (inclusive of GST), which
+          you can do from the Plan and billing page in your dashboard. Support
+          is included throughout Pro and Ultra at no separate charge. The
+          support period and its renewal date are shown on your order
+          confirmation and tax invoice. Support &amp; Maintenance covers:
+        </P>
+        <UL>
+          <li>technical support by e-mail for the Workspace and its tours;</li>
+          <li>fixes for defects in the Service;</li>
+          <li>security patches and platform maintenance; and</li>
+          <li>updates we release to the Plan you bought.</li>
+        </UL>
+        <P>
+          We reply to support e-mails within {POLICY.replyBusinessDays}{" "}
+          business days. Support does not include on-site visits, custom
+          development, content production or training unless your proposal
+          says so.
+        </P>
+        <P>
+          <B>Renewal.</B> We e-mail you before each renewal. If the Support Fee
+          is not paid by the renewal date, we allow a grace period of{" "}
+          {POLICY.supportGraceDays} days. After that, Support &amp; Maintenance
+          is paused until you renew. Your Workspace and your published tours
+          stay available while support is paused, and we will not delete your
+          Content for an unpaid Support Fee without at least{" "}
+          {POLICY.deletionNoticeDays} days’ written notice.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "cancellation",
+    title: "Cancellation, renewal and refunds",
+    body: (
+      <>
+        <P>
+          You can stop renewing Support &amp; Maintenance, or close your
+          Workspace, at any time by writing to{" "}
+          <Mail to={COMPANY.emails.billing} />. Cancellation takes effect at
+          the end of the period you have paid for, and we do not pro-rate
+          fees for a partial period.
+        </P>
+        <P>
+          Refunds — including the {POLICY.refundWindowDays}-day window, what
+          is and is not refundable, and how long a refund takes — are set out
+          in our <L href="/refund-policy">Cancellation &amp; Refund Policy</L>.
+          After cancellation we keep your account data for{" "}
+          {POLICY.retentionAfterCancelDays} days so you can return without
+          losing it, then delete it as described in the{" "}
+          <L href="/privacy">Privacy Policy</L>.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "content",
+    title: "Your content",
+    body: (
+      <>
+        <P>
+          You own your Content. You give us a limited, worldwide,
+          royalty-free licence to host, process, display and transmit it
+          solely to provide the Service to you — for example, to render a
+          tour for your Viewers — and to keep it secure. We claim no other
+          rights in it and we do not use it to train AI models.
+        </P>
+        <P>
+          You confirm that you have the rights to everything you upload and
+          that it does not infringe anyone’s rights or break the law. You are
+          responsible for keeping your own copies of Content you cannot
+          afford to lose; we take care to protect it but the Service is not a
+          backup product.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "recording-ai",
+    title: "Recording, location and AI features",
+    body: (
+      <>
+        <P>
+          VPV’s presenter tools can, when a presenter chooses to turn them
+          on, record audio, transcribe speech, capture the presenter’s
+          approximate location, and produce AI-assisted analysis of a meeting.
+          Please read the <L href="/privacy">Privacy Policy</L> for how this
+          data is handled.
+        </P>
+        <UL>
+          <li>
+            <B>Consent is your responsibility.</B> Before recording, you must
+            tell every participant that the conversation is being recorded and
+            obtain any consent that applicable law requires. A browser
+            permission prompt does not replace that duty.
+          </li>
+          <li>
+            <B>Your people, your rules.</B> Only Authorised Users who need
+            access should be able to open recordings. You decide what to keep
+            and when to delete it.
+          </li>
+          <li>
+            <B>AI output is an aid, not an authority.</B> Transcripts,
+            summaries, scores and suggestions are generated automatically and
+            can be incomplete or wrong. Review them before relying on them
+            and do not use them as the sole basis for decisions about people.
+            See the <L href="/disclaimer">Disclaimer</L>.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "acceptable-use",
+    title: "Acceptable use",
+    body: (
+      <>
+        <P>You agree not to:</P>
+        <UL>
+          <li>upload content that is unlawful, infringing, defamatory or that you have no right to distribute;</li>
+          <li>publish content designed to deceive Viewers, such as false facility details, fabricated certifications or misleading quality claims;</li>
+          <li>impersonate another person or tag share links with someone else’s e-mail address or phone number to mislead;</li>
+          <li>share logins, bypass or interfere with device limits, rate limits or access controls, or probe the Service for vulnerabilities outside our <L href="/security">disclosure process</L>;</li>
+          <li>record, scrape or redistribute tours you are not authorised to share, or remove viewer watermarks;</li>
+          <li>send malware, overload the Service, or use it to harm others.</li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "viewer-data",
+    title: "Viewer data and compliance",
+    body: (
+      <P>
+        When you share tours, VPV collects analytics about how Viewers use them
+        on your behalf. For that data you decide why and how it is used and we
+        act as your service provider. You are responsible for any notice and
+        consent your local law requires from Viewers, and for using the data
+        lawfully. For account, billing and security data about your own team,
+        we are responsible as described in the{" "}
+        <L href="/privacy">Privacy Policy</L>.
+      </P>
+    ),
+  },
+  {
+    id: "ip",
+    title: "Our intellectual property",
+    body: (
+      <P>
+        The Service — its software, design, text, trademarks and logos — belongs
+        to {COMPANY.legalName} or its licensors and is protected by law. These
+        Terms give you only the right to use it as described above. If you
+        send us feedback, you allow us to use it to improve the Service
+        without obligation to you.
+      </P>
+    ),
+  },
+  {
+    id: "availability",
+    title: "Availability and maintenance",
+    body: (
+      <P>
+        We aim for 99% monthly availability. We do not guarantee uninterrupted
+        service. Planned maintenance is announced on the dashboard at least 48
+        hours in advance, except for urgent security fixes. Availability
+        targets are goals, not a promise of specific performance, and are
+        not a condition of payment.
+      </P>
+    ),
+  },
+  {
+    id: "third-party",
+    title: "Third-party services",
+    body: (
+      <P>
+        VPV relies on other providers — for hosting, database and storage,
+        payments, e-mail and AI processing. The list is in the{" "}
+        <L href="/privacy#sharing">Privacy Policy</L>. Embedded third-party
+        content, such as YouTube videos you add to a tour, is governed by that
+        provider’s own terms. We are not responsible for services we do not
+        operate.
+      </P>
+    ),
+  },
+  {
+    id: "suspension",
+    title: "Suspension and termination",
+    body: (
+      <>
+        <P>
+          We may suspend or end access if you materially breach these Terms,
+          if an account appears compromised, or if continued access would put
+          other customers at risk. Where practical we will contact the
+          administrator first and allow a reasonable period to fix the issue;
+          where immediate action is needed to protect others we may act first
+          and explain afterwards.
+        </P>
+        <P>
+          You may stop using VPV at any time. When these Terms end, your right
+          to use the Service ends, and sections that by their nature should
+          continue (fees owed, intellectual property, liability, disputes)
+          continue.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "warranty",
+    title: "Warranties and disclaimers",
+    body: (
+      <P>
+        We provide the Service with reasonable skill and care. Beyond that,
+        and to the extent the law allows, the Service is provided “as is” and
+        “as available”, and we disclaim implied warranties of merchantability,
+        fitness for a particular purpose and non-infringement. We do not
+        promise that VPV will produce any particular sales or business
+        result. See the <L href="/disclaimer">Disclaimer</L> for more.
+      </P>
+    ),
+  },
+  {
+    id: "liability",
+    title: "Limitation of liability",
+    body: (
+      <>
+        <P>
+          To the extent the law allows, neither party is liable to the other
+          for indirect, incidental or consequential loss, or for lost
+          profits, lost business opportunities or loss of goodwill, arising
+          from the use of or inability to use the Service.
+        </P>
+        <P>
+          Our total liability to you for all claims in any 12-month period is
+          limited to the fees you paid us in that period. These limits do not
+          apply to liability that cannot be limited by law, to fraud, or to
+          your payment obligations.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "indemnity",
+    title: "Indemnity",
+    body: (
+      <P>
+        You will defend and compensate us against third-party claims, and the
+        resulting losses and reasonable costs, that arise from your Content,
+        from recordings you make without a lawful basis, or from your breach
+        of these Terms. We will tell you promptly of any claim and give you
+        reasonable help in handling it.
+      </P>
+    ),
+  },
+  {
+    id: "force-majeure",
+    title: "Events beyond our control",
+    body: (
+      <P>
+        Neither party is liable for a delay or failure caused by events
+        beyond its reasonable control — such as natural disasters, war,
+        government action, power or internet failure, or failure of a major
+        infrastructure provider — as long as it takes reasonable steps to
+        limit the effect. This does not excuse payment obligations that have
+        already fallen due.
+      </P>
+    ),
+  },
+  {
+    id: "changes",
+    title: "Changes to the Service and these Terms",
+    body: (
+      <>
+        <P>
+          We improve VPV continuously and may add, change or retire features.
+          If we make a change that materially reduces what your paid Plan
+          offers, we will give notice and, where the change is not
+          reversible, discuss a fair solution with you.
+        </P>
+        <P>
+          We may update these Terms. For material changes we will e-mail the
+          administrator on record and show a notice on the sign-in page{" "}
+          <B>at least {POLICY.termsChangeNoticeDays} days before they take
+          effect</B>. Price changes follow the separate notice period in{" "}
+          <a href="#price-changes" className="text-vpv-blue underline underline-offset-2">Price changes</a>.
+          Continuing to use the Service after the effective date means you
+          accept the update; if you do not, you may cancel before it takes
+          effect.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "notices",
+    title: "Notices",
+    body: (
+      <P>
+        We give notices by e-mail to the administrator and billing contact on
+        record, and may also show them in the dashboard. Send notices to us at{" "}
+        <Mail to={COMPANY.emails.legal} />. An e-mail notice is treated as
+        received on the next business day after it is sent. Because these Terms
+        are an electronic record under the Information Technology Act, 2000,
+        they do not require a physical signature.
+      </P>
+    ),
+  },
+  {
+    id: "law",
+    title: "Governing law and disputes",
+    body: (
+      <>
+        <P>
+          These Terms are governed by the laws of India. If a dispute arises,
+          the parties will first try in good faith to resolve it through
+          discussion for 30 days after written notice. If it is not resolved,
+          the courts at {COMPANY.jurisdiction} have exclusive jurisdiction.
+        </P>
+        <P>
+          Complaints about a payment, a refund or the Service can be sent to{" "}
+          <Mail to={COMPANY.emails.support} /> at any time; we treat
+          resolving them quickly as part of the Service.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "general",
+    title: "General",
+    body: (
+      <UL>
+        <li><B>Entire agreement.</B> These Terms, the policies they refer to and any signed proposal are the whole agreement and replace earlier discussions.</li>
+        <li><B>Severability.</B> If a provision is unenforceable, the rest continues in force.</li>
+        <li><B>No waiver.</B> Not enforcing a right at once does not give it up.</li>
+        <li><B>Assignment.</B> You may not transfer these Terms without our written consent. We may transfer them to a successor to our business, and will tell you.</li>
+        <li><B>Relationship.</B> The parties are independent contractors. Nothing creates a partnership, agency or employment.</li>
+      </UL>
+    ),
+  },
+  {
+    id: "contact",
+    title: "Contact",
+    body: (
+      <UL>
+        <li>Terms and legal: <Mail to={COMPANY.emails.legal} /></li>
+        <li>Billing and invoices: <Mail to={COMPANY.emails.billing} /></li>
+        <li>Support: <Mail to={COMPANY.emails.support} /></li>
+        <li>
+          Full contact details are on the <L href="/contact">Contact</L> page.
+        </li>
+      </UL>
+    ),
+  },
+];
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-white text-slate-900 py-12 px-6">
-      <article className="max-w-2xl mx-auto">
-        <nav className="text-[12px] text-slate-500 mb-6">
-          <Link href="/" className="hover:text-slate-900">
-            ← Back to VPV
-          </Link>
-        </nav>
-        <h1 className="text-3xl font-semibold tracking-tight mb-2">
-          Terms of Service
-        </h1>
-        <p className="text-sm text-slate-500 mb-10">Last updated: {UPDATED}</p>
-
-        <S title="1. Who this applies to">
-          These terms apply to anyone who uses VPV: organisation
-          administrators who upload tours, sales-team members who present
-          them, and visitors who open a shared link. By using the
-          service, you agree to be bound by them.
-        </S>
-
-        <S title="2. Your account">
-          You keep your login details confidential. One active device
-          per user by default (your admin may raise the limit). Sharing
-          your credentials is a termination-grade violation — the
-          device-limit system is there to make it hard, not just to make
-          a point. If you lose access to the device you were signed in
-          on, your admin can revoke the session from the team page.
-        </S>
-
-        <S title="3. Your content">
-          You own every panorama, logo, hotspot caption and audio clip
-          you upload. We only process it to render your tours and show
-          analytics. We don't claim any rights beyond what's necessary
-          to deliver the service.
-        </S>
-
-        <S title="4. Acceptable use">
-          Don't upload content you don't have the rights to distribute,
-          content that's unlawful under Indian law or the law of the
-          viewer's country, or content designed to deceive viewers
-          (deepfake factories, fake facility addresses, false quality
-          claims). We may suspend accounts that abuse the share-link
-          recipient system to impersonate someone else's email.
-        </S>
-
-        <S title="5. Visitor data">
-          If you share tours with your own customers, you're responsible
-          for whatever notice and consent your local law requires on
-          their end. We provide the analytics; the relationship with
-          those visitors is yours.
-        </S>
-
-        <S title="6. Availability">
-          We aim for 99% monthly uptime. We don't guarantee any specific
-          performance beyond that, and we may bring the service down for
-          scheduled maintenance with 48 hours notice (except for
-          security-critical patches). Scheduled maintenance windows are
-          announced on the dashboard.
-        </S>
-
-        <S title="7. Payment and cancellation">
-          Paid tiers are billed in advance. You can cancel any time from
-          the dashboard; your account stays active until the end of the
-          paid period. We don't pro-rate refunds for partial months.
-          Account data is retained for 90 days after cancellation so
-          you can re-subscribe without losing it.
-        </S>
-
-        <S title="8. Suspension and termination">
-          We may suspend accounts that violate these terms, that attempt
-          to break our rate-limits or device enforcement, or that we
-          reasonably believe have been compromised. We'll contact the
-          organisation admin before termination except where immediate
-          action is required to protect other users.
-        </S>
-
-        <S title="9. Liability">
-          VPV is provided "as is". We are not liable for lost business,
-          lost sales opportunities, or indirect damages arising from
-          the use (or inability to use) the service. Our total liability
-          in any 12-month period is capped at the fees you paid us in
-          that period. This cap doesn't apply to our indemnification
-          obligations or to anything we're not allowed to limit under
-          applicable consumer law.
-        </S>
-
-        <S title="10. Changes">
-          We may update these terms. Material changes are announced on
-          the dashboard login page at least 14 days before taking
-          effect, and we'll email the organisation admin on record.
-          Continued use after the effective date counts as acceptance.
-        </S>
-
-        <S title="11. Governing law">
-          These terms are governed by the laws of India. Disputes will
-          be resolved in the courts of New Delhi.
-        </S>
-
-        <S title="12. Contact">
-          Questions about these terms:{" "}
-          <a className="text-blue-600 underline" href="mailto:legal@myvpv.com">legal@myvpv.com</a>
-        </S>
-
-        <div className="mt-12 pt-6 border-t border-slate-200 text-xs text-slate-500">
-          See also:{" "}
-          <Link href="/privacy" className="text-blue-600 underline">Privacy Policy</Link>
-          {" · "}
-          <Link href="/security" className="text-blue-600 underline">Security practices</Link>
-        </div>
-      </article>
-    </main>
+    <LegalPage
+      title="Terms & Conditions"
+      summary="The agreement for using VPV: what you get, what it costs, how support works, and what happens if prices or terms change."
+      sections={sections}
+    >
+      <Callout title="Plain-language summary">
+        Basic is a one-time licence from {inr(priceForScenes(SCENE_MIN))},
+        inclusive of GST — you choose how many scenes, and the price per scene
+        falls as you add more. The first year of support is included; after that
+        it is {inr(SUPPORT_ANNUAL_INR)} a year. Pro is {inr(PRO_MONTHLY_INR)} a
+        month and Ultra {inr(ULTRA_MONTHLY_INR)} a month, both with unlimited
+        scenes. You own your content. Prices can change, but only after
+        we e-mail you {POLICY.priceChangeNoticeDays} days in advance and never
+        for something you have already paid for. This summary helps you read
+        the Terms; the Terms below are what binds us both.
+      </Callout>
+    </LegalPage>
   );
 }
 
-function S({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mb-8">
-      <h2 className="text-lg font-semibold tracking-tight mb-3">{title}</h2>
-      <div className="text-[14px] leading-relaxed text-slate-700">
-        {children}
-      </div>
-    </section>
-  );
-}

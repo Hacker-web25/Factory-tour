@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2 } from "lucide-react";
+import { LegalLinks } from "@/components/legal/SiteFooter";
 
 export default function ApplyThanks() {
   return (
@@ -80,6 +81,7 @@ export default function ApplyThanks() {
           </div>
         </div>
       </main>
+      <LegalLinks newTab={false} className="pb-8" />
     </div>
   );
 }

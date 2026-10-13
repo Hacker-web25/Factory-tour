@@ -1,6 +1,8 @@
 "use client";
 
 import { Factory, BarChart3, Users, Share2, ShieldCheck } from "lucide-react";
+import { LegalLinks } from "@/components/legal/SiteFooter";
+import { COMPANY } from "@/lib/company";
 
 /**
  * Shared split-screen chrome for the auth pages (login + signup).
@@ -100,14 +102,18 @@ export default function AuthShell({
           </div>
 
           <div className="text-[11px] text-white/30">
-            © {new Date().getFullYear()} Factory Tour
+            © {new Date().getFullYear()} {COMPANY.legalName} · VPV
           </div>
         </div>
       </div>
 
       {/* ---------- RIGHT (form panel) ---------- */}
       <div className="flex-1 md:w-1/2 lg:w-2/5 flex items-center justify-center p-6 md:p-10 bg-[#0a0b10]">
-        <div className="w-full max-w-md">{children}</div>
+        <div className="w-full max-w-md">
+          {children}
+          {/* Policy links on every sign-in / sign-up / reset screen. */}
+          <LegalLinks tone="dark" newTab={false} className="mt-8" />
+        </div>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VisitorsTab from "@/components/dashboard/VisitorsTab";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import { LegalLinks } from "@/components/legal/SiteFooter";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 type TourRow = { id: string; title: string };
@@ -88,6 +89,7 @@ export default function VisitorsPage() {
           presenterId={me.id}
         />
       </div>
+      <LegalLinks compact className="pb-8" />
     </div>
   );
 }

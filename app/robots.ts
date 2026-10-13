@@ -18,7 +18,22 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/apply", "/privacy", "/terms", "/security"],
+        allow: [
+          "/",
+          "/apply",
+          "/get-started",
+          "/legal",
+          "/pricing",
+          "/about",
+          "/contact",
+          "/privacy",
+          "/terms",
+          "/refund-policy",
+          "/shipping-policy",
+          "/cookies",
+          "/disclaimer",
+          "/security",
+        ],
         disallow: [
           "/api/",
           "/auth/",
@@ -26,6 +41,7 @@ export default function robots(): MetadataRoute.Robots {
           "/signup",
           "/setup",
           "/client",
+          "/billing",
           "/tour/",
           "/v/",
           "/present/",

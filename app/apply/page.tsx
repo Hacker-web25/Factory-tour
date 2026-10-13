@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
+import { LegalLinks } from "@/components/legal/SiteFooter";
 import {
   ArrowLeft,
   ArrowRight,
@@ -589,8 +590,13 @@ export default function ApplyPage() {
 
         <p className="mt-10 text-[11px] text-slate-400 text-center">
           Your answers are private and go directly to the VPV team. We reply
-          within 24 business hours.
+          within 24 business hours. By submitting you agree to our{" "}
+          <a href="/privacy" target="_blank" rel="noopener" className="underline hover:text-slate-600">
+            Privacy Policy
+          </a>
+          .
         </p>
+        <LegalLinks newTab className="mt-4" />
       </main>
     </div>
   );

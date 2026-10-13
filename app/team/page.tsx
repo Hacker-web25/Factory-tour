@@ -9,6 +9,8 @@ import { getMyProfile, signOut } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
 import PresenterAssignModal from "@/components/dashboard/PresenterAssignModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import { LegalLinks } from "@/components/legal/SiteFooter";
+import { UpgradeCounter } from "@/components/billing/UpgradeChrome";
 import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import {
@@ -372,8 +374,16 @@ export default function TeamPage() {
           </Link>
         </nav>
 
+        {/* Tier-aware upgrade counter (Basic → Pro, Pro → Ultra, hidden on
+            Ultra). Same component as the other dashboards. */}
         <div className="px-3 mt-6">
-          <LimitedOffer />
+          <UpgradeCounter orgId={me?.org_id ?? null} />
+        </div>
+
+        {/* Policy links — always one click away, opens in a new tab so
+            nobody loses their place in the dashboard. */}
+        <div className="mt-auto px-4 pb-5 pt-4">
+          <LegalLinks compact align="left" />
         </div>
       </aside>
 
@@ -785,64 +795,6 @@ function PendingInviteRow({
         title="Revoke this code"
       >
         <Trash2 size={13} />
-      </button>
-    </div>
-  );
-}
-
-/* --------------------------- Limited offer (shared) --------------------------- */
-function LimitedOffer() {
-  const target = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    d.setHours(23, 59, 59, 0);
-    return d.getTime();
-  }, []);
-  const [now, setNow] = useState<number>(Date.now());
-  useEffect(() => {
-    const iv = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(iv);
-  }, []);
-  const remaining = Math.max(0, target - now);
-  const days = Math.floor(remaining / 86400000);
-  const hrs = Math.floor((remaining % 86400000) / 3600000);
-  const mins = Math.floor((remaining % 3600000) / 60000);
-  const secs = Math.floor((remaining % 60000) / 1000);
-  return (
-    <div className="rounded-2xl border border-vpv-line bg-gradient-to-b from-white to-vpv-tint p-4 text-center shadow-[0_10px_30px_-16px_rgba(11,61,145,0.25)]">
-      <div className="text-[9px] uppercase tracking-[0.15em] text-vpv-blue font-semibold flex items-center justify-center gap-1 mb-1">
-        <Crown size={11} /> Limited Time Offer
-      </div>
-      <div className="text-[15px] font-bold text-vpv-navy mb-2">Upgrade to Pro</div>
-      <div className="text-[11px] text-vpv-muted mb-3 leading-snug">
-        Unlock advanced analytics, automation and more.
-      </div>
-      <div className="text-[13px] text-vpv-muted/70 line-through">₹3,00,000</div>
-      <div className="text-[20px] font-extrabold text-vpv-blue mb-3">₹30,000 OFF</div>
-      <div className="border-t border-vpv-line pt-3 mb-3">
-        <div className="text-[10px] text-vpv-muted mb-2 flex items-center justify-center gap-1">
-          <span className="text-vpv-cyan">⚡</span> Hurry! Offer ends in
-        </div>
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { v: days, l: "days" },
-            { v: hrs, l: "hrs" },
-            { v: mins, l: "min" },
-            { v: secs, l: "sec" },
-          ].map((t) => (
-            <div key={t.l} className="rounded-md bg-white border border-vpv-line py-1">
-              <div className="text-[16px] font-bold text-vpv-navy tabular-nums leading-none">
-                {String(t.v).padStart(2, "0")}
-              </div>
-              <div className="text-[8px] uppercase text-vpv-muted tracking-wider mt-1">
-                {t.l}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <button className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-[0_10px_28px_-8px_rgba(20,104,216,0.6)]">
-        UPGRADE NOW <ArrowRight size={12} />
       </button>
     </div>
   );

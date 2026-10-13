@@ -28,10 +28,12 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { priceForScenes } from "@/lib/pricing";
 import {
   BASIC_SCENE_CAP,
   PLAN_LABEL,
   PLAN_PRICE_INR,
+  PLAN_PRICE_SUFFIX,
   UPGRADE_CTA_URL,
   formatInr,
   upsellTarget,
@@ -85,9 +87,10 @@ export function PresentUpgradeModal({
   );
   const hidden = total - visibleScenes;
   const pro = PLAN_PRICE_INR.pro;
-  // Pretend "offer" strike price — same formula as the sidebar
-  // counter uses, so prices tell one consistent story.
-  const strike = Math.round(pro * 1.25);
+  // What those hidden rooms would cost to buy outright on Basic. A REAL
+  // comparison against our own published ladder — no invented "was"
+  // price — so the saving we show is one we can stand behind.
+  const topUpCost = Math.max(0, priceForScenes(total) - priceForScenes(visibleScenes));
 
   return (
     <div
@@ -357,33 +360,34 @@ export function PresentUpgradeModal({
             ))}
           </div>
 
-          {/* Price line — strike-through anchor + big current price,
-              right-aligned so the eye lands on the CTA next to it. */}
-          <div className="flex items-end justify-between mb-4">
+          {/* Price line. The comparison on the right is against our own
+              published scene ladder — a true number, not a fake "was". */}
+          <div className="flex items-end justify-between mb-4 gap-3">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-vpv-muted font-semibold">
-                Pro, this quarter
+                Pro
               </div>
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-1.5">
                 <div className="text-[22px] font-extrabold text-vpv-blue tracking-tight">
                   {formatInr(pro)}
                 </div>
-                <div className="text-[12px] text-vpv-muted/70 line-through">
-                  {formatInr(strike)}
-                </div>
+                <div className="text-[11px] text-vpv-muted/80">per month</div>
               </div>
-              <div className="text-[10px] text-vpv-muted/80">per year</div>
+              <div className="text-[10px] text-vpv-muted/80">
+                Unlimited scenes, support included
+              </div>
             </div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200">
-              Save {formatInr(strike - pro)}
-            </div>
+            {topUpCost > 0 && (
+              <div className="text-[10px] font-semibold text-vpv-navy bg-vpv-tint px-2.5 py-1.5 rounded-xl border border-vpv-blue/20 text-right leading-snug max-w-[150px]">
+                Buying these {hidden} room{hidden === 1 ? "" : "s"} outright
+                costs {formatInr(topUpCost)}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
             <a
               href={UPGRADE_CTA_URL}
-              target="_blank"
-              rel="noopener noreferrer"
               className="upg-shine flex-1 py-3 rounded-full text-white text-[13.5px] font-bold flex items-center justify-center gap-1.5 relative"
               style={{
                 background:
@@ -485,12 +489,8 @@ export function usePresentGate(orgId: string | null | undefined) {
 
 export function UpgradeCounter({
   orgId,
-  /** Days until the "offer ends". Change at will — this is pure
-   *  marketing urgency, not a real deadline. */
-  days = 3,
 }: {
   orgId: string | null | undefined;
-  days?: number;
 }) {
   const { plan, loading } = useOrgPlan(orgId);
 
@@ -501,45 +501,22 @@ export function UpgradeCounter({
   const target = upsellTarget(plan);
   if (!target) return null;
 
-  return <OfferCard currentPlan={plan} target={target} days={days} />;
+  return <OfferCard currentPlan={plan} target={target} />;
 }
 
 function OfferCard({
   currentPlan,
   target,
-  days,
 }: {
   currentPlan: Plan;
   target: Plan;
-  days: number;
 }) {
   const targetPrice = PLAN_PRICE_INR[target];
-  const strikePrice = Math.round(targetPrice * 1.25);
-  const savings = strikePrice - targetPrice;
-
-  // Countdown. Resets whenever `days` changes.
-  const target_ms = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    d.setHours(23, 59, 59, 0);
-    return d.getTime();
-  }, [days]);
-
-  const [now, setNow] = useState<number>(Date.now());
-  useEffect(() => {
-    const iv = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(iv);
-  }, []);
-  const remaining = Math.max(0, target_ms - now);
-  const dPart = Math.floor(remaining / 86400000);
-  const h = Math.floor((remaining % 86400000) / 3600000);
-  const m = Math.floor((remaining % 3600000) / 60000);
-  const s = Math.floor((remaining % 60000) / 1000);
 
   return (
     <div className="rounded-2xl border border-vpv-line bg-gradient-to-b from-white to-vpv-tint p-4 text-center shadow-[0_10px_30px_-16px_rgba(11,61,145,0.25)]">
       <div className="text-[9px] uppercase tracking-[0.15em] text-vpv-blue font-semibold flex items-center justify-center gap-1 mb-1">
-        <Crown size={11} /> Limited time offer
+        <Crown size={11} /> Room to grow
       </div>
       <div className="text-[15px] font-bold text-vpv-navy mb-1">
         Upgrade to {PLAN_LABEL[target]}
@@ -549,41 +526,19 @@ function OfferCard({
           ? "Every scene visible to customers, smoother presentations, analytics on every meeting."
           : "AI meeting coaching, team-wide MIS and auto-record."}
       </div>
-      <div className="text-[13px] text-vpv-muted/70 line-through">
-        {formatInr(strikePrice)}
+      <div className="text-[26px] font-extrabold text-vpv-blue leading-none">
+        {formatInr(targetPrice)}
       </div>
-      <div className="text-[20px] font-extrabold text-vpv-blue mb-3">
-        {formatInr(savings)} OFF
+      <div className="text-[10.5px] text-vpv-muted mb-3">
+        {PLAN_PRICE_SUFFIX[target]} · unlimited scenes
       </div>
-      <div className="border-t border-vpv-line pt-3 mb-3">
-        <div className="text-[10px] text-vpv-muted mb-2 flex items-center justify-center gap-1">
-          <span className="text-vpv-cyan">⚡</span> Hurry! Offer ends in
-        </div>
-        <div className="grid grid-cols-4 gap-1">
-          {[
-            { v: dPart, l: "days" },
-            { v: h, l: "hrs" },
-            { v: m, l: "min" },
-            { v: s, l: "sec" },
-          ].map((t) => (
-            <div
-              key={t.l}
-              className="rounded-md bg-white border border-vpv-line py-1"
-            >
-              <div className="text-[16px] font-bold text-vpv-navy tabular-nums leading-none">
-                {String(t.v).padStart(2, "0")}
-              </div>
-              <div className="text-[8px] uppercase text-vpv-muted tracking-wider mt-1">
-                {t.l}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="border-t border-vpv-line pt-3 mb-3 text-[10.5px] leading-relaxed text-vpv-muted">
+        {target === "pro"
+          ? "No scene limit — every room you build is a room your customer walks through."
+          : "Adds AI meeting review on top of everything in Pro."}
       </div>
       <a
         href={UPGRADE_CTA_URL}
-        target="_blank"
-        rel="noopener noreferrer"
         className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-[0_10px_28px_-8px_rgba(20,104,216,0.6)]"
       >
         UPGRADE NOW <ArrowRight size={12} />

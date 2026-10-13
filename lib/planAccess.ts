@@ -15,6 +15,13 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import {
+  PRO_MONTHLY_INR,
+  SCENE_MIN,
+  ULTRA_MONTHLY_INR,
+  inr,
+  priceForScenes,
+} from "@/lib/pricing";
 
 export type Plan = "basic" | "pro" | "ultra";
 
@@ -24,17 +31,30 @@ export const PLAN_LABEL: Record<Plan, string> = {
   ultra: "Ultra",
 };
 
-/** Display prices used by the counter + upgrade modal. Change in one
- *  place; both surfaces update. */
+/**
+ * Display prices for the counter and the upgrade modal. All of them come
+ * from lib/pricing.ts, so the dashboard can never pitch a price the
+ * checkout does not honour.
+ *
+ * Basic is the entry price (the smallest pack) because it varies with
+ * the number of scenes; Pro and Ultra are monthly.
+ */
 export const PLAN_PRICE_INR: Record<Plan, number> = {
-  basic: 30_000,
-  pro: 1_20_000,
-  ultra: 3_00_000,
+  basic: priceForScenes(SCENE_MIN),
+  pro: PRO_MONTHLY_INR,
+  ultra: ULTRA_MONTHLY_INR,
 };
 
-/** rupees → "₹30,000" / "₹1,20,000". Uses the Indian numbering system. */
+/** How a plan's price should be read out loud. */
+export const PLAN_PRICE_SUFFIX: Record<Plan, string> = {
+  basic: "one time",
+  pro: "per month",
+  ultra: "per month",
+};
+
+/** rupees → "₹9,000" / "₹15,000", Indian numbering. */
 export function formatInr(n: number): string {
-  return "₹" + n.toLocaleString("en-IN");
+  return inr(n);
 }
 
 /** The tier the counter / modal pitches to someone currently on `plan`.
@@ -55,11 +75,11 @@ export function planAtLeast(current: Plan | null, target: Plan): boolean {
   return rank[current] >= rank[target];
 }
 
-/** How many scenes BASIC viewers see on the public viewer. The server
- *  (`public_tour_scenes` RPC) is authoritative; this constant is used
- *  only by the editor's "hidden to Basic viewers" banner. Keep in sync
- *  with `organizations.basic_scene_cap` default. */
-export const BASIC_SCENE_CAP = 2;
+/** Fallback when an org's quota cannot be read. The server
+ *  (`public_tour_scenes`) is authoritative; this is only for the
+ *  editor's "hidden from your customers" banner, and it errs on the
+ *  strict side so we never imply a customer sees more than they do. */
+export const BASIC_SCENE_CAP = SCENE_MIN;
 
 /* ---------- React hooks ------------------------------------------------ */
 
@@ -88,18 +108,22 @@ export function useOrgPlan(orgId: string | null | undefined): {
       try {
         const { data } = await supabase
           .from("organizations")
-          .select("plan, basic_scene_cap")
+          .select("plan, scene_quota, basic_scene_cap")
           .eq("id", orgId)
           .maybeSingle();
         if (cancelled) return;
-        const raw = (data as { plan?: string } | null)?.plan;
+        const row = data as
+          | { plan?: string; scene_quota?: number | null; basic_scene_cap?: number }
+          | null;
+        const raw = row?.plan;
         const resolved: Plan =
           raw === "ultra" ? "ultra" : raw === "pro" ? "pro" : "basic";
-        const cap =
-          (data as { basic_scene_cap?: number } | null)?.basic_scene_cap ??
-          BASIC_SCENE_CAP;
+        // scene_quota is the current column; basic_scene_cap is the
+        // older one, kept so an org provisioned before the billing
+        // migration still reports the right number.
+        const quota = row?.scene_quota ?? row?.basic_scene_cap ?? BASIC_SCENE_CAP;
         setPlan(resolved);
-        setSceneCap(Math.max(1, Math.min(10, cap)));
+        setSceneCap(Math.max(1, quota));
       } catch {
         if (!cancelled) setPlan("basic");
       } finally {
@@ -115,9 +139,12 @@ export function useOrgPlan(orgId: string | null | undefined): {
 }
 
 /* ---------- Upgrade CTA target ----------------------------------------
-   Right now "upgrade" opens WhatsApp to the sales number (manual
-   billing is the right call until the first 20 customers). When we
-   wire Razorpay later, swap this to `/upgrade?target=<plan>`. */
-export const UPGRADE_CTA_URL =
-  "https://wa.me/919999999999?text=" +
-  encodeURIComponent("Hi, I'd like to upgrade my VPV plan.");
+   Pro and Ultra are monthly plans we agree in conversation, so the
+   upgrade button goes to the enquiry form on the pricing page rather
+   than to a checkout. A Basic customer who only needs a few more rooms
+   is better served by the scene top-up on /billing, which IS a
+   checkout — the modal links to both. */
+export const UPGRADE_CTA_URL = "/pricing#talk";
+
+/** Where a Basic customer buys more scenes for themselves. */
+export const ADD_SCENES_URL = "/billing";

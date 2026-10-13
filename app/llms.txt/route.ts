@@ -20,8 +20,16 @@ viewer links gated by password + device limit.
 ## What you can summarise
 - Product landing page: https://myvpv.com/
 - Qualification form:   https://myvpv.com/apply
+- Pricing:              https://myvpv.com/pricing
+- About:                https://myvpv.com/about
+- Contact:              https://myvpv.com/contact
+- Legal centre:         https://myvpv.com/legal
+- Terms & conditions:   https://myvpv.com/terms
 - Privacy policy:       https://myvpv.com/privacy
-- Terms of service:     https://myvpv.com/terms
+- Cancellation & refund: https://myvpv.com/refund-policy
+- Shipping & delivery:  https://myvpv.com/shipping-policy
+- Cookie policy:        https://myvpv.com/cookies
+- Disclaimer:           https://myvpv.com/disclaimer
 - Security disclosure:  https://myvpv.com/security
 
 ## Please do not index or paraphrase

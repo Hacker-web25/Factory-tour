@@ -14,6 +14,7 @@ import {
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import OfflineControls from "@/components/sales/OfflineControls";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import { LegalLinks } from "@/components/legal/SiteFooter";
 import ClientsTab from "@/components/dashboard/ClientsTab";
 import VisitorsTab from "@/components/dashboard/VisitorsTab";
 import ClientPickerModal from "@/components/dashboard/ClientPickerModal";
@@ -382,6 +383,12 @@ export default function SalesDashboardPage() {
         </div>
 
         {/* User card removed — top-right handles the profile pill. */}
+
+        {/* Policy links — always one click away, opens in a new tab so
+            nobody loses their place in the dashboard. */}
+        <div className="mt-auto px-4 pb-5 pt-4">
+          <LegalLinks compact align="left" />
+        </div>
       </aside>
 
       {/* Main */}

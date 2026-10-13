@@ -8,6 +8,7 @@ import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
 import AssignTourModal from "@/components/dashboard/AssignTourModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
+import { LegalLinks } from "@/components/legal/SiteFooter";
 import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
 import NotificationsBell from "@/components/dashboard/NotificationsBell";
 import { UpgradeCounter } from "@/components/billing/UpgradeChrome";
@@ -41,6 +42,7 @@ import {
   Check,
   Crown,
   Mic,
+  CreditCard,
 } from "lucide-react";
 
 /**
@@ -815,6 +817,11 @@ function Sidebar({
           icon={<BarChart3 size={16} />}
           label="Analytics"
         />
+        <NavItem
+          href="/billing"
+          icon={<CreditCard size={16} />}
+          label="Plan & billing"
+        />
       </nav>
 
       {/* Tier-aware upgrade counter. Hidden on ULTRA; BASIC pitches
@@ -826,6 +833,12 @@ function Sidebar({
 
       {/* User card removed — top-right already shows the profile pill,
           keeping the sidebar focused on nav + upsell. */}
+
+      {/* Policy links — always one click away, opens in a new tab so
+          nobody loses their place in the dashboard. */}
+      <div className="mt-auto px-4 pb-5 pt-4">
+        <LegalLinks compact align="left" />
+      </div>
     </aside>
   );
 }
