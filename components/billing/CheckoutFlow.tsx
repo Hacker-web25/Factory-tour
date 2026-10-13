@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Lock, ShieldCheck } from "lucide-react";
 import SceneCalculator from "./SceneCalculator";
 import { SCENE_DEFAULT, SUPPORT_ANNUAL_INR, inr, priceForScenes } from "@/lib/pricing";
@@ -115,6 +116,7 @@ export default function CheckoutFlow({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ slug: string | null; invoiceNo: string | null } | null>(null);
   const [testMode, setTestMode] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const amount = purpose === "support_renewal" ? SUPPORT_ANNUAL_INR : priceForScenes(scenes);
 
@@ -274,6 +276,7 @@ export default function CheckoutFlow({
     buyer.name.trim() &&
     buyer.company.trim() &&
     /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(buyer.email) &&
+    agreed &&
     !busy;
 
   return (
@@ -364,6 +367,30 @@ export default function CheckoutFlow({
             </Field>
           </div>
         </div>
+
+        <label className="mt-6 flex items-start gap-2.5 text-[13px] leading-relaxed text-slate-600">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-vpv-blue focus:ring-vpv-blue"
+          />
+          <span>
+            I agree to the{" "}
+            <Link href="/terms" target="_blank" className="text-vpv-blue underline underline-offset-2">
+              Terms &amp; Conditions
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" target="_blank" className="text-vpv-blue underline underline-offset-2">
+              Privacy Policy
+            </Link>
+            , including the{" "}
+            <Link href="/refund-policy" target="_blank" className="text-vpv-blue underline underline-offset-2">
+              Cancellation &amp; Refund Policy
+            </Link>
+            .
+          </span>
+        </label>
 
         {error && (
           <div className="mt-5 flex gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] text-red-700">
