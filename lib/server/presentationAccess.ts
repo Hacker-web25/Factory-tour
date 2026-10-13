@@ -36,12 +36,22 @@ export function jsonError(status: number, error: string, message?: string, extra
   });
 }
 
-const MAX_BODY_BYTES = 2 * 1024;
+/** 2 KB covers {sessionId, force}; bumped to 256 KB for the transcribe
+ *  route, which may receive a freshly-captured in-browser transcript. */
+const MAX_BODY_BYTES = 256 * 1024;
+
+export type RequestBody = {
+  sessionId?: unknown;
+  force?: unknown;
+  /** Optional transcript the client just produced (e.g. local Whisper) —
+   *  used by /api/ai/transcribe only. */
+  transcript?: unknown;
+};
 
 export async function guardPresentationRequest(
   req: Request
 ): Promise<
-  | { ok: true; auth: AuthedRequest; row: SessionRow; orgName: string | null; force: boolean }
+  | { ok: true; auth: AuthedRequest; row: SessionRow; orgName: string | null; force: boolean; body: RequestBody }
   | { ok: false; res: NextResponse }
 > {
   if (Number(req.headers.get("content-length") || "0") > MAX_BODY_BYTES) {
@@ -54,9 +64,9 @@ export async function guardPresentationRequest(
     return { ok: false, res: jsonError(403, "forbidden", "Only organisation admins can run AI analysis.") };
   }
 
-  let body: { sessionId?: unknown; force?: unknown } = {};
+  let body: RequestBody = {};
   try {
-    body = await req.json();
+    body = (await req.json()) as RequestBody;
   } catch {
     return { ok: false, res: jsonError(400, "bad_payload") };
   }
@@ -99,5 +109,5 @@ export async function guardPresentationRequest(
     }
   }
 
-  return { ok: true, auth, row: r, orgName, force: body.force === true };
+  return { ok: true, auth, row: r, orgName, force: body.force === true, body };
 }

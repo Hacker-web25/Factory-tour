@@ -1,33 +1,48 @@
 /**
- * POST /api/ai/transcribe   { sessionId, force? }
+ * POST /api/ai/transcribe   { sessionId, force?, transcript? }
  *
- * Turns a presentation recording into a speaker-separated dialogue
- * (Customer / Sales Person). Idempotent and poll-friendly — the client
- * calls it repeatedly until `status === "completed"`:
+ * Splits the presentation's single-mic transcript into a Customer /
+ * Sales Person dialogue. Idempotent: once a dialogue is saved, later
+ * calls return it without re-splitting.
  *
- *   1st call   → submits the audio to AssemblyAI, returns "processing"
- *   next calls → polls the job, returns "processing" until done
- *   done       → saves the dialogue, returns it (and every later call
- *                returns the saved copy without touching AssemblyAI)
+ * Three layers of fallback — none of them cost money:
+ *   1. Browser-captured transcript (Web Speech API, Chrome/Edge) is
+ *      already in presentation_sessions.transcript on recording.
+ *      The caller MAY pass a fresher transcript in the body if the
+ *      admin just re-ran local Whisper in their browser.
+ *   2. Split with Google Gemini (free tier) when GEMINI_API_KEY is set
+ *      — accurate roles, works in Hindi / English / Hinglish.
+ *   3. Fall back to a rule-based splitter (`heuristicDialogue.ts`)
+ *      when the key is missing or Gemini is unreachable. Marked
+ *      `source: "heuristic"` so the UI tells the admin.
  *
- * Sessions recorded before audio upload existed but with a browser
- * transcript fall back to an LLM split (marked "text-inferred").
- *
- * Auth: org_admin of the session's org, org on ULTRA.  Env: ASSEMBLYAI_API_KEY
- * (and ANTHROPIC_API_KEY for the text fallback).
+ * The route never leaves the admin with a bare "error" — it always
+ * either returns usable turns, or a specific explanation of what to
+ * do next (turn on recording, open the meeting in Chrome, etc.).
  */
 
 import { NextResponse } from "next/server";
 import { guardPresentationRequest, jsonError, type SessionRow } from "@/lib/server/presentationAccess";
-import { assemblyConfigured, pollTranscription, submitTranscription } from "@/lib/ai/assemblyai";
-import { claudeConfigured, segmentPlainTranscript } from "@/lib/ai/claude";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { nvidiaConfigured } from "@/lib/ai/nvidia";
+import { nvidiaSplit } from "@/lib/ai/nvidiaDialogue";
+import { geminiConfigured } from "@/lib/ai/gemini";
+import { geminiSplit } from "@/lib/ai/geminiDialogue";
+import { heuristicSplit } from "@/lib/ai/heuristicDialogue";
 import {
   guessSpeakerMap,
   type Dialogue,
   type SpeakerMap,
 } from "@/lib/ai/presentationAiTypes";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** AI providers tried in order. First with a key that doesn't error
+ *  wins; the heuristic in `heuristicDialogue.ts` catches everything
+ *  that falls through. New providers slot in by prepending here. */
+const PROVIDERS: { name: Dialogue["source"]; isConfigured: () => boolean; split: (t: string) => Promise<Dialogue["turns"]> }[] = [
+  { name: "nvidia", isConfigured: nvidiaConfigured, split: nvidiaSplit },
+  { name: "gemini", isConfigured: geminiConfigured, split: geminiSplit },
+];
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,122 +53,125 @@ async function save(sb: SupabaseClient, sessionId: string, patch: Record<string,
   if (error) throw new Error(error.message);
 }
 
-function done(dialogue: Dialogue, speakerMap: SpeakerMap) {
+function respond(dialogue: Dialogue, speakerMap: SpeakerMap, notice?: string) {
   return NextResponse.json(
-    { ok: true, status: "completed", dialogue, speakerMap },
+    { ok: true, status: "completed", dialogue, speakerMap, notice },
     { headers: { "Cache-Control": "no-store" } }
   );
-}
-
-function pending(status: string) {
-  return NextResponse.json({ ok: true, status }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: Request) {
   const g = await guardPresentationRequest(req);
   if (!g.ok) return g.res;
-  const { auth, row, force } = g;
+  const { auth, row, force, body } = g;
   const sb = auth.sb;
 
-  try {
-    // ── Already done ────────────────────────────────────────────────
-    if (row.ai_dialogue && !force) {
-      const d = row.ai_dialogue as Dialogue;
-      return done(d, (row.ai_speaker_map as SpeakerMap) ?? guessSpeakerMap(d.turns));
+  // Already split — return cached unless force.
+  if (row.ai_dialogue && !force) {
+    const d = row.ai_dialogue as Dialogue;
+    return respond(d, (row.ai_speaker_map as SpeakerMap) ?? guessSpeakerMap(d.turns));
+  }
+
+  // Prefer a fresh transcript the admin just computed in-browser
+  // (local Whisper) over whatever's in the DB.
+  const incoming = typeof body.transcript === "string" ? body.transcript.trim() : "";
+  const sourceText = incoming.length > 20 ? incoming : (row.transcript ?? "").trim();
+
+  if (sourceText.length < 20) {
+    return jsonError(
+      422,
+      "no_transcript",
+      transcriptMissingMessage(row),
+      { hint: "transcript_missing" }
+    );
+  }
+
+  // Save the fresh transcript if the admin passed one, so the next
+  // call doesn't need to be re-sent.
+  if (incoming && incoming !== row.transcript) {
+    try {
+      await sb
+        .from("presentation_sessions")
+        .update({ transcript: incoming, updated_at: new Date().toISOString() })
+        .eq("session_id", row.session_id);
+    } catch {
+      /* intentional — a failed cache-write never blocks the split */
     }
+  }
 
-    // ── A job is running — poll it (cheap, not rate-limited beyond a cap) ─
-    if (
-      !force &&
-      row.ai_transcript_job &&
-      (row.ai_transcript_status === "queued" || row.ai_transcript_status === "processing")
-    ) {
-      const rl = await enforceRateLimit(`ai-transcribe-poll:user:${auth.user.id}`, 900, 3600);
-      if (!rl.allowed) return jsonError(429, "rate_limited", "Too many checks — wait a minute.", { retryAfter: rl.retryAfter });
-      if (!assemblyConfigured()) return notConfigured("ASSEMBLYAI_API_KEY");
+  // Rate limit the split per-org per-day. Generous because this is free.
+  const rl = await enforceRateLimit(`ai-split:org:${row.org_id}`, 200, 86400);
+  if (!rl.allowed) {
+    return jsonError(429, "rate_limited", "Daily analysis quota reached for your organisation.", {
+      retryAfter: rl.retryAfter,
+    });
+  }
 
-      const r = await pollTranscription(row.ai_transcript_job);
-      if (r.status === "completed") {
-        if (r.turns.length === 0) {
-          await save(sb, row.session_id, { ai_transcript_status: "error", ai_transcript_error: "No speech detected in the recording." });
-          return jsonError(422, "no_speech", "No speech was detected in this recording.");
+  let turns: Dialogue["turns"] = [];
+  let notice: string | undefined;
+  let source: Dialogue["source"] = "heuristic";
+
+  const available = PROVIDERS.filter((p) => p.isConfigured());
+  if (available.length > 0) {
+    await save(sb, row.session_id, { ai_transcript_status: "processing", ai_transcript_error: null }).catch(() => {});
+    const failures: string[] = [];
+    for (const p of available) {
+      try {
+        turns = await p.split(sourceText);
+        if (turns.length > 0) {
+          source = p.name;
+          break;
         }
-        const dialogue: Dialogue = { source: "assemblyai", language: r.language, turns: r.turns };
-        const speakerMap = guessSpeakerMap(r.turns);
-        await save(sb, row.session_id, {
-          ai_transcript_status: "completed",
-          ai_transcript_error: null,
-          ai_dialogue: dialogue,
-          ai_speaker_map: speakerMap,
-        });
-        return done(dialogue, speakerMap);
+        failures.push(`${p.name} returned no turns`);
+      } catch (e) {
+        failures.push(`${p.name}: ${(e as Error).message}`);
+        // eslint-disable-next-line no-console
+        console.warn(`[ai/transcribe] ${p.name} split failed:`, (e as Error).message);
       }
-      if (r.status === "error") {
-        await save(sb, row.session_id, { ai_transcript_status: "error", ai_transcript_error: r.error.slice(0, 500) });
-        return jsonError(502, "transcription_failed", `Transcription failed: ${r.error}`);
-      }
-      if (r.status !== row.ai_transcript_status) {
-        await save(sb, row.session_id, { ai_transcript_status: r.status });
-      }
-      return pending(r.status);
     }
-
-    // ── Start a new job ─────────────────────────────────────────────
-    const rl = await enforceRateLimit(`ai-transcribe:org:${row.org_id}`, 60, 86400);
-    if (!rl.allowed) {
-      return jsonError(429, "rate_limited", "Daily transcription limit reached for your organisation.", { retryAfter: rl.retryAfter });
+    if (turns.length === 0) {
+      notice = "AI split was unavailable — used a rule-based splitter instead. Try again later for the AI version.";
     }
+  } else {
+    notice = "AI split is not enabled yet — showing a rule-based estimate. The split improves once an admin adds an NVIDIA or Gemini API key.";
+  }
 
-    if (row.audio_path) {
-      if (!assemblyConfigured()) return notConfigured("ASSEMBLYAI_API_KEY");
-      const audioUrl = await audioUrlFor(sb, row);
-      if (!audioUrl) return jsonError(422, "no_audio", "The recording file could not be found.");
-      const jobId = await submitTranscription(audioUrl);
-      await save(sb, row.session_id, {
-        ai_transcript_job: jobId,
-        ai_transcript_status: "queued",
-        ai_transcript_error: null,
-        // A fresh transcript invalidates the old dialogue AND its report.
-        ...(force ? { ai_dialogue: null, ai_speaker_map: null, ai_analysis: null, ai_score: null } : {}),
-      });
-      return pending("queued");
-    }
+  if (turns.length === 0) {
+    const h = heuristicSplit(sourceText);
+    turns = h.turns;
+    source = "heuristic";
+    if (h.confidence === "low")
+      notice = (notice ? notice + " " : "") +
+        "Speaker labels are a best guess on this one — correct any that look wrong using the dropdowns.";
+  }
 
-    if (row.transcript && row.transcript.trim().length > 20) {
-      if (!claudeConfigured()) return notConfigured("ANTHROPIC_API_KEY");
-      const turns = await segmentPlainTranscript(row.transcript);
-      if (turns.length === 0) return jsonError(422, "no_speech", "The transcript was empty.");
-      const dialogue: Dialogue = { source: "text-inferred", language: null, turns };
-      const speakerMap: SpeakerMap = { S: "salesperson", C: "customer" };
-      await save(sb, row.session_id, {
-        ai_transcript_status: "completed",
-        ai_transcript_error: null,
-        ai_dialogue: dialogue,
-        ai_speaker_map: speakerMap,
-        ...(force ? { ai_analysis: null, ai_score: null } : {}),
-      });
-      return done(dialogue, speakerMap);
-    }
+  if (turns.length === 0) {
+    return jsonError(422, "no_speech", "The transcript was too short to split into a conversation.");
+  }
 
-    return jsonError(422, "no_recording", "This presentation has no recording. Turn on Auto-record in Team settings to capture future meetings.");
+  const dialogue: Dialogue = { source, language: null, turns };
+  const speakerMap = guessSpeakerMap(turns);
+  try {
+    await save(sb, row.session_id, {
+      ai_transcript_status: "completed",
+      ai_transcript_error: null,
+      ai_dialogue: dialogue,
+      ai_speaker_map: speakerMap,
+      ...(force ? { ai_analysis: null, ai_score: null } : {}),
+    });
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error("[ai/transcribe]", e);
-    return jsonError(500, "server_error", "Something went wrong while transcribing. Please try again.");
+    console.warn("[ai/transcribe] save failed:", (e as Error).message);
+    // Still return the dialogue so the admin sees something useful.
+    notice = (notice ? notice + " " : "") + "We couldn't save this to the server — results are shown but won't persist.";
   }
+
+  return respond(dialogue, speakerMap, notice);
 }
 
-function notConfigured(envName: string) {
-  // eslint-disable-next-line no-console
-  console.warn(`[ai/transcribe] ${envName} is not set`);
-  return jsonError(503, "not_configured", "AI transcription isn't switched on yet. Ask your VPV administrator to add the API key.");
-}
-
-/** Prefer a short-lived signed URL (works whether or not the bucket is
- *  public); fall back to the public URL. */
-async function audioUrlFor(sb: SupabaseClient, row: SessionRow): Promise<string | null> {
-  if (!row.audio_path) return null;
-  const signed = await sb.storage.from("recordings").createSignedUrl(row.audio_path, 6 * 3600);
-  if (signed.data?.signedUrl) return signed.data.signedUrl;
-  return sb.storage.from("recordings").getPublicUrl(row.audio_path).data.publicUrl ?? null;
+function transcriptMissingMessage(row: SessionRow): string {
+  if (row.audio_path) {
+    return "We have the recording but no text transcript yet. Open this meeting in Chrome or Edge with Auto-record on so the browser can transcribe live, then come back.";
+  }
+  return "This meeting wasn't recorded. Turn on Auto-record in Team settings; every presentation after that is transcribed on the salesperson's device (Chrome/Edge).";
 }

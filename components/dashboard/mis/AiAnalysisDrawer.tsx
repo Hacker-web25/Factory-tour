@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// AlertTriangle is used by the ErrorBanner — kept named with the rest below.
 import {
   X,
   Sparkles,
@@ -93,9 +94,10 @@ export default function AiAnalysisDrawer({
   const [transcribing, setTranscribing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const pollRef = useRef<number | null>(null);
   const aliveRef = useRef(true);
 
   const locked = plan !== "ultra";
@@ -128,13 +130,9 @@ export default function AiAnalysisDrawer({
         setTab("analysis");
       }
       setLoading(false);
-      if (!locked && (r.ai_transcript_status === "queued" || r.ai_transcript_status === "processing")) {
-        startTranscribe(false);
-      }
     })();
     return () => {
       aliveRef.current = false;
-      if (pollRef.current) window.clearTimeout(pollRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.sessionId]);
@@ -159,33 +157,33 @@ export default function AiAnalysisDrawer({
     return () => window.clearInterval(t);
   }, [transcribing, analyzing]);
 
-  /* ---- Transcribe (poll until done) ---------------------------------- */
+  /* ---- Transcribe (synchronous — Gemini or heuristic) ---------------- */
   const startTranscribe = useCallback(
     async (force: boolean) => {
       setError(null);
+      setErrorHint(null);
       setTranscribing(true);
       onUpdate(row.sessionId, { aiStatus: "processing" });
-      const tick = async (first: boolean) => {
-        try {
-          const res = await requestTranscript(row.sessionId, first && force);
-          if (!aliveRef.current) return;
-          if (res.status === "completed") {
-            setDialogue(res.dialogue);
-            setSpeakerMap(res.speakerMap);
-            setTranscribing(false);
-            if (force) setReport(null);
-            onUpdate(row.sessionId, { aiStatus: "completed", hasDialogue: true, ...(force ? { aiScore: null } : {}) });
-            return;
-          }
-          pollRef.current = window.setTimeout(() => tick(false), 5000);
-        } catch (e) {
-          if (!aliveRef.current) return;
-          setTranscribing(false);
-          setError(messageOf(e));
-          onUpdate(row.sessionId, { aiStatus: "error" });
-        }
-      };
-      tick(true);
+      try {
+        const res = await requestTranscript(row.sessionId, force);
+        if (!aliveRef.current) return;
+        setDialogue(res.dialogue);
+        setSpeakerMap(res.speakerMap);
+        if (res.notice) setNotice(res.notice);
+        if (force) setReport(null);
+        onUpdate(row.sessionId, {
+          aiStatus: "completed",
+          hasDialogue: true,
+          ...(force ? { aiScore: null } : {}),
+        });
+      } catch (e) {
+        if (!aliveRef.current) return;
+        setError(messageOf(e));
+        setErrorHint(hintOf(e));
+        onUpdate(row.sessionId, { aiStatus: "error" });
+      } finally {
+        if (aliveRef.current) setTranscribing(false);
+      }
     },
     [row.sessionId, onUpdate]
   );
@@ -193,19 +191,32 @@ export default function AiAnalysisDrawer({
   /* ---- Analyze -------------------------------------------------------- */
   async function startAnalyze(force: boolean) {
     setError(null);
+    setErrorHint(null);
     setAnalyzing(true);
     try {
       const res = await requestAnalysis(row.sessionId, force);
       if (!aliveRef.current) return;
       setReport(res.report);
       if (res.speakerMap) setSpeakerMap(res.speakerMap);
+      if (res.notice) setNotice(res.notice);
       onUpdate(row.sessionId, { aiScore: res.report.overall_score });
       setTab("analysis");
     } catch (e) {
-      if (aliveRef.current) setError(messageOf(e));
+      if (aliveRef.current) {
+        setError(messageOf(e));
+        setErrorHint(hintOf(e));
+      }
     } finally {
       if (aliveRef.current) setAnalyzing(false);
     }
+  }
+
+  function dismissNotice() {
+    setNotice(null);
+  }
+  function dismissError() {
+    setError(null);
+    setErrorHint(null);
   }
 
   /* ---- Speaker role correction --------------------------------------- */
@@ -311,7 +322,10 @@ export default function AiAnalysisDrawer({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-5">
           {error && (
-            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12.5px] text-rose-700">{error}</div>
+            <ErrorBanner message={error} hint={errorHint} onDismiss={dismissError} />
+          )}
+          {!error && notice && (
+            <NoticeBanner message={notice} onDismiss={dismissNotice} />
           )}
 
           {loading ? (
@@ -380,8 +394,8 @@ function ConversationView(props: {
   if (props.transcribing) {
     return (
       <Working
-        title="Transcribing the meeting…"
-        body="Separating the customer's voice from your salesperson's. A 30-minute meeting usually takes 1–3 minutes. You can close this panel — it keeps going."
+        title="Splitting the conversation…"
+        body="Labelling who said what — Customer vs Sales Person. Usually under 15 seconds."
         elapsed={props.elapsed}
       />
     );
@@ -400,15 +414,11 @@ function ConversationView(props: {
     return (
       <Empty
         icon={<MessageSquare className="w-5 h-5" />}
-        title="Turn the recording into a conversation"
-        body={
-          props.hasAudio
-            ? "We'll transcribe the audio and label who said what — Customer and Sales Person — with timestamps you can click to replay."
-            : "Only a text transcript exists for this older meeting. We'll split it into Customer and Sales Person turns (approximate — there's no audio to separate voices)."
-        }
+        title="Split the conversation"
+        body="We'll split the transcript into Customer and Sales Person turns so you can see who said what. Uses AI when enabled, with a rule-based fallback otherwise — either way, it's free and runs instantly."
         action={
           <button onClick={props.onTranscribe} className={BTN_AI}>
-            <Sparkles className="w-4 h-4" /> Transcribe conversation
+            <Sparkles className="w-4 h-4" /> Split conversation
           </button>
         }
       />
@@ -440,12 +450,10 @@ function ConversationView(props: {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11.5px] text-slate-500">
           <span>{metrics.turns} turns · {metrics.sales_questions} questions asked by sales · {metrics.customer_questions} by customer</span>
           {dialogue.language && <span className="px-1.5 py-0.5 rounded bg-slate-100 uppercase">{dialogue.language}</span>}
-          {dialogue.source === "text-inferred" && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700" title="Split from a text transcript — no audio to separate voices">approximate speakers</span>
-          )}
+          <SourceChip source={dialogue.source} />
         </div>
 
-        {labels.length >= 2 && dialogue.source === "assemblyai" && (
+        {labels.length >= 2 && (
           <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2 text-[11.5px]">
             <span className="text-slate-500 flex items-center gap-1"><ArrowLeftRight className="w-3 h-3" /> Wrong labels?</span>
             {labels.map((l) => (
@@ -528,7 +536,7 @@ function AnalysisView(props: {
     return (
       <Working
         title="Analysing the meeting…"
-        body="Reading the whole conversation and the plant areas shown, then scoring it against 8 sales criteria. Usually 20–50 seconds."
+        body="Reading the whole conversation and the plant areas shown, then scoring it against 8 sales criteria. Usually 10–30 seconds — a rule-based fallback runs instantly if the AI is unavailable."
         elapsed={props.elapsed}
       />
     );
@@ -570,6 +578,11 @@ function AnalysisView(props: {
     <div className="space-y-4">
       {/* Score + summary */}
       <Card>
+        {report.is_fallback && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] text-amber-800">
+            This review was generated by VPV's free rule-based analyser (no AI key configured yet). It's useful for a quick read but shallower than the AI version — ask the VPV admin to add an NVIDIA or Gemini API key for the full report.
+          </div>
+        )}
         <div className="flex flex-wrap items-start gap-5">
           <ScoreRing score={report.overall_score} band={band} />
           <div className="flex-1 min-w-[240px]">
@@ -992,6 +1005,65 @@ function CopyReport({ report, meta }: { report: PresentationAiReport; meta: { pr
 function messageOf(e: unknown): string {
   if (e instanceof AiRequestError) return e.message;
   return "Something went wrong. Please try again.";
+}
+function hintOf(e: unknown): string | null {
+  return e instanceof AiRequestError ? e.hint ?? null : null;
+}
+
+/* ---------- Notice + error banners ------------------------------------- */
+
+function NoticeBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex items-start gap-2 text-[12.5px] text-blue-800">
+      <Sparkles className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      <span className="flex-1">{message}</span>
+      <button onClick={onDismiss} className="text-blue-600/70 hover:text-blue-900" aria-label="Dismiss notice">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function ErrorBanner({
+  message,
+  hint,
+  onDismiss,
+}: {
+  message: string;
+  hint: string | null;
+  onDismiss: () => void;
+}) {
+  // Short, specific nudges for the common recoverable states, instead
+  // of a raw stack of error text that leaves the admin stuck.
+  const cta =
+    hint === "transcript_missing"
+      ? "Open Team settings → turn on Auto-record, then ask the salesperson to present again from Chrome or Edge."
+      : null;
+  return (
+    <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 flex items-start gap-2 text-[12.5px] text-rose-800">
+      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      <div className="flex-1">
+        <div>{message}</div>
+        {cta && <div className="mt-1 text-rose-700/90">{cta}</div>}
+      </div>
+      <button onClick={onDismiss} className="text-rose-600/70 hover:text-rose-900" aria-label="Dismiss error">
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function SourceChip({ source }: { source: Dialogue["source"] }) {
+  if (source === "assemblyai")
+    return <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700" title="Voice-based speaker separation">voice-separated</span>;
+  if (source === "nvidia" || source === "gemini")
+    return <span className="px-1.5 py-0.5 rounded bg-violet-50 text-violet-700" title={`Speakers inferred by ${source === "nvidia" ? "NVIDIA" : "Gemini"}`}>AI-split</span>;
+  // "heuristic" and the legacy "text-inferred" are both approximate.
+  return (
+    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700" title="Split by rule-based matcher — correct any wrong labels below">
+      approximate speakers
+    </span>
+  );
 }
 
 function fmtTs(ms: number): string {

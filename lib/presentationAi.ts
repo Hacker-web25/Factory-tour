@@ -16,9 +16,14 @@ import type {
 
 export class AiRequestError extends Error {
   code: string;
-  constructor(code: string, message: string) {
+  /** When the server knows what the user should do next, this holds a
+   *  short machine-readable hint (e.g. "transcript_missing") so the UI
+   *  can show a tailored call-to-action instead of raw error text. */
+  hint?: string;
+  constructor(code: string, message: string, hint?: string) {
     super(message);
     this.code = code;
+    this.hint = hint;
   }
 }
 
@@ -38,26 +43,36 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T> 
     ok?: boolean;
     error?: string;
     message?: string;
+    hint?: string;
   } & T;
   if (!res.ok || json.ok === false) {
     throw new AiRequestError(
       json.error || `http_${res.status}`,
-      json.message || "Request failed. Please try again."
+      json.message || "Request failed. Please try again.",
+      json.hint
     );
   }
   return json;
 }
 
-export type TranscribeResponse =
-  | { status: "queued" | "processing" }
-  | { status: "completed"; dialogue: Dialogue; speakerMap: SpeakerMap };
+export type TranscribeResponse = {
+  status: "completed";
+  dialogue: Dialogue;
+  speakerMap: SpeakerMap;
+  notice?: string;
+};
 
-export function requestTranscript(sessionId: string, force = false) {
-  return post<TranscribeResponse>("/api/ai/transcribe", { sessionId, force });
+/** Split the stored transcript into Customer / Sales turns. Optionally
+ *  pass a freshly-captured transcript (local Whisper, etc.) and we use
+ *  it in place of whatever's on the server. */
+export function requestTranscript(sessionId: string, force = false, transcript?: string) {
+  const body: Record<string, unknown> = { sessionId, force };
+  if (transcript && transcript.trim().length > 20) body.transcript = transcript;
+  return post<TranscribeResponse>("/api/ai/transcribe", body);
 }
 
 export function requestAnalysis(sessionId: string, force = false) {
-  return post<{ report: PresentationAiReport; speakerMap: SpeakerMap }>(
+  return post<{ report: PresentationAiReport; speakerMap: SpeakerMap; notice?: string }>(
     "/api/ai/analyze",
     { sessionId, force }
   );

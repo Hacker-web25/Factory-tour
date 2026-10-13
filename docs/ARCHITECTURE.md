@@ -220,26 +220,52 @@ header stack, `middleware.ts` for the edge layer.
 - **AI Analysis drawer** — `mis/AiAnalysisDrawer.tsx`. Tabs: Conversation,
   AI analysis, Tour journey. ULTRA only (`organizations.plan = 'ultra'`).
 
-Pipeline (all server-side, user's own JWT, RLS applies — no service key):
+Pipeline (all server-side, user's own JWT, RLS applies — no service key).
+Three fallback layers so the panel always returns something useful:
 
-1. Presenter's device records the meeting (`lib/presentationRecorder.ts`,
-   only when the org has *Auto-record* on) → `recordings` bucket.
-2. `POST /api/ai/transcribe` → AssemblyAI with speaker labels. Async:
-   the client polls the same route until `completed`. Result saved to
-   `presentation_sessions.ai_dialogue` + `ai_speaker_map`.
-3. `POST /api/ai/analyze` → Claude (forced tool call, fixed JSON schema)
-   with the dialogue + scenes shown. Overall score = weighted average of
-   the 8 criteria in `RUBRIC` (`lib/ai/presentationAiTypes.ts`). Saved to
-   `ai_analysis` + `ai_score`.
-4. All `ai_*` writes go through the `save_presentation_ai` RPC, which
-   checks org_admin/owner of the session's org.
+1. **Capture.** Presenter's device records audio
+   (`lib/presentationRecorder.ts`, only when the org has *Auto-record*
+   on) and live-transcribes with the browser's Web Speech API in
+   Chrome/Edge. Both end up on `presentation_sessions` — the raw audio
+   in the `recordings` bucket and the text in `transcript`.
+2. **Split into Customer / Sales turns.** `POST /api/ai/transcribe`
+   runs a provider chain, first success wins:
+   - **NVIDIA NIM** (`lib/ai/nvidiaDialogue.ts`) when `NVIDIA_API_KEY`
+     is set. OpenAI-compatible API at `integrate.api.nvidia.com`,
+     `meta/llama-3.3-70b-instruct` by default — free credits last
+     longer than Gemini's daily cap for small teams.
+   - **Google Gemini** (`lib/ai/geminiDialogue.ts`) when
+     `GEMINI_API_KEY` is set.
+   - **Rule-based splitter** (`lib/ai/heuristicDialogue.ts`) — zero
+     cost, instant, marked `source: "heuristic"` in the saved
+     dialogue so the UI shows an "approximate speakers" chip.
+3. **Coaching report.** `POST /api/ai/analyze` runs the same chain:
+   NVIDIA (`nvidiaReport.ts`) → Gemini (`geminiReport.ts`) →
+   `heuristicReport.ts`. The fallback report carries `is_fallback:
+   true` and the drawer shows a "based on rules" banner. The overall
+   0–100 score is always a weighted average of the 8 criteria in
+   `RUBRIC`, no matter which provider scored them.
+4. **Persistence.** All `ai_*` writes go through the
+   `save_presentation_ai` RPC, which checks org_admin/owner of the
+   session's org. `ai_model` records which provider produced the saved
+   report (e.g. `nvidia:meta/llama-3.3-70b-instruct`).
 
 Guards: plan check + org match in `lib/server/presentationAccess.ts`;
-rate limits 60 transcriptions and 60 analyses per org per day.
+rate limits 200 split and 200 analyse calls per org per day.
 
-Env (Vercel → Settings → Environment Variables):
-`ASSEMBLYAI_API_KEY`, `ANTHROPIC_API_KEY`, optional `ANTHROPIC_MODEL`.
-Without them the buttons show "isn't switched on yet" — nothing breaks.
+Env (Vercel → Settings → Environment Variables, all optional —
+the drawer degrades gracefully to the rule-based fallback):
+- `NVIDIA_API_KEY` + optional `NVIDIA_MODEL`
+  (default `meta/llama-3.3-70b-instruct`; swap in e.g.
+  `nvidia/llama-3.3-nemotron-super-49b-v1`,
+  `mistralai/mixtral-8x22b-instruct-v0.1`, or
+  `qwen/qwen2.5-72b-instruct` for better Hindi).
+- `GEMINI_API_KEY` + optional `GEMINI_MODEL`
+  (default `gemini-2.0-flash`).
+
+Add one key, both, or neither — the chain picks the first one that
+responds, so you can start on NVIDIA free credits and switch to
+Gemini when they run out without redeploying code.
 
 Migration: `supabase/ai_presentation_analysis.sql`.
 
