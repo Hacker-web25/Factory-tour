@@ -39,9 +39,23 @@ export async function goToDashboard(
         `https://${slug}.myvpv.com/auth/handoff#${q.toString()}`;
       return;
     }
-    // No session in memory — fall through to same-origin path
-    // navigation so the user hits /login again cleanly.
+    // No session in memory to carry across subdomains. We must NOT
+    // fall through to the literal /{slug}/{role} path here — that
+    // would render this org's dashboard on the wrong host (app.myvpv.com
+    // or the apex), exactly the leak this function exists to prevent.
+    // Send them to /login instead; they'll land correctly next time.
+    window.location.href = "/login";
+    return;
   }
 
+  if (alreadyOnOrgSub) {
+    // Already on the right subdomain — bare path, middleware rewrites
+    // it invisibly, so the URL bar never shows /{slug}/{role}.
+    window.location.href = `/${role}`;
+    return;
+  }
+
+  // Local dev / Vercel previews — no real subdomains exist here, so
+  // the literal /{slug}/{role} path is the only way to reach an org.
   window.location.href = `/${slug}/${role}`;
 }

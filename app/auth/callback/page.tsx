@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ensureProfile, getSession, getMyProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 
 export default function OAuthCallbackPageWrapper() {
   return (
@@ -92,7 +93,7 @@ function OAuthCallbackPage() {
         return;
       }
       const role = profile.role === "presenter" ? "sales" : "owner";
-      router.replace(`/${slug}/${role}`);
+      await goToDashboard(slug, role);
     })();
     return () => {
       cancelled = true;

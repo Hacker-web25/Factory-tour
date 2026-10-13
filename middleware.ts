@@ -122,6 +122,29 @@ export function middleware(req: NextRequest) {
   const subPart = host.slice(0, -(APEX.length + 1));
   const slug = subPart.split(".").pop() ?? "";
 
+  // ── Domain-exclusivity guard ─────────────────────────────────────
+  // A tenant's dashboard must only ever be reachable through THAT
+  // tenant's own subdomain. The underlying pages physically live at
+  // /{slug}/owner and /{slug}/sales (see the rewrite below), which
+  // means that literal path is technically routable on ANY host —
+  // app.myvpv.com, the bare apex, or even a different org's own
+  // subdomain — if something ever links to it directly. That has
+  // already happened once (an app-side redirect bug). This is the
+  // backstop: no matter what application code does, the edge refuses
+  // to RENDER a slug-scoped page on the wrong host. It redirects to
+  // where that page actually belongs instead.
+  const directSlugMatch = path.match(/^\/([^/]+)\/(owner|sales)(\/.*)?$/);
+  if (directSlugMatch) {
+    const [, pathSlug, kind, rest = ""] = directSlugMatch;
+    const lowerPathSlug = pathSlug.toLowerCase();
+    if (!RESERVED.has(lowerPathSlug) && lowerPathSlug !== slug) {
+      const dest = url.clone();
+      dest.hostname = `${lowerPathSlug}.${APEX}`;
+      dest.pathname = `/${kind}${rest}`;
+      return NextResponse.redirect(dest, 308);
+    }
+  }
+
   if (slug === "apply") {
     if (url.pathname === "/" || url.pathname === "") {
       url.pathname = "/apply";

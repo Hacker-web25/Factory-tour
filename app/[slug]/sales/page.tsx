@@ -12,6 +12,7 @@ import {
   type Organization,
 } from "@/lib/auth";
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 import OfflineControls from "@/components/sales/OfflineControls";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { LegalLinks } from "@/components/legal/SiteFooter";
@@ -183,15 +184,15 @@ export default function SalesDashboardPage() {
       const orgRow = await orgBySlug(params.slug);
       if (!orgRow || orgRow.id !== p.org_id) {
         const mySlug = await slugForOrgId(p.org_id);
-        router.replace(
-          mySlug
-            ? `/${mySlug}/${p.role === "org_admin" ? "owner" : "sales"}`
-            : "/setup"
-        );
+        if (mySlug) {
+          await goToDashboard(mySlug, p.role === "org_admin" ? "owner" : "sales");
+        } else {
+          router.replace("/setup");
+        }
         return;
       }
       if (p.role === "org_admin") {
-        router.replace(`/${params.slug}/owner`);
+        await goToDashboard(params.slug, "owner");
         return;
       }
       setMe(p);

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/auth";
 import { getMyProfile, signOut } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 import PresenterAssignModal from "@/components/dashboard/PresenterAssignModal";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { LegalLinks } from "@/components/legal/SiteFooter";
@@ -254,7 +255,7 @@ export default function TeamPage() {
         if (p.org_id) {
           const slug = await slugForOrgId(p.org_id);
           if (slug) {
-            router.replace(`/${slug}/sales`);
+            await goToDashboard(slug, "sales");
             return;
           }
         }

@@ -27,6 +27,7 @@ import {
 import { importTourFromFile } from "@/lib/backup";
 import { getMyProfile, type Organization } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
 import {
   listFolders,
   createFolder,
@@ -80,7 +81,7 @@ export default function DashboardPage() {
           return;
         }
         const seg = p.role === "presenter" ? "sales" : "owner";
-        router.replace(`/${slug}/${seg}`);
+        await goToDashboard(slug, seg);
         return;
       }
       // Unknown role — safest is to bounce to /setup, which will
