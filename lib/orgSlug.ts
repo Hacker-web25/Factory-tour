@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { RESERVED_SLUGS } from "@/lib/reservedSlugs";
 
 /** Convert an org name to a URL-safe slug. */
 export function slugify(name: string): string {
@@ -10,18 +11,36 @@ export function slugify(name: string): string {
 }
 
 /** Generate a unique slug for a new org — appends a short suffix if
- *  the base slug is already taken. */
+ *  the base slug is already taken OR collides with a reserved word
+ *  (app, login, admin, www, …). Reserved words are treated exactly
+ *  like a taken slug: a new org named "App Solutions" gets
+ *  "app-x7q2", never the bare "app", which would otherwise silently
+ *  break that tenant's subdomain (and the platform's own routing). */
 export async function uniqueSlugForOrg(name: string): Promise<string> {
   const base = slugify(name);
-  const { data: existing } = await supabase
-    .from("organizations")
-    .select("slug")
-    .eq("slug", base)
-    .maybeSingle();
-  if (!existing) return base;
-  // Add 4-char random suffix.
-  const suffix = Math.random().toString(36).slice(2, 6);
-  return `${base}-${suffix}`;
+
+  const isTaken = async (candidate: string): Promise<boolean> => {
+    if (RESERVED_SLUGS.has(candidate)) return true;
+    const { data } = await supabase
+      .from("organizations")
+      .select("slug")
+      .eq("slug", candidate)
+      .maybeSingle();
+    return !!data;
+  };
+
+  if (!(await isTaken(base))) return base;
+
+  // Collision (taken or reserved) — retry with a random suffix a
+  // handful of times rather than trusting one shot, since a suffixed
+  // slug could itself (extremely rarely) already exist.
+  for (let i = 0; i < 5; i++) {
+    const suffix = Math.random().toString(36).slice(2, 6);
+    const candidate = `${base}-${suffix}`;
+    if (!(await isTaken(candidate))) return candidate;
+  }
+  // Last resort — timestamp fragment is effectively unique.
+  return `${base}-${Date.now().toString(36).slice(-6)}`;
 }
 
 /** Resolve slug → org row. Returns null if not found. */

@@ -115,6 +115,40 @@ export async function ensureProfile(opts?: {
   // profile from trigger that hasn't been linked to an org yet).
   let orgId: string | null = existing?.org_id ?? null;
   let role: Role = existing?.role ?? "presenter";
+
+  const email = session.user.email ?? "";
+
+  // Same person, different sign-in method. Supabase gives email/password
+  // and Google OAuth sign-ins SEPARATE auth.users rows (and so separate
+  // uids) unless the project has identity linking turned on, so without
+  // this check someone who signed up with a password and later taps
+  // "Sign in with Google" using the identical address would silently get
+  // a second, brand-new, org-less account instead of landing back in
+  // their existing one. Google verifies the email itself, so matching on
+  // it here is safe. This only ever ATTACHES this new auth identity to
+  // the existing org/role — it never creates or deletes anything. Best
+  // effort: if the profiles table's row-level security doesn't allow
+  // reading another user's row by email, this silently finds nothing and
+  // falls through to the normal new-org path below (no regression).
+  if (!orgId && email) {
+    try {
+      const { data: sameEmailProfile } = await supabase
+        .from("profiles")
+        .select("org_id, role")
+        .eq("email", email)
+        .neq("id", uid)
+        .not("org_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (sameEmailProfile?.org_id) {
+        orgId = sameEmailProfile.org_id;
+        role = (sameEmailProfile.role as Role) ?? role;
+      }
+    } catch {
+      // Ignore — fall through to the org-creation path below.
+    }
+  }
+
   if (!orgId && orgNameToCreate) {
     const { data: org } = await supabase
       .from("organizations")
@@ -127,7 +161,6 @@ export async function ensureProfile(opts?: {
     }
   }
 
-  const email = session.user.email ?? "";
   const fullName =
     (meta.full_name as string | undefined) ??
     (meta.name as string | undefined) ??

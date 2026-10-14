@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { RESERVED_SLUGS } from "@/lib/reservedSlugs";
+import { PUBLIC_LEGAL_PATHS } from "@/components/legal/nav";
 
 /**
  * Edge middleware — subdomain routing + security hardening.
@@ -26,12 +28,21 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const APEX = "myvpv.com";
 
-// Subdomains that must never be treated as an org slug.
-const RESERVED = new Set([
-  "www", "app", "api", "admin", "auth", "cdn", "static", "assets",
-  "mail", "email", "docs", "help", "support", "blog", "status",
-  "login", "dashboard", "apply",
-]);
+// Subdomains that must never be treated as an org slug. Single source
+// of truth lives in lib/reservedSlugs.ts (also used by lib/orgSlug.ts
+// when generating a new org's slug, so the two can never drift apart).
+const RESERVED = RESERVED_SLUGS;
+
+// Pages that only ever make sense on the main domain: the policy /
+// company pages (single source: components/legal/nav.ts — the seven
+// consent pages plus pricing/about/contact/the /legal hub) and the
+// login/signup entry points. A tenant opening any of these from their
+// own subdomain is sent to the identical path on the apex instead of
+// getting a confusing second copy of the page under their own URL.
+// Deliberately does NOT include /auth/* — that is the cross-subdomain
+// sign-in handoff goToDashboard() relies on (lib/authRedirect.ts), and
+// redirecting it to the apex would break login outright.
+const APEX_ONLY_PATHS = [...PUBLIC_LEGAL_PATHS, "/login", "/signup"];
 
 // Paths that live INSIDE a [slug] segment on a per-org subdomain.
 const SLUG_SCOPED_PREFIXES = ["/owner", "/sales", "/settings"];
@@ -122,6 +133,25 @@ export function middleware(req: NextRequest) {
   const subPart = host.slice(0, -(APEX.length + 1));
   const slug = subPart.split(".").pop() ?? "";
 
+  // ── Retire "app" as a distinct place ─────────────────────────────
+  // app.myvpv.com used to silently render the same pages as the apex
+  // (it's a RESERVED word, so it never got slug-rewritten), which is
+  // exactly why visiting it was confusing — it looked like its own
+  // site but wasn't. Collapse it into a plain alias for the apex,
+  // exactly like www, so it stops being "its own place" at all.
+  if (slug === "app" || slug === "www") {
+    const dest = `https://${APEX}${url.pathname}${url.search}`;
+    return NextResponse.redirect(dest, 308);
+  }
+
+  // ── Apex-only pages ──────────────────────────────────────────────
+  // Any tenant subdomain (or reserved host) asking for a policy/company
+  // page or /login|/signup gets bounced to the same path on the apex.
+  if (APEX_ONLY_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) {
+    const dest = `https://${APEX}${path}${url.search}`;
+    return NextResponse.redirect(dest, 308);
+  }
+
   // ── Domain-exclusivity guard ─────────────────────────────────────
   // A tenant's dashboard must only ever be reachable through THAT
   // tenant's own subdomain. The underlying pages physically live at
@@ -153,12 +183,7 @@ export function middleware(req: NextRequest) {
     return nextWithHeaders(requestHeaders, path);
   }
 
-  if (slug === "www") {
-    return NextResponse.redirect(
-      `https://${APEX}${url.pathname}${url.search}`,
-      308
-    );
-  }
+  // (www is handled above, alongside app, before this point is reached.)
 
   if (RESERVED.has(slug)) return nextWithHeaders(requestHeaders, path);
 
