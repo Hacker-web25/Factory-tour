@@ -37,9 +37,9 @@ export default function SetupPage() {
         return;
       }
       setUserEmail(p.email);
-      // Super-owner (you, NITIN) → cross-org tour editor at /.
+      // Super-owner (you, NITIN) → cross-org tour editor at /dashboard.
       if (p.role === "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       // Already onboarded — jump straight to the right dashboard.

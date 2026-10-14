@@ -30,11 +30,11 @@ import { installOfflineFlusher } from "@/lib/offlineQueue";
  * `/tour/{id}/edit` is where the tour EDITOR lives, BUT it's also where
  * PREVIEW mode lives (`?preview=1`) — the presenter's actual "run the
  * tour" URL. So we cannot blanket-block /tour/*. We block only the
- * unambiguously-superadmin routes (root cross-org editor, admin panel,
+ * unambiguously-superadmin routes (owner dashboard, admin panel,
  * analytics dashboards). Everything else registers so the SW can
  * intercept media requests and serve them from cache when offline. */
 function isSuperadminRoute(pathname: string): boolean {
-  if (pathname === "/") return true;
+  if (pathname === "/dashboard") return true;
   if (pathname.startsWith("/admin")) return true;
   if (pathname.startsWith("/analytics")) return true;
   return false;

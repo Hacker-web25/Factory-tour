@@ -56,7 +56,7 @@ export default function SessionAnalysisPage() {
         return;
       }
       if (p.role !== "org_admin" && p.role !== "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       setMe(p);

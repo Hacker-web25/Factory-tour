@@ -50,6 +50,7 @@ export default function robots(): MetadataRoute.Robots {
           "/team",
           "/analytics",
           "/admin",
+          "/dashboard",
           "/upload",
           "/embed/",
           "/owner",

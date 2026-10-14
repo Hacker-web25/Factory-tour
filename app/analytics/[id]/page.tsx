@@ -206,7 +206,7 @@ export default function AnalyticsPage() {
         <div className="flex items-end justify-between mb-5 gap-3 flex-wrap">
           <div>
             <Link
-              href="/"
+              href="/dashboard"
               className="text-2xs text-neutral-400 hover:text-white flex items-center gap-1 mb-1"
             >
               <ArrowLeft size={12} /> Dashboard

@@ -75,7 +75,7 @@ export default function PresenterHomePage() {
         return;
       }
       if (p.role === "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       if (p.role === "org_admin") {

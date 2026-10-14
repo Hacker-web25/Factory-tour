@@ -199,7 +199,7 @@ export default function LeadsPage() {
         return;
       }
       if (p.role !== "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       setChecking(false);

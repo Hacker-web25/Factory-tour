@@ -67,7 +67,7 @@ export default function TopBar({
 
       {variant === "app" && isOwner && (
         <nav className="flex items-center gap-0.5 ml-1">
-          <NavLink href="/" active={on("/")} icon={<Compass size={14} />}>
+          <NavLink href="/dashboard" active={on("/dashboard")} icon={<Compass size={14} />}>
             Explore
           </NavLink>
           <NavLink
@@ -103,7 +103,7 @@ export default function TopBar({
 
       {/* Center brand */}
       <Link
-        href="/"
+        href="/dashboard"
         className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 font-semibold text-[15px] tracking-tight hover:opacity-90"
         aria-label="Factory Tour home"
       >

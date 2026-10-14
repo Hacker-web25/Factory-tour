@@ -553,7 +553,7 @@ export default function ClientDashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[20px] font-semibold text-vpv-ink">Your Virtual Factories</h2>
             <Link
-              href="/"
+              href="/dashboard"
               className="text-[12px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
             >
               View all tours <ArrowRight size={12} />

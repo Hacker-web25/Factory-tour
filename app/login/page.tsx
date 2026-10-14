@@ -104,7 +104,7 @@ export default function LoginPage() {
       return;
     }
     if (profile?.role === "owner") {
-      router.push("/");
+      router.push("/dashboard");
       return;
     }
     if (!profile || !profile.org_id) {

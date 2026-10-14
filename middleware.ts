@@ -49,6 +49,7 @@ const APEX_ONLY_PATHS = [
   "/setup",          // post-signup org creation (you sign in on the apex)
   "/apply",          // public qualification form
   "/admin",          // platform-owner admin
+  "/dashboard",      // platform-owner dashboard
   "/auth/callback",  // Google sign-in lands on the apex
   "/auth/reset",     // password-reset link lands on the apex
 ];
@@ -100,7 +101,7 @@ const SCRAPER_UA = /(bytespider|semrush|ahrefs|mj12bot|dotbot|seznam|petalbot|da
 
 // Paths considered private — scrapers get a 403 even if they ignored
 // robots.txt (which these ones always do).
-const PRIVATE_PATHS = /^\/(login|signup|setup|auth|owner|sales|settings|visitors|team|analytics|admin|client|tour|v|present|presenter|embed|upload|api)(\/|$)/;
+const PRIVATE_PATHS = /^\/(login|signup|setup|auth|owner|sales|settings|visitors|team|analytics|admin|dashboard|client|tour|v|present|presenter|embed|upload|api)(\/|$)/;
 
 // Hard cap on request body size we'll even LOOK at (10 MB). Larger
 // uploads happen through signed URLs direct to Supabase Storage,
@@ -169,6 +170,11 @@ export function middleware(req: NextRequest) {
   // tenant dashboard goes to that tenant's own subdomain.
   // (Preview deployments and localhost are untouched.)
   if (host.endsWith(".vercel.app") && process.env.VERCEL_ENV === "production") {
+    // The public front page belongs to myvpv.com; the operator side opens
+    // on the sign-in screen.
+    if (path === "/" || path === "") {
+      return NextResponse.redirect(new URL("/login", req.url), 307);
+    }
     if (
       PUBLIC_LEGAL_PATHS.some((p) => path === p || path.startsWith(`${p}/`)) ||
       path === "/apply" || path.startsWith("/apply/")
@@ -246,7 +252,8 @@ function nextWithHeaders(requestHeaders: Headers, path: string) {
     path.startsWith("/owner") ||
     path.startsWith("/sales") ||
     path.startsWith("/settings") ||
-    path.startsWith("/admin")
+    path.startsWith("/admin") ||
+    path.startsWith("/dashboard")
   ) {
     res.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
     res.headers.set("Pragma", "no-cache");

@@ -172,9 +172,9 @@ export default function SalesDashboardPage() {
         return;
       }
       // Super-owner (that's you, NITIN) always goes to the cross-org
-      // tour editor at /, regardless of which slug URL they typed.
+      // tour editor at /dashboard, regardless of which slug URL they typed.
       if (p.role === "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       if (!p.org_id) {

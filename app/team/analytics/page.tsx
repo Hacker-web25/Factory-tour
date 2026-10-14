@@ -34,7 +34,7 @@ export default function TeamAnalyticsPage() {
       // Only org_admin / owner see the analytics dashboard. Presenters
       // bounce back to their own workspace.
       if (p.role !== "org_admin" && p.role !== "owner") {
-        router.replace("/");
+        router.replace("/dashboard");
         return;
       }
       setMe(p);

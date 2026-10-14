@@ -1814,7 +1814,7 @@ export default function TourEditPage() {
       <header className="h-12 bg-chrome border-b border-border flex items-center px-3 gap-2 text-[13px] relative">
         {/* Left: nav */}
         <Link
-          href="/"
+          href="/dashboard"
           className="p-1.5 text-neutral-400 hover:text-white rounded"
           title="Back to dashboard"
         >
@@ -1965,7 +1965,7 @@ export default function TourEditPage() {
           <Share2 size={11} /> Share
         </button>
         <Link
-          href="/"
+          href="/dashboard"
           className="ml-1 text-neutral-500 hover:text-white p-1.5 rounded"
           title="Close editor"
         >

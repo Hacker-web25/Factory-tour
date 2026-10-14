@@ -80,6 +80,35 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * The front page (the original marketing site, served from app/route.ts)
+ * embeds a Kuula demo tour and YouTube testimonials. Only that one URL gets
+ * the extra permissions; every other page keeps the strict set above.
+ */
+const HOME_EMBEDS = '"https://kuula.co" "https://www.youtube.com"';
+const homeHeaders = securityHeaders.map((h) => {
+  if (h.key === "Content-Security-Policy") {
+    const value = h.value.replace("frame-src 'self'", "frame-src 'self' https://kuula.co");
+    if (value === h.value) throw new Error("CSP frame-src anchor not found");
+    return { ...h, value };
+  }
+  if (h.key === "Permissions-Policy") {
+    let value = h.value;
+    for (const [from, to] of [
+      ["accelerometer=()", `accelerometer=(self ${HOME_EMBEDS})`],
+      ["gyroscope=()", `gyroscope=(self ${HOME_EMBEDS})`],
+      ["magnetometer=()", `magnetometer=(self ${HOME_EMBEDS})`],
+      ["fullscreen=(self)", `fullscreen=(self ${HOME_EMBEDS})`],
+      ["autoplay=(self)", `autoplay=(self ${HOME_EMBEDS})`],
+    ]) {
+      if (!value.includes(from)) throw new Error(`Permissions-Policy anchor not found: ${from}`);
+      value = value.replace(from, to);
+    }
+    return { ...h, value };
+  }
+  return h;
+});
+
 const nextConfig = {
   // Don't advertise Next.js version in x-powered-by.
   poweredByHeader: false,
@@ -116,6 +145,11 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      // Later rule wins for the same header, so "/" gets the embed-friendly set.
+      {
+        source: "/",
+        headers: homeHeaders,
       },
       // API endpoints: short-circuit any proxy cache.
       {
