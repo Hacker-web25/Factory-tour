@@ -2,14 +2,15 @@
 
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { safeNext } from "@/lib/safeNext";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Cross-subdomain session hand-off.
  *
- * Reached from goToDashboard() after a successful sign-in on
- * login.myvpv.com when the destination is a different org subdomain
+ * Reached from goToDashboard() after a successful sign-in on the main
+ * site (myvpv.com) when the destination is an org subdomain
  * (e.g. dukaan.myvpv.com). The access + refresh tokens ride in the
  * URL fragment — same pattern Supabase's own OAuth callback uses,
  * so tokens never hit the server. Once setSession() lands the
@@ -23,10 +24,15 @@ export default function AuthHandoff() {
       const params = new URLSearchParams(hash);
       const access_token = params.get("access_token");
       const refresh_token = params.get("refresh_token");
-      const next = params.get("next") || "/";
+      // `next` is attacker-controllable — only a same-site path passes.
+      const next = safeNext(params.get("next"), "/");
+
+      // Strip the tokens from the address bar / history right away,
+      // before any async work.
+      window.history.replaceState(null, "", window.location.pathname);
 
       if (!access_token || !refresh_token) {
-        window.location.replace("/login");
+        window.location.replace("/login?reauth=1");
         return;
       }
 
@@ -36,7 +42,7 @@ export default function AuthHandoff() {
       });
       if (error) {
         console.error("Auth hand-off failed:", error);
-        window.location.replace("/login");
+        window.location.replace("/login?reauth=1");
         return;
       }
 

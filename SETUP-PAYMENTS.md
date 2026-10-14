@@ -85,7 +85,7 @@ pages must be live there before you submit — see step 6.
 Once approved:
 
 1. Razorpay dashboard → Settings → **Webhooks** → Add New Webhook
-   - URL: `https://app.myvpv.com/api/billing/webhook`
+   - URL: `https://myvpv.com/api/billing/webhook`
    - Secret: the same string you put in `RAZORPAY_WEBHOOK_SECRET`
    - Active events: `payment.captured`, `payment.failed`, `order.paid`,
      `refund.processed`
@@ -95,7 +95,7 @@ Once approved:
 ### Test it before going live
 
 With the `rzp_test_` keys in place, open
-`https://app.myvpv.com/get-started` and buy 2 scenes using Razorpay's
+`https://myvpv.com/get-started` and buy 2 scenes using Razorpay's
 test card `4111 1111 1111 1111`, any future expiry, any CVV. You should
 get: a new organisation, a welcome e-mail with a password, an invoice
 e-mail, and a row in `/admin/customers`.
@@ -118,7 +118,7 @@ three-plan pricing.
 
 The static copies carry no JavaScript, so the scene slider cannot move
 there — the full price ladder is shown as a table instead, and
-"Get started" links to `app.myvpv.com` where the live calculator runs.
+"Get started" links to `myvpv.com` where the live calculator runs.
 
 ---
 

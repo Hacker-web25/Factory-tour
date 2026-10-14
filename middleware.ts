@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { RESERVED_SLUGS } from "@/lib/reservedSlugs";
+import { RESERVED_SLUGS } from "@/lib/slugs";
 import { PUBLIC_LEGAL_PATHS } from "@/components/legal/nav";
 
 /**
@@ -29,7 +29,7 @@ import { PUBLIC_LEGAL_PATHS } from "@/components/legal/nav";
 const APEX = "myvpv.com";
 
 // Subdomains that must never be treated as an org slug. Single source
-// of truth lives in lib/reservedSlugs.ts (also used by lib/orgSlug.ts
+// of truth lives in lib/slugs.ts (also used by lib/orgSlug.ts
 // when generating a new org's slug, so the two can never drift apart).
 const RESERVED = RESERVED_SLUGS;
 
@@ -42,7 +42,17 @@ const RESERVED = RESERVED_SLUGS;
 // Deliberately does NOT include /auth/* — that is the cross-subdomain
 // sign-in handoff goToDashboard() relies on (lib/authRedirect.ts), and
 // redirecting it to the apex would break login outright.
-const APEX_ONLY_PATHS = [...PUBLIC_LEGAL_PATHS, "/login", "/signup"];
+const APEX_ONLY_PATHS = [
+  ...PUBLIC_LEGAL_PATHS,
+  "/login",
+  "/signup",
+  "/setup",          // post-signup org creation (you sign in on the apex)
+  "/apply",          // public qualification form
+  "/leads",          // platform-owner lead inbox
+  "/admin",          // platform-owner admin
+  "/auth/callback",  // Google sign-in lands on the apex
+  "/auth/reset",     // password-reset link lands on the apex
+];
 
 // Paths that live INSIDE a [slug] segment on a per-org subdomain.
 const SLUG_SCOPED_PREFIXES = ["/owner", "/sales", "/settings"];
@@ -82,8 +92,11 @@ const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 function getIp(req: NextRequest): string {
   const first = (v: string | null) => (v ? v.split(",")[0]!.trim() : "");
+  // We run on Vercel, which sets these itself and overwrites anything the
+  // client sent. cf-connecting-ip is deliberately NOT trusted: we are not
+  // behind Cloudflare, so any visitor could forge it to dodge IP limits.
   return (
-    first(req.headers.get("cf-connecting-ip")) ||
+    first(req.headers.get("x-vercel-forwarded-for")) ||
     first(req.headers.get("x-real-ip")) ||
     first(req.headers.get("x-forwarded-for")) ||
     (req as unknown as { ip?: string }).ip ||
@@ -119,50 +132,50 @@ export function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-vpv-ip", ip);
 
-  // ── 5. Subdomain routing (unchanged behaviour) ──────────────────
+  // ── 5. Host routing ─────────────────────────────────────────────
+  //
+  // The ONLY hosts that serve the product are:
+  //     myvpv.com                (the site, login, pricing, policies …)
+  //     <slug>.myvpv.com         (one customer's workspace)
+  // Every other name that happens to reach this deployment is sent
+  // to the apex: www, app, apply, login, any reserved word, anything
+  // two levels deep, and the *.vercel.app address of the production
+  // deployment. One front door, no look-alike doors.
   const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
+  const toApex = (p: string) =>
+    NextResponse.redirect(`https://${APEX}${p}${url.search}`, 308);
 
-  // Local dev / Vercel previews — no apex, no rewriting.
-  if (!host.endsWith(APEX)) {
-    return nextWithHeaders(requestHeaders, path);
-  }
-  if (host === APEX) {
-    return nextWithHeaders(requestHeaders, path); // apex = marketing
-  }
-
-  const subPart = host.slice(0, -(APEX.length + 1));
-  const slug = subPart.split(".").pop() ?? "";
-
-  // ── Retire "app" as a distinct place ─────────────────────────────
-  // app.myvpv.com used to silently render the same pages as the apex
-  // (it's a RESERVED word, so it never got slug-rewritten), which is
-  // exactly why visiting it was confusing — it looked like its own
-  // site but wasn't. Collapse it into a plain alias for the apex,
-  // exactly like www, so it stops being "its own place" at all.
-  if (slug === "app" || slug === "www") {
-    const dest = `https://${APEX}${url.pathname}${url.search}`;
-    return NextResponse.redirect(dest, 308);
+  // Production deployment reached via its *.vercel.app alias → apex.
+  // (Preview deployments keep working for testing: VERCEL_ENV differs.)
+  if (host.endsWith(".vercel.app") && process.env.VERCEL_ENV === "production") {
+    return toApex(path);
   }
 
-  // ── Apex-only pages ──────────────────────────────────────────────
-  // Any tenant subdomain (or reserved host) asking for a policy/company
-  // page or /login|/signup gets bounced to the same path on the apex.
-  if (APEX_ONLY_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) {
-    const dest = `https://${APEX}${path}${url.search}`;
-    return NextResponse.redirect(dest, 308);
-  }
+  const onMyVpv = host === APEX || host.endsWith(`.${APEX}`);
+  // localhost / previews — no real subdomains, nothing to enforce.
+  if (!onMyVpv) return nextWithHeaders(requestHeaders, path);
 
-  // ── Domain-exclusivity guard ─────────────────────────────────────
-  // A tenant's dashboard must only ever be reachable through THAT
-  // tenant's own subdomain. The underlying pages physically live at
-  // /{slug}/owner and /{slug}/sales (see the rewrite below), which
-  // means that literal path is technically routable on ANY host —
-  // app.myvpv.com, the bare apex, or even a different org's own
-  // subdomain — if something ever links to it directly. That has
-  // already happened once (an app-side redirect bug). This is the
-  // backstop: no matter what application code does, the edge refuses
-  // to RENDER a slug-scoped page on the wrong host. It redirects to
-  // where that page actually belongs instead.
+  const isApex = host === APEX;
+  const sub = isApex ? "" : host.slice(0, -(APEX.length + 1));
+
+  if (!isApex) {
+    // Not a single-label tenant name → apex. (apply.myvpv.com keeps
+    // working as a short link to the form.)
+    if (sub.includes(".") || RESERVED.has(sub)) {
+      return toApex(sub === "apply" && (path === "/" || path === "") ? "/apply" : path);
+    }
+    // Policy / company / login / admin pages exist on the apex only.
+    if (APEX_ONLY_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) {
+      return toApex(path);
+    }
+  }
+  const slug = sub; // "" on the apex
+
+  // ── Domain-exclusivity guard (applies on EVERY host, apex included) ──
+  // A tenant dashboard physically lives at /{slug}/owner|sales, so that
+  // literal path is routable on any host unless we stop it here. It is
+  // only ever served through the middleware rewrite below, on the
+  // tenant's own subdomain.
   const directSlugMatch = path.match(/^\/([^/]+)\/(owner|sales)(\/.*)?$/);
   if (directSlugMatch) {
     const [, pathSlug, kind, rest = ""] = directSlugMatch;
@@ -175,29 +188,17 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  if (slug === "apply") {
-    if (url.pathname === "/" || url.pathname === "") {
-      url.pathname = "/apply";
-      return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
-    }
-    return nextWithHeaders(requestHeaders, path);
-  }
-
-  // (www is handled above, alongside app, before this point is reached.)
-
-  if (RESERVED.has(slug)) return nextWithHeaders(requestHeaders, path);
+  if (isApex) return nextWithHeaders(requestHeaders, path);
 
   // Canonicalise: subdomain + path-slug = strip the path-slug.
-  if (url.pathname === `/${slug}` || url.pathname.startsWith(`/${slug}/`)) {
-    const stripped = url.pathname.slice(slug.length + 1) || "/";
-    url.pathname = stripped;
+  if (path === `/${slug}` || path.startsWith(`/${slug}/`)) {
+    url.pathname = path.slice(slug.length + 1) || "/";
     return NextResponse.redirect(url, 308);
   }
 
   // Rewrite slug-scoped bare paths into the internal [slug] route.
-  if (isSlugScopedPath(url.pathname)) {
-    let tail =
-      url.pathname === "/" || url.pathname === "" ? "/owner" : url.pathname;
+  if (isSlugScopedPath(path)) {
+    let tail = path === "/" || path === "" ? "/owner" : path;
     // /settings pages physically live under /owner/settings/… in the app
     // tree, but customers see them at the bare /settings URL.
     if (tail === "/settings" || tail.startsWith("/settings/")) {

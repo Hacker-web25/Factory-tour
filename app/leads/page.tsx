@@ -28,9 +28,8 @@ import {
  * /leads — private super-owner-only lead inbox for the /apply form.
  *
  * Design choices:
- *   * Not linked from anywhere; you visit factory-tour-zeta.vercel.app/leads
- *     directly. On any *.myvpv.com host the page hard-redirects away so a
- *     random visitor who guesses the path lands on the marketing site.
+ *   * Not linked from anywhere; you visit myvpv.com/leads directly. The
+ *     edge middleware sends /leads on any tenant subdomain to the apex.
  *   * Role gate: only profiles.role === 'owner' passes; everyone else is
  *     bounced to /login. Combined with the RLS SELECT policy (owners only)
  *     the data is inaccessible to anyone else even if they got in via
@@ -184,14 +183,6 @@ export default function LeadsPage() {
 
   useEffect(() => {
     (async () => {
-      // Hard host guard — never expose /leads from a *.myvpv.com host.
-      if (typeof window !== "undefined") {
-        const h = window.location.hostname.toLowerCase();
-        if (h === "myvpv.com" || h.endsWith(".myvpv.com")) {
-          window.location.replace("https://myvpv.com");
-          return;
-        }
-      }
       const p = await getMyProfile();
       if (!p) {
         router.replace("/login?next=/leads");
@@ -380,7 +371,7 @@ export default function LeadsPage() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-24 text-white/40 text-sm">
               {rows.length === 0
-                ? "No submissions yet. Share https://apply.myvpv.com to start collecting."
+                ? "No submissions yet. Share https://myvpv.com/apply to start collecting."
                 : "No submissions match those filters."}
             </div>
           ) : (

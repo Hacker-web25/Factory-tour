@@ -24,7 +24,7 @@
  *      and visible in the admin screen.
  *
  * Razorpay dashboard → Settings → Webhooks:
- *   URL     https://app.myvpv.com/api/billing/webhook
+ *   URL     https://myvpv.com/api/billing/webhook
  *   Secret  the value of RAZORPAY_WEBHOOK_SECRET
  *   Events  payment.captured, payment.failed, order.paid, refund.processed
  */

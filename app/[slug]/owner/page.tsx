@@ -23,7 +23,7 @@ export default function OwnerDashboardBySlug() {
     (async () => {
       const p = await getMyProfile();
       if (!p) {
-        router.replace(`/login?next=/${params.slug}/owner`);
+        router.replace("/login");
         return;
       }
       // Super-owner (that's you, NITIN) always goes to the cross-org

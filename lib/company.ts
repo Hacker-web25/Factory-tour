@@ -76,9 +76,11 @@ export const COMPANY: CompanyConfig = {
 
   website: "https://myvpv.com",
   /** Host that serves the product and these policy pages. */
-  appUrl: "https://app.myvpv.com",
-  loginUrl: "https://app.myvpv.com/login",
-  applyUrl: "https://apply.myvpv.com",
+  // One front door: the site, the app login and the intake form all
+  // live on the apex. Customer workspaces are <slug>.myvpv.com.
+  appUrl: "https://myvpv.com",
+  loginUrl: "https://myvpv.com/login",
+  applyUrl: "https://myvpv.com/apply",
 
   /** Where legal disputes are heard (see Terms › Governing law). */
   jurisdiction: "New Delhi, India",

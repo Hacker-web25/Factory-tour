@@ -25,7 +25,9 @@ import {
   signInWithGoogle,
   signOut,
   getMyProfile,
+  getSession,
 } from "@/lib/auth";
+import { safeNext, isTenantPath } from "@/lib/safeNext";
 import { supabase } from "@/lib/supabase";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
@@ -85,6 +87,57 @@ export default function LoginPage() {
       setLockedUntil(null);
     }
   }, [tick, lockedUntil]);
+
+  // One place that decides where a signed-in user goes. A literal
+  // /{slug}/owner|sales `next` is ignored on purpose: the tenant
+  // dashboard is reached only through goToDashboard()'s session
+  // hand-off (pushing the raw path would bounce between hosts forever).
+  async function routeAfterLogin(
+    profile: Awaited<ReturnType<typeof getMyProfile>>
+  ) {
+    const next = safeNext(
+      new URLSearchParams(window.location.search).get("next"),
+      ""
+    );
+    if (next && !isTenantPath(next)) {
+      router.push(next);
+      return;
+    }
+    if (profile?.role === "owner") {
+      router.push("/");
+      return;
+    }
+    if (!profile || !profile.org_id) {
+      router.push("/setup");
+      return;
+    }
+    const slug = await slugForOrgId(profile.org_id);
+    if (!slug) {
+      router.push("/setup");
+      return;
+    }
+    await goToDashboard(slug, profile.role === "presenter" ? "sales" : "owner");
+  }
+
+  // Already signed in here (e.g. bounced from a tenant subdomain whose
+  // own session was lost)? Skip the form and continue to the dashboard.
+  // `?reauth=1` (set when a hand-off fails) disables this so a bad
+  // session can never cause a redirect loop.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reauth")) return;
+    let cancelled = false;
+    (async () => {
+      const s = await getSession();
+      if (!s || cancelled) return;
+      const p = await getMyProfile();
+      if (cancelled) return;
+      await routeAfterLogin(p);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -165,30 +218,8 @@ export default function LoginPage() {
       });
     }
 
-    // 7. The existing redirect logic.
-    const next =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("next")
-        : null;
-    if (next) {
-      router.push(next);
-      return;
-    }
-    if (profile?.role === "owner") {
-      router.push("/");
-      return;
-    }
-    if (!profile || !profile.org_id) {
-      router.push("/setup");
-      return;
-    }
-    const slug = await slugForOrgId(profile.org_id);
-    if (!slug) {
-      router.push("/setup");
-      return;
-    }
-    const role = profile.role === "presenter" ? "sales" : "owner";
-    await goToDashboard(slug, role);
+    // 7. Route to the right place.
+    await routeAfterLogin(profile);
   }
 
   const isLocked = !!lockedUntil && lockedUntil.getTime() > Date.now();
@@ -330,8 +361,10 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={async () => {
-              const next =
-                new URLSearchParams(window.location.search).get("next") ?? "/";
+              const next = safeNext(
+                new URLSearchParams(window.location.search).get("next"),
+                "/"
+              );
               await signInWithGoogle(next);
             }}
             className="w-full py-2.5 rounded-lg bg-white text-black font-medium flex items-center justify-center gap-2 hover:bg-white/95"

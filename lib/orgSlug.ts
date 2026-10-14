@@ -1,14 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import { RESERVED_SLUGS } from "@/lib/reservedSlugs";
+import { RESERVED_SLUGS, slugify } from "@/lib/slugs";
 
-/** Convert an org name to a URL-safe slug. */
-export function slugify(name: string): string {
-  const s = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return s || "org";
-}
+export { slugify };
 
 /** Generate a unique slug for a new org — appends a short suffix if
  *  the base slug is already taken OR collides with a reserved word

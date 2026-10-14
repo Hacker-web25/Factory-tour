@@ -10,6 +10,7 @@ import { ensureProfile, getSession, getMyProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
+import { safeNext, isTenantPath } from "@/lib/safeNext";
 
 export default function OAuthCallbackPageWrapper() {
   return (
@@ -37,7 +38,7 @@ export default function OAuthCallbackPageWrapper() {
 function OAuthCallbackPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const nextRaw = params.get("next") || "/";
+  const nextRaw = safeNext(params.get("next"), "/");
   const orgName = params.get("org") || "";
   const [message, setMessage] = useState("Signing you in…");
 
@@ -79,7 +80,7 @@ function OAuthCallbackPage() {
         router.replace("/");
         return;
       }
-      if (nextRaw && nextRaw !== "/") {
+      if (nextRaw && nextRaw !== "/" && !isTenantPath(nextRaw)) {
         router.replace(nextRaw);
         return;
       }

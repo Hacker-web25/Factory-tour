@@ -31,6 +31,7 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { emailShell, esc, sendEmail } from "@/lib/server/email";
 import { fromPaise, inr, inr2, GST_RATE, SAC_CODE, SUPPORT_FREE_MONTHS } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
+import { RESERVED_SLUGS, slugify } from "@/lib/slugs";
 
 export type OrderRow = {
   id: string;
@@ -53,22 +54,6 @@ export type OrderRow = {
 };
 
 /* ───────────────────────────── helpers ───────────────────────────── */
-
-function slugify(name: string): string {
-  const s = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return s || "plant";
-}
-
-/** Subdomains the routing layer reserves — an org can never take one. */
-const RESERVED_SLUGS = new Set([
-  "www", "app", "api", "admin", "auth", "cdn", "static", "assets",
-  "mail", "email", "docs", "help", "support", "blog", "status",
-  "login", "dashboard", "apply", "billing", "pay", "checkout",
-]);
 
 async function uniqueSlug(sb: SupabaseClient, name: string): Promise<string> {
   const base = slugify(name);

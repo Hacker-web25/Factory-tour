@@ -168,7 +168,7 @@ export default function SalesDashboardPage() {
     (async () => {
       const p = await getMyProfile();
       if (!p) {
-        router.replace(`/login?next=/${params.slug}/sales`);
+        router.replace("/login");
         return;
       }
       // Super-owner (that's you, NITIN) always goes to the cross-org

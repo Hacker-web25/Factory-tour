@@ -24,21 +24,10 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { emailShell, esc, sendEmail } from "@/lib/server/email";
 import { isPlanId, clampScenes } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
+import { RESERVED_SLUGS, slugify } from "@/lib/slugs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const RESERVED = new Set([
-  "www", "app", "api", "admin", "auth", "cdn", "static", "assets", "mail",
-  "email", "docs", "help", "support", "blog", "status", "login", "dashboard",
-  "apply", "billing", "pay", "checkout",
-]);
-
-function slugify(name: string): string {
-  return (
-    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "plant"
-  );
-}
 
 function readablePassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -84,10 +73,12 @@ export async function POST(req: Request) {
 
   // ── Unique slug ────────────────────────────────────────────────
   const base = slugify(company);
-  let slug = base;
+  // Default is a guaranteed-unique, non-reserved fallback; the loop below
+  // replaces it with the nicest free name it can find.
+  let slug = `${base}-${crypto.randomBytes(3).toString("hex")}`;
   for (let i = 0; i < 8; i++) {
     const candidate = i === 0 ? base : `${base}-${crypto.randomInt(100, 999)}`;
-    if (RESERVED.has(candidate)) continue;
+    if (RESERVED_SLUGS.has(candidate)) continue;
     const { data: taken } = await sb
       .from("organizations")
       .select("id")
