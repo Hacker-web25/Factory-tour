@@ -48,7 +48,6 @@ const APEX_ONLY_PATHS = [
   "/signup",
   "/setup",          // post-signup org creation (you sign in on the apex)
   "/apply",          // public qualification form
-  "/leads",          // platform-owner lead inbox
   "/admin",          // platform-owner admin
   "/auth/callback",  // Google sign-in lands on the apex
   "/auth/reset",     // password-reset link lands on the apex
@@ -65,6 +64,24 @@ function isSlugScopedPath(pathname: string): boolean {
 }
 
 /* ───────────────── Security helpers ──────────────────────────────── */
+
+/**
+ * A tenant dashboard physically lives at /{slug}/owner|sales, so that
+ * literal path is routable on any host unless we stop it. It may only
+ * be served through the subdomain rewrite, on that tenant's own host.
+ * Returns the redirect to the right host, or null if the path is fine.
+ */
+function tenantPathRedirect(url: URL, path: string, currentSlug: string) {
+  const m = path.match(/^\/([^/]+)\/(owner|sales)(\/.*)?$/);
+  if (!m) return null;
+  const [, pathSlug, kind, rest = ""] = m;
+  const lower = pathSlug.toLowerCase();
+  if (RESERVED.has(lower) || lower === currentSlug) return null;
+  const dest = new URL(url.toString());
+  dest.hostname = `${lower}.${APEX}`;
+  dest.pathname = `/${kind}${rest}`;
+  return NextResponse.redirect(dest, 308);
+}
 
 // Classic "I'm a scanner, hi!" paths. Returning 410 Gone sheds load
 // faster than letting Next.js route them and 404.
@@ -145,10 +162,20 @@ export function middleware(req: NextRequest) {
   const toApex = (p: string) =>
     NextResponse.redirect(`https://${APEX}${p}${url.search}`, 308);
 
-  // Production deployment reached via its *.vercel.app alias → apex.
-  // (Preview deployments keep working for testing: VERCEL_ENV differs.)
+  // The *.vercel.app address of the production deployment is our own
+  // operator side (owner login, /leads, /admin) — kept separate from the
+  // customer-facing myvpv.com and left working. It just never serves
+  // customer-facing content: policy/company pages go to myvpv.com and a
+  // tenant dashboard goes to that tenant's own subdomain.
+  // (Preview deployments and localhost are untouched.)
   if (host.endsWith(".vercel.app") && process.env.VERCEL_ENV === "production") {
-    return toApex(path);
+    if (
+      PUBLIC_LEGAL_PATHS.some((p) => path === p || path.startsWith(`${p}/`)) ||
+      path === "/apply" || path.startsWith("/apply/")
+    ) {
+      return toApex(path);
+    }
+    return tenantPathRedirect(url, path, "") ?? nextWithHeaders(requestHeaders, path);
   }
 
   const onMyVpv = host === APEX || host.endsWith(`.${APEX}`);
@@ -176,17 +203,8 @@ export function middleware(req: NextRequest) {
   // literal path is routable on any host unless we stop it here. It is
   // only ever served through the middleware rewrite below, on the
   // tenant's own subdomain.
-  const directSlugMatch = path.match(/^\/([^/]+)\/(owner|sales)(\/.*)?$/);
-  if (directSlugMatch) {
-    const [, pathSlug, kind, rest = ""] = directSlugMatch;
-    const lowerPathSlug = pathSlug.toLowerCase();
-    if (!RESERVED.has(lowerPathSlug) && lowerPathSlug !== slug) {
-      const dest = url.clone();
-      dest.hostname = `${lowerPathSlug}.${APEX}`;
-      dest.pathname = `/${kind}${rest}`;
-      return NextResponse.redirect(dest, 308);
-    }
-  }
+  const leak = tenantPathRedirect(url, path, slug);
+  if (leak) return leak;
 
   if (isApex) return nextWithHeaders(requestHeaders, path);
 
