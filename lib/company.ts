@@ -57,19 +57,24 @@ export const COMPANY: CompanyConfig = {
   /** Registered / trading name that appears on invoices.   ◀ REQUIRED: confirm exact spelling */
   legalName: "The Next Design",
   /** e.g. "Proprietorship", "Partnership firm", "LLP", "Private Limited Company".   ◀ REQUIRED */
-  entityType: "",
+  entityType: "Proprietorship",
   /** Registered office, one entry per line.   ◀ REQUIRED
    *  e.g. ["Plot 12, Sector 5", "New Delhi 110001", "India"] */
-  addressLines: [],
+  addressLines: [
+    "702, Tower 3, Vipul Greens",
+    "Sector 48, Sohna Road",
+    "Gurgaon, Haryana 122018",
+    "India",
+  ],
   /** 15-character GST registration number.   ◀ REQUIRED (shown on Contact + invoices) */
-  gstin: "",
+  gstin: "06AACPG7019F2Z3",
   /** Only for companies / LLPs (CIN or LLPIN). Optional. */
   cin: "",
   /** The state on your GST registration, spelled as on the certificate,
    *  e.g. "Delhi" or "Maharashtra". Invoices charge CGST+SGST when the
    *  customer is in this state and IGST when they are not, so this must
    *  be right before the first invoice goes out.   ◀ REQUIRED */
-  state: "",
+  state: "Haryana",
   /** Public support phone, with country code.   ◀ REQUIRED by most gateways */
   phone: "",
   phoneHours: "Monday to Saturday, 10:00 to 18:00 IST",
@@ -89,7 +94,7 @@ export const COMPANY: CompanyConfig = {
    *  rules. Leave `name` empty to omit the name until you have one;
    *  the role and e-mail are always shown.   ◀ REQUIRED: add a name */
   grievanceOfficer: {
-    name: "",
+    name: "Aryan Bansal",
     role: "Grievance Officer",
     email: "privacy@myvpv.com",
   },
