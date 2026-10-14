@@ -1,128 +1,119 @@
-# VPV payments — everything you need to switch this on
+# VPV payments — set-up and test guide
 
-Work through this in order. Nothing in it is reversible-by-accident, and
-steps 1 to 4 can all be done before you have Razorpay approval.
+Everything runs from **one app on myvpv.com** (policy pages, checkout,
+webhook, dashboards). There is nothing to upload anywhere else.
 
----
-
-## 1. Put the files in your project
-
-Extract `vpv-payments.zip` into
-`C:\Users\Aryan\OneDrive\Desktop\Kuula 360 copy -- mamu\Kuula Copy`
-and let it overwrite. Pause OneDrive first, as always.
-
-Then commit and push:
-
-```
-git add -A
-git status            # check no .env.local and no node_modules
-git commit -m "Add Razorpay payments, scene-based Basic plan, admin customer control"
-git push origin main
-```
+Work in this order. Steps 1 to 4 are TEST mode: no KYC, no real money.
 
 ---
 
-## 2. Run the database migration
+## 1. Database
 
-Supabase → SQL editor → paste the whole of `supabase/billing.sql` → Run.
-It is safe to re-run. It creates the orders, payments, invoices,
-webhook-events, plan-events and enquiries tables, adds `scene_quota` and
-`support_until` to organisations, and installs the owner-only functions
-behind the admin screen.
-
-Check it worked:
+Supabase → SQL editor → paste all of `supabase/billing.sql` → Run (safe to
+re-run). Check:
 
 ```sql
+select count(*) from public.billing_orders;      -- 0 is fine; an error means it was not run
 select slug, plan, scene_quota, support_until from public.organizations;
 ```
 
-Your existing customers keep exactly the scene count they have today.
+## 2. Razorpay: test keys and webhook
 
----
+Razorpay dashboard → switch **Test Mode ON** (toggle at the top) first.
 
-## 3. Add the environment variables in Vercel
-
-Settings → Environment Variables. Mark every one of these **Sensitive**
-except the first.
-
-| Name | Value | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | `rzp_test_…` | Public by design. Swap to `rzp_live_…` at go-live. |
-| `RAZORPAY_KEY_SECRET` | from Razorpay | **Never** prefix with NEXT_PUBLIC. |
-| `RAZORPAY_WEBHOOK_SECRET` | you choose it | Any long random string. You type the same one into Razorpay in step 5. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | This key can do anything. Sensitive, server-only. |
-| `RESEND_API_KEY` | from Resend | Sends the welcome e-mail and the invoice. |
-| `RESEND_FROM` | `VPV <billing@myvpv.com>` | The domain must be verified in Resend. |
-
-Redeploy after adding them.
-
-**If `SUPABASE_SERVICE_ROLE_KEY` or the Razorpay keys are missing, the
-checkout politely says payment is not available.** Nothing breaks.
-
----
-
-## 4. Fill in your company details
-
-Open `lib/company.ts` and complete the fields marked `◀ REQUIRED`:
-
-- `entityType` — proprietorship, partnership, LLP or private limited
-- `addressLines` — as on your GST certificate
-- `gstin` — 15 characters
-- `state` — **this one decides CGST+SGST vs IGST on every invoice**
-- `phone`
-- `grievanceOfficer.name`
-
-Also create `support@myvpv.com` and `billing@myvpv.com` (forwarding
-aliases are fine).
-
----
-
-## 5. Set up Razorpay
-
-**KYC first.** Submit `https://myvpv.com` as your website. The policy
-pages must be live there before you submit — see step 6.
-
-Once approved:
-
-1. Razorpay dashboard → Settings → **Webhooks** → Add New Webhook
+1. **API keys:** Account & Settings → API Keys → *Generate Test Key*.
+   You get a **Key Id** (`rzp_test_…`) and a **Key Secret** (shown once —
+   save it in a password manager).
+2. **Webhook:** Account & Settings → Webhooks → *Add New Webhook*
    - URL: `https://myvpv.com/api/billing/webhook`
-   - Secret: the same string you put in `RAZORPAY_WEBHOOK_SECRET`
+   - Secret: invent a long random string (30+ characters). You will paste
+     the same string into Vercel in step 3.
    - Active events: `payment.captured`, `payment.failed`, `order.paid`,
      `refund.processed`
-2. Settings → Configuration → turn **on** the payment methods you want
-   (UPI, cards, net banking).
+   (Test mode and Live mode have **separate** keys and **separate**
+   webhooks. You will repeat this in Live mode at go-live.)
+3. **Payment methods:** Account & Settings → Payment Methods → make sure
+   Cards, UPI, Netbanking and Wallets are switched on.
 
-### Test it before going live
+## 3. Vercel environment variables
 
-With the `rzp_test_` keys in place, open
-`https://myvpv.com/get-started` and buy 2 scenes using Razorpay's
-test card `4111 1111 1111 1111`, any future expiry, any CVV. You should
-get: a new organisation, a welcome e-mail with a password, an invoice
-e-mail, and a row in `/admin/customers`.
+Project → Settings → Environment Variables (Production). Mark every one
+*Sensitive* except the first. Redeploy afterwards.
 
-Then swap the live keys in and repeat once with a real ₹9,000 payment to
-yourself. Refund it from the Razorpay dashboard afterwards.
+| Name | Value |
+|---|---|
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID` | `rzp_test_…` (public by design) |
+| `RAZORPAY_KEY_SECRET` | the Key Secret |
+| `RAZORPAY_WEBHOOK_SECRET` | the webhook secret from step 2 |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role |
+| `RESEND_API_KEY` | from Resend (step 4) |
+| `RESEND_FROM` | `VPV <billing@myvpv.com>` |
+
+Missing Razorpay or Supabase keys make the checkout say "payment is not
+available". Nothing breaks.
+
+## 4. E-mail (Resend)
+
+The welcome e-mail carries the new customer's first password, and the
+invoice goes by e-mail too.
+
+1. resend.com → Domains → Add `myvpv.com`.
+2. Resend shows DNS records (SPF, DKIM, MX for `send`). Add them in
+   **Vercel → Domains → myvpv.com → DNS Records** (your nameservers are
+   Vercel's, so records go there).
+3. When Resend says *Verified*, create an API key and add it in step 3.
+
+Until it is verified, a test buyer can still sign in with **Forgot
+password** on the login page.
+
+## 5. Test script (Razorpay test mode)
+
+Open `https://myvpv.com/get-started`, pick 2 scenes, use your own e-mail
+(Gmail `you+test1@gmail.com` style aliases are fine, one per test).
+
+| Test | Details | Expected |
+|---|---|---|
+| Card (Visa) | `4100 2800 0000 1007`, any future expiry, any CVV | success page, workspace created |
+| Card (Mastercard) | `5500 6700 0000 1002` | success |
+| Card (RuPay) | `6527 6589 0000 1005` | success |
+| International card | `5555 5555 5555 4444` | success |
+| UPI success | VPA `success@razorpay` | success |
+| UPI failure | VPA `failure@razorpay` | "payment did not go through", retry offered |
+| Netbanking / Wallet | pick any bank/wallet, click **Success** or **Failure** on the mock page | success / failure |
+| Close the window | dismiss checkout | back to the form, no workspace |
+
+After each success check:
+- `/admin/customers` shows the new organisation (and its `<slug>.myvpv.com` address works)
+- the welcome and invoice e-mails arrived
+- Supabase → Table editor → `billing_webhook_events` has the events with no `error`
+- Razorpay → Webhooks → delivery log shows `200`
+
+## 6. Before going live
+
+Test purchases create real rows in the same database and use up invoice
+numbers. Before the first real sale:
+
+```sql
+delete from public.billing_orders;            -- cascades payments and invoices
+delete from public.billing_webhook_events;
+delete from public.plan_events;
+update public.billing_invoice_counters set last_number = 0;
+```
+
+Then delete the test organisations (Admin → Customers or Supabase) and
+their auth users, and:
+
+1. Complete Razorpay KYC / activation (website `https://myvpv.com`).
+2. Live Mode → generate **live** keys, create the **live** webhook (same URL
+   and events, new secret).
+3. Replace the three Razorpay variables in Vercel with the live values;
+   redeploy.
+4. Make one real payment to yourself for the smallest pack and refund it
+   from the Razorpay dashboard.
 
 ---
 
-## 6. Put the policy pages on myvpv.com (BigRock)
-
-Unchanged from before, but the files are newer — they now carry the
-three-plan pricing.
-
-1. BigRock → cPanel → File Manager → `public_html`
-2. Upload `bigrock-upload.zip`, right-click → Extract
-3. Check `https://myvpv.com/pricing` and `https://myvpv.com/terms`
-4. Paste `footer-snippet.html` into `public_html/index.html`, just
-   before `</body>`
-
-The static copies carry no JavaScript, so the scene slider cannot move
-there — the full price ladder is shown as a table instead, and
-"Get started" links to `myvpv.com` where the live calculator runs.
-
----
-
-## How the money flows, once it is on
+## How the money flows
 
 ```
 Customer picks 7 scenes on the slider
@@ -142,10 +133,10 @@ Razorpay hosted checkout         ← card / UPI details never touch our servers
                                   refuses an amount that does not match
                                           │
                                           ▼
-                                  creates the organisation + subdomain
+                                  creates the organisation + <slug>.myvpv.com
                                   creates the admin login
                                   sets scene quota = 7
-                                  sets support_until = today + 1 year  (FREE)
+                                  sets support_until = today + 1 year (FREE)
                                   issues GST invoice VPV/2026-27/0001
                                   e-mails welcome + invoice
 ```
@@ -156,43 +147,26 @@ everything.
 
 ---
 
-## Your day-to-day
+## Day to day
 
-**`/admin/customers`** — every customer, their plan, their scene count,
-and a support badge that is green, amber or red. Search by company or
-e-mail. Two buttons:
-
-- **Change plan** — switch someone to Pro or Ultra after they pay you by
-  bank transfer, set their scene count, extend support. Every change is
-  written to `plan_events` with your name on it.
-- **New customer** — creates the organisation, the subdomain and the
-  login, and e-mails them the details. The password is shown once on
-  screen so you can read it out. This replaces your SQL.
-
-**`/billing`** — what your customers see: their plan, their support
-expiry, their invoices, and buttons to renew support or buy more scenes.
-
----
+- **`/admin/customers`** — every customer, plan, scene count and support
+  badge. *Change plan* (Pro/Ultra after a bank transfer, scene count,
+  support) and *New customer* (creates organisation, subdomain and login;
+  the password is shown once).
+- **`/billing`** — what customers see: plan, support expiry, invoices,
+  buttons to renew support or buy more scenes.
 
 ## Things to watch
 
-- **Support renewal reminders are not automatic yet.** The dates are all
-  tracked and `/admin/customers` shows who is due within 30 days. Sort by
-  that column once a week, or ask me to add the scheduled job.
-- **Invoices are e-mails, not PDFs.** They carry the invoice number,
-  taxable value, GST and total, which is what the law needs. If your CA
-  wants a PDF attachment, say so and I will add it.
-- **Check the SAC code** (`998434` in `lib/pricing.ts`) with your CA
-  before the first live invoice.
-- **UPI usually caps one payment at ₹1,00,000.** Your largest Basic pack
-  is ₹54,995, so this never bites — but Pro and Ultra annual payments
-  would, which is another reason they go by bank transfer.
-
----
+- Support-renewal reminders are not automatic yet; `/admin/customers`
+  shows who is due within 30 days.
+- Invoices are e-mails, not PDFs. They carry invoice number, taxable
+  value, GST and total.
+- Confirm the SAC code (`998434` in `lib/pricing.ts`) with your CA.
+- UPI usually caps one payment at ₹1,00,000; the largest Basic pack is
+  below that.
 
 ## Changing a price later
 
-Everything is in `lib/pricing.ts`. Change the number, redeploy, re-run
-the static export, re-upload to BigRock. Then e-mail existing customers
-at least 30 days before it applies to them — that is what your Terms
-promise, and it is the clause Razorpay will read.
+Edit `lib/pricing.ts` and redeploy. E-mail existing customers at least 30
+days before it applies to them, as the Terms promise.
