@@ -18,6 +18,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let cached: SupabaseClient | null = null;
 
+/**
+ * Test seam. Only honoured when NODE_ENV === "test", so production code
+ * can never be redirected at a different database by accident.
+ */
+export function __setSupabaseAdminForTests(client: SupabaseClient | null): void {
+  if (process.env.NODE_ENV !== "test") throw new Error("test_only");
+  cached = client;
+}
+
 export function supabaseAdmin(): SupabaseClient | null {
   if (cached) return cached;
 
@@ -34,6 +43,7 @@ export function supabaseAdmin(): SupabaseClient | null {
 
 /** True when billing can actually write to the database. */
 export function billingConfigured(): boolean {
+  if (cached) return true;
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   );

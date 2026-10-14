@@ -64,9 +64,11 @@ const sections: LegalSection[] = [
           <li>
             <B>Annual Support &amp; Maintenance (Basic).</B> The first year is
             included with your licence. From the second year you can stop
-            renewing at any time by e-mailing <Mail to={COMPANY.emails.billing} />,
-            or simply by not renewing in your dashboard. We send a reminder
-            before each renewal, so a year never starts without you knowing.
+            renewing at any time by e-mailing <Mail to={COMPANY.emails.billing} />.
+            If a renewal is not paid, the Workspace locks {POLICY.supportGraceDays}{" "}
+            days after the renewal date and unlocks as soon as you renew; your
+            Content is kept (see the Terms). We send reminders before and after
+            each renewal date, so a year never starts without you knowing.
           </li>
           <li>
             <B>Closing your Workspace.</B> E-mail us. The Workspace stays

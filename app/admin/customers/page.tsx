@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { INDIAN_STATES } from "@/lib/indianStates";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { SCENE_MAX, SCENE_MIN, fromPaise, inr, type PlanId } from "@/lib/pricing";
@@ -170,7 +171,7 @@ export default function AdminCustomersPage() {
           <Stat label="Customers" value={String(totals.customers)} />
           <Stat label="Collected" value={inr(fromPaise(totals.revenue))} />
           <Stat label="Support due in 30 days" value={String(totals.dueSoon)} tone={totals.dueSoon ? "amber" : "plain"} />
-          <Stat label="Support lapsed" value={String(totals.lapsing)} tone={totals.lapsing ? "red" : "plain"} />
+          <Stat label="Support overdue" value={String(totals.lapsing)} tone={totals.lapsing ? "red" : "plain"} />
         </div>
 
         {/* Search */}
@@ -309,8 +310,8 @@ function SupportChip({
 }) {
   const map = {
     active: { label: daysLeft !== null && daysLeft <= 30 ? `${daysLeft}d left` : "Active", cls: daysLeft !== null && daysLeft <= 30 ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    grace: { label: "Grace", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
-    lapsed: { label: "Lapsed", cls: "bg-red-50 text-red-700 ring-red-200" },
+    grace: { label: "Reminding", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+    lapsed: { label: "Locked", cls: "bg-red-50 text-red-700 ring-red-200" },
     none: { label: "Not set", cls: "bg-slate-100 text-slate-600 ring-slate-200" },
   }[state];
   return (
@@ -466,6 +467,7 @@ function CreateModal({
     plan: "pro" as PlanId,
     scenes: 5,
     supportMonths: 12,
+    state: "",
     note: "",
   });
   const [busy, setBusy] = useState(false);
@@ -583,6 +585,23 @@ function CreateModal({
           value={String(form.supportMonths)}
           onChange={(v) => setForm({ ...form, supportMonths: Number(v) })}
         />
+        <label className="block sm:col-span-2">
+          <span className="mb-1.5 block text-[13px] font-medium text-vpv-ink">
+            Customer&apos;s state <span className="font-normal text-slate-500">— decides CGST+SGST vs IGST on their invoices</span>
+          </span>
+          <select
+            value={form.state}
+            onChange={(e) => setForm({ ...form, state: e.target.value })}
+            className="w-full rounded-xl border border-vpv-line px-3.5 py-2.5 text-[14px] outline-none focus:border-vpv-blue"
+          >
+            <option value="">Not known yet (they will be asked at their first top-up)</option>
+            {INDIAN_STATES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="sm:col-span-2">
           <Input label="Note" value={form.note} onChange={(v) => setForm({ ...form, note: v })} />
         </div>

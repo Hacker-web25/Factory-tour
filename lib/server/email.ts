@@ -33,9 +33,12 @@ export async function sendEmail(args: {
   if (!key) return false;
   const from = process.env.RESEND_FROM || "VPV <billing@myvpv.com>";
 
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: ctrl.signal,
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
@@ -52,6 +55,8 @@ export async function sendEmail(args: {
     return res.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

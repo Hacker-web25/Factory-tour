@@ -21,6 +21,7 @@ function EmbedPage() {
   const params = useSearchParams();
   const [tour, setTour] = useState<Tour | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -30,16 +31,30 @@ function EmbedPage() {
         .eq("id", id)
         .single();
       setTour(t as Tour);
-      const { data: s } = await supabase
-        .from("scenes")
-        .select("*")
-        .eq("tour_id", id)
-        .order("order_index");
+      // Through the server-side gate: Basic scene cap + support-lapse lock.
+      const [{ data: s }, { data: isLocked }] = await Promise.all([
+        supabase.rpc("public_tour_scenes", { p_tour_id: id }),
+        supabase.rpc("tour_is_locked", { p_tour_id: id }),
+      ]);
+      setLocked(isLocked === true);
       setScenes((s ?? []) as Scene[]);
     })();
   }, [id]);
 
   if (!tour) return <div className="h-screen bg-black" />;
+
+  if (locked) {
+    return (
+      <div className="grid h-screen w-screen place-items-center bg-black p-6 text-center text-white">
+        <div className="max-w-sm">
+          <div className="mb-2 text-lg font-semibold">This tour is temporarily unavailable</div>
+          <div className="text-sm text-neutral-400">
+            Its owner&apos;s VPV workspace needs to be renewed. Please contact them.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen">

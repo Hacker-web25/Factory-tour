@@ -337,12 +337,21 @@ const sections: LegalSection[] = [
           says so.
         </P>
         <P>
-          <B>Renewal.</B> We e-mail you before each renewal. If the Support Fee
-          is not paid by the renewal date, we allow a grace period of{" "}
-          {POLICY.supportGraceDays} days. After that, Support &amp; Maintenance
-          is paused until you renew. Your Workspace and your published tours
-          stay available while support is paused, and we will not delete your
-          Content for an unpaid Support Fee without at least{" "}
+          <B>Renewal.</B> We e-mail you about 30 days and 7 days before your
+          support year ends, and on the day it ends. If the Support Fee is not
+          paid by then, you have {POLICY.supportGraceDays} days in which the
+          Workspace keeps working but shows a renewal reminder whenever you
+          use it, and we e-mail you again on about day 3 and day 6.
+        </P>
+        <P>
+          <B>If the Support Fee stays unpaid.</B> {POLICY.supportGraceDays}{" "}
+          days after the renewal date the Workspace is <B>locked</B>: you
+          cannot open the editor, and your published tours are not shown to
+          visitors, until the Support Fee is paid. The fee pays for the hosting
+          and support that keep the Service running. The moment you renew, the
+          Workspace is unlocked automatically and everything is exactly as you
+          left it. While a Workspace is locked we keep your Content safe, and we
+          will not delete it for an unpaid Support Fee without at least{" "}
           {POLICY.deletionNoticeDays} days’ written notice.
         </P>
       </>
@@ -681,7 +690,9 @@ export default function TermsPage() {
         Basic is a one-time licence from {inr(priceForScenes(SCENE_MIN))},
         inclusive of GST — you choose how many scenes, and the price per scene
         falls as you add more. The first year of support is included; after that
-        it is {inr(SUPPORT_ANNUAL_INR)} a year. Pro is {inr(PRO_MONTHLY_INR)} a
+        it is {inr(SUPPORT_ANNUAL_INR)} a year, and a Workspace whose support
+        is more than {POLICY.supportGraceDays} days overdue is locked until it
+        is renewed. Pro is {inr(PRO_MONTHLY_INR)} a
         month and Ultra {inr(ULTRA_MONTHLY_INR)} a month, both with unlimited
         scenes. You own your content. Prices can change, but only after
         we e-mail you {POLICY.priceChangeNoticeDays} days in advance and never

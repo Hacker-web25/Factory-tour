@@ -62,11 +62,13 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "What happens after the first year of support?",
     a: (
       <>
-        Basic includes technical support free for the first year. After that it
-        is {inr(SUPPORT_ANNUAL_INR)} a year, and renewing is a button inside
-        your dashboard. If you choose not to renew, your workspace and your
-        tours keep working — only support and maintenance pause, after a{" "}
-        {POLICY.supportGraceDays}-day grace period. Support is included in Pro
+        Basic includes hosting and technical support free for the first year.
+        After that it is {inr(SUPPORT_ANNUAL_INR)} a year, and renewing is a
+        button inside your dashboard. We remind you by e-mail before the year
+        ends, and for {POLICY.supportGraceDays} days afterwards a renewal
+        reminder appears as you use your workspace. If it is still unpaid after
+        that, the workspace locks until you renew — nothing is deleted, and it
+        unlocks the moment you pay. Hosting and support are included in Pro
         and Ultra.
       </>
     ),

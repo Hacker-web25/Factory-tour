@@ -24,7 +24,18 @@ export type AuthedRequest = {
   };
 };
 
+let testAuthenticator: ((req: Request) => Promise<AuthedRequest | null>) | null = null;
+
+/** Test seam — only honoured when NODE_ENV === "test". */
+export function __setAuthenticatorForTests(
+  fn: ((req: Request) => Promise<AuthedRequest | null>) | null
+): void {
+  if (process.env.NODE_ENV !== "test") throw new Error("test_only");
+  testAuthenticator = fn;
+}
+
 export async function authenticateRequest(req: Request): Promise<AuthedRequest | null> {
+  if (process.env.NODE_ENV === "test" && testAuthenticator) return testAuthenticator(req);
   const header = req.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token || token.length > 4096) return null;

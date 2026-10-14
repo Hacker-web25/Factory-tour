@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
 import OfflineBootstrap from "@/components/OfflineBootstrap";
+import AccessGate from "@/components/billing/AccessGate";
 
 // Match myvpv.com — Inter across the whole product.
 const inter = Inter({
@@ -100,6 +101,10 @@ export default function RootLayout({
         {/* Runs once, keeps the user signed in across reloads but signs
             them out after 15 days of no activity. */}
         <IdleGuard />
+        {/* The support-lapse ladder: a renewal pop-up on every click for 7 days
+            after the support year ends, then a lock until renewed. Decided
+            by the database; renders nothing for anyone in good standing. */}
+        <AccessGate />
         {/* Registers the service worker so tours the presenter has
             "prepared for offline" run from cache when the network is
             gone. Also flushes any queued analytics writes on reconnect. */}

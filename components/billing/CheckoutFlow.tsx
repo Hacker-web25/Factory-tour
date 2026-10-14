@@ -12,78 +12,25 @@
  * and the server prices it from lib/pricing.ts. The only thing sent up
  * is the scene count and the billing details.
  *
+ * Every payment step — the double-click lock, opening Razorpay, verifying
+ * with our server, waiting for the workspace, resuming after a reload —
+ * lives in useRazorpayPayment, shared with the dashboard's top-up button,
+ * so there is exactly one implementation to keep correct.
+ *
  * Also used, with `purpose="support_renewal"`, by the billing page
- * inside the dashboard — the same verified payment path, no second
- * implementation to keep secure.
+ * inside the dashboard.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Lock, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Loader2, Lock, ShieldCheck } from "lucide-react";
 import SceneCalculator from "./SceneCalculator";
+import { useRazorpayPayment, type Buyer, type Purpose } from "./useRazorpayPayment";
 import { SCENE_DEFAULT, SUPPORT_ANNUAL_INR, inr, priceForScenes } from "@/lib/pricing";
+import { INDIAN_STATES, canonicalIndianState } from "@/lib/indianStates";
 
-type Purpose = "basic_licence" | "support_renewal" | "scene_topup";
+type Step = "choose" | "details";
 
-type Step = "choose" | "details" | "paying" | "done" | "error";
-
-type Buyer = {
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  gstin: string;
-  address: string;
-  state: string;
-};
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void; on: (e: string, cb: (x: unknown) => void) => void };
-  }
-}
-
-const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
-
-/** Load Razorpay's checkout once, and tell us when it is ready. */
-function useRazorpayScript(): "idle" | "loading" | "ready" | "failed" {
-  const [state, setState] = useState<"idle" | "loading" | "ready" | "failed">("idle");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.Razorpay) {
-      setState("ready");
-      return;
-    }
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHECKOUT_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => setState("ready"));
-      existing.addEventListener("error", () => setState("failed"));
-      setState("loading");
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = CHECKOUT_SRC;
-    s.async = true;
-    s.onload = () => setState("ready");
-    s.onerror = () => setState("failed");
-    document.body.appendChild(s);
-    setState("loading");
-  }, []);
-
-  return state;
-}
-
-/** States that decide CGST+SGST vs IGST on the invoice. */
-const STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand",
-  "Karnataka", "Kerala", "Ladakh", "Madhya Pradesh", "Maharashtra", "Manipur",
-  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan",
-  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
-  "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu", "Lakshadweep", "Other / outside India",
-];
 
 export default function CheckoutFlow({
   purpose = "basic_licence",
@@ -91,16 +38,18 @@ export default function CheckoutFlow({
   prefill,
   /** Supabase access token, when an existing customer is buying. */
   accessToken,
+  /** Called once a purchase is fully complete (e.g. so the dashboard can refresh). */
+  onComplete,
   title,
   subtitle,
 }: {
   purpose?: Purpose;
   prefill?: Partial<Buyer>;
   accessToken?: string | null;
+  onComplete?: () => void;
   title?: string;
   subtitle?: string;
 }) {
-  const scriptState = useRazorpayScript();
   const [step, setStep] = useState<Step>(purpose === "basic_licence" ? "choose" : "details");
   const [scenes, setScenes] = useState(SCENE_DEFAULT);
   const [buyer, setBuyer] = useState<Buyer>({
@@ -112,136 +61,127 @@ export default function CheckoutFlow({
     address: prefill?.address ?? "",
     state: prefill?.state ?? "",
   });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ slug: string | null; invoiceNo: string | null } | null>(null);
-  const [testMode, setTestMode] = useState(false);
   const [agreed, setAgreed] = useState(false);
+
+  const payment = useRazorpayPayment({ accessToken });
+  const { phase, busy, error, notice, testMode, result, scriptReady } = payment;
+  const scriptState = scriptReady;
 
   const amount = purpose === "support_renewal" ? SUPPORT_ANNUAL_INR : priceForScenes(scenes);
 
-  const pay = useCallback(async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const pay = () => {
+    void payment.start({
+      purpose,
+      scenes: purpose === "basic_licence" ? scenes : undefined,
+      buyer,
+    });
+  };
 
-      const res = await fetch("/api/billing/order", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ purpose, scenes, buyer }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setError(data.message || "We could not start the payment. Please try again.");
-        setBusy(false);
-        return;
-      }
-      setTestMode(Boolean(data.testMode));
+  /* ───────────────────── Waiting for confirmation ────────────────── */
 
-      if (scriptState !== "ready" || !window.Razorpay) {
-        setError("The payment window could not load. Check your connection and try again.");
-        setBusy(false);
-        return;
-      }
-
-      setStep("paying");
-
-      const rzp = new window.Razorpay({
-        key: data.keyId,
-        order_id: data.razorpayOrderId,
-        amount: data.amountPaise,
-        currency: "INR",
-        name: "VPV — Virtual Plant Visit",
-        description: data.description,
-        prefill: {
-          name: buyer.name,
-          email: buyer.email,
-          contact: buyer.phone,
-        },
-        notes: { company: buyer.company },
-        theme: { color: "#1468D8" },
-        retry: { enabled: true, max_count: 2 },
-        handler: async (response: Record<string, string>) => {
-          // Confirm with our server. It verifies the signature before
-          // believing a word of this.
-          try {
-            const confirm = await fetch("/api/billing/confirm", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ orderId: data.orderId, ...response }),
-            });
-            const confirmed = await confirm.json();
-            setResult({
-              slug: confirmed.slug ?? null,
-              invoiceNo: confirmed.invoiceNo ?? null,
-            });
-          } catch {
-            setResult({ slug: null, invoiceNo: null });
-          }
-          setStep("done");
-          setBusy(false);
-        },
-        modal: {
-          ondismiss: () => {
-            // They closed the window without paying — back to the form,
-            // with the order still open on our side if they retry.
-            setStep("details");
-            setBusy(false);
-          },
-        },
-      });
-
-      rzp.on("payment.failed", () => {
-        setError("That payment did not go through. No money has been taken — please try again.");
-        setStep("details");
-        setBusy(false);
-      });
-
-      rzp.open();
-    } catch {
-      setError("Something went wrong starting the payment. Please try again.");
-      setBusy(false);
-    }
-  }, [accessToken, buyer, purpose, scenes, scriptState]);
+  if (phase === "verifying") {
+    return (
+      <div className="rounded-3xl border border-vpv-blue/25 bg-white p-8 text-center">
+        <Loader2 className="mx-auto h-9 w-9 animate-spin text-vpv-blue" />
+        <h2 className="mt-5 text-[22px] font-semibold tracking-tight text-vpv-ink">
+          Confirming your payment…
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-[14.5px] leading-relaxed text-slate-600">
+          {notice ?? "This usually takes a few seconds."} Please keep this page open
+          and <strong className="text-vpv-ink">do not pay again</strong> — if anything is
+          delayed, we finish the set-up automatically and e-mail you.
+        </p>
+      </div>
+    );
+  }
 
   /* ─────────────────────────── Done ─────────────────────────────── */
 
-  if (step === "done") {
-    return (
-      <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100">
-          <CheckCircle2 size={28} className="text-emerald-600" />
+  if (phase === "done" && result) {
+    if (result.outcome === "ready") {
+      return (
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-8 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100">
+            <CheckCircle2 size={28} className="text-emerald-600" />
+          </div>
+          <h2 className="mt-5 text-[26px] font-semibold tracking-tight text-vpv-ink">
+            {purpose === "support_renewal"
+              ? "Support renewed"
+              : purpose === "scene_topup"
+                ? "Scenes added"
+                : "Your workspace is ready"}
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-slate-600">
+            {purpose === "support_renewal"
+              ? "Thank you. Your technical support and hosting is extended by one year, and the invoice is on its way to your inbox."
+              : purpose === "scene_topup"
+                ? "Thank you. The new scenes are live for your customers now, and the invoice is on its way to your inbox."
+                : "Thank you. We have e-mailed your sign-in details and your GST invoice. Check your spam folder if it is not there in a few minutes."}
+          </p>
+
+          {result.slug && purpose === "basic_licence" && (
+            <a
+              href={`https://${result.slug}.myvpv.com`}
+              className="mt-6 inline-block rounded-full bg-vpv-grad px-6 py-3 text-[14px] font-semibold text-white"
+            >
+              Open {result.slug}.myvpv.com
+            </a>
+          )}
+          {purpose !== "basic_licence" && onComplete && (
+            <button
+              type="button"
+              onClick={onComplete}
+              className="mt-6 inline-block rounded-full bg-vpv-grad px-6 py-3 text-[14px] font-semibold text-white"
+            >
+              Back to billing
+            </button>
+          )}
+          {result.invoiceNo && (
+            <p className="mt-4 text-[13px] text-slate-500">Invoice {result.invoiceNo}</p>
+          )}
         </div>
-        <h2 className="mt-5 text-[26px] font-semibold tracking-tight text-vpv-ink">
-          {purpose === "support_renewal" ? "Support renewed" : "Your workspace is ready"}
+      );
+    }
+
+    if (result.outcome === "refunded") {
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
+          <h2 className="text-[22px] font-semibold tracking-tight text-vpv-ink">This payment was refunded</h2>
+          <p className="mx-auto mt-3 max-w-md text-[14.5px] leading-relaxed text-slate-600">
+            The money is on its way back to your original payment method (5 to 7 business days).
+            You are welcome to start again whenever you like.
+          </p>
+        </div>
+      );
+    }
+
+    if (result.outcome === "failed") {
+      return (
+        <div className="rounded-3xl border border-red-200 bg-red-50/60 p-8 text-center">
+          <h2 className="text-[22px] font-semibold tracking-tight text-vpv-ink">The payment did not complete</h2>
+          <p className="mx-auto mt-3 max-w-md text-[14.5px] leading-relaxed text-slate-600">
+            If your bank shows a debit, it is refunded automatically — you never pay for something you do not get.
+            To try again, refresh this page. Questions: billing@myvpv.com.
+          </p>
+        </div>
+      );
+    }
+
+    // processing | review — the money is safe, a person or a retry finishes the job.
+    return (
+      <div className="rounded-3xl border border-amber-200 bg-amber-50/60 p-8 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100">
+          <Clock size={26} className="text-amber-600" />
+        </div>
+        <h2 className="mt-5 text-[24px] font-semibold tracking-tight text-vpv-ink">
+          Payment received — finishing your set-up
         </h2>
         <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-slate-600">
-          {purpose === "support_renewal"
-            ? "Thank you. Your technical support is extended by one year, and the invoice is on its way to your inbox."
-            : "Thank you. We have e-mailed your sign-in details and your GST invoice. Check your spam folder if it is not there in a few minutes."}
+          {result.outcome === "review"
+            ? "Your payment is safe. Our team is checking one detail and will e-mail you shortly."
+            : "Your payment is safe. Set-up is taking a little longer than usual, so we are completing it in the background and will e-mail you as soon as it is done."}{" "}
+          <strong className="text-vpv-ink">Please do not pay again.</strong> Questions: billing@myvpv.com.
         </p>
-
-        {result?.slug && (
-          <a
-            href={`https://${result.slug}.myvpv.com`}
-            className="mt-6 inline-block rounded-full bg-vpv-grad px-6 py-3 text-[14px] font-semibold text-white"
-          >
-            Open {result.slug}.myvpv.com
-          </a>
-        )}
-        {result?.invoiceNo && (
-          <p className="mt-4 text-[13px] text-slate-500">
-            Invoice {result.invoiceNo}
-          </p>
-        )}
-        {!result?.slug && purpose === "basic_licence" && (
-          <p className="mt-5 text-[13px] text-slate-500">
-            Your workspace is being set up. The e-mail with your address and
-            password arrives within a few minutes.
-          </p>
-        )}
       </div>
     );
   }
@@ -276,8 +216,13 @@ export default function CheckoutFlow({
     buyer.name.trim() &&
     buyer.company.trim() &&
     /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(buyer.email) &&
+    canonicalIndianState(buyer.state) !== null &&
     agreed &&
     !busy;
+
+  // For a signed-in customer the invoice identity is the organisation's,
+  // set by the server — so these two fields are shown but not editable.
+  const identityLocked = purpose !== "basic_licence";
 
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_330px] items-start">
@@ -314,6 +259,7 @@ export default function CheckoutFlow({
               className="vpv-input"
               type="email"
               value={buyer.email}
+              readOnly={identityLocked}
               autoComplete="email"
               onChange={(e) => setBuyer({ ...buyer, email: e.target.value })}
             />
@@ -322,6 +268,7 @@ export default function CheckoutFlow({
             <input
               className="vpv-input"
               value={buyer.company}
+              readOnly={identityLocked}
               autoComplete="organization"
               onChange={(e) => setBuyer({ ...buyer, company: e.target.value })}
             />
@@ -344,14 +291,14 @@ export default function CheckoutFlow({
               onChange={(e) => setBuyer({ ...buyer, gstin: e.target.value.toUpperCase() })}
             />
           </Field>
-          <Field label="State" hint="Decides the GST split on your invoice">
+          <Field label="State" required hint="Decides the GST split on your invoice">
             <select
               className="vpv-input"
               value={buyer.state}
               onChange={(e) => setBuyer({ ...buyer, state: e.target.value })}
             >
               <option value="">Select a state</option>
-              {STATES.map((s) => (
+              {INDIAN_STATES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
@@ -393,9 +340,15 @@ export default function CheckoutFlow({
         </label>
 
         {error && (
-          <div className="mt-5 flex gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] text-red-700">
+          <div role="alert" className="mt-5 flex gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] text-red-700">
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+        {!error && notice && (
+          <div role="status" className="mt-5 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-800">
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <span>{notice}</span>
           </div>
         )}
 
@@ -405,7 +358,7 @@ export default function CheckoutFlow({
           onClick={pay}
           className="mt-6 w-full rounded-full bg-vpv-grad py-3.5 text-[15px] font-semibold text-white shadow-[0_16px_36px_-14px_rgba(20,104,216,0.75)] transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-10"
         >
-          {busy || step === "paying" ? (
+          {busy ? (
             <span className="inline-flex items-center gap-2">
               <Loader2 size={16} className="animate-spin" /> Opening secure payment…
             </span>

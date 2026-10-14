@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   CreditCard,
@@ -23,18 +24,22 @@ import {
   FileText,
   Loader2,
   LifeBuoy,
+  Lock,
   Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { INDIAN_STATES } from "@/lib/indianStates";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { LegalLinks } from "@/components/legal/SiteFooter";
 import CheckoutFlow from "@/components/billing/CheckoutFlow";
 import SceneCalculator from "@/components/billing/SceneCalculator";
+import { useRazorpayPayment } from "@/components/billing/useRazorpayPayment";
 import {
   PRO_MONTHLY_INR,
   SUPPORT_ANNUAL_INR,
   SUPPORT_GRACE_DAYS,
+  accessStateFor,
   fromPaise,
   inr,
   priceForScenes,
@@ -51,6 +56,9 @@ type OrgRow = {
   activated_at: string | null;
   billing_email: string | null;
   billing_gstin: string | null;
+  billing_phone: string | null;
+  billing_address: string | null;
+  billing_state: string | null;
 };
 
 type InvoiceRow = {
@@ -60,15 +68,17 @@ type InvoiceRow = {
   issued_at: string;
 };
 
-type SupportState = "active" | "grace" | "lapsed" | "none";
+/**
+ * active  → covered
+ * nag     → the support year has ended; reminders appear on every click and
+ *           the workspace locks SUPPORT_GRACE_DAYS after the end date
+ * locked  → the workspace is locked until it is renewed
+ */
+type SupportState = "active" | "nag" | "locked" | "none";
 
-function supportState(until: string | null): SupportState {
-  if (!until) return "none";
-  const end = new Date(until).getTime();
-  const now = Date.now();
-  if (end >= now) return "active";
-  if (end + SUPPORT_GRACE_DAYS * 86_400_000 >= now) return "grace";
-  return "lapsed";
+function supportState(org: OrgRow): SupportState {
+  if (org.plan !== "basic" || !org.support_until) return "none";
+  return accessStateFor(org).state;
 }
 
 function daysBetween(iso: string): number {
@@ -100,13 +110,21 @@ export default function BillingPage() {
       const { data: orgRow } = await supabase
         .from("organizations")
         .select(
-          "id, name, slug, plan, plan_status, scene_quota, support_until, activated_at, billing_email, billing_gstin"
+          "id, name, slug, plan, plan_status, scene_quota, support_until, activated_at, billing_email, billing_gstin, billing_phone, billing_address, billing_state"
         )
         .eq("id", p.org_id)
         .maybeSingle();
       if (orgRow) {
         setOrg(orgRow as OrgRow);
         setTopupTo(((orgRow as OrgRow).scene_quota ?? 2) + 1);
+        // Arriving from a renewal reminder (or while overdue): open the
+        // renewal checkout straight away — one less click to pay.
+        const o = orgRow as OrgRow;
+        const wantsRenew =
+          typeof window !== "undefined" && new URLSearchParams(window.location.search).get("renew") === "1";
+        if (o.plan === "basic" && (wantsRenew || supportState(o) === "nag" || supportState(o) === "locked")) {
+          setPane((cur) => (cur === "none" ? "support" : cur));
+        }
       }
 
       const { data: inv } = await supabase
@@ -147,7 +165,9 @@ export default function BillingPage() {
   }
 
   const isAdmin = me?.role === "org_admin" || me?.role === "owner";
-  const state = supportState(org.support_until);
+  const state = supportState(org);
+  const access = org.plan === "basic" ? accessStateFor(org) : null;
+  const closed = org.plan_status === "suspended" || org.plan_status === "cancelled";
   const daysLeft = org.support_until ? daysBetween(org.support_until) : null;
   const quota = org.scene_quota;
 
@@ -161,6 +181,30 @@ export default function BillingPage() {
           {org.name} · {org.slug}.myvpv.com
         </p>
       </div>
+
+      {closed && (
+        <Banner tone="red" icon={<Lock size={18} />} title="This workspace is closed">
+          It was closed after a refund or at your request. To reopen it, write to
+          billing@myvpv.com.
+        </Banner>
+      )}
+      {!closed && state === "nag" && access && (
+        <Banner tone="amber" icon={<AlertTriangle size={18} />} title="Your support year has ended — please renew">
+          Technical support and hosting ended on{" "}
+          <strong>{new Date(org.support_until as string).toDateString()}</strong>. Your workspace
+          will <strong>lock on {access.locksAt?.toDateString()}</strong>
+          {access.daysToLock !== null && <> ({access.daysToLock} day{access.daysToLock === 1 ? "" : "s"} from now)</>}{" "}
+          if it is not renewed. Your tours and data are kept — renewing for{" "}
+          {inr(SUPPORT_ANNUAL_INR)} restores everything instantly.
+        </Banner>
+      )}
+      {!closed && state === "locked" && (
+        <Banner tone="red" icon={<Lock size={18} />} title="Your workspace is locked">
+          The support year ended and the {SUPPORT_GRACE_DAYS}-day reminder period has passed. Your tours and
+          data are safe. Renew for {inr(SUPPORT_ANNUAL_INR)} below and everything unlocks the moment
+          the payment is confirmed.
+        </Banner>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Plan */}
@@ -221,22 +265,23 @@ export default function BillingPage() {
                 {daysLeft !== null && daysLeft <= 45 && <> — {daysLeft} days left.</>}
               </>
             )}
-            {state === "grace" && (
+            {state === "nag" && (
               <>
-                Your support year has ended. You are inside the{" "}
-                {SUPPORT_GRACE_DAYS}-day grace period — renew now and nothing is
-                interrupted.
+                Your support year has ended. Renew within{" "}
+                {access?.daysToLock ?? SUPPORT_GRACE_DAYS} day
+                {(access?.daysToLock ?? SUPPORT_GRACE_DAYS) === 1 ? "" : "s"} to keep your
+                workspace and shared tours live.
               </>
             )}
-            {state === "lapsed" && (
+            {state === "locked" && (
               <>
-                Support has paused. Your workspace and tours still work; renew to
-                get e-mail support and maintenance back.
+                Your workspace is locked. Renew to unlock the dashboard and the
+                tours you have shared with customers.
               </>
             )}
             {state === "none" && <>No support period recorded yet.</>}
           </p>
-          {isAdmin && org.plan === "basic" && (
+          {isAdmin && org.plan === "basic" && !closed && (
             <button
               onClick={() => setPane(pane === "support" ? "none" : "support")}
               className="mt-4 w-full rounded-full bg-vpv-grad py-2.5 text-[13.5px] font-semibold text-white hover:opacity-95"
@@ -279,11 +324,18 @@ export default function BillingPage() {
           <CheckoutFlow
             purpose="support_renewal"
             accessToken={token}
+            onComplete={() => {
+              setPane("none");
+              void load();
+            }}
             prefill={{
               name: me?.full_name ?? "",
               email: org.billing_email ?? me?.email ?? "",
               company: org.name,
               gstin: org.billing_gstin ?? "",
+              phone: org.billing_phone ?? "",
+              address: org.billing_address ?? "",
+              state: org.billing_state ?? "",
             }}
           />
         </Pane>
@@ -307,7 +359,16 @@ export default function BillingPage() {
                 {inr(Math.max(0, priceForScenes(topupTo) - priceForScenes(quota ?? 0)))}
               </span>
             </div>
-            <TopupButton token={token} scenes={topupTo} disabled={topupTo <= (quota ?? 0)} />
+            <TopupButton
+              token={token}
+              billingState={org.billing_state}
+              scenes={topupTo}
+              disabled={topupTo <= (quota ?? 0)}
+              onComplete={() => {
+                setPane("none");
+                void load();
+              }}
+            />
           </div>
         </Pane>
       )}
@@ -363,87 +424,86 @@ export default function BillingPage() {
 
 function TopupButton({
   token,
+  billingState,
   scenes,
   disabled,
+  onComplete,
 }: {
   token: string | null;
+  /** The state on file. Workspaces created by hand may not have one yet. */
+  billingState: string | null;
   scenes: number;
   disabled: boolean;
+  onComplete: () => void;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const pay = useRazorpayPayment({ accessToken: token });
+  // The GST split on the invoice depends on the state. Customers who bought online
+  // gave it at checkout; a workspace set up by hand has none, so ask — once.
+  const needsState = !(billingState ?? "").trim();
+  const [pickedState, setPickedState] = useState("");
 
-  async function go() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/billing/order", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          purpose: "scene_topup",
-          scenes,
-          buyer: { name: "—", email: "topup@myvpv.com", company: "—" },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setError(data.message || "Could not start that payment.");
-        setBusy(false);
-        return;
-      }
-      const w = window as unknown as { Razorpay?: new (o: Record<string, unknown>) => { open: () => void } };
-      if (!w.Razorpay) {
-        const s = document.createElement("script");
-        s.src = "https://checkout.razorpay.com/v1/checkout.js";
-        document.body.appendChild(s);
-        await new Promise((r) => {
-          s.onload = r;
-          s.onerror = r;
-        });
-      }
-      if (!w.Razorpay) {
-        setError("The payment window could not load.");
-        setBusy(false);
-        return;
-      }
-      new w.Razorpay({
-        key: data.keyId,
-        order_id: data.razorpayOrderId,
-        amount: data.amountPaise,
-        currency: "INR",
-        name: "VPV — Virtual Plant Visit",
-        description: data.description,
-        theme: { color: "#1468D8" },
-        handler: async (response: Record<string, string>) => {
-          await fetch("/api/billing/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: data.orderId, ...response }),
-          });
-          window.location.reload();
-        },
-        modal: { ondismiss: () => setBusy(false) },
-      }).open();
-    } catch {
-      setError("Something went wrong. Please try again.");
-      setBusy(false);
-    }
+  if (pay.phase === "verifying") {
+    return (
+      <p className="mt-4 flex items-center gap-2 text-[13.5px] text-slate-600">
+        <Loader2 className="h-4 w-4 animate-spin text-vpv-blue" /> Confirming your payment — please do not pay again…
+      </p>
+    );
+  }
+  if (pay.phase === "done" && pay.result) {
+    const r = pay.result;
+    return (
+      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-[13.5px] text-emerald-800">
+        {r.outcome === "ready" && <>Done — your new scenes are live. {r.invoiceNo ? `Invoice ${r.invoiceNo}.` : ""}</>}
+        {r.outcome === "refunded" && <>This payment was refunded to your original payment method.</>}
+        {r.outcome === "failed" && <>The payment did not complete. If your bank shows a debit, it is refunded automatically.</>}
+        {(r.outcome === "processing" || r.outcome === "review") && (
+          <>Payment received — we are finishing the update and will e-mail you. Please do not pay again.</>
+        )}
+        <button type="button" onClick={onComplete} className="ml-3 font-semibold underline underline-offset-2">
+          Refresh
+        </button>
+      </div>
+    );
   }
 
   return (
     <>
+      {needsState && (
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-[13px] font-medium text-vpv-ink">
+            Your state <span className="font-normal text-slate-500">— decides the GST split on your invoice</span>
+          </span>
+          <select
+            value={pickedState}
+            onChange={(e) => setPickedState(e.target.value)}
+            className="w-full rounded-xl border border-vpv-line bg-white px-3.5 py-2.5 text-[14px] outline-none focus:border-vpv-blue"
+          >
+            <option value="">Choose your state…</option>
+            {INDIAN_STATES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <button
-        onClick={go}
-        disabled={disabled || busy}
+        type="button"
+        onClick={() =>
+          void pay.start({
+            purpose: "scene_topup",
+            scenes,
+            ...(needsState ? { buyer: { state: pickedState } } : {}),
+          })
+        }
+        disabled={disabled || pay.busy || (needsState && !pickedState)}
         className="mt-4 w-full rounded-full bg-vpv-grad py-3 text-[14px] font-semibold text-white hover:opacity-95 disabled:opacity-40"
       >
-        {busy ? "Opening secure payment…" : "Pay and add these scenes"}
+        {pay.busy ? "Opening secure payment…" : "Pay and add these scenes"}
       </button>
-      {error && <p className="mt-2 text-[12.5px] text-red-600">{error}</p>}
+      {pay.error && <p role="alert" className="mt-2 text-[12.5px] text-red-600">{pay.error}</p>}
+      {!pay.error && pay.notice && <p role="status" className="mt-2 text-[12.5px] text-amber-700">{pay.notice}</p>}
+      {pay.testMode && <p className="mt-2 text-[12px] font-medium text-amber-600">Test mode — no real money moves.</p>}
     </>
   );
 }
@@ -451,14 +511,40 @@ function TopupButton({
 function SupportBadge({ state }: { state: SupportState }) {
   const map = {
     active: { text: "Active", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    grace: { text: "In grace period", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
-    lapsed: { text: "Paused", cls: "bg-red-50 text-red-700 ring-red-200" },
+    nag: { text: "Renewal overdue", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+    locked: { text: "Workspace locked", cls: "bg-red-50 text-red-700 ring-red-200" },
     none: { text: "Not set", cls: "bg-slate-100 text-slate-600 ring-slate-200" },
   }[state];
   return (
     <span className={`inline-flex rounded-full px-3 py-1 text-[12.5px] font-semibold ring-1 ${map.cls}`}>
       {map.text}
     </span>
+  );
+}
+
+function Banner({
+  tone,
+  icon,
+  title,
+  children,
+}: {
+  tone: "amber" | "red";
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === "red"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : "border-amber-200 bg-amber-50 text-amber-900";
+  return (
+    <div role="alert" className={`mb-7 flex gap-3 rounded-2xl border px-5 py-4 ${cls}`}>
+      <span className="mt-0.5 shrink-0">{icon}</span>
+      <div>
+        <div className="text-[15px] font-semibold">{title}</div>
+        <p className="mt-1 text-[13.5px] leading-relaxed">{children}</p>
+      </div>
+    </div>
   );
 }
 

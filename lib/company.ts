@@ -113,6 +113,8 @@ export const COMPANY: CompanyConfig = {
 
 /* ───────────────────────────── Pricing ────────────────────────────── */
 
+import { SUPPORT_GRACE_DAYS } from "./pricing";
+
 /**
  * Every rupee amount now lives in lib/pricing.ts — one file, so the
  * price shown on the website, the price charged by Razorpay and the
@@ -142,7 +144,7 @@ export {
 
 export const POLICY = {
   /** Shown as "Effective" on every policy page. Bump on material edits. */
-  updated: "13 October 2026",
+  updated: "14 October 2026",
   /** Prior e-mail notice before a new price applies to an existing customer. */
   priceChangeNoticeDays: 30,
   /** Prior notice before changed Terms / Privacy Policy take effect. */
@@ -151,8 +153,8 @@ export const POLICY = {
   refundWindowDays: 7,
   /** How long a refund takes to reach the original payment method. */
   refundProcessing: "5 to 7 business days",
-  /** How long we wait after a support renewal date before pausing support. */
-  supportGraceDays: 15,
+  /** Days of renewal pop-ups after the support year ends, before the workspace locks. */
+  supportGraceDays: SUPPORT_GRACE_DAYS,
   /** Notice before content is deleted for a lapsed account. */
   deletionNoticeDays: 30,
   /** Retention after cancellation (matches the Privacy Policy). */

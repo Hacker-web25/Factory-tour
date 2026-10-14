@@ -8,6 +8,7 @@ import TopBar from "@/components/TopBar";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import {
   Building2,
+  CreditCard,
   Users,
   Image as ImageIcon,
   Eye,
@@ -45,6 +46,8 @@ export default function AdminPanelPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalTours, setTotalTours] = useState(0);
   const [totalEvents, setTotalEvents] = useState(0);
+  // Payments needing the owner: paid-but-not-built orders + flagged orders + open alerts.
+  const [paymentsAttention, setPaymentsAttention] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -135,6 +138,24 @@ export default function AdminPanelPage() {
     setTotalUsers(profiles.length);
     setTotalTours(tours.length);
     setTotalEvents(events.length);
+
+    // A red badge on the Payments link when something needs a person. Best effort:
+    // if the billing SQL is not applied yet this simply shows no badge.
+    try {
+      const { data: health } = await supabase.rpc("admin_billing_health");
+      const h = (health ?? {}) as {
+        stuck_orders?: unknown[];
+        flagged_orders?: unknown[];
+        open_alerts?: unknown[];
+      };
+      setPaymentsAttention(
+        (h.stuck_orders?.length ?? 0) +
+          (h.flagged_orders?.length ?? 0) +
+          (h.open_alerts?.length ?? 0)
+      );
+    } catch {
+      setPaymentsAttention(0);
+    }
   }
 
   if (loading) {
@@ -175,6 +196,26 @@ export default function AdminPanelPage() {
           <h1 className="text-[22px] font-semibold leading-tight">
             Platform overview
           </h1>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-5">
+          <Link
+            href="/admin/customers"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <Building2 size={13} /> Customers &amp; plans
+          </Link>
+          <Link
+            href="/admin/payments"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <CreditCard size={13} /> Payments
+            {paymentsAttention > 0 && (
+              <span className="ml-0.5 rounded-full bg-red-500 px-1.5 py-px text-[10px] font-semibold text-white">
+                {paymentsAttention}
+              </span>
+            )}
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-6">
@@ -270,13 +311,13 @@ function Stat({
   );
 }
 
-function OrgActions({ orgId }: { orgId: string }) {
+function OrgActions({ orgId: _orgId }: { orgId: string }) {
   return (
     <div className="flex items-center gap-1">
       <Link
-        href={`/admin/org/${orgId}`}
+        href="/admin/customers"
         className="text-neutral-400 hover:text-accent p-1"
-        title="Open org detail"
+        title="Manage this customer (plan, support)"
       >
         <LinkIcon size={12} />
       </Link>

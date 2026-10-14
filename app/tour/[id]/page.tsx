@@ -16,7 +16,8 @@ type Status =
   | "private"
   | "used"
   | "expired"
-  | "password";
+  | "password"
+  | "locked";
 
 export default function PublicTourPage() {
   const { id } = useParams<{ id: string }>();
@@ -188,6 +189,15 @@ export default function PublicTourPage() {
       try {
         const res = await supabase.rpc("public_tour_scenes", { p_tour_id: id });
         sceneRows = (res.data ?? []) as Scene[];
+        if (sceneRows.length === 0) {
+          // Empty could mean "no scenes yet" or "workspace locked". Ask, so a
+          // locked tour says so — and never falls back to a cached copy.
+          const lk = await supabase.rpc("tour_is_locked", { p_tour_id: id });
+          if (lk.data === true) {
+            setStatus("locked");
+            return;
+          }
+        }
       } catch {
         // fall through to snapshot
       }
@@ -247,6 +257,14 @@ export default function PublicTourPage() {
       <Message
         title="Tour not found"
         body="Double-check the link — this tour doesn't exist."
+      />
+    );
+  }
+  if (status === "locked") {
+    return (
+      <Message
+        title="This tour is temporarily unavailable"
+        body="Its owner's VPV workspace needs to be renewed. Please contact them."
       />
     );
   }

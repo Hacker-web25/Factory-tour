@@ -74,17 +74,23 @@ export default function PresenterViewPage() {
       }
 
       // 4) Load the tour + scenes.
-      const [{ data: tour }, { data: scenes }] = await Promise.all([
+      const [{ data: tour }, { data: scenes }, { data: locked }] = await Promise.all([
         supabase.from("tours").select("*").eq("id", link.tour_id).single(),
-        supabase
-          .from("scenes")
-          .select("*")
-          .eq("tour_id", link.tour_id)
-          .order("order_index"),
+        supabase.rpc("public_tour_scenes", { p_tour_id: link.tour_id }),
+        supabase.rpc("tour_is_locked", { p_tour_id: link.tour_id }),
       ]);
       if (!tour) {
         if (!cancelled)
           setState({ status: "denied", message: "Tour not found." });
+        return;
+      }
+      if (locked === true) {
+        if (!cancelled)
+          setState({
+            status: "denied",
+            message:
+              "This workspace is locked until its support year is renewed. Ask your organisation's admin to renew.",
+          });
         return;
       }
 

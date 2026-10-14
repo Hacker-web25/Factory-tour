@@ -14,8 +14,9 @@
  * │ PRO    ₹5,000 / month. Unlimited scenes. Sold by conversation.     │
  * │ ULTRA  ₹15,000 / month. Everything, incl. AI meeting review.       │
  * │                                                                   │
- * │ ANNUAL TECHNICAL SUPPORT  ₹10,000 / year, FIRST YEAR FREE with    │
- * │        every Basic purchase. Billed from year two.                 │
+ * │ ANNUAL SUPPORT & HOSTING  ₹9,999 / year, FIRST YEAR FREE with     │
+ * │        every Basic purchase. Billed from year two. If it is not    │
+ * │        renewed, pop-ups start, then the workspace locks (below).   │
  * └───────────────────────────────────────────────────────────────────┘
  *
  * Every amount here is INR and INCLUDES GST — the number the customer
@@ -149,12 +150,27 @@ export function sceneLadderRows(): {
 export const PRO_MONTHLY_INR = 5_000;
 export const ULTRA_MONTHLY_INR = 15_000;
 
-/** Annual technical support and maintenance, GST included. */
-export const SUPPORT_ANNUAL_INR = 10_000;
+/** Annual technical support, maintenance and hosting, GST included. */
+export const SUPPORT_ANNUAL_INR = 9_999;
 /** Months of support included free with a Basic purchase. */
 export const SUPPORT_FREE_MONTHS = 12;
-/** Days after the renewal date before support actually pauses. */
-export const SUPPORT_GRACE_DAYS = 15;
+/**
+ * LEVEL 1 → LEVEL 2 of the lapse ladder, in days.
+ *
+ *   support year ends ─► LEVEL 1: a renewal pop-up on every click
+ *                         (work continues) for SUPPORT_GRACE_DAYS days
+ *                     ─► LEVEL 2: the workspace LOCKS — dashboard wall and
+ *                         the public viewers stop serving the tours —
+ *                         until the renewal is paid. Renewing unlocks
+ *                         instantly.
+ *
+ * MUST equal public.vpv_support_nag_days() in supabase/billing_hardening.sql.
+ * tests/billing/ checks the two agree.
+ */
+export const SUPPORT_GRACE_DAYS = 7;
+/** A renewal can only be bought this many days before expiry (stops a
+ *  double payment for a year that is already paid for). */
+export const SUPPORT_RENEW_WINDOW_DAYS = 60;
 
 /* ═══════════════════════ Plans ═════════════════════════════════════ */
 
@@ -239,12 +255,72 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   { label: "Add scenes any time", basic: "Buy a top-up", pro: true, ultra: true },
   { label: "AI meeting review: transcript, score, insights", basic: false, pro: false, ultra: true },
   {
-    label: "Technical support and maintenance",
-    basic: "Year 1 free, then ₹10,000/year",
+    label: "Technical support, maintenance and hosting",
+    basic: `Year 1 free, then ${inr(SUPPORT_ANNUAL_INR)}/year`,
     pro: "Included",
     ultra: "Included, priority",
   },
 ];
+
+/* ═══════════════════════ Access state (the lapse ladder) ═══════════ */
+
+export type AccessState = "active" | "nag" | "locked";
+
+/**
+ * Where a workspace stands on the lapse ladder, right now.
+ *
+ * The DATABASE is the authority (public.org_access_state_of — it is what
+ * the public viewers obey). This pure twin exists so the dashboard can
+ * render the right screen and so tests can prove the two never disagree.
+ * Boundaries are deliberately identical: strictly-after comparisons.
+ *
+ *   plan_status suspended / cancelled (refund, chargeback, manual) → locked
+ *   Basic + support_until in the past, ≤ GRACE days ago             → nag
+ *   Basic + support_until more than GRACE days ago                  → locked
+ *   everything else (Pro/Ultra, no support date, in-date)           → active
+ */
+export function accessStateFor(
+  org: {
+    plan: string;
+    plan_status?: string | null;
+    support_until?: string | Date | null;
+  },
+  now: Date = new Date()
+): { state: AccessState; locksAt: Date | null; daysToLock: number | null } {
+  const status = org.plan_status ?? "active";
+  if (status === "suspended" || status === "cancelled") {
+    return { state: "locked", locksAt: null, daysToLock: null };
+  }
+  if (org.plan !== "basic" || !org.support_until) {
+    return { state: "active", locksAt: null, daysToLock: null };
+  }
+  const until = new Date(org.support_until);
+  if (Number.isNaN(until.getTime())) {
+    return { state: "active", locksAt: null, daysToLock: null };
+  }
+  const locksAt = new Date(until.getTime() + SUPPORT_GRACE_DAYS * 86_400_000);
+  if (until.getTime() >= now.getTime()) {
+    return { state: "active", locksAt, daysToLock: null };
+  }
+  if (locksAt.getTime() < now.getTime()) {
+    return { state: "locked", locksAt, daysToLock: 0 };
+  }
+  const daysToLock = Math.max(
+    1,
+    Math.ceil((locksAt.getTime() - now.getTime()) / 86_400_000)
+  );
+  return { state: "nag", locksAt, daysToLock };
+}
+
+/** A scene count we are willing to sell: a whole number inside the slider. */
+export function isValidSceneCount(n: unknown): n is number {
+  return (
+    typeof n === "number" &&
+    Number.isInteger(n) &&
+    n >= SCENE_MIN &&
+    n <= SCENE_MAX
+  );
+}
 
 /* ═══════════════════════ Money helpers ════════════════════════════ */
 
@@ -327,7 +403,7 @@ export function priceFor(
       const n = clampScenes(opts.scenes ?? SCENE_DEFAULT);
       return {
         amountInr: priceForScenes(n),
-        description: `VPV Basic licence — ${n} scene${n === 1 ? "" : "s"} (includes 1 year technical support)`,
+        description: `VPV Basic licence — ${n} scene${n === 1 ? "" : "s"} (includes 1 year support and hosting)`,
         scenes: n,
       };
     }
@@ -345,7 +421,7 @@ export function priceFor(
     case "support_renewal":
       return {
         amountInr: SUPPORT_ANNUAL_INR,
-        description: "VPV annual technical support and maintenance — 1 year",
+        description: "VPV annual technical support, maintenance and hosting — 1 year",
         scenes: null,
       };
   }

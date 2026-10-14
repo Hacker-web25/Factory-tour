@@ -25,7 +25,7 @@
 --    basic   one-time, customer picks 2–20 scenes on a slider
 --    pro     ₹5,000/month,  unlimited scenes   (sold by conversation)
 --    ultra   ₹15,000/month, unlimited scenes   (sold by conversation)
---    support ₹10,000/year, FIRST YEAR FREE with every Basic purchase
+--    support ₹9,999/year,  FIRST YEAR FREE with every Basic purchase
 --
 -- ============================================================================
 

@@ -97,17 +97,23 @@ export default function ViewerPage() {
     if (!link || !passwordOk || !emailOk) return;
     let cancelled = false;
     (async () => {
-      const [{ data: t }, { data: s }] = await Promise.all([
+      // Scenes come through public_tour_scenes(): the database applies the
+      // Basic scene cap AND the support-lapse lock, so neither can be
+      // bypassed by a tampered browser.
+      const [{ data: t }, { data: s }, { data: locked }] = await Promise.all([
         supabase.from("tours").select("*").eq("id", link.tour_id).single(),
-        supabase
-          .from("scenes")
-          .select("*")
-          .eq("tour_id", link.tour_id)
-          .order("order_index"),
+        supabase.rpc("public_tour_scenes", { p_tour_id: link.tour_id }),
+        supabase.rpc("tour_is_locked", { p_tour_id: link.tour_id }),
       ]);
       if (cancelled) return;
       if (!t) {
         setBlocked("Tour not found.");
+        return;
+      }
+      if (locked === true) {
+        setBlocked(
+          "This tour is temporarily unavailable. Its owner's VPV workspace needs to be renewed — please contact them."
+        );
         return;
       }
       setAttribution({
