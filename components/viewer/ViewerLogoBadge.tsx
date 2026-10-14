@@ -6,6 +6,7 @@
  */
 
 import { VPV_LOGO_URL } from "@/components/dashboard/VpvLogo";
+import BrandMark from "@/components/dashboard/BrandMark";
 
 export default function ViewerLogoBadge({
   height = 36,
@@ -18,17 +19,7 @@ export default function ViewerLogoBadge({
       className="select-none inline-flex items-center rounded-full bg-white/30 backdrop-blur-xl border border-white/40 shadow-[0_10px_30px_-12px_rgba(11,61,145,0.35)]"
       style={{ height, paddingLeft: 14, paddingRight: 14 }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={VPV_LOGO_URL}
-        alt="VPV"
-        draggable={false}
-        style={{
-          height: Math.round(height * 0.55),
-          width: "auto",
-          display: "block",
-        }}
-      />
+      <BrandMark src={VPV_LOGO_URL} height={Math.round(height * 0.55)} alt="VPV" />
     </div>
   );
 }

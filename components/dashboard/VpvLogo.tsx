@@ -1,10 +1,12 @@
 /**
  * VpvLogo — the official VPV wordmark used across every dashboard sidebar
- * (org_admin, sales, team, analytics) and the browser tab. Sourced from the
- * live myvpv.com asset so the product and marketing site always match.
+ * (org_admin, sales, team, analytics) and the browser tab. Served from this
+ * app's own /public folder (public/vpv-mark.png), so it loads on every host.
  */
 
-export const VPV_LOGO_URL = "https://myvpv.com/vpv-mark.png";
+import BrandMark from "./BrandMark";
+
+export const VPV_LOGO_URL = "/vpv-mark.png";
 
 export default function VpvLogo({
   sublabel = "FACTORY TOUR",
@@ -15,13 +17,7 @@ export default function VpvLogo({
 }) {
   return (
     <div className="flex items-center gap-2.5">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={VPV_LOGO_URL}
-        alt="VPV — Virtual Plant Visit"
-        style={{ height, width: "auto", display: "block" }}
-        draggable={false}
-      />
+      <BrandMark src={VPV_LOGO_URL} height={height} alt="VPV — Virtual Plant Visit" />
       {sublabel && (
         <span className="text-[9px] font-semibold tracking-[0.18em] text-vpv-muted mt-1">
           {sublabel}
