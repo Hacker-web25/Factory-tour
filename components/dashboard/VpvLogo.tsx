@@ -6,7 +6,7 @@
 
 import BrandMark from "./BrandMark";
 
-export const VPV_LOGO_URL = "/vpv-mark.png";
+export const VPV_LOGO_URL = "/vpv-logo-transparent.png";
 
 export default function VpvLogo({
   sublabel = "FACTORY TOUR",
