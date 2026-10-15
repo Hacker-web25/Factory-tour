@@ -36,10 +36,13 @@ import { safeNext, isTenantPath } from "@/lib/safeNext";
 import { supabase } from "@/lib/supabase";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
-import BrandMark from "@/components/dashboard/BrandMark";
-import { VPV_LOGO_URL } from "@/components/dashboard/VpvLogo";
-import { LegalLinks } from "@/components/legal/SiteFooter";
-import { COMPANY } from "@/lib/company";
+import AuthSplit, {
+  ConsentCheckbox,
+  authButtonPrimary,
+  authErrorBox,
+  authInput,
+  authLabel,
+} from "@/components/auth/AuthSplit";
 import {
   Mail,
   Lock,
@@ -51,10 +54,6 @@ import {
   Users,
   Loader2,
   Crown,
-  Check,
-  BarChart3,
-  Share2,
-  Sparkles,
 } from "lucide-react";
 import {
   checkLoginLockout,
@@ -251,348 +250,157 @@ export default function LoginPage() {
   const isLocked = !!lockedUntil && lockedUntil.getTime() > Date.now();
 
   return (
-    <div className="relative min-h-screen w-full bg-vpv-canvas text-vpv-ink flex flex-col lg:flex-row overflow-hidden">
-      {/* ======================= LEFT — brand / tagline ======================= */}
-      <aside className="relative hidden lg:flex lg:w-[54%] xl:w-[56%] overflow-hidden">
-        {/* layered bluish light gradients */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(1100px 760px at 12% 108%, rgba(11,61,145,0.18), transparent 58%), radial-gradient(820px 560px at 92% -8%, rgba(25,184,242,0.16), transparent 55%), linear-gradient(135deg, #FFFFFF 0%, #EAF2FE 54%, #DCEBFE 100%)",
+    <AuthSplit
+      pill="The leadership command centre"
+      headline="Every plant visit,"
+      accent="begins right here."
+      body="Your real factory, opened to buyers in the very first meeting — with live analytics, presenter attribution and shareable tours your customers actually want to explore."
+    >
+      {deviceFull ? (
+        <DeviceFullScreen
+          active={deviceFull.active}
+          limit={deviceFull.limit}
+          onBack={() => {
+            setDeviceFull(null);
+            setPassword("");
           }}
         />
-        {/* faint engineering grid */}
-        <div
-          className="absolute inset-0 opacity-[0.5]"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, rgba(20,104,216,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(20,104,216,0.06) 1px, transparent 1px)",
-            backgroundSize: "54px 54px",
-            maskImage:
-              "radial-gradient(circle at 40% 45%, black, transparent 78%)",
-            WebkitMaskImage:
-              "radial-gradient(circle at 40% 45%, black, transparent 78%)",
-          }}
-        />
-        {/* floating translucent orbs */}
-        <div className="vpv-orb absolute -top-16 right-10 h-72 w-72 rounded-full bg-vpv-cyan/20 blur-3xl" />
-        <div className="vpv-orb vpv-orb--slow absolute bottom-[-4rem] left-[-3rem] h-96 w-96 rounded-full bg-vpv-blue/15 blur-3xl" />
-
-        <div className="relative z-10 flex w-full flex-col justify-between p-12 xl:p-16">
-          {/* wordmark */}
-          <div className="flex items-center gap-3">
-            <BrandMark src={VPV_LOGO_URL} height={42} alt="VPV — Virtual Plant Visit" />
-            <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.26em] text-vpv-muted">
-              Virtual&nbsp;Plant&nbsp;Visit
-            </span>
+      ) : forgotOpen ? (
+        <ForgotPasswordPanel onBack={() => setForgotOpen(false)} />
+      ) : (
+        <form onSubmit={onSubmit}>
+          <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-vpv-blue/20 bg-vpv-tint px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-vpv-navy">
+            <Crown size={12} className="text-vpv-blue" />
+            For MDs &amp; Owners
           </div>
 
-          {/* TAGLINE — placeholder copy. Client will supply the final line. */}
-          <div className="max-w-xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/60 px-3.5 py-1.5 text-[11.5px] font-medium text-vpv-navy shadow-[0_8px_30px_-16px_rgba(11,61,145,0.5)] backdrop-blur-xl">
-              <Sparkles size={13} className="text-vpv-blue" />
-              The leadership command centre
-            </div>
-            <h1 className="text-[42px] xl:text-[52px] font-semibold leading-[1.04] tracking-tight text-vpv-ink">
-              Every plant visit,
-              <br />
-              <span className="bg-vpv-grad bg-clip-text text-transparent">
-                begins right here.
-              </span>
-            </h1>
-            <div className="mt-7 h-px w-16 bg-gradient-to-r from-vpv-blue to-transparent" />
-            <p className="mt-6 max-w-md text-[15px] leading-relaxed text-vpv-muted">
-              Your real factory, opened to buyers in the very first meeting —
-              with live analytics, presenter attribution and shareable tours
-              your customers actually want to explore.
-            </p>
+          <h1 className="text-[26px] font-semibold tracking-tight text-vpv-ink">Welcome back</h1>
+          <p className="mt-1 mb-7 text-[13.5px] text-vpv-muted">
+            Sign in to your VPV command centre. Sales-team members have a separate entry below.
+          </p>
 
-            {/* trust pills */}
-            <div className="mt-9 grid max-w-md grid-cols-2 gap-3">
-              <TrustPill icon={<BarChart3 size={14} />} label="Live analytics" sub="Per-scene, per-buyer" />
-              <TrustPill icon={<Users size={14} />} label="Team accounts" sub="Presenter attribution" />
-              <TrustPill icon={<Share2 size={14} />} label="Shareable tours" sub="Gated by email & link" />
-              <TrustPill icon={<ShieldCheck size={14} />} label="Enterprise security" sub="Roles, devices, expiry" />
-            </div>
-          </div>
-
-          {/* footer */}
-          <div className="flex items-center gap-2 text-[11.5px] text-vpv-muted">
-            <ShieldCheck size={13} className="text-vpv-blue" />
-            Bank-grade encryption · © {new Date().getFullYear()} {COMPANY.legalName}
-          </div>
-        </div>
-      </aside>
-
-      {/* ======================= RIGHT — form ======================= */}
-      <main className="relative z-10 flex flex-1 items-center justify-center p-6 sm:p-10 lg:w-[46%] xl:w-[44%]">
-        {/* soft bluish wash behind the card on mobile / small screens */}
-        <div
-          className="pointer-events-none absolute inset-0 lg:hidden"
-          style={{
-            background:
-              "radial-gradient(700px 480px at 50% -10%, rgba(25,184,242,0.14), transparent 60%), radial-gradient(600px 520px at 50% 120%, rgba(11,61,145,0.12), transparent 60%)",
-          }}
-        />
-        <div className="relative w-full max-w-[420px]">
-          {/* mobile logo (left panel is hidden) */}
-          <div className="mb-6 flex items-center justify-center gap-2.5 lg:hidden">
-            <BrandMark src={VPV_LOGO_URL} height={34} alt="VPV" />
-          </div>
-
-          <div className="rounded-[26px] border border-vpv-line bg-white/80 p-7 shadow-[0_30px_80px_-40px_rgba(11,61,145,0.45)] backdrop-blur-xl sm:p-9">
-            {deviceFull ? (
-              <DeviceFullScreen
-                active={deviceFull.active}
-                limit={deviceFull.limit}
-                onBack={() => {
-                  setDeviceFull(null);
-                  setPassword("");
-                }}
+          <div className="mb-3.5">
+            <label className={authLabel}>Email</label>
+            <div className="relative">
+              <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-vpv-muted/70" />
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                autoFocus
+                autoComplete="email"
+                className={authInput}
               />
-            ) : forgotOpen ? (
-              <ForgotPasswordPanel onBack={() => setForgotOpen(false)} />
-            ) : (
-              <form onSubmit={onSubmit}>
-                {/* audience pill */}
-                <div className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-vpv-blue/20 bg-vpv-tint px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-vpv-navy">
-                  <Crown size={12} className="text-vpv-blue" />
-                  For MDs &amp; Owners
-                </div>
-
-                <h1 className="text-[26px] font-semibold tracking-tight text-vpv-ink">
-                  Welcome back
-                </h1>
-                <p className="mt-1 mb-7 text-[13.5px] text-vpv-muted">
-                  Sign in to your VPV command centre. Sales-team members have a
-                  separate entry below.
-                </p>
-
-                {/* Email */}
-                <div className="mb-3.5">
-                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-vpv-muted">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-vpv-muted/70" />
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      autoFocus
-                      autoComplete="email"
-                      className="w-full rounded-xl border border-vpv-line bg-white px-3.5 py-3 pl-10 text-[14px] text-vpv-ink outline-none transition-all placeholder:text-vpv-muted/50 focus:border-vpv-blue focus:ring-2 focus:ring-vpv-blue/15"
-                    />
-                  </div>
-                </div>
-
-                {/* Password */}
-                <div className="mb-3.5">
-                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-vpv-muted">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-vpv-muted/70" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                      className="w-full rounded-xl border border-vpv-line bg-white px-3.5 py-3 pl-10 pr-11 text-[14px] text-vpv-ink outline-none transition-all placeholder:text-vpv-muted/50 focus:border-vpv-blue focus:ring-2 focus:ring-vpv-blue/15"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-vpv-muted/70 hover:text-vpv-ink"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Remember + forgot */}
-                <div className="mb-4 flex items-center justify-between">
-                  <label className="flex cursor-pointer select-none items-center gap-2 text-[12.5px] text-vpv-muted">
-                    <input
-                      type="checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                      className="h-3.5 w-3.5 accent-vpv-blue"
-                    />
-                    Remember me
-                  </label>
-                  <button
-                    type="button"
-                    className="text-[12.5px] font-medium text-vpv-blue hover:text-vpv-navy"
-                    onClick={() => setForgotOpen(true)}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-
-                {/* Consent */}
-                <label className="mb-5 flex cursor-pointer select-none items-start gap-2.5 rounded-xl border border-vpv-line bg-vpv-canvas/70 px-3.5 py-3 text-[12.5px] leading-relaxed text-vpv-muted">
-                  <span
-                    className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-[5px] border transition-all ${
-                      consent
-                        ? "border-vpv-blue bg-vpv-blue text-white"
-                        : "border-vpv-line bg-white"
-                    }`}
-                  >
-                    {consent && <Check size={11} strokeWidth={3} />}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(e) => setConsent(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <span>
-                    I agree to VPV&apos;s{" "}
-                    <Link href="/terms" className="font-medium text-vpv-blue hover:underline" target="_blank">
-                      Terms &amp; Conditions
-                    </Link>
-                    ,{" "}
-                    <Link href="/privacy" className="font-medium text-vpv-blue hover:underline" target="_blank">
-                      Privacy Policy
-                    </Link>{" "}
-                    and{" "}
-                    <Link href="/refund-policy" className="font-medium text-vpv-blue hover:underline" target="_blank">
-                      Refund Policy
-                    </Link>
-                    .
-                  </span>
-                </label>
-
-                {error && (
-                  <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12.5px] text-rose-700">
-                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                    <span>
-                      {isLocked && lockedUntil
-                        ? `Account locked. Try again in ${formatLockoutRemaining(lockedUntil)}.`
-                        : error}
-                    </span>
-                  </div>
-                )}
-
-                {/* Sign in */}
-                <button
-                  type="submit"
-                  disabled={busy || isLocked || !consent}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-vpv-grad py-3 text-[14.5px] font-semibold text-white shadow-[0_18px_40px_-16px_rgba(20,104,216,0.7)] transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 size={15} className="animate-spin" /> Signing in…
-                    </>
-                  ) : (
-                    <>
-                      Sign in <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-
-                {/* Divider */}
-                <div className="my-5 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-vpv-line" />
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-vpv-muted/70">
-                    or continue with
-                  </span>
-                  <div className="h-px flex-1 bg-vpv-line" />
-                </div>
-
-                {/* Google */}
-                <button
-                  type="button"
-                  onClick={onGoogle}
-                  className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-vpv-line bg-white py-3 text-[13.5px] font-medium text-vpv-ink transition-all hover:border-vpv-blue/40 hover:bg-vpv-tint/40"
-                >
-                  <GoogleGlyph />
-                  Google
-                </button>
-
-                {/* Sales-team entry */}
-                <div className="mt-7 border-t border-vpv-line pt-6">
-                  <p className="mb-2.5 text-center text-[11.5px] font-medium uppercase tracking-wide text-vpv-muted/80">
-                    Not an MD?
-                  </p>
-                  <Link
-                    href="/signup/sales"
-                    className="group flex w-full items-center justify-center gap-2.5 rounded-xl border border-vpv-blue/25 bg-vpv-tint/50 py-3 text-vpv-navy transition-all hover:border-vpv-blue/50 hover:bg-vpv-tint"
-                  >
-                    <Users size={15} className="text-vpv-blue" />
-                    <span className="text-[13.5px] font-semibold">
-                      Sales team — sign in or join
-                    </span>
-                    <ArrowRight size={14} className="text-vpv-blue/70 transition-all group-hover:translate-x-0.5" />
-                  </Link>
-                  <p className="mt-2 text-center text-[11px] text-vpv-muted/70">
-                    Presenters &amp; reps join with an invite code from their admin.
-                  </p>
-                </div>
-              </form>
-            )}
+            </div>
           </div>
 
-          <LegalLinks tone="light" newTab={false} className="mt-7" />
-        </div>
-      </main>
+          <div className="mb-3.5">
+            <label className={authLabel}>Password</label>
+            <div className="relative">
+              <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-vpv-muted/70" />
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className={authInput + " pr-11"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-vpv-muted/70 hover:text-vpv-ink"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
 
-      {/* local float animation for the brand orbs */}
-      <style jsx>{`
-        .vpv-orb {
-          animation: vpvFloat 9s ease-in-out infinite;
-        }
-        .vpv-orb--slow {
-          animation-duration: 13s;
-        }
-        @keyframes vpvFloat {
-          0%,
-          100% {
-            transform: translate3d(0, 0, 0) scale(1);
-          }
-          50% {
-            transform: translate3d(0, -18px, 0) scale(1.05);
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .vpv-orb {
-            animation: none;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
+          <div className="mb-4 flex items-center justify-between">
+            <label className="flex cursor-pointer select-none items-center gap-2 text-[12.5px] text-vpv-muted">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="h-3.5 w-3.5 accent-vpv-blue"
+              />
+              Remember me
+            </label>
+            <button
+              type="button"
+              className="text-[12.5px] font-medium text-vpv-blue hover:text-vpv-navy"
+              onClick={() => setForgotOpen(true)}
+            >
+              Forgot password?
+            </button>
+          </div>
 
-/* ---------- left-panel trust pill ----------------------------------- */
+          <ConsentCheckbox checked={consent} onChange={setConsent} />
 
-function TrustPill({
-  icon,
-  label,
-  sub,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  sub: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/55 px-3 py-2.5 backdrop-blur-xl">
-      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-vpv-tint text-vpv-blue">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-[12.5px] font-semibold text-vpv-ink">{label}</div>
-        <div className="truncate text-[10.5px] text-vpv-muted">{sub}</div>
-      </div>
-    </div>
+          {error && (
+            <div className={authErrorBox}>
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span>
+                {isLocked && lockedUntil
+                  ? `Account locked. Try again in ${formatLockoutRemaining(lockedUntil)}.`
+                  : error}
+              </span>
+            </div>
+          )}
+
+          <button type="submit" disabled={busy || isLocked || !consent} className={authButtonPrimary}>
+            {busy ? (
+              <>
+                <Loader2 size={15} className="animate-spin" /> Signing in…
+              </>
+            ) : (
+              <>
+                Sign in <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-vpv-line" />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-vpv-muted/70">
+              or continue with
+            </span>
+            <div className="h-px flex-1 bg-vpv-line" />
+          </div>
+
+          <button
+            type="button"
+            onClick={onGoogle}
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-vpv-line bg-white py-3 text-[13.5px] font-medium text-vpv-ink transition-all hover:border-vpv-blue/40 hover:bg-vpv-tint/40"
+          >
+            <GoogleGlyph />
+            Google
+          </button>
+
+          <div className="mt-7 border-t border-vpv-line pt-6">
+            <p className="mb-2.5 text-center text-[11.5px] font-medium uppercase tracking-wide text-vpv-muted/80">
+              Not an MD?
+            </p>
+            <Link
+              href="/signup/sales"
+              className="group flex w-full items-center justify-center gap-2.5 rounded-xl border border-vpv-blue/25 bg-vpv-tint/50 py-3 text-vpv-navy transition-all hover:border-vpv-blue/50 hover:bg-vpv-tint"
+            >
+              <Users size={15} className="text-vpv-blue" />
+              <span className="text-[13.5px] font-semibold">Sales team — sign in or join</span>
+              <ArrowRight size={14} className="text-vpv-blue/70 transition-all group-hover:translate-x-0.5" />
+            </Link>
+            <p className="mt-2 text-center text-[11px] text-vpv-muted/70">
+              Presenters &amp; reps join with an invite code from their admin.
+            </p>
+          </div>
+        </form>
+      )}
+    </AuthSplit>
   );
 }
 
