@@ -8,6 +8,7 @@ import type { Tour } from "@/lib/types";
 import OfflineControls from "@/components/sales/OfflineControls";
 import AssignTourModal from "@/components/dashboard/AssignTourModal";
 import DuplicateTourModal from "@/components/dashboard/DuplicateTourModal";
+import { countPendingStops } from "@/lib/recordingStops";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { LegalLinks } from "@/components/legal/SiteFooter";
 import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
@@ -46,6 +47,7 @@ import {
   CreditCard,
   Copy,
   Pencil,
+  ShieldCheck,
 } from "lucide-react";
 
 /**
@@ -87,6 +89,7 @@ export default function ClientDashboardPage() {
   const [me, setMe] = useState<Profile | null>(null);
   const [org, setOrg] = useState<Organization | null>(null);
   const [recordingMode, setRecordingMode] = useState<"auto" | "manual">("auto");
+  const [pendingStops, setPendingStops] = useState(0);
   const [tours, setTours] = useState<TourCard[]>([]);
   const [team, setTeam] = useState<TeamRow[]>([]);
   const [kpis, setKpis] = useState<Kpis>({
@@ -127,6 +130,10 @@ export default function ClientDashboardPage() {
                   : "auto";
           setRecordingMode(mode);
         }
+        // How many recording stops still need the MD's decision.
+        countPendingStops(p.org_id)
+          .then(setPendingStops)
+          .catch(() => {});
       }
 
       // Tours
@@ -705,6 +712,27 @@ export default function ClientDashboardPage() {
                   );
                 })}
               </div>
+              <Link
+                href={`/${(org as unknown as { slug?: string } | null)?.slug ?? ""}/owner/recording-activity`}
+                className="mt-4 flex items-center gap-2 rounded-xl border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint px-4 py-3 transition-colors"
+              >
+                <ShieldCheck size={15} className="text-vpv-navy shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-vpv-ink">
+                    Recording activity
+                  </div>
+                  <div className="text-[11.5px] text-vpv-muted leading-snug">
+                    See when a rep stopped a recording mid-meeting, hear
+                    why, and mark it OK or not OK.
+                  </div>
+                </div>
+                {pendingStops > 0 && (
+                  <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold grid place-items-center">
+                    {pendingStops}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-vpv-muted shrink-0" />
+              </Link>
             </div>
           </div>
         )}

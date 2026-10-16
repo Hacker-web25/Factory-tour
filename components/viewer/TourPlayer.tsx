@@ -23,6 +23,11 @@ import {
   isRecordingSupported,
   type ActiveRecorder,
 } from "@/lib/presentationRecorder";
+import {
+  recordStop,
+  markTrailingCaptured,
+  TRAILING_SECONDS,
+} from "@/lib/recordingStops";
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
 import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 import ViewerPill from "@/components/viewer/ViewerPill";
@@ -160,6 +165,48 @@ function RecordingDot() {
       <span className="max-w-0 group-hover:max-w-[120px] group-hover:pr-3 whitespace-nowrap transition-all duration-300 -ml-1">
         Recording
       </span>
+    </div>
+  );
+}
+
+/** The recording indicator plus the rep's Stop control. During the
+ *  trailing window (after Stop is confirmed) the Stop button is replaced
+ *  by a countdown so the rep can see the recording is still running and
+ *  why. See /terms#recording-ai. */
+function RecordingControls({
+  stoppingIn,
+  onStop,
+}: {
+  stoppingIn: number | null;
+  onStop: () => void;
+}) {
+  if (stoppingIn !== null) {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-full bg-amber-50/95 backdrop-blur-xl border border-amber-300 px-3 text-[11px] font-medium text-amber-800 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)]"
+        style={{ height: 36 }}
+        title="Still recording for a few seconds so your MD can hear why the recording stopped"
+      >
+        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+        <span className="whitespace-nowrap">
+          Stopping in {stoppingIn}s
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      <RecordingDot />
+      <button
+        type="button"
+        onClick={onStop}
+        className="flex items-center gap-1.5 rounded-full bg-white/85 hover:bg-white backdrop-blur-xl border border-white/70 px-3 text-[11px] font-medium text-slate-700 shadow-[0_8px_22px_-10px_rgba(11,61,145,0.35)] transition-colors"
+        style={{ height: 36 }}
+        title="Stop recording this meeting"
+      >
+        <span className="w-2.5 h-2.5 rounded-sm bg-slate-700 shrink-0" />
+        <span className="whitespace-nowrap">Stop</span>
+      </button>
     </div>
   );
 }
@@ -370,6 +417,12 @@ function TourPlayerInner({
   const [recordingPromptOpen, setRecordingPromptOpen] = useState(false);
   const beginRecordingRef = useRef<(() => Promise<void>) | null>(null);
   const skipRecordingRef = useRef<(() => void) | null>(null);
+  // Stopping a recording mid-meeting. The rep confirms on a popup, then
+  // VPV keeps recording for TRAILING_SECONDS so the MD can hear what was
+  // said around the stop. See /terms#recording-ai.
+  const [stopPromptOpen, setStopPromptOpen] = useState(false);
+  const [stoppingIn, setStoppingIn] = useState<number | null>(null);
+  const confirmStopRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!analyticsOn || typeof window === "undefined") return;
     const qs = new URLSearchParams(window.location.search);
@@ -424,8 +477,53 @@ function TourPlayerInner({
     const skipRecording = () => {
       setRecordingPromptOpen(false);
     };
+
+    // The rep pressed Stop and confirmed it. We do three things, in this
+    // order, because each must survive the next one failing:
+    //   1. Log the stop NOW, so a closed tab still leaves the MD a record.
+    //   2. Keep recording for TRAILING_SECONDS, counting down in the UI,
+    //      so the MD can hear what was said around the stop.
+    //   3. Finalise the recording and flag the trailing window complete.
+    let trailingTimer: number | undefined;
+    let countdownTimer: number | undefined;
+    const confirmStop = () => {
+      if (!recorder || saved) return;
+      setStopPromptOpen(false);
+      const offsetSec = recorder.snapshot().durationSec;
+      let stopId: string | null = null;
+      if (orgId && presenterId) {
+        void recordStop({
+          orgId,
+          sessionId,
+          tourId: tour.id,
+          presenterId,
+          clientId,
+          stopOffsetSec: offsetSec,
+        }).then((id) => {
+          stopId = id;
+        });
+      }
+      // Count the window down for the rep so the wait is not a mystery.
+      setStoppingIn(TRAILING_SECONDS);
+      countdownTimer = window.setInterval(() => {
+        setStoppingIn((v) => (v === null ? null : Math.max(0, v - 1)));
+      }, 1000);
+      trailingTimer = window.setTimeout(() => {
+        if (countdownTimer) window.clearInterval(countdownTimer);
+        countdownTimer = undefined;
+        setStoppingIn(null);
+        void (async () => {
+          await finalize();
+          if (stopId) {
+            void markTrailingCaptured(stopId, offsetSec);
+          }
+        })();
+      }, TRAILING_SECONDS * 1000);
+    };
+
     beginRecordingRef.current = beginRecording;
     skipRecordingRef.current = skipRecording;
+    confirmStopRef.current = confirmStop;
 
     (async () => {
       // 1) GPS — always, whatever the recording mode.
@@ -473,6 +571,7 @@ function TourPlayerInner({
       const r = recorder;
       recorder = null;
       setRecording(false);
+      setStoppingIn(null);
       try {
         const out = await r.stop();
         await savePresentationRecording({
@@ -494,6 +593,8 @@ function TourPlayerInner({
     window.addEventListener("beforeunload", onHide);
     return () => {
       cancelled = true;
+      if (trailingTimer) window.clearTimeout(trailingTimer);
+      if (countdownTimer) window.clearInterval(countdownTimer);
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("beforeunload", onHide);
       finalize();
@@ -1344,7 +1445,12 @@ function TourPlayerInner({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {recording && <RecordingDot />}
+              {recording && (
+                <RecordingControls
+                  stoppingIn={stoppingIn}
+                  onStop={() => setStopPromptOpen(true)}
+                />
+              )}
               <TitleChip tourTitle={tour.title} orgName={orgName} />
             </div>
           </div>
@@ -1364,7 +1470,12 @@ function TourPlayerInner({
             </div>
             {/* Top-right cluster: recording pill + tour/org title chip. */}
             <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
-              {recording && <RecordingDot />}
+              {recording && (
+                <RecordingControls
+                  stoppingIn={stoppingIn}
+                  onStop={() => setStopPromptOpen(true)}
+                />
+              )}
               <TitleChip tourTitle={tour.title} orgName={orgName} />
             </div>
           </>
@@ -1630,6 +1741,65 @@ function TourPlayerInner({
                 className="h-10 px-5 rounded-full bg-rose-600 text-white text-[13.5px] font-semibold hover:bg-rose-700 shadow-[0_10px_26px_-10px_rgba(225,29,72,0.6)]"
               >
                 Start recording
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stop-recording confirmation. Everything disclosed here is also
+          written into /terms#recording-ai and /privacy#recordings-ai, and
+          the rep agreed to it at sign-up. The trailing window exists so a
+          legitimate stop (a client asking for it) can be told apart from
+          a rep simply switching the recording off — and so a detector
+          miss never reads as guilt, the MD always decides. */}
+      {stopPromptOpen && (
+        <div
+          className="fixed inset-0 z-[82] grid place-items-center bg-black/55 backdrop-blur-sm px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stop-prompt-title"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 grid place-items-center">
+                <span className="w-3 h-3 rounded-sm bg-amber-500" />
+              </div>
+              <h2
+                id="stop-prompt-title"
+                className="text-[17px] font-semibold text-slate-900"
+              >
+                Stop recording?
+              </h2>
+            </div>
+            <p className="text-[13.5px] leading-relaxed text-slate-600">
+              We'll keep recording for {TRAILING_SECONDS} more seconds to
+              capture why you're stopping. If a client in the room asks to
+              stop, that is a valid reason.
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
+              <strong>Your MD will review this.</strong> They can see that
+              you stopped, when you stopped, and can listen to the audio
+              around the stop to check the reason.
+            </p>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
+              If our system can't tell from the audio, the stop is marked
+              "could not verify" — not as a problem — and your MD decides.
+            </p>
+            <div className="mt-5 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setStopPromptOpen(false)}
+                className="h-10 px-4 rounded-full border border-slate-300 text-slate-700 text-[13.5px] font-medium hover:bg-slate-50"
+              >
+                Keep recording
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmStopRef.current?.()}
+                className="h-10 px-5 rounded-full bg-slate-900 text-white text-[13.5px] font-semibold hover:bg-slate-800"
+              >
+                Stop anyway
               </button>
             </div>
           </div>
