@@ -69,7 +69,7 @@ import {
   isPurchasePurpose,
   isValidSceneCount,
   priceFor,
-  splitGst,
+  withGst,
   toPaise,
   type PurchasePurpose,
 } from "@/lib/pricing";
@@ -313,8 +313,10 @@ export async function POST(req: Request) {
   const quote = priceFor(purpose as PurchasePurpose, { scenes: scenesWanted, existingScenes });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 
-  const amountPaise = toPaise(quote.amountInr);
-  const split = splitGst(quote.amountInr);
+  const split = withGst(quote.amountInr);
+  // Razorpay charges the TOTAL (base + 18% GST), which is what the final
+  // checkout screen shows the customer right before they tap Pay.
+  const amountPaise = toPaise(split.total);
 
   // One shop-wide ceiling. It is charged only for a request that passed every
   // check above, so a flood of malformed junk cannot use up the allowance that

@@ -90,7 +90,7 @@ ${address ? `<p>${address}</p>` : ""}
 <div><h4>Policies</h4><ul>${links(POLICY_LINKS)}</ul></div>
 <div><h4>Contact</h4><ul>${contact}</ul></div>
 </div>
-<div class="vpv-ft-bot"><div><span>&copy; ${year} ${esc(COMPANY.legalName)}. All rights reserved.</span><span>Prices are in INR and include GST unless stated. Online payments are processed by Razorpay.</span></div></div>
+<div class="vpv-ft-bot"><div><span>&copy; ${year} ${esc(COMPANY.legalName)}. All rights reserved.</span><span>Prices on this site are in INR and exclusive of 18% GST unless stated. Online payments are processed by Razorpay.</span></div></div>
 </footer>`;
 }
 

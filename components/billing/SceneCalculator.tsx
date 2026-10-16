@@ -218,7 +218,7 @@ export default function SceneCalculator({
                 {inr(animatedTotal)}
               </div>
               <div className="mt-1.5 text-[12.5px] text-slate-500">
-                Inclusive of 18% GST · no monthly fee
+                + 18% GST at checkout · one-time, no monthly fee
               </div>
             </div>
             {savings.amount > 0 && (

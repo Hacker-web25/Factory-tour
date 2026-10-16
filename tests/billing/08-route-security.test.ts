@@ -1,5 +1,6 @@
 import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
+import { priceForScenes, toPaise, withGst } from "@/lib/pricing";
 import { NextRequest } from "next/server";
 import { makeWorld, BUYER, freshIp, type World } from "./harness/world";
 import { TEST_KEY_ID, TEST_KEY_SECRET, TEST_WEBHOOK_SECRET } from "./harness/fakeGateway";
@@ -639,7 +640,7 @@ describe("route security", () => {
         assert.ok(typeof out === "string" || out === 0, `${sql} → ${out}`);
       }
       const [inv] = await w.q(`select total_paise from public.billing_invoices where order_id = $1`, [a.body.orderId]);
-      assert.equal(Number(inv.total_paise), 1950000);
+      assert.equal(Number(inv.total_paise), toPaise(withGst(priceForScenes(5)).total));
       assert.equal((await w.q(`select plan from public.organizations where id = (select org_id from public.billing_orders where id = $1)`, [a.body.orderId]))[0].plan, "basic");
     });
 

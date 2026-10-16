@@ -11,7 +11,7 @@ import {
   SUPPORT_ANNUAL_INR,
   pricePerScene,
   priceForScenes,
-  splitGst,
+  withGst,
   toPaise,
 } from "@/lib/pricing";
 
@@ -84,19 +84,19 @@ describe("prices, GST invoices and credit notes", () => {
       for (let k = SCENE_MIN; k <= SCENE_MAX; k++) {
         const r = await w.openOrder({ scenes: k, buyer: uniqueBuyer() });
         assert.equal(r.status, 200, `scenes=${k}: ${JSON.stringify(r.body)}`);
-        assert.equal(r.body.amountPaise, toPaise(priceForScenes(k)), `scenes=${k}`);
-        assert.equal(w.gw.orders.get(r.body.razorpayOrderId)!.amount, toPaise(priceForScenes(k)));
+        assert.equal(r.body.amountPaise, toPaise(withGst(priceForScenes(k)).total), `scenes=${k}`);
+        assert.equal(w.gw.orders.get(r.body.razorpayOrderId)!.amount, toPaise(withGst(priceForScenes(k)).total));
       }
     });
 
-    it("annual support is ₹9,999 including GST, and a renewal is charged exactly that", async () => {
+    it("annual support is ₹9,999 + 18% GST, and a renewal is charged ₹11,798.82", async () => {
       assert.equal(SUPPORT_ANNUAL_INR, 9_999);
       const o = await w.seedOrg({ name: "Ren Co", slug: "ren-co", quota: 5, supportUntil: new Date(Date.now() + 5 * 86_400_000).toISOString() });
       const uid = await w.seedUser({ email: "admin@ren-co.in", orgId: o.id });
       const res = await w.routes.order.POST(w.request("/api/billing/order", { as: uid, body: { purpose: "support_renewal", buyer: {} } }));
       const body = await w.readJson(res);
       assert.equal(res.status, 200, JSON.stringify(body));
-      assert.equal(body.amountPaise, 999_900);
+      assert.equal(body.amountPaise, toPaise(withGst(SUPPORT_ANNUAL_INR).total));
     });
   });
 
@@ -113,7 +113,7 @@ describe("prices, GST invoices and credit notes", () => {
       for (let k = SCENE_MIN; k <= SCENE_MAX; k++) {
         const { invoice: inv } = await buy(k, { state: "Haryana" });
         const total = num(inv.total_paise);
-        assert.equal(total, toPaise(priceForScenes(k)), `total at ${k}`);
+        assert.equal(total, toPaise(withGst(priceForScenes(k)).total), `total at ${k}`);
         assert.equal(num(inv.igst_paise), 0);
         assert.equal(num(inv.taxable_paise) + num(inv.cgst_paise) + num(inv.sgst_paise), total, `adds up at ${k}`);
         assert.ok(Math.abs(num(inv.cgst_paise) - num(inv.sgst_paise)) <= 1, "halves differ by at most a paisa");
@@ -364,7 +364,7 @@ describe("prices, GST invoices and credit notes", () => {
       const { uid } = await authed("Haryana");
       const { body, status } = await open(uid, "scene_topup", 9);
       assert.equal(status, 200, JSON.stringify(body));
-      const expected = toPaise(priceForScenes(9) - priceForScenes(5));
+      const expected = toPaise(withGst(priceForScenes(9) - priceForScenes(5)).total);
       assert.equal(body.amountPaise, expected);
       await w.payInBrowser(body);
       assert.equal((await w.poll(body.orderId)).body.status, "ready");
@@ -380,11 +380,12 @@ describe("prices, GST invoices and credit notes", () => {
       await w.payInBrowser(body);
       await w.poll(body.orderId);
       const [inv] = await w.q(`select * from public.billing_invoices`);
-      const taxable = toPaise(splitGst(SUPPORT_ANNUAL_INR).taxable);
-      assert.equal(num(inv.total_paise), 999_900);
+      const total = toPaise(withGst(SUPPORT_ANNUAL_INR).total);
+      const taxable = toPaise(withGst(SUPPORT_ANNUAL_INR).taxable);
+      assert.equal(num(inv.total_paise), total);
       assert.equal(num(inv.taxable_paise), taxable);
       assert.equal(num(inv.igst_paise), 0);
-      assert.equal(num(inv.cgst_paise) + num(inv.sgst_paise), 999_900 - taxable);
+      assert.equal(num(inv.cgst_paise) + num(inv.sgst_paise), total - taxable);
       assert.match(inv.description, /annual technical support/i);
     });
 
@@ -396,7 +397,7 @@ describe("prices, GST invoices and credit notes", () => {
       const [inv] = await w.q(`select * from public.billing_invoices`);
       assert.equal(num(inv.cgst_paise), 0);
       assert.equal(num(inv.sgst_paise), 0);
-      assert.equal(num(inv.igst_paise), 999_900 - num(inv.taxable_paise));
+      assert.equal(num(inv.igst_paise), toPaise(withGst(SUPPORT_ANNUAL_INR).total) - num(inv.taxable_paise));
     });
   });
 

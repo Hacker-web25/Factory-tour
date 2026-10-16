@@ -99,7 +99,7 @@ export function SiteFooter() {
             © {year} {COMPANY.legalName}. All rights reserved.
           </span>
           <span>
-            Prices are in INR and include GST unless stated. Online payments
+            Prices are in INR and exclusive of 18% GST unless stated. Online payments
             are processed by Razorpay.
           </span>
         </div>

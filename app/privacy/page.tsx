@@ -84,6 +84,11 @@ const sections: LegalSection[] = [
               "To give your team a record of client meetings and to power the optional AI analysis.",
             ],
             [
+              "Sales-rep voice sample",
+              "A ~10-second recording of the sales representative, captured at first sign-in by reading a disclosed sentence out loud.",
+              "To tell the representative’s voice from the client’s voice in meeting audio (for example to verify a client-requested stop).",
+            ],
+            [
               "AI analysis output",
               "Speaker-split dialogue, topics detected, a summary and a score generated from a transcript.",
               "To help you review how a meeting went.",
@@ -169,13 +174,42 @@ const sections: LegalSection[] = [
             we store the coordinates and look up a readable place name from
             them. Declining the prompt does not affect the presentation.
           </li>
+          <li>
+            <B>Sales-rep voice samples.</B> When a sales representative first
+            signs in, we ask them to record a short voice sample
+            (approximately 10 seconds) by reading a disclosed sentence out
+            loud. We use the sample only to distinguish that representative’s
+            voice from the client’s voice in meeting audio — for example, to
+            check whether a stop-recording request came from the client. The
+            purpose is explained in a popup before the sample is recorded.
+            The sample is encrypted at rest, is accessible only to the
+            minimum of VPV engineers who need it to run the voice-matching
+            service, is never shared with any third party, is not used to
+            train AI models, and is deleted when the representative is removed
+            from the Workspace or the Workspace is closed. A representative
+            who does not record the sample can still use the product, but
+            VPV cannot run the client-stop verification for their meetings.
+          </li>
+          <li>
+            <B>Trailing audio after Stop.</B> When a sales representative
+            clicks Stop during a recorded meeting, VPV continues to record
+            audio for a short additional window (approximately 15 seconds).
+            The purpose is to help identify whether a client asked for the
+            stop. The popup shown at Stop discloses this to the
+            representative, and it is part of the consent the representative
+            must obtain from participants at the start of the meeting.
+          </li>
         </UL>
         <P>
-          <B>Consent.</B> The organisation must inform everyone on a recorded
-          conversation and obtain the consent applicable law requires before
-          recording. Under our <L href="/terms#recording-ai">Terms</L> this is
-          the organisation’s responsibility, and it can delete any recording
-          at any time.
+          <B>Consent is the sales representative’s responsibility, not VPV’s.</B>
+          {" "}The sales representative conducting the meeting must inform
+          every participant that the conversation is being recorded and
+          obtain the consent applicable law requires. VPV is not a
+          participant in that conversation; VPV does not supervise, audit or
+          verify this disclosure. Under our{" "}
+          <L href="/terms#recording-ai">Terms</L> this is the organisation’s
+          responsibility, and the organisation can delete any recording at
+          any time.
         </P>
       </>
     ),

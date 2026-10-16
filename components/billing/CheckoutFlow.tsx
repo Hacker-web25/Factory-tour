@@ -26,7 +26,7 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Loader2, Lock, ShieldCheck } from "lucide-react";
 import SceneCalculator from "./SceneCalculator";
 import { useRazorpayPayment, type Buyer, type Purpose } from "./useRazorpayPayment";
-import { SCENE_DEFAULT, SUPPORT_ANNUAL_INR, inr, priceForScenes } from "@/lib/pricing";
+import { SCENE_DEFAULT, SUPPORT_ANNUAL_INR, inr, inr2, priceForScenes, withGst } from "@/lib/pricing";
 import { INDIAN_STATES, canonicalIndianState } from "@/lib/indianStates";
 
 type Step = "choose" | "details";
@@ -68,6 +68,9 @@ export default function CheckoutFlow({
   const scriptState = scriptReady;
 
   const amount = purpose === "support_renewal" ? SUPPORT_ANNUAL_INR : priceForScenes(scenes);
+  // What the server will send to Razorpay (base + 18% GST). We show this
+  // breakdown on the final checkout screen, right before the Pay button.
+  const split = withGst(amount);
 
   const pay = () => {
     void payment.start({
@@ -363,7 +366,7 @@ export default function CheckoutFlow({
               <Loader2 size={16} className="animate-spin" /> Opening secure payment…
             </span>
           ) : (
-            <>Pay {inr(amount)} securely</>
+            <>Pay {inr2(split.total)} securely</>
           )}
         </button>
 
@@ -401,11 +404,18 @@ export default function CheckoutFlow({
             </>
           )}
         </div>
-        <div className="mt-4 border-t border-vpv-line pt-4 flex items-baseline justify-between">
-          <span className="text-[14px] font-semibold text-vpv-ink">Total</span>
-          <span className="text-[22px] font-semibold tabular-nums text-vpv-ink">{inr(amount)}</span>
+        <div className="mt-4 border-t border-vpv-line pt-4 space-y-2">
+          <Row label="Subtotal" value={inr2(split.taxable)} muted />
+          <Row label="GST @ 18%" value={inr2(split.gst)} muted />
+          <div className="flex items-baseline justify-between pt-2 border-t border-vpv-line">
+            <span className="text-[14px] font-semibold text-vpv-ink">Total payable</span>
+            <span className="text-[22px] font-semibold tabular-nums text-vpv-ink">{inr2(split.total)}</span>
+          </div>
         </div>
-        <p className="mt-1.5 text-[12px] text-slate-500">Inclusive of 18% GST</p>
+        <p className="mt-1.5 text-[12px] text-slate-500">
+          You pay the total above. The invoice carries our GSTIN so you can
+          claim input credit.
+        </p>
 
         <div className="mt-5 flex gap-2 rounded-xl bg-white p-3 text-[12.5px] text-slate-600 ring-1 ring-vpv-line">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-vpv-blue" />

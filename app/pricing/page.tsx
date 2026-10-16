@@ -30,13 +30,13 @@ import {
   priceForScenes,
   pricePerScene,
   sceneLadderRows,
-  splitGst,
+  withGst,
 } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "VPV pricing: Basic is a one-time licence where you choose the number of scenes and the price per scene falls as you add more. Pro is ₹5,000 a month and Ultra ₹15,000 a month, both with unlimited scenes. All prices include GST.",
+    "VPV pricing: Basic is a one-time licence where you choose the number of scenes and the price per scene falls as you add more. Pro is ₹5,000 a month and Ultra ₹15,000 a month, both with unlimited scenes. All prices are shown exclusive of 18% GST; GST is added at checkout.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/pricing" },
 };
@@ -46,11 +46,14 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "Is GST included in these prices?",
     a: (
       <>
-        Yes. Every price on this page includes {GST_LABEL}, so the amount you
-        see is the amount you pay. Your tax invoice shows the breakup — a{" "}
-        {inr(priceForScenes(5))} purchase, for example, is{" "}
-        {inr2(splitGst(priceForScenes(5)).taxable)} plus{" "}
-        {inr2(splitGst(priceForScenes(5)).gst)} GST.
+        No. The prices on this page are exclusive of {GST_LABEL}. We add 18%
+        GST at the final checkout step, and the breakdown and total are shown
+        before you pay. Example — a {inr(priceForScenes(5))} pack is{" "}
+        {inr2(withGst(priceForScenes(5)).taxable)} plus{" "}
+        {inr2(withGst(priceForScenes(5)).gst)} GST ={" "}
+        <strong>{inr2(withGst(priceForScenes(5)).total)}</strong>. Your tax
+        invoice carries the same split and our GSTIN, so you can claim input
+        credit.
       </>
     ),
   },
@@ -63,7 +66,7 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     a: (
       <>
         Basic includes hosting and technical support free for the first year.
-        After that it is {inr(SUPPORT_ANNUAL_INR)} a year, and renewing is a
+        After that it is {inr(SUPPORT_ANNUAL_INR)} a year + 18% GST, and renewing is a
         button inside your dashboard. We remind you by e-mail before the year
         ends, and for {POLICY.supportGraceDays} days afterwards a renewal
         reminder appears as you use your workspace. If it is still unpaid after
@@ -121,7 +124,7 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Pricing"
         title="Pay for the rooms you want to show."
-        summary="Basic is a one-time licence and the price per scene falls the more you add. Pro and Ultra are monthly, with no limit at all. Every price includes GST."
+        summary="Basic is a one-time licence and the price per scene falls the more you add. Pro and Ultra are monthly, with no limit at all. All prices are shown + GST."
       />
 
       <div className="mx-auto max-w-6xl px-5 py-12 lg:py-16">
@@ -243,9 +246,10 @@ export default function PricingPage() {
                 </table>
               </div>
               <p className="mt-4 text-[12.5px] leading-relaxed text-slate-500">
-                All amounts include {GST_LABEL} and the first year of technical
-                support. Beyond {SCENE_MAX} scenes, Pro is the better value — and
-                has no limit at all.
+                All amounts shown are exclusive of {GST_LABEL}; GST is added
+                at checkout and the final screen shows the total. First year
+                of technical support and hosting is included. Beyond {SCENE_MAX}{" "}
+                scenes, Pro is the better value — and has no limit at all.
               </p>
             </div>
           </div>
@@ -298,8 +302,8 @@ export default function PricingPage() {
             A note on price changes
           </h2>
           <p className="mt-3 max-w-3xl text-[14.5px] leading-relaxed text-slate-700">
-            Our prices are in INR and include GST unless stated. We may change
-            them at any time.{" "}
+            Our prices are in INR and are exclusive of 18% GST unless stated;
+            GST is added at checkout. We may change our prices at any time.{" "}
             <strong className="text-vpv-ink">
               We always e-mail you at least {POLICY.priceChangeNoticeDays} days
               before a new price applies to you
@@ -349,8 +353,8 @@ export default function PricingPage() {
             </p>
             <ul className="mt-5 space-y-2.5 text-[14.5px] text-slate-600">
               {[
-                `Pro — ${inr(PRO_MONTHLY_INR)} a month, unlimited scenes`,
-                `Ultra — ${inr(ULTRA_MONTHLY_INR)} a month, plus AI meeting review`,
+                `Pro — ${inr(PRO_MONTHLY_INR)} + GST a month, unlimited scenes`,
+                `Ultra — ${inr(ULTRA_MONTHLY_INR)} + GST a month, plus AI meeting review`,
                 "Support included on both",
               ].map((l) => (
                 <li key={l} className="flex gap-2.5">
@@ -428,11 +432,11 @@ function PlanCard({
             {inr(price)}
           </span>
           <span className={`pb-1 text-[13px] ${dark ? "text-white/60" : "text-slate-500"}`}>
-            per month
+            + GST per month
           </span>
         </div>
         <div className={`mt-1.5 text-[12.5px] ${dark ? "text-white/60" : "text-slate-500"}`}>
-          Inclusive of GST · billed as agreed
+          + GST · billed as agreed
         </div>
       </div>
 

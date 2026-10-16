@@ -24,7 +24,7 @@ import {
   inr2,
   priceForScenes,
   pricePerScene,
-  splitGst,
+  withGst,
 } from "@/lib/pricing";
 
 export const metadata: Metadata = {
@@ -227,14 +227,16 @@ const sections: LegalSection[] = [
         </UL>
         <UL>
           <li>
-            Fees are in Indian rupees and <B>include GST</B> at the prevailing
-            rate ({GST_LABEL} today) unless stated. Your tax invoice shows the
-            taxable value and the GST separately — for example,{" "}
-            {inr(priceForScenes(5))} is{" "}
-            {inr2(splitGst(priceForScenes(5)).taxable)} plus{" "}
-            {inr2(splitGst(priceForScenes(5)).gst)} GST. If tax law requires you
-            to deduct tax at source, tell us before paying so we can document it
-            correctly.
+            Fees are in Indian rupees and <B>are exclusive of GST</B>.
+            {GST_LABEL} is added at the final checkout step and shown in the
+            breakdown before you pay. Our GSTIN ({COMPANY.gstin}) appears on
+            every tax invoice, so a GST-registered customer can claim input
+            tax credit. For example, {inr(priceForScenes(5))} becomes{" "}
+            {inr2(withGst(priceForScenes(5)).taxable)} plus{" "}
+            {inr2(withGst(priceForScenes(5)).gst)} GST ={" "}
+            <B>{inr2(withGst(priceForScenes(5)).total)}</B> at checkout. If
+            tax law requires you to deduct tax at source, tell us before paying
+            so we can document it correctly.
           </li>
           <li>
             <B>Payment methods.</B> Online payments are processed by Razorpay
@@ -318,23 +320,60 @@ const sections: LegalSection[] = [
           The Basic Licence Fee includes <B>the first year of Annual Support
           &amp; Maintenance at no extra charge</B>, starting on the day your
           Workspace is activated. After that, support continues for each further
-          year you renew at {inr(SUPPORT_ANNUAL_INR)} (inclusive of GST), which
+          year you renew at {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, which
           you can do from the Plan and billing page in your dashboard. Support
           is included throughout Pro and Ultra at no separate charge. The
           support period and its renewal date are shown on your order
           confirmation and tax invoice. Support &amp; Maintenance covers:
         </P>
         <UL>
-          <li>technical support by e-mail for the Workspace and its tours;</li>
-          <li>fixes for defects in the Service;</li>
-          <li>security patches and platform maintenance; and</li>
-          <li>updates we release to the Plan you bought.</li>
+          <li>
+            <B>Hosting of your Workspace and your tours</B> on our
+            infrastructure.
+          </li>
+          <li>
+            <B>Security</B>: platform security patches, access controls, our
+            commitments to protect Content from leak or misuse, and our
+            guarantee that we do <B>not</B> sell, rent or disclose your Content
+            or Workspace data to any third party except as the{" "}
+            <L href="/privacy">Privacy Policy</L> allows.
+          </li>
+          <li>Fixes for defects in the Service.</li>
+          <li>Technical support by e-mail for the Workspace and its tours.</li>
+          <li>Updates we release to the Plan you bought.</li>
+        </UL>
+        <P>
+          <B>What the Annual Support &amp; Maintenance Fee does NOT cover.</B>
+          {" "}The fee is for hosting and platform upkeep, not for changes to
+          your plant content. The following are <B>not included</B> and are
+          either paid work or self-service:
+        </P>
+        <UL>
+          <li>
+            Changes inside the factory or plant that need re-shooting or
+            re-building a scene (new machinery, relocated equipment, changed
+            layout).
+          </li>
+          <li>
+            Edits to existing scenes, hotspots, narration, subtitles,
+            languages or any other Content.
+          </li>
+          <li>
+            Adding new scenes beyond your Plan quota — these are bought as a
+            scene top-up at the Basic ladder price plus GST.
+          </li>
+          <li>On-site visits, custom development, content production or training.</li>
         </UL>
         <P>
           We reply to support e-mails within {POLICY.replyBusinessDays}{" "}
-          business days. Support does not include on-site visits, custom
-          development, content production or training unless your proposal
-          says so.
+          business days.
+        </P>
+        <P>
+          <B>The Annual Support &amp; Maintenance Fee may be revised.</B> We
+          may change the fee from time to time. We will e-mail every current
+          Customer at least {POLICY.priceChangeNoticeDays} days before a new
+          Fee applies to them, and a change never affects a support year you
+          have already paid for.
         </P>
         <P>
           <B>Renewal.</B> We e-mail you about 30 days and 7 days before your
@@ -409,18 +448,58 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          VPV’s presenter tools can, when a presenter chooses to turn them
-          on, record audio, transcribe speech, capture the presenter’s
-          approximate location, and produce AI-assisted analysis of a meeting.
-          Please read the <L href="/privacy">Privacy Policy</L> for how this
-          data is handled.
+          VPV’s presenter tools can record audio, transcribe speech, capture
+          the presenter’s approximate location, and produce AI-assisted
+          analysis of a meeting. The dashboard owner (<B>MD</B>) chooses
+          between <B>Automatic</B> recording (every meeting starts recorded)
+          and <B>Manual</B> recording (the sales representative decides at the
+          start of each meeting whether to record). Please read the{" "}
+          <L href="/privacy">Privacy Policy</L> for how this data is handled.
         </P>
         <UL>
           <li>
-            <B>Consent is your responsibility.</B> Before recording, you must
-            tell every participant that the conversation is being recorded and
-            obtain any consent that applicable law requires. A browser
+            <B>Informing participants is the sales representative’s
+            responsibility, not VPV’s.</B> Before recording, the sales
+            representative conducting the meeting must tell every participant
+            that the conversation is being recorded for training and quality
+            purposes and obtain any consent that applicable law requires. VPV
+            is not a participant in that conversation; VPV does not supervise,
+            audit or verify this disclosure, and the Customer accepts full
+            responsibility for compliance by its representatives. A browser
             permission prompt does not replace that duty.
+          </li>
+          <li>
+            <B>Manual mode and missing recordings.</B> In Manual mode, if the
+            sales representative does not start a recording, no audio exists
+            for that meeting. VPV cannot provide a transcript, score, insights
+            or any other meeting data for an unrecorded session.
+          </li>
+          <li>
+            <B>Stop-recording and the trailing-audio check.</B> When a sales
+            representative stops a recording during a meeting, VPV continues
+            to capture audio for a short additional window (approximately 15
+            seconds) to help determine whether the stop was requested by a
+            client in the room. This is disclosed to the sales representative
+            at a popup each time they stop recording, and is part of the
+            consent the sales representative must obtain from participants at
+            the start of the meeting. The trailing audio, the stop event and
+            VPV’s automated verdict (<i>verified valid</i>, <i>unverified</i>
+            {" "}or <i>flagged</i>) are visible to the MD. The automated
+            verdict is an aid only; a missed detection defaults to{" "}
+            <i>unverified</i> rather than <i>flagged</i>, and the MD makes
+            the final judgement.
+          </li>
+          <li>
+            <B>Voice sample at sales representative onboarding.</B> At first
+            login, each sales representative is asked to record a short
+            (approximately 10-second) voice sample. The sample is used only
+            to tell the representative’s voice apart from the client’s voice
+            inside meeting audio — for example, to identify who requested a
+            stop. The sample is encrypted at rest, is never shared with third
+            parties, is not used to train AI models, and is deleted when the
+            representative is removed from the Workspace or the account is
+            closed. The purpose of this sample is explained in a popup before
+            it is recorded and in the <L href="/privacy">Privacy Policy</L>.
           </li>
           <li>
             <B>Your people, your rules.</B> Only Authorised Users who need
@@ -687,17 +766,18 @@ export default function TermsPage() {
       sections={sections}
     >
       <Callout title="Plain-language summary">
-        Basic is a one-time licence from {inr(priceForScenes(SCENE_MIN))},
-        inclusive of GST — you choose how many scenes, and the price per scene
-        falls as you add more. The first year of support is included; after that
-        it is {inr(SUPPORT_ANNUAL_INR)} a year, and a Workspace whose support
-        is more than {POLICY.supportGraceDays} days overdue is locked until it
-        is renewed. Pro is {inr(PRO_MONTHLY_INR)} a
-        month and Ultra {inr(ULTRA_MONTHLY_INR)} a month, both with unlimited
-        scenes. You own your content. Prices can change, but only after
-        we e-mail you {POLICY.priceChangeNoticeDays} days in advance and never
-        for something you have already paid for. This summary helps you read
-        the Terms; the Terms below are what binds us both.
+        Basic is a one-time licence from {inr(priceForScenes(SCENE_MIN))} plus
+        18% GST — you choose how many scenes, and the price per scene falls as
+        you add more. The first year of support is included; after that it is
+        {" "}{inr(SUPPORT_ANNUAL_INR)} a year plus 18% GST, and a Workspace
+        whose support is more than {POLICY.supportGraceDays} days overdue is
+        locked until it is renewed. Pro is {inr(PRO_MONTHLY_INR)} a month plus
+        GST and Ultra {inr(ULTRA_MONTHLY_INR)} a month plus GST, both with
+        unlimited scenes. The annual Support &amp; Maintenance fee covers
+        hosting, security and platform upkeep — not changes to your plant
+        content or scenes. You own your content. Prices can change, but only
+        after we e-mail you {POLICY.priceChangeNoticeDays} days in advance and
+        never for something you have already paid for.
       </Callout>
     </LegalPage>
   );

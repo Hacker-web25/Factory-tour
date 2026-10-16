@@ -101,7 +101,7 @@ const sections: LegalSection[] = [
           head={["Payment", "Refund"]}
           rows={[
             [
-              `Basic licence (from ${inr(priceForScenes(SCENE_MIN))}, GST included)`,
+              `Basic licence (from ${inr(priceForScenes(SCENE_MIN))} + 18% GST)`,
               <>
                 <B>Full refund</B> if you request it within {POLICY.refundWindowDays}{" "}
                 days of payment and either (a) you have not published or shared
@@ -121,7 +121,7 @@ const sections: LegalSection[] = [
               </>,
             ],
             [
-              `Annual Support & Maintenance renewal (${inr(SUPPORT_ANNUAL_INR)}, GST included)`,
+              `Annual Support & Maintenance renewal (${inr(SUPPORT_ANNUAL_INR)} + 18% GST)`,
               <>
                 <B>Full refund</B> if you request it within {POLICY.refundWindowDays}{" "}
                 days of the renewal charge and you have not raised a support

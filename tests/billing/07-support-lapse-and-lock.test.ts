@@ -325,7 +325,7 @@ describe("support lapse ladder and the lock", () => {
       assert.equal(await stateOf(org.id), "locked");
       const order = await renew(admin);
       assert.equal(order.status, 200, JSON.stringify(order.body));
-      assert.equal(order.body.amountPaise, 999_900);
+      assert.equal(order.body.amountPaise, 1_179_882);
 
       await w.payInBrowser(order.body);
       assert.equal((await w.poll(order.body.orderId)).body.status, "ready");

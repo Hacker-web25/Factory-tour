@@ -1,7 +1,7 @@
 import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { makeWorld, freshIp, type World } from "./harness/world";
-import { SCENE_MAX, priceForScenes, toPaise } from "@/lib/pricing";
+import { SCENE_MAX, priceForScenes, toPaise, withGst } from "@/lib/pricing";
 
 const DAY = 86_400_000;
 
@@ -50,7 +50,7 @@ describe("scene top-ups", () => {
       for (let target = 6; target <= SCENE_MAX; target++) {
         const r = await topup(admin, target);
         assert.equal(r.status, 200, `${target}: ${JSON.stringify(r.body)}`);
-        assert.equal(r.body.amountPaise, toPaise(priceForScenes(target) - priceForScenes(5)), `5→${target}`);
+        assert.equal(r.body.amountPaise, toPaise(withGst(priceForScenes(target) - priceForScenes(5)).total), `5→${target}`);
       }
     });
 
@@ -138,7 +138,7 @@ describe("scene top-ups", () => {
       const stale = await topup(admin, 8);
       assert.equal(stale.status, 400, "9 scenes already, so 8 is not an upgrade");
       const b = await topup(admin, 12);
-      assert.equal(b.body.amountPaise, toPaise(priceForScenes(12) - priceForScenes(9)));
+      assert.equal(b.body.amountPaise, toPaise(withGst(priceForScenes(12) - priceForScenes(9)).total));
       await w.payInBrowser(b.body);
       await w.poll(b.body.orderId);
       assert.equal(await quota(), 12);

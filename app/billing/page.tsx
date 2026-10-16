@@ -286,7 +286,7 @@ export default function BillingPage() {
               onClick={() => setPane(pane === "support" ? "none" : "support")}
               className="mt-4 w-full rounded-full bg-vpv-grad py-2.5 text-[13.5px] font-semibold text-white hover:opacity-95"
             >
-              Renew for {inr(SUPPORT_ANNUAL_INR)} a year
+              Renew for {inr(SUPPORT_ANNUAL_INR)} + GST per year
             </button>
           )}
           {org.plan !== "basic" && (

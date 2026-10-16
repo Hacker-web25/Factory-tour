@@ -137,7 +137,7 @@ export {
   pricePerScene,
   inr,
   inr2,
-  splitGst,
+  withGst,
 } from "./pricing";
 
 /* ───────────────────────────── Policy terms ───────────────────────── */

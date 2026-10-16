@@ -19,9 +19,10 @@
  * │        renewed, pop-ups start, then the workspace locks (below).   │
  * └───────────────────────────────────────────────────────────────────┘
  *
- * Every amount here is INR and INCLUDES GST — the number the customer
- * sees is the number they pay. Invoices show the taxable value and the
- * GST separately (splitGst below).
+ * Every amount here is INR and is EXCLUSIVE of GST — the number on the
+ * marketing page is the base ("+ GST"), and the final checkout screen
+ * shows the breakdown and the total actually charged. 18% GST is added
+ * on top by withGst() below, and the order route charges the TOTAL.
  *
  * TO CHANGE A PRICE: edit the constants in this file, redeploy, and
  * e-mail existing customers per Terms › Price changes. Amounts are
@@ -44,7 +45,7 @@ export const SAC_CODE = "998434";
 /* ═══════════════════════ BASIC: the scene ladder ═══════════════════ */
 
 /**
- * Marginal price of each additional scene, GST included.
+ * Marginal price of each additional scene, GST excluded. 18% GST is added on top at checkout.
  *
  * Read it as: scenes 1 to `upTo` cost `each`. The ladder is *marginal*,
  * not a flat rate — scene 1 costs ₹5,000, scenes 2 and 3 cost ₹4,000
@@ -71,7 +72,7 @@ export const SCENE_MAX = 20;
 export const SCENE_DEFAULT = 5;
 
 /**
- * What a pack of `scenes` scenes costs, GST included.
+ * What a pack of `scenes` scenes costs, GST excluded. 18% GST is added on top at checkout.
  *
  * This is the authority. The browser calls it to draw the slider; the
  * order route calls it again to set the amount actually charged. A
@@ -145,12 +146,12 @@ export function sceneLadderRows(): {
 
 /* ═══════════════════════ PRO / ULTRA / support ═════════════════════ */
 
-/** Monthly subscription prices, GST included. Sold by conversation —
+/** Monthly subscription prices, GST excluded. Sold by conversation —
  *  shown on the site, but not payable through the website checkout. */
 export const PRO_MONTHLY_INR = 5_000;
 export const ULTRA_MONTHLY_INR = 15_000;
 
-/** Annual technical support, maintenance and hosting, GST included. */
+/** Annual technical support, maintenance and hosting, GST excluded. */
 export const SUPPORT_ANNUAL_INR = 9_999;
 /** Months of support included free with a Basic purchase. */
 export const SUPPORT_FREE_MONTHS = 12;
@@ -256,7 +257,7 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   { label: "AI meeting review: transcript, score, insights", basic: false, pro: false, ultra: true },
   {
     label: "Technical support, maintenance and hosting",
-    basic: `Year 1 free, then ${inr(SUPPORT_ANNUAL_INR)}/year`,
+    basic: `Year 1 free, then ${inr(SUPPORT_ANNUAL_INR)}/year + GST`,
     pro: "Included",
     ultra: "Included, priority",
   },
@@ -347,18 +348,24 @@ export function inr2(amount: number): string {
 }
 
 /**
- * Split a GST-inclusive price into the taxable value and the GST inside
- * it, to the paisa, so the two always add back to what the customer
- * paid: 29,999 → 25,422.88 + 4,576.12.
+ * Add 18% GST on top of a base (GST-exclusive) price.
+ *
+ * Our shown prices are the base. The customer sees "₹X + GST" on the
+ * marketing page and plan cards. On the final checkout screen, and on
+ * the Razorpay button, we charge the TOTAL this returns (base + GST).
+ * The invoice stores the taxable value (= base), the GST, and the total.
+ *
+ *   withGst(10000)  →  { taxable: 10000, gst: 1800, total: 11800 }
  */
-export function splitGst(inclusive: number): {
+export function withGst(base: number): {
   taxable: number;
   gst: number;
   total: number;
 } {
-  const taxable = Math.round((inclusive / (1 + GST_RATE)) * 100) / 100;
-  const gst = Math.round((inclusive - taxable) * 100) / 100;
-  return { taxable, gst, total: inclusive };
+  const taxable = Math.round(base * 100) / 100;
+  const gst = Math.round(taxable * GST_RATE * 100) / 100;
+  const total = Math.round((taxable + gst) * 100) / 100;
+  return { taxable, gst, total };
 }
 
 /** Rupees → paise, which is what Razorpay's API takes. Integer only. */

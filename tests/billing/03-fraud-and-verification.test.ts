@@ -2,7 +2,7 @@ import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { makeWorld, BUYER, type World } from "./harness/world";
 import { gstinCheckChar } from "@/lib/gstin";
-import { priceForScenes, toPaise } from "@/lib/pricing";
+import { priceForScenes, toPaise, withGst } from "@/lib/pricing";
 
 /** A well-formed Haryana GSTIN with a correct check character. */
 const GOOD_GSTIN = (() => {
@@ -56,8 +56,8 @@ describe("fraud, forgery and verification", () => {
     );
     const body = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(body));
-    assert.equal(body.amountPaise, toPaise(priceForScenes(10)));
-    assert.equal(w.gw.orders.get(body.razorpayOrderId)!.amount, toPaise(priceForScenes(10)));
+    assert.equal(body.amountPaise, toPaise(withGst(priceForScenes(10)).total));
+    assert.equal(w.gw.orders.get(body.razorpayOrderId)!.amount, toPaise(withGst(priceForScenes(10)).total));
   });
 
   for (const scenes of [0, 1, 21, 100, -3, 2.5, "5", null, NaN, 1e9, "abc", [5], { a: 1 }]) {
@@ -75,7 +75,7 @@ describe("fraud, forgery and verification", () => {
     it(`accepts the boundary scene count ${scenes}`, async () => {
       const r = await w.openOrder({ scenes });
       assert.equal(r.status, 200, JSON.stringify(r.body));
-      assert.equal(r.body.amountPaise, toPaise(priceForScenes(scenes)));
+      assert.equal(r.body.amountPaise, toPaise(withGst(priceForScenes(scenes)).total));
     });
   }
 
