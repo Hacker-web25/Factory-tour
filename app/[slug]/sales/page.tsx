@@ -14,6 +14,7 @@ import {
 import { orgBySlug, slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
 import OfflineControls from "@/components/sales/OfflineControls";
+import VoiceSamplePrompt from "@/components/sales/VoiceSamplePrompt";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { LegalLinks } from "@/components/legal/SiteFooter";
 import ClientsTab from "@/components/dashboard/ClientsTab";
@@ -73,6 +74,10 @@ export default function SalesDashboardPage() {
   const [avgSpark, setAvgSpark] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // Voice-sample prompt for sales reps: opens once at first sign-in
+  // if the rep has no sample on file. The rep can dismiss (then it re-
+  // appears next sign-in) or complete it (then it never appears again).
+  const [voicePromptOpen, setVoicePromptOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Two-tab navigation: My Tours (default) and Clients pipeline.
   const [activeTab, setActiveTab] = useState<"tours" | "clients" | "visitors">("tours");
@@ -197,6 +202,10 @@ export default function SalesDashboardPage() {
       }
       setMe(p);
       setOrg(orgRow as Organization);
+      // One-time voice-sample capture for sales reps. Policy: /privacy#recordings-ai.
+      if (!p.voice_sample_path) {
+        setVoicePromptOpen(true);
+      }
 
       // Fire the presence heartbeat while this tab is open so the
       // org_admin's live-status dots update every minute.
@@ -654,6 +663,26 @@ export default function SalesDashboardPage() {
         {presentGate.element}
       </main>
     </div>
+    {voicePromptOpen && me && (
+      <VoiceSamplePrompt
+        profileId={me.id}
+        repName={me.full_name || me.email.split("@")[0]}
+        companyName={org?.name || ""}
+        onDone={() => {
+          setVoicePromptOpen(false);
+          setMe((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  voice_sample_path: `${prev.id}/sample.webm`,
+                  voice_sample_captured_at: new Date().toISOString(),
+                }
+              : prev
+          );
+        }}
+        onDismiss={() => setVoicePromptOpen(false)}
+      />
+    )}
     </OrgThemeProvider>
   );
 }

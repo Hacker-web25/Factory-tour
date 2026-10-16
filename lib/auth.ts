@@ -22,6 +22,11 @@ export type Profile = {
   role: Role;
   org_id: string | null;
   created_at: string;
+  /** Path in the voice-samples storage bucket, or null until the rep
+   *  records their one-time sample at first login. See
+   *  /privacy#recordings-ai. */
+  voice_sample_path?: string | null;
+  voice_sample_captured_at?: string | null;
 };
 
 export type Organization = {
