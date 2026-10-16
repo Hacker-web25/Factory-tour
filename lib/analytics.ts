@@ -101,26 +101,40 @@ export function trackEvent(
 
   const fire = () => {
     const attr = getAttribution();
-    supabase
-      .from("tour_events")
-      .insert({
-        tour_id,
-        scene_id: extras.scene_id ?? null,
-        hotspot_id: extras.hotspot_id ?? null,
-        event_type,
-        session_id,
-        viewport_w,
-        viewport_h,
-        // Attribution — attached to every event so per-presenter and
-        // per-viewer analytics segments can be computed later.
-        share_link_id: attr.share_link_id ?? null,
-        presenter_user_id: attr.presenter_user_id ?? null,
-        viewer_fingerprint: attr.viewer_fingerprint ?? null,
-        viewer_email: attr.viewer_email ?? null,
-      })
-      .then(({ error }) => {
-        if (error) console.warn("[analytics]", error.message);
+    // Posted via the server-side route so geolocation (country + city)
+    // can be filled from Vercel's edge headers. See app/api/analytics/event.
+    const body = JSON.stringify({
+      tour_id,
+      scene_id: extras.scene_id ?? null,
+      hotspot_id: extras.hotspot_id ?? null,
+      event_type,
+      session_id,
+      viewport_w,
+      viewport_h,
+      share_link_id: attr.share_link_id ?? null,
+      presenter_user_id: attr.presenter_user_id ?? null,
+      viewer_fingerprint: attr.viewer_fingerprint ?? null,
+      viewer_email: attr.viewer_email ?? null,
+    });
+    // sendBeacon survives a tab-close so an exit event is not lost;
+    // fall back to fetch for anything the beacon API rejects.
+    const sent =
+      typeof navigator !== "undefined" &&
+      typeof navigator.sendBeacon === "function" &&
+      navigator.sendBeacon(
+        "/api/analytics/event",
+        new Blob([body], { type: "application/json" })
+      );
+    if (!sent) {
+      fetch("/api/analytics/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch((e) => {
+        console.warn("[analytics]", (e as Error).message);
       });
+    }
   };
 
   if (debounceMs > 0) {

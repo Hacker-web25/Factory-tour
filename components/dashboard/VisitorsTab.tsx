@@ -55,8 +55,9 @@ import {
 /** Aggregated stats for a share link, joined against tour_events. */
 type LinkStats = {
   devices: number;
-  views: number;
+  opens: number;
   country: string | null;
+  city: string | null;
   lastAt: string | null;
 };
 
@@ -100,8 +101,9 @@ export default function VisitorsTab({
           ]);
           stats.set(l.id, {
             devices,
-            views: l.view_count ?? 0,
+            opens: l.view_count ?? 0,
             country: loc.country,
+            city: loc.city,
             lastAt: l.last_opened_at ?? loc.at ?? null,
           });
         })
@@ -279,10 +281,10 @@ function LinkHistory({
               <th className="text-left px-4 py-3 font-medium">Status</th>
               <th className="text-left px-3 py-3 font-medium">Kind</th>
               <th className="text-left px-3 py-3 font-medium">
-                <span className="inline-flex items-center gap-1"><Smartphone className="w-3 h-3" /> Devices</span>
+                <span className="inline-flex items-center gap-1" title="Distinct devices that opened the link"><Smartphone className="w-3 h-3" /> Devices</span>
               </th>
               <th className="text-left px-3 py-3 font-medium">
-                <span className="inline-flex items-center gap-1"><Eye className="w-3 h-3" /> Views</span>
+                <span className="inline-flex items-center gap-1" title="How many times the link was opened"><Eye className="w-3 h-3" /> Opens</span>
               </th>
               <th className="text-left px-3 py-3 font-medium">
                 <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> Location</span>
@@ -305,8 +307,9 @@ function LinkHistory({
               const dead = expired || hitLimit || revoked;
               const st = stats.get(l.id) ?? {
                 devices: 0,
-                views: l.view_count ?? 0,
+                opens: l.view_count ?? 0,
                 country: null,
+                city: null,
                 lastAt: l.last_opened_at,
               };
 
@@ -379,7 +382,7 @@ function LinkHistory({
                     )}
                   </td>
                   <td className="px-3 py-3 tabular-nums text-vpv-ink">
-                    {st.views}
+                    {st.opens}
                     {l.view_limit != null && (
                       <span className="text-vpv-muted">
                         {" "}
@@ -388,7 +391,9 @@ function LinkHistory({
                     )}
                   </td>
                   <td className="px-3 py-3 text-vpv-muted text-xs">
-                    {st.country ?? "—"}
+                    {st.city && st.country
+                      ? `${st.city}, ${st.country}`
+                      : st.city ?? st.country ?? "—"}
                   </td>
                   <td className="px-3 py-3 text-vpv-muted text-xs whitespace-nowrap">
                     {st.lastAt ? relative(st.lastAt, now) : "—"}
@@ -545,7 +550,7 @@ function LinkAnalyticsPanel({ link }: { link: ShareLink }) {
           icon={<BarChart3 className="w-4 h-4" />}
           label="Sessions"
           value={an.sessions.toString()}
-          hint="Each open / reload counts once"
+          hint="Distinct viewer sessions on this link"
         />
         <StatTile
           icon={<Timer className="w-4 h-4" />}
@@ -567,10 +572,12 @@ function LinkAnalyticsPanel({ link }: { link: ShareLink }) {
         />
         <StatTile
           icon={<Eye className="w-4 h-4" />}
-          label="Views"
+          label="Link opens"
           value={(link.view_count ?? 0).toString()}
           hint={
-            link.view_limit != null ? `limit ${link.view_limit}` : undefined
+            link.view_limit != null
+              ? `limit ${link.view_limit}`
+              : "Counts each time the link is opened"
           }
         />
       </div>

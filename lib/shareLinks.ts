@@ -142,22 +142,29 @@ export async function distinctDeviceCount(linkId: string): Promise<number> {
   return set.size;
 }
 
-/** Where the link was last opened from — city / country pulled from
- *  the most recent tour_event that had a country. */
+/** Where the link was last opened from — city + country pulled from
+ *  the most recent tour_event that had a country. Both fields are
+ *  populated server-side by /api/analytics/event using the Vercel edge
+ *  headers; older rows that pre-date that route may have one or neither. */
 export async function lastOpenedLocation(
   linkId: string
-): Promise<{ country: string | null; at: string | null }> {
+): Promise<{ country: string | null; city: string | null; at: string | null }> {
   const { data } = await supabase
     .from("tour_events")
-    .select("country, created_at")
+    .select("country, city, created_at")
     .eq("share_link_id", linkId)
     .not("country", "is", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const row = data as { country: string | null; created_at: string } | null;
+  const row = data as {
+    country: string | null;
+    city: string | null;
+    created_at: string;
+  } | null;
   return {
     country: row?.country ?? null,
+    city: row?.city ?? null,
     at: row?.created_at ?? null,
   };
 }
