@@ -420,7 +420,8 @@ export default function CheckoutFlow({
         <div className="mt-5 flex gap-2 rounded-xl bg-white p-3 text-[12.5px] text-slate-600 ring-1 ring-vpv-line">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-vpv-blue" />
           <span>
-            Not right for you? Ask within 7 days and we refund in full — see our{" "}
+            Payments to VPV are non-refundable by default. If something
+            on our side fails, write to us and we will review it — see our{" "}
             <a href="/refund-policy" className="text-vpv-blue underline underline-offset-2">
               refund policy
             </a>

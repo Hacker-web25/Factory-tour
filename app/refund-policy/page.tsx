@@ -38,14 +38,28 @@ const sections: LegalSection[] = [
         <Callout title="At a glance">
           <UL>
             <li>
-              Ask within <B>{POLICY.refundWindowDays} days</B> of paying and
-              you are eligible for a full refund of the fee if you have not
-              started using the paid Workspace, or if the Service cannot do
-              what we described and we cannot fix it.
+              All payments to VPV are <B>non-refundable by default</B>.
             </li>
-            <li>A duplicate or wrongly charged payment is always refunded in full.</li>
-            <li>Approved refunds reach your original payment method in <B>{POLICY.refundProcessing}</B>.</li>
-            <li>You can stop a renewal at any time; there are no cancellation fees.</li>
+            <li>
+              <B>Exception:</B> if a failure on VPV's side (platform outage,
+              data loss caused by us, a core function we described that does
+              not work) prevents you from using the Service, write to us. We
+              will review the request and, where we agree a refund is due,
+              we will issue one at our discretion.
+            </li>
+            <li>
+              Duplicate charges, excess charges and payments taken for an
+              order that was never confirmed are <B>always refunded in full</B>.
+            </li>
+            <li>
+              You can stop a renewal at any time by writing to{" "}
+              <Mail to={COMPANY.emails.billing} />; there are no
+              cancellation fees. The current paid period is not refunded.
+            </li>
+            <li>
+              Where we approve a refund, it reaches your original payment
+              method in <B>{POLICY.refundProcessing}</B>.
+            </li>
           </UL>
         </Callout>
       </>
@@ -94,84 +108,113 @@ const sections: LegalSection[] = [
   },
   {
     id: "eligibility",
-    title: "When a refund is due",
+    title: "When a refund may be considered",
     body: (
       <>
+        <P>
+          <B>All payments to VPV are non-refundable</B>, except in the three
+          situations in the table below. In every other case, including a
+          change of mind, lower-than-expected use, or a decision to switch
+          providers, the fee stays with us. If you believe your situation
+          falls under an exception, write to us and we will review it.
+        </P>
         <DataTable
-          head={["Payment", "Refund"]}
+          head={["Situation", "What happens"]}
           rows={[
             [
-              `Basic licence (from ${inr(priceForScenes(SCENE_MIN))} + 18% GST)`,
+              "VPV-side failure — platform outage, data loss caused by us, or a core function we described that does not work",
               <>
-                <B>Full refund</B> if you request it within {POLICY.refundWindowDays}{" "}
-                days of payment and either (a) you have not published or shared
-                any tour with a customer, or (b) a core function of the Service
-                that we described does not work and we have not fixed it within
-                5 business days of your report. After that window the fee is
-                non-refundable, except where we fail to provide the Service or
-                the law requires otherwise.
-              </>,
-            ],
-            [
-              "Scene top-up",
-              <>
-                <B>Full refund</B> within {POLICY.refundWindowDays} days of the
-                charge, as long as you have not shared a tour that uses the
-                extra scenes. After that it is non-refundable.
-              </>,
-            ],
-            [
-              `Annual Support & Maintenance renewal (${inr(SUPPORT_ANNUAL_INR)} + 18% GST)`,
-              <>
-                <B>Full refund</B> if you request it within {POLICY.refundWindowDays}{" "}
-                days of the renewal charge and you have not raised a support
-                request in that year. Otherwise non-refundable, and not
-                pro-rated. The first year of support comes free with a Basic
-                licence and is never charged separately.
-              </>,
-            ],
-            [
-              `Pro and Ultra monthly fees (from ${inr(PRO_MONTHLY_INR)} a month)`,
-              <>
-                Cancel any time with 30 days&rsquo; notice, in writing. The
-                current month is not refunded, and we do not pro-rate a partial
-                month. Anything else is as stated in your written proposal.
+                We investigate and, where we agree the failure is on our
+                side and no reasonable fix is possible, we issue a refund
+                for the affected period or purchase, at our discretion. We
+                e-mail you with the decision and, if a refund is agreed, a
+                reference to track it.
               </>,
             ],
             [
               "Duplicate, excess or erroneous charge",
               <>
                 <B>Full refund</B> of the extra amount, whatever the time
-                elapsed, once we confirm it.
+                elapsed, once we confirm it. We issue a credit note.
               </>,
             ],
             [
               "Payment taken but order not confirmed",
               <>
-                Reversed automatically by your bank or Razorpay, usually within{" "}
-                {POLICY.refundProcessing}. If it is not, write to us with the
-                payment ID and we will trace it.
+                Reversed automatically by your bank or Razorpay, usually
+                within {POLICY.refundProcessing}. If it is not, write to us
+                with the payment ID and we will trace it.
+              </>,
+            ],
+            [
+              `Basic licence (from ${inr(priceForScenes(SCENE_MIN))} + 18% GST)`,
+              <>
+                <B>Non-refundable</B> once payment succeeds, including the
+                first year of Annual Support &amp; Maintenance bundled with
+                it. See the VPV-side-failure row above for exceptions.
+              </>,
+            ],
+            [
+              "Scene top-up",
+              <>
+                <B>Non-refundable</B> once payment succeeds.
+              </>,
+            ],
+            [
+              `Annual Support & Maintenance renewal (${inr(SUPPORT_ANNUAL_INR)} + 18% GST)`,
+              <>
+                <B>Non-refundable</B> and not pro-rated. The first year of
+                support is bundled free with a Basic licence and is never
+                charged separately. You can stop a renewal at any time
+                before it is paid.
+              </>,
+            ],
+            [
+              `Pro and Ultra monthly fees (from ${inr(PRO_MONTHLY_INR)} a month)`,
+              <>
+                <B>Non-refundable</B>, and the current month is not
+                pro-rated. Cancel at any time with 30 days&rsquo; written
+                notice; billing stops at the end of that notice period.
+                Anything else is as stated in your written proposal.
               </>,
             ],
           ]}
         />
         <P>
-          The refund is the full amount you paid for the item, including the
-          GST on it. We bear the payment gateway’s fee; it is not deducted from
-          your refund. We issue a credit note for each refunded invoice.
+          Where we do approve a refund, it is the full amount paid for the
+          affected item, including the GST on it. We bear the payment
+          gateway's fee; it is not deducted. We issue a credit note for
+          every refunded invoice.
         </P>
       </>
     ),
   },
   {
     id: "not-refundable",
-    title: "What is not refundable",
+    title: "What is never refundable",
     body: (
       <UL>
-        <li>Fees after the {POLICY.refundWindowDays}-day window, other than the cases above.</li>
-        <li>Renewal charges where you were reminded in advance and did not cancel before the renewal date, unless the charge was made in error.</li>
-        <li>Charges for a Workspace that we suspended or ended for a serious breach of the <L href="/terms#acceptable-use">acceptable-use rules</L>.</li>
-        <li>Third-party costs you incurred, such as your own photography or travel.</li>
+        <li>
+          Any payment, after it has succeeded, where none of the three
+          situations in the table above applies. This is the default.
+        </li>
+        <li>
+          Renewal charges where you were reminded in advance and did not
+          cancel before the renewal date, unless the charge was made in
+          error.
+        </li>
+        <li>
+          Charges for a Workspace that we suspended or ended for a serious
+          breach of the <L href="/terms#acceptable-use">acceptable-use rules</L>.
+        </li>
+        <li>
+          Third-party costs you incurred, such as your own photography,
+          travel, or software you bought from someone else.
+        </li>
+        <li>
+          A change of mind, lower-than-expected use of the Service, or a
+          decision to switch providers.
+        </li>
       </UL>
     ),
   },
@@ -180,23 +223,30 @@ const sections: LegalSection[] = [
     title: "How to ask for a refund",
     body: (
       <>
+        <P>
+          You can always ask, even where the default is non-refundable. We
+          read every request and reply.
+        </P>
         <OL>
           <li>
             E-mail <Mail to={COMPANY.emails.billing} /> from your account
             address, or from the billing contact on the invoice.
           </li>
           <li>
-            Include the invoice number or Razorpay payment ID, the amount and
-            the reason.
+            Include the invoice number or Razorpay payment ID, the amount
+            and the reason you believe a refund is due — in particular,
+            which VPV-side issue you encountered and when.
           </li>
           <li>
-            We reply within {POLICY.replyBusinessDays} business days. If more
-            information is needed we will ask once and decide promptly after.
+            We reply within {POLICY.replyBusinessDays} business days. If we
+            need more information we will ask once and decide promptly
+            after.
           </li>
         </OL>
         <P>
-          If we decline, we will explain why and you may reply to ask for a
-          second review by a senior member of the team.
+          If we decline, we will explain why. You may reply to ask for a
+          second review by a senior member of the team. A declined refund
+          does not stop you from cancelling future renewals.
         </P>
       </>
     ),

@@ -409,9 +409,15 @@ const sections: LegalSection[] = [
           fees for a partial period.
         </P>
         <P>
-          Refunds — including the {POLICY.refundWindowDays}-day window, what
-          is and is not refundable, and how long a refund takes — are set out
-          in our <L href="/refund-policy">Cancellation &amp; Refund Policy</L>.
+          <B>Refunds.</B> All payments to VPV are non-refundable by default.
+          If a failure on VPV's side (platform outage, data loss caused by
+          us, a core function we described that does not work) prevents you
+          from using the Service, write to us and we will review the
+          request and, if we agree a refund is due, issue it at our
+          discretion. Duplicate, excess and erroneous charges are always
+          refunded in full. The full rules, including the three situations
+          where a refund may apply, are set out in our{" "}
+          <L href="/refund-policy">Cancellation &amp; Refund Policy</L>.
           After cancellation we keep your account data for{" "}
           {POLICY.retentionAfterCancelDays} days so you can return without
           losing it, then delete it as described in the{" "}

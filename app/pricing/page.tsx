@@ -102,9 +102,12 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
     q: "What if it is not right for us?",
     a: (
       <>
-        Ask within {POLICY.refundWindowDays} days and, if you have not started
-        using the paid workspace or something core does not work as described,
-        you get a full refund. See the{" "}
+        All payments to VPV are non-refundable by default. If something on
+        our side goes wrong — a platform outage, data loss caused by us, or
+        a core function we described that does not work — write to us; we
+        review every request and, where we agree a refund is due, issue it
+        at our discretion. Duplicate or wrong charges are always refunded
+        in full. See the{" "}
         <Link href="/refund-policy" className="text-vpv-blue underline underline-offset-2">
           Cancellation &amp; Refund Policy
         </Link>

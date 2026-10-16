@@ -149,7 +149,9 @@ export const POLICY = {
   priceChangeNoticeDays: 30,
   /** Prior notice before changed Terms / Privacy Policy take effect. */
   termsChangeNoticeDays: 14,
-  /** Window in which a refund can be requested (see Refund Policy). */
+  /** Legacy constant: a request window from the old automatic-refund
+   *  policy. Payments are now non-refundable by default (see Refund
+   *  Policy); kept only so a request still receives a prompt reply. */
   refundWindowDays: 7,
   /** How long a refund takes to reach the original payment method. */
   refundProcessing: "5 to 7 business days",
