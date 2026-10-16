@@ -490,22 +490,39 @@ const sections: LegalSection[] = [
             consent the sales representative must obtain from participants at
             the start of the meeting. The trailing audio, the stop event and
             VPV’s automated verdict (<i>verified valid</i>, <i>unverified</i>
-            {" "}or <i>flagged</i>) are visible to the MD. The automated
-            verdict is an aid only; a missed detection defaults to{" "}
-            <i>unverified</i> rather than <i>flagged</i>, and the MD makes
-            the final judgement.
+            {" "}or <i>flagged</i>) are visible to the MD.
+          </li>
+          <li>
+            <B>How that check works, and its limits.</B> The check reads the
+            meeting’s text transcript, not its audio. It looks for a spoken
+            request to stop recording in English, Hindi or a mix of the two,
+            and then asks an AI model whether those words read as coming from
+            someone other than the representative. The transcript is captured
+            from a single microphone and carries no speaker labels, so this
+            attribution is an inference and not a measurement. Accordingly:
+            a stop is recorded as <i>unverified</i> unless a clear request is
+            found AND it reads as another person’s; a representative heard
+            agreeing to stop is <B>never</B> treated as a problem; and a stop
+            is only marked <i>flagged</i> where a substantial amount of
+            speech was captured and no request appears anywhere in it. The
+            automated verdict is an aid only and the MD makes the final
+            judgement.
           </li>
           <li>
             <B>Voice sample at sales representative onboarding.</B> At first
             login, each sales representative is asked to record a short
-            (approximately 10-second) voice sample. The sample is used only
-            to tell the representative’s voice apart from the client’s voice
-            inside meeting audio — for example, to identify who requested a
-            stop. The sample is encrypted at rest, is never shared with third
-            parties, is not used to train AI models, and is deleted when the
-            representative is removed from the Workspace or the account is
-            closed. The purpose of this sample is explained in a popup before
-            it is recorded and in the <L href="/privacy">Privacy Policy</L>.
+            (approximately 10-second) voice sample. Its only permitted
+            purpose is to tell the representative’s voice apart from other
+            voices inside meeting audio. <B>It is not in active use today</B>
+            : the stop-recording check described above works from the text
+            transcript, and the sample is retained for the voice-matching
+            capability when it is introduced. We will not use it for any
+            other purpose without telling you first. The sample is encrypted
+            at rest, is never shared with third parties, is not used to train
+            AI models, and is deleted when the representative is removed from
+            the Workspace or the account is closed. The purpose of this
+            sample is explained in a popup before it is recorded and in the{" "}
+            <L href="/privacy">Privacy Policy</L>.
           </li>
           <li>
             <B>Your people, your rules.</B> Only Authorised Users who need

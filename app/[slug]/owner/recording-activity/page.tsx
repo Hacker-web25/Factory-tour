@@ -294,9 +294,7 @@ function StopCard({
       </div>
 
       <div className="p-5 space-y-4">
-        <p className="text-[12.5px] text-vpv-muted leading-relaxed">
-          {verdictHelp(row.verdict)}
-        </p>
+        <VerdictDetail row={row} />
 
         {!row.trailing_captured && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12.5px] text-amber-800 flex items-start gap-2">
@@ -392,4 +390,42 @@ function fmtOffset(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return s === 0 ? `${m}m` : `${m}m ${s}s`;
+}
+
+/**
+ * What the automated check concluded about this stop.
+ *
+ * verdict_detail is written per-row by /api/recording-stops/verify and
+ * explains the reasoning in the MD's own terms. The static verdictHelp
+ * copy is the fallback for rows written before that route existed, or
+ * when the pass never ran.
+ *
+ * The detail may carry a quoted line (`Heard: "…"`) as a second
+ * paragraph; it is pulled out and shown as a quote so the MD can see the
+ * exact words the decision turned on.
+ */
+function VerdictDetail({ row }: { row: RecordingStopRow }) {
+  const raw = row.verdict_detail?.trim();
+  if (!raw) {
+    return (
+      <p className="text-[12.5px] text-vpv-muted leading-relaxed">
+        {verdictHelp(row.verdict)}
+      </p>
+    );
+  }
+  const [body, ...rest] = raw.split(/\n\s*\n/);
+  const heard = rest.join("\n\n").replace(/^Heard:\s*/i, "").trim();
+  return (
+    <div className="space-y-2">
+      <p className="text-[12.5px] text-vpv-muted leading-relaxed">{body}</p>
+      {heard && (
+        <blockquote className="border-l-2 border-vpv-blue/40 pl-3 py-0.5">
+          <div className="text-[10.5px] uppercase tracking-[0.08em] font-semibold text-vpv-muted">
+            Heard around the stop
+          </div>
+          <p className="text-[13px] text-vpv-ink italic mt-0.5">{heard}</p>
+        </blockquote>
+      )}
+    </div>
+  );
 }

@@ -26,6 +26,7 @@ import {
 import {
   recordStop,
   markTrailingCaptured,
+  requestVerdict,
   TRAILING_SECONDS,
 } from "@/lib/recordingStops";
 import { TranslationProvider, useT } from "@/lib/TranslationContext";
@@ -513,9 +514,12 @@ function TourPlayerInner({
         countdownTimer = undefined;
         setStoppingIn(null);
         void (async () => {
+          // finalize() uploads the audio and the transcript. The verdict
+          // pass reads that transcript, so it has to run after.
           await finalize();
           if (stopId) {
-            void markTrailingCaptured(stopId, offsetSec);
+            await markTrailingCaptured(stopId, offsetSec);
+            requestVerdict(stopId);
           }
         })();
       }, TRAILING_SECONDS * 1000);

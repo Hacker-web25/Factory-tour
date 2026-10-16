@@ -178,17 +178,20 @@ const sections: LegalSection[] = [
             <B>Sales-rep voice samples.</B> When a sales representative first
             signs in, we ask them to record a short voice sample
             (approximately 10 seconds) by reading a disclosed sentence out
-            loud. We use the sample only to distinguish that representative’s
-            voice from the client’s voice in meeting audio — for example, to
-            check whether a stop-recording request came from the client. The
-            purpose is explained in a popup before the sample is recorded.
-            The sample is encrypted at rest, is accessible only to the
-            minimum of VPV engineers who need it to run the voice-matching
+            loud. Its only permitted purpose is to distinguish that
+            representative’s voice from other voices in meeting audio.{" "}
+            <B>It is not in active use today</B> — the stop-recording check
+            currently reads the text transcript, not the audio — and the
+            sample is retained for the voice-matching capability when it is
+            introduced. We will not use it for any other purpose without
+            telling you first. The purpose is explained in a popup before the
+            sample is recorded. The sample is encrypted at rest, is accessible
+            only to the minimum of VPV engineers who need it to run that
             service, is never shared with any third party, is not used to
             train AI models, and is deleted when the representative is removed
             from the Workspace or the Workspace is closed. A representative
-            who does not record the sample can still use the product, but
-            VPV cannot run the client-stop verification for their meetings.
+            who does not record the sample can still use every part of the
+            product.
           </li>
           <li>
             <B>Trailing audio after Stop.</B> When a sales representative
@@ -197,7 +200,15 @@ const sections: LegalSection[] = [
             The purpose is to help identify whether a client asked for the
             stop. The popup shown at Stop discloses this to the
             representative, and it is part of the consent the representative
-            must obtain from participants at the start of the meeting.
+            must obtain from participants at the start of the meeting. The
+            automated check that reads this window works from the text
+            transcript: it looks for a spoken request to stop recording in
+            English, Hindi or a mix, and asks an AI provider whether those
+            words read as another person’s. Only that short extract of
+            transcript text is sent; the audio file is never sent to an AI
+            provider. Because a single microphone produces no speaker
+            labels, the result is an inference, and the organisation’s
+            administrator makes the final judgement.
           </li>
         </UL>
         <P>

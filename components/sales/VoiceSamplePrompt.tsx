@@ -166,10 +166,11 @@ export default function VoiceSamplePrompt({
             </blockquote>
             <p className="mt-3 text-[12.5px] leading-relaxed text-slate-600">
               <strong>Why we do this.</strong> During a client meeting, our
-              system needs to tell who is speaking. If a client asks to stop
-              recording, that is a valid reason to stop. If a rep stops
-              recording for no valid reason, your MD will see it. Without
-              this sample we cannot tell your voice from the client's.
+              system needs to tell who is speaking — for example, when a
+              client asks to stop a recording. This sample is how we will
+              recognise your voice. It is not in use yet; we are collecting
+              it ready for that feature, and we will not use it for
+              anything else without telling you.
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-slate-500">
               The sample is encrypted at rest, used only to recognise your

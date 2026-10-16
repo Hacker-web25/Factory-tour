@@ -79,6 +79,24 @@ export async function recordStop(args: {
   return (data as { id: string }).id;
 }
 
+/**
+ * Ask the server to decide this stop's verdict. Fire-and-forget: the row
+ * already exists and stays 'unverified' if this never lands, which is the
+ * safe state. Never awaited by the viewer.
+ */
+export function requestVerdict(stopId: string): void {
+  try {
+    void fetch("/api/recording-stops/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stopId }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* the MD still sees the stop, just without an automated verdict */
+  }
+}
+
 /** Mark that the trailing window completed (the rep did not close the tab
  *  early). Best-effort; a failure just leaves the flag false. */
 export async function markTrailingCaptured(
