@@ -115,11 +115,18 @@ export default function VoiceSamplePrompt({
       if (profErr) throw profErr;
       setPhase("done");
     } catch (e) {
+      const raw = String((e as Error)?.message ?? "");
+      // A missing bucket or a missing column means this workspace has not
+      // had the voice-sample migration applied yet. That is an operator
+      // problem, not the rep's — there is nothing for them to retry, so we
+      // close quietly rather than nagging them with a storage error they
+      // cannot act on. See supabase/voice_samples.sql.
+      if (isSetupMissing(raw)) {
+        onDismiss();
+        return;
+      }
       setPhase("error");
-      setErrorMsg(
-        (e as Error)?.message ||
-          "We couldn't upload the sample. Please try again."
-      );
+      setErrorMsg(friendlyUploadError(raw));
     }
   }
 
@@ -312,4 +319,51 @@ function MicIcon() {
       <line x1="12" y1="19" x2="12" y2="22" />
     </svg>
   );
+}
+
+/**
+ * Does this failure mean the workspace is missing the voice-sample
+ * migration rather than something the rep did?
+ *
+ * Supabase returns "Bucket not found" when the voice-samples bucket has
+ * not been created, and a PGRST column error when profiles has no
+ * voice_sample_path. Both mean supabase/voice_samples.sql has not been
+ * run on this project.
+ */
+function isSetupMissing(raw: string): boolean {
+  const m = raw.toLowerCase();
+  return (
+    m.includes("bucket not found") ||
+    m.includes("voice_sample_path") ||
+    m.includes("voice_sample_captured_at") ||
+    // PostgREST: schema cache has no such column
+    (m.includes("column") && m.includes("does not exist"))
+  );
+}
+
+/**
+ * Turn a storage / database error into something a sales rep can act on.
+ * They should never read a raw Supabase string.
+ */
+function friendlyUploadError(raw: string): string {
+  const m = raw.toLowerCase();
+  if (m.includes("payload too large") || m.includes("413")) {
+    return "That recording came out too large to upload. Try again — it should only need a few seconds.";
+  }
+  if (
+    m.includes("row-level security") ||
+    m.includes("not authorized") ||
+    m.includes("permission") ||
+    m.includes("403")
+  ) {
+    return "Your account is not allowed to save a voice sample. Ask your MD to check your access, then try again.";
+  }
+  if (
+    m.includes("failed to fetch") ||
+    m.includes("network") ||
+    m.includes("timeout")
+  ) {
+    return "We couldn't reach the server. Check your connection and try again.";
+  }
+  return "We couldn't save the sample. Please try again.";
 }

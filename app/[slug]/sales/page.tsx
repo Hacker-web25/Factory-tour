@@ -203,7 +203,15 @@ export default function SalesDashboardPage() {
       setMe(p);
       setOrg(orgRow as Organization);
       // One-time voice-sample capture for sales reps. Policy: /privacy#recordings-ai.
-      if (!p.voice_sample_path) {
+      //
+      // Only prompt once the workspace actually supports it. getMyProfile
+      // selects *, so a project that has not run supabase/voice_samples.sql
+      // simply has no voice_sample_path KEY on the row — undefined, rather
+      // than the null an un-recorded rep has. Prompting in that state walks
+      // the rep through a 10-second recording that can only end in "Bucket
+      // not found", which is our problem and not theirs.
+      const supportsVoiceSample = "voice_sample_path" in (p as object);
+      if (supportsVoiceSample && !p.voice_sample_path) {
         setVoicePromptOpen(true);
       }
 
