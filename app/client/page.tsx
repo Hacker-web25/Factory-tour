@@ -45,6 +45,7 @@ import {
   Mic,
   CreditCard,
   Copy,
+  Pencil,
 } from "lucide-react";
 
 /**
@@ -594,6 +595,7 @@ export default function ClientDashboardPage() {
                     tour={t}
                     onAssign={() => me?.org_id && setAssignTour(t)}
                     onDuplicate={() => me?.org_id && setDuplicateTour(t)}
+                    orgSlug={(org as unknown as { slug?: string } | null)?.slug ?? ""}
                   />
                 ))
               )}
@@ -1091,10 +1093,12 @@ function TourCarouselCard({
   tour,
   onAssign,
   onDuplicate,
+  orgSlug,
 }: {
   tour: TourCard;
   onAssign?: () => void;
   onDuplicate?: () => void;
+  orgSlug: string;
 }) {
   return (
     <div className="snap-start shrink-0 w-[360px] rounded-2xl bg-white border border-vpv-line overflow-hidden hover:border-vpv-blue/40 hover:shadow-[0_16px_40px_-18px_rgba(11,61,145,0.3)] transition-all group">
@@ -1152,13 +1156,22 @@ function TourCarouselCard({
             <Users size={12} /> Assign
           </button>
         </div>
-        <button
-          onClick={onDuplicate}
-          className="mt-2 w-full py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
-          title="Make a copy for a specific client — pick the scenes to include"
-        >
-          <Copy size={12} /> Duplicate for a client
-        </button>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Link
+            href={`/${orgSlug}/owner/tours/${tour.id}/text-edit`}
+            className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
+            title="Edit the wording — titles, scene names, hotspot text"
+          >
+            <Pencil size={12} /> Edit text
+          </Link>
+          <button
+            onClick={onDuplicate}
+            className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
+            title="Make a copy for a specific client — pick the scenes to include"
+          >
+            <Copy size={12} /> Duplicate
+          </button>
+        </div>
       </div>
     </div>
   );
