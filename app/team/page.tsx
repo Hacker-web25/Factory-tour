@@ -68,7 +68,7 @@ export default function TeamPage() {
   const [me, setMe] = useState<Profile | null>(null);
   const [orgName, setOrgName] = useState<string>("");
   const [orgSlug, setOrgSlug] = useState<string>("");
-  const [autoRecord, setAutoRecord] = useState(false);
+  const [recordingMode, setRecordingMode] = useState<"auto" | "manual">("auto");
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pending, setPending] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,13 +82,22 @@ export default function TeamPage() {
       if (p.org_id) {
         const { data: org } = await supabase
           .from("organizations")
-          .select("name, slug, auto_record")
+          .select("name, slug, recording_mode, auto_record")
           .eq("id", p.org_id)
           .maybeSingle();
         if (org) {
           setOrgName(org.name);
           setOrgSlug(org.slug ?? "");
-          setAutoRecord(!!(org as { auto_record?: boolean }).auto_record);
+          const row = org as { recording_mode?: string | null; auto_record?: boolean };
+          const mode: "auto" | "manual" =
+            row.recording_mode === "manual"
+              ? "manual"
+              : row.recording_mode === "auto"
+                ? "auto"
+                : row.auto_record === false
+                  ? "manual"
+                  : "auto";
+          setRecordingMode(mode);
         }
 
         // Members
@@ -291,16 +300,18 @@ export default function TeamPage() {
     router.push("/login");
   }
 
-  async function toggleAutoRecord() {
-    if (!me?.org_id) return;
-    const next = !autoRecord;
-    setAutoRecord(next); // optimistic
+  async function setMode(next: "auto" | "manual") {
+    if (!me?.org_id || next === recordingMode) return;
+    const prev = recordingMode;
+    setRecordingMode(next); // optimistic
+    // We also mirror the legacy boolean until the deprecation grace window
+    // closes, so a tenant on an older build does not lose their choice.
     const { error } = await supabase
       .from("organizations")
-      .update({ auto_record: next })
+      .update({ recording_mode: next, auto_record: next === "auto" })
       .eq("id", me.org_id);
     if (error) {
-      setAutoRecord(!next); // revert on failure
+      setRecordingMode(prev);
       alert("Couldn't update the recording setting. Please try again.");
     }
   }
@@ -472,38 +483,86 @@ export default function TeamPage() {
           />
         </div>
 
-        {/* Auto-record setting */}
+        {/* Recording mode setting */}
         <div className="px-10 mb-8">
-          <div className="rounded-2xl bg-white border border-vpv-line p-5 flex items-start gap-4 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
-            <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
-              <Mic size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[14px] font-semibold text-vpv-ink">
-                Auto-record presentations
+          <div className="rounded-2xl bg-white border border-vpv-line p-5 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
+                <Mic size={18} />
               </div>
-              <div className="text-[12px] text-vpv-muted mt-0.5 leading-snug">
-                When on, every presentation your team gives is voice-recorded
-                for AI insights (topics covered, quotation, location). Presenters
-                see a clear “Recording” indicator. Turn off anytime.
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-semibold text-vpv-ink">
+                  Meeting recording
+                </div>
+                <div className="text-[12px] text-vpv-muted mt-0.5 leading-snug">
+                  Decide how recording starts when a sales rep opens a
+                  presenter session. Informing participants that the meeting
+                  is recorded is the sales rep's responsibility — see our{" "}
+                  <a
+                    href="/terms#recording-ai"
+                    target="_blank"
+                    rel="noopener"
+                    className="underline underline-offset-2 text-vpv-blue"
+                  >
+                    Terms
+                  </a>
+                  .
+                </div>
               </div>
             </div>
-            <button
-              onClick={toggleAutoRecord}
-              role="switch"
-              aria-checked={autoRecord}
-              className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
-                autoRecord ? "bg-vpv-blue" : "bg-vpv-line"
-              }`}
-              title={autoRecord ? "Turn off auto-record" : "Turn on auto-record"}
+            <div
+              role="radiogroup"
+              aria-label="Recording mode"
+              className="mt-4 grid sm:grid-cols-2 gap-2.5"
             >
-              <span
-                className="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform"
-                style={{
-                  transform: autoRecord ? "translateX(20px)" : "translateX(0)",
-                }}
-              />
-            </button>
+              {([
+                {
+                  value: "auto" as const,
+                  title: "Automatic",
+                  sub: "Recording starts automatically when the meeting begins. Recommended.",
+                },
+                {
+                  value: "manual" as const,
+                  title: "Manual",
+                  sub: "The sales rep sees a popup at the start of the meeting and chooses whether to record. If they skip, you get no transcript, score or insights for that meeting.",
+                },
+              ]).map((o) => {
+                const selected = recordingMode === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setMode(o.value)}
+                    className={`text-left rounded-xl border p-4 transition-all ${
+                      selected
+                        ? "border-vpv-blue bg-vpv-tint/60 ring-1 ring-vpv-blue"
+                        : "border-vpv-line hover:border-vpv-blue/40 hover:bg-vpv-canvas/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={`text-[13.5px] font-semibold ${selected ? "text-vpv-navy" : "text-vpv-ink"}`}>
+                        {o.title}
+                      </div>
+                      <div
+                        aria-hidden
+                        className={`w-4 h-4 rounded-full border-2 ${
+                          selected ? "border-vpv-blue" : "border-slate-300"
+                        } grid place-items-center`}
+                      >
+                        {selected && (
+                          <span className="w-2 h-2 rounded-full bg-vpv-blue" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 text-[11.5px] leading-snug text-vpv-muted">
+                      {o.sub}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

@@ -364,6 +364,12 @@ function TourPlayerInner({
   // auto-record) voice recording + live transcript for the whole session.
   // Only runs for presenter-led sessions (opened with ?presenter=<uid>).
   const [recording, setRecording] = useState(false);
+  // Manual recording mode: prompt opens at the start of the session and the
+  // sales rep chooses whether to record. The refs let the two buttons on the
+  // popup trigger start/skip inside the effect's scope.
+  const [recordingPromptOpen, setRecordingPromptOpen] = useState(false);
+  const beginRecordingRef = useRef<(() => Promise<void>) | null>(null);
+  const skipRecordingRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!analyticsOn || typeof window === "undefined") return;
     const qs = new URLSearchParams(window.location.search);
@@ -380,25 +386,9 @@ function TourPlayerInner({
     let saved = false;
     let autosaveTimer: number | undefined;
 
-    (async () => {
-      // 1) GPS — always, even if recording is off.
-      startPresentationSession({
-        sessionId,
-        tourId: tour.id,
-        orgId,
-        presenterId,
-        clientId,
-      }).catch(() => {});
-
-      // 2) Voice — only if the org turned auto-record on.
-      if (!orgId || !isRecordingSupported()) return;
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("auto_record")
-        .eq("id", orgId)
-        .maybeSingle();
-      if (cancelled || !(org as { auto_record?: boolean } | null)?.auto_record)
-        return;
+    const beginRecording = async () => {
+      setRecordingPromptOpen(false);
+      if (!isRecordingSupported()) return;
       try {
         recorder = await startRecording(
           bcpForLang(
@@ -429,6 +419,50 @@ function TourPlayerInner({
         }, 20000);
       } catch {
         /* mic permission denied — silently continue without recording */
+      }
+    };
+    const skipRecording = () => {
+      setRecordingPromptOpen(false);
+    };
+    beginRecordingRef.current = beginRecording;
+    skipRecordingRef.current = skipRecording;
+
+    (async () => {
+      // 1) GPS — always, whatever the recording mode.
+      startPresentationSession({
+        sessionId,
+        tourId: tour.id,
+        orgId,
+        presenterId,
+        clientId,
+      }).catch(() => {});
+
+      // 2) Voice — decide between Auto and Manual modes.
+      if (!orgId || !isRecordingSupported()) return;
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("recording_mode, auto_record")
+        .eq("id", orgId)
+        .maybeSingle();
+      if (cancelled || !org) return;
+      const row = org as {
+        recording_mode?: "auto" | "manual" | null;
+        auto_record?: boolean | null;
+      };
+      // recording_mode is authoritative; fall back to the legacy boolean if
+      // the migration has not yet run on this database.
+      const mode: "auto" | "manual" =
+        row.recording_mode === "manual"
+          ? "manual"
+          : row.recording_mode === "auto"
+            ? "auto"
+            : row.auto_record
+              ? "auto"
+              : "manual";
+      if (mode === "auto") {
+        await beginRecording();
+      } else {
+        setRecordingPromptOpen(true);
       }
     })();
 
@@ -1540,6 +1574,67 @@ function TourPlayerInner({
           (components/PolygonFullscreenViewer) so it works everywhere,
           including the editor's Preview mode which doesn't use
           TourPlayer. Nothing needed here. */}
+
+      {/* Manual recording prompt — shown at the start of a presenter-led
+          session when the organisation is set to Manual recording mode.
+          The sales rep decides whether to record this meeting. VPV is not
+          a party to this consent; informing participants of the recording
+          is the sales rep's responsibility (see /terms#recording-ai). */}
+      {recordingPromptOpen && (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/55 backdrop-blur-sm px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rec-prompt-title"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 grid place-items-center">
+                <span className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
+              </div>
+              <h2
+                id="rec-prompt-title"
+                className="text-[17px] font-semibold text-slate-900"
+              >
+                Record this meeting?
+              </h2>
+            </div>
+            <p className="text-[13.5px] leading-relaxed text-slate-600">
+              Your organisation set recording to <strong>Manual</strong>, so
+              it is your choice for this session.
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">
+              <strong>Before you tap Start,</strong> please tell everyone in
+              the meeting that the conversation is being recorded for
+              training and quality purposes. This is your responsibility,
+              not VPV's.
+            </p>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
+              If you skip, your MD will see this meeting listed as{" "}
+              <em>not recorded</em>, and VPV cannot provide a transcript,
+              score or insights for it.
+            </p>
+            <div className="mt-5 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => skipRecordingRef.current?.()}
+                className="h-10 px-4 rounded-full border border-slate-300 text-slate-700 text-[13.5px] font-medium hover:bg-slate-50"
+              >
+                Skip — don't record
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void beginRecordingRef.current?.();
+                }}
+                className="h-10 px-5 rounded-full bg-rose-600 text-white text-[13.5px] font-semibold hover:bg-rose-700 shadow-[0_10px_26px_-10px_rgba(225,29,72,0.6)]"
+              >
+                Start recording
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

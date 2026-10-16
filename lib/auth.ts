@@ -28,8 +28,13 @@ export type Organization = {
   id: string;
   name: string;
   created_at: string;
-  /** Org-wide toggle: auto-record presentations (voice) for AI insights. */
+  /** Org-wide toggle: auto-record presentations (voice) for AI insights.
+   *  Legacy — the single source of truth is now `recording_mode`. */
   auto_record?: boolean;
+  /** How presenter sessions start recording:
+   *    'auto'   — recording starts automatically (today's default behaviour)
+   *    'manual' — the sales rep sees a popup and decides */
+  recording_mode?: "auto" | "manual";
 };
 
 /** Get the currently-signed-in user's Supabase session. Returns null when
