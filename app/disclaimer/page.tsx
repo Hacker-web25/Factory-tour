@@ -132,7 +132,7 @@ const sections: LegalSection[] = [
     title: "Questions",
     body: (
       <P>
-        If anything here is unclear, write to <Mail to={COMPANY.emails.legal} />.
+        If anything here is unclear, write to <Mail to={COMPANY.emails.support} />.
       </P>
     ),
   },

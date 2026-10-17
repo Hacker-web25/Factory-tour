@@ -158,7 +158,7 @@ const sections: LegalSection[] = [
     body: (
       <P>
         If we add a new type of storage, we update this page first. Questions:{" "}
-        <Mail to={COMPANY.emails.privacy} />. See also the{" "}
+        <Mail to={COMPANY.emails.support} />. See also the{" "}
         <L href="/privacy">Privacy Policy</L>.
       </P>
     ),

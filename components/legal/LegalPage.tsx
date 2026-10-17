@@ -214,8 +214,8 @@ export default function LegalPage({
 
           <div className="mt-12 rounded-xl border border-vpv-line bg-vpv-canvas/70 px-5 py-4 text-[13px] text-slate-600 print:hidden">
             Questions about this page? Write to{" "}
-            <a className="text-vpv-blue underline underline-offset-2" href={`mailto:${COMPANY.emails.legal}`}>
-              {COMPANY.emails.legal}
+            <a className="text-vpv-blue underline underline-offset-2" href={`mailto:${COMPANY.emails.support}`}>
+              {COMPANY.emails.support}
             </a>{" "}
             and we will reply within {POLICY.replyBusinessDays} business days.
             See all of our policies in the{" "}

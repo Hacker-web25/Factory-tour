@@ -150,7 +150,7 @@ be easy to guess. Use the 48-character one from step 2.
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role | yes |
 | `CRON_SECRET` | another random string, ≥ 16 characters (`openssl rand -hex 24`). Vercel sends it automatically to the daily checker. | yes |
 | `RESEND_API_KEY` | from Resend (step 4) | yes |
-| `RESEND_FROM` | `VPV <billing@myvpv.com>` | no |
+| `RESEND_FROM` | `VPV <support@myvpv.com>` | no |
 
 Do **not** create `NEXT_PUBLIC_RAZORPAY_KEY_ID`. If it is already there, delete it.
 
@@ -271,7 +271,7 @@ Every suite must say `pass` and `fail 0`. If one fails, do not deploy.
 8. **For the site plans only:** set the real prices and turn
    `PLACEHOLDER_PRICES` off (§0). Until you do, live checkout for those
    plans is refused on purpose and buyers are told to e-mail
-   billing@myvpv.com. The scene-ladder purchase at `/get-started` is not
+   support@myvpv.com. The scene-ladder purchase at `/get-started` is not
    affected and can go live on its own.
 
 Test data does **not** have to be deleted: test invoices use their own

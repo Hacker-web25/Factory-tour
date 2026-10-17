@@ -66,14 +66,6 @@ export function SiteFooter() {
               {COMPANY.emails.support}
             </a>
           </li>
-          <li>
-            <a
-              href={`mailto:${COMPANY.emails.billing}`}
-              className="hover:text-vpv-blue break-all"
-            >
-              {COMPANY.emails.billing}
-            </a>
-          </li>
           {COMPANY.phone && (
             <li>
               <a href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`} className="hover:text-vpv-blue">

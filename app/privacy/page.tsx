@@ -346,7 +346,7 @@ const sections: LegalSection[] = [
           <li>nominate someone to exercise your rights if you are unable to.</li>
         </UL>
         <P>
-          Write to <Mail to={COMPANY.emails.privacy} />. We may need to verify
+          Write to <Mail to={COMPANY.emails.support} />. We may need to verify
           who you are, and we reply within 30 days. For tour content and Viewer analytics, the request should come
           from your organisation’s administrator, because the organisation
           controls that data. If a Viewer contacts us about a tour, we will pass
@@ -398,7 +398,7 @@ const sections: LegalSection[] = [
             {COMPANY.legalName}
           </li>
           <li>E-mail: <Mail to={COMPANY.grievanceOfficer.email} /></li>
-          <li>Security disclosures: <Mail to={COMPANY.emails.security} /></li>
+          <li>Security disclosures: <Mail to={COMPANY.emails.support} /></li>
           <li>Everything else: <Mail to={COMPANY.emails.support} /> or the <L href="/contact">Contact</L> page</li>
         </UL>
       </>

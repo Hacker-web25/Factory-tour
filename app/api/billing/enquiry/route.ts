@@ -103,7 +103,7 @@ export async function POST(req: Request) {
 
   // Tell the team. `replyTo` means a reply goes straight to the customer.
   await sendEmail({
-    to: COMPANY.emails.founders,
+    to: COMPANY.emails.support,
     replyTo: email,
     subject: `VPV enquiry — ${company}${plan ? ` (${plan})` : ""}`,
     html: emailShell(
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
   // And acknowledge to the customer, so they know it landed.
   if (acknowledge) await sendEmail({
     to: email,
-    replyTo: COMPANY.emails.founders,
+    replyTo: COMPANY.emails.support,
     subject: "We have your VPV enquiry",
     html: emailShell(
       "Thank you — we will be in touch",
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
        </p>
        <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
          If it is urgent, write to
-         <a href="mailto:${esc(COMPANY.emails.founders)}" style="color:#1468D8;">${esc(COMPANY.emails.founders)}</a>.
+         <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.
        </p>`
     ),
   });

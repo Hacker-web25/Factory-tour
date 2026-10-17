@@ -200,7 +200,7 @@ export default function CheckoutFlow({
           <h2 className="text-[22px] font-semibold tracking-tight text-vpv-ink">The payment did not complete</h2>
           <p className="mx-auto mt-3 max-w-md text-[14.5px] leading-relaxed text-slate-600">
             If your bank shows a debit, it is refunded automatically — you never pay for something you do not get.
-            To try again, refresh this page. Questions: billing@myvpv.com.
+            To try again, refresh this page. Questions: support@myvpv.com.
           </p>
         </div>
       );
@@ -219,7 +219,7 @@ export default function CheckoutFlow({
           {result.outcome === "review"
             ? "Your payment is safe. Our team is checking one detail and will e-mail you shortly."
             : "Your payment is safe. Set-up is taking a little longer than usual, so we are completing it in the background and will e-mail you as soon as it is done."}{" "}
-          <strong className="text-vpv-ink">Please do not pay again.</strong> Questions: billing@myvpv.com.
+          <strong className="text-vpv-ink">Please do not pay again.</strong> Questions: support@myvpv.com.
         </p>
       </div>
     );
@@ -418,7 +418,7 @@ export default function CheckoutFlow({
         {scriptState === "failed" && (
           <p className="mt-2 text-[12.5px] text-red-600">
             The payment window could not load. Disable any ad-blocker for this
-            page, or write to billing@myvpv.com and we will send a payment link.
+            page, or write to support@myvpv.com and we will send a payment link.
           </p>
         )}
       </div>

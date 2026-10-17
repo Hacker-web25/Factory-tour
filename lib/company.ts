@@ -39,14 +39,17 @@ type CompanyConfig = {
   applyUrl: string;
   jurisdiction: string;
   grievanceOfficer: { name: string; role: string; email: string };
-  emails: {
-    support: string;
-    billing: string;
-    legal: string;
-    privacy: string;
-    security: string;
-    founders: string;
-  };
+  /**
+   * The ONE address VPV is reached on, for everything: support, billing,
+   * refunds, legal, privacy, security and the grievance officer.
+   *
+   * Deliberately a single field rather than a mailbox per purpose. A
+   * customer should never have to work out which address their question
+   * belongs to, and we should never print an address nobody is reading.
+   * Adding a second one means changing this type on purpose, not by
+   * accident.
+   */
+  emails: { support: string };
 };
 
 export const COMPANY: CompanyConfig = {
@@ -96,19 +99,13 @@ export const COMPANY: CompanyConfig = {
   grievanceOfficer: {
     name: "Aryan Bansal",
     role: "Grievance Officer",
-    email: "privacy@myvpv.com",
+    // The named officer is a legal requirement; the mailbox is the same
+    // single address as everything else.
+    email: "support@myvpv.com",
   },
 
-  /** One mailbox per purpose. support@ and billing@ must exist (an
-   *  alias forwarding to the founders' inbox is fine) before launch. */
-  emails: {
-    support: "support@myvpv.com",
-    billing: "billing@myvpv.com",
-    legal: "legal@myvpv.com",
-    privacy: "privacy@myvpv.com",
-    security: "security@myvpv.com",
-    founders: "founders@myvpv.com",
-  },
+  /** The only address on the site. See the type above. */
+  emails: { support: "support@myvpv.com" },
 };
 
 /* ───────────────────────────── Pricing ────────────────────────────── */

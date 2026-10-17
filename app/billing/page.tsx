@@ -157,7 +157,7 @@ export default function BillingPage() {
           <h1 className="text-[20px] font-semibold text-vpv-ink">No organisation yet</h1>
           <p className="mx-auto mt-2 max-w-sm text-[14px] text-slate-600">
             Your account is not attached to a workspace. If you have just paid,
-            give it a minute and refresh — or write to billing@myvpv.com.
+            give it a minute and refresh — or write to support@myvpv.com.
           </p>
         </div>
       </Shell>
@@ -185,7 +185,7 @@ export default function BillingPage() {
       {closed && (
         <Banner tone="red" icon={<Lock size={18} />} title="This workspace is closed">
           It was closed after a refund or at your request. To reopen it, write to
-          billing@myvpv.com.
+          support@myvpv.com.
         </Banner>
       )}
       {!closed && state === "nag" && access && (
@@ -412,7 +412,7 @@ export default function BillingPage() {
           </div>
         )}
         <p className="mt-3 text-[12.5px] text-slate-500">
-          Need a copy re-sent, or a detail corrected? Write to billing@myvpv.com
+          Need a copy re-sent, or a detail corrected? Write to support@myvpv.com
           with the invoice number.
         </p>
       </div>

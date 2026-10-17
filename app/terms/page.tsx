@@ -138,7 +138,7 @@ const sections: LegalSection[] = [
         <P>
           You are responsible for what happens under your Workspace,
           including actions by Authorised Users. Tell us promptly at{" "}
-          <Mail to={COMPANY.emails.security} /> if you believe an account has
+          <Mail to={COMPANY.emails.support} /> if you believe an account has
           been compromised. We describe our safeguards on the{" "}
           <L href="/security">Security</L> page.
         </P>
@@ -254,7 +254,7 @@ const sections: LegalSection[] = [
           <li>
             <B>Failed or disputed payments.</B> An order is confirmed only when
             payment is received. If you dispute a charge with your bank, please
-            write to <Mail to={COMPANY.emails.billing} /> first — most issues
+            write to <Mail to={COMPANY.emails.support} /> first — most issues
             are resolved the same day. We may pause the Service for amounts
             that remain unpaid after notice.
           </li>
@@ -404,7 +404,7 @@ const sections: LegalSection[] = [
         <P>
           You can stop renewing Support &amp; Maintenance, or close your
           Workspace, at any time by writing to{" "}
-          <Mail to={COMPANY.emails.billing} />. Cancellation takes effect at
+          <Mail to={COMPANY.emails.support} />. Cancellation takes effect at
           the end of the period you have paid for, and we do not pro-rate
           fees for a partial period.
         </P>
@@ -726,7 +726,7 @@ const sections: LegalSection[] = [
       <P>
         We give notices by e-mail to the administrator and billing contact on
         record, and may also show them in the dashboard. Send notices to us at{" "}
-        <Mail to={COMPANY.emails.legal} />. An e-mail notice is treated as
+        <Mail to={COMPANY.emails.support} />. An e-mail notice is treated as
         received on the next business day after it is sent. Because these Terms
         are an electronic record under the Information Technology Act, 2000,
         they do not require a physical signature.
@@ -770,8 +770,8 @@ const sections: LegalSection[] = [
     title: "Contact",
     body: (
       <UL>
-        <li>Terms and legal: <Mail to={COMPANY.emails.legal} /></li>
-        <li>Billing and invoices: <Mail to={COMPANY.emails.billing} /></li>
+        <li>Terms and legal: <Mail to={COMPANY.emails.support} /></li>
+        <li>Billing and invoices: <Mail to={COMPANY.emails.support} /></li>
         <li>Support: <Mail to={COMPANY.emails.support} /></li>
         <li>
           Full contact details are on the <L href="/contact">Contact</L> page.

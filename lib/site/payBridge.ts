@@ -117,7 +117,7 @@ export const PAY_BRIDGE_SCRIPT = String.raw`(function(){
     if(d&&d.message)return d.message;
     if(d&&d.error==="state_required")return "Please include your state in the City / State field, for example “Gurgaon, Haryana”. It decides the GST on your invoice.";
     if(d&&d.error==="account_exists")return "An account with this e-mail already exists. Please sign in to buy, add scenes or renew.";
-    if(d&&(d.error==="prices_not_final"||d.error==="payments_unavailable"))return "Online payment is not switched on yet. Please write to billing@myvpv.com and we will take your order directly.";
+    if(d&&(d.error==="prices_not_final"||d.error==="payments_unavailable"))return "Online payment is not switched on yet. Please write to support@myvpv.com and we will take your order directly.";
     if(d&&d.error==="bad_gstin")return "That GSTIN does not look right. Please check it, or leave it blank if you do not have one.";
     if(st===429)return "Too many attempts. Please wait a few minutes and try again.";
     if(st>=500)return "We could not start the payment just now. No money has been taken — please try again in a moment.";
@@ -152,7 +152,7 @@ export const PAY_BRIDGE_SCRIPT = String.raw`(function(){
         errCard(msgFor(st,d));return;
       }
       loadRzp(function(ok){
-        if(!ok||!window.Razorpay){errCard("The payment window could not load. Disable any ad-blocker for this page, or write to billing@myvpv.com and we will send a payment link.");return;}
+        if(!ok||!window.Razorpay){errCard("The payment window could not load. Disable any ad-blocker for this page, or write to support@myvpv.com and we will send a payment link.");return;}
         var rzp=new window.Razorpay({
           key:d.keyId, order_id:d.razorpayOrderId, amount:d.amountPaise, currency:"INR",
           name:"VPV — Virtual Plant Visit", description:d.description,

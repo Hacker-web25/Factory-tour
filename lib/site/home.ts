@@ -100,6 +100,28 @@ const SIGNIN_CSS = `#vpv-signin-btn{display:inline-flex;align-items:center;justi
  * on a second screen. See that file for the full rationale.
  */
 
+/**
+ * VPV is reached on ONE address (COMPANY.emails.support). The compiled
+ * marketing site still has an older billing@ address baked into its
+ * bundle, which we cannot edit from here, so any other @myvpv.com
+ * address it prints is rewritten to the single one — in the link and in
+ * the visible text. Purely cosmetic: if it ever fails, the page simply
+ * shows the address the bundle shipped with.
+ */
+const ONE_EMAIL_SCRIPT = String.raw`(function(){
+  var ONE="support@myvpv.com";
+  var RE=/[A-Za-z0-9._%+-]+@myvpv\.com/g;
+  function norm(t){return t.replace(RE,function(m){return m.toLowerCase()===ONE?m:ONE});}
+  function fix(){try{
+    var as=document.querySelectorAll('a[href^="mailto:"]');
+    for(var i=0;i<as.length;i++){var h=as[i].getAttribute("href")||"";var nh=norm(h);if(nh!==h)as[i].setAttribute("href",nh);}
+    var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n;
+    while(n=w.nextNode()){var v=n.nodeValue;if(!v||v.indexOf("@myvpv.com")<0)continue;var nv=norm(v);if(nv!==v)n.nodeValue=nv;}
+  }catch(e){}}
+  if(document.readyState!=="loading")fix();else document.addEventListener("DOMContentLoaded",fix);
+  try{var mo=new MutationObserver(function(){fix()});mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});}catch(e){}
+})();`;
+
 const SIGNIN_SCRIPT = String.raw`(function(){function add(){if(document.getElementById("vpv-signin-btn"))return true;var h=document.querySelector('header[data-testid="site-header"]')||document.querySelector("header");if(!h)return false;var a=document.createElement("a");a.id="vpv-signin-btn";a.href="/login";a.textContent="Sign in";var cta=h.querySelector('a[href="/assessment"]');if(cta&&cta.parentNode){cta.parentNode.insertBefore(a,cta)}else{(h.firstElementChild||h).appendChild(a)}return true}if(document.readyState!=="loading"&&add())return;document.addEventListener("DOMContentLoaded",add);var o=new MutationObserver(function(){if(add())o.disconnect()});o.observe(document.documentElement,{childList:true,subtree:true});setTimeout(function(){o.disconnect()},15000)})();`;
 
 /**
@@ -150,5 +172,6 @@ ${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""
 <div id="root"></div>\
 <script id="vpv-signin-btn-script">${SIGNIN_SCRIPT}</script>\
 <script id="vpv-pay-bridge-script">${PAY_BRIDGE_SCRIPT}</script>\
+<script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 </body></html>`;
 }

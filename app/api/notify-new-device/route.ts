@@ -14,7 +14,7 @@
  *
  * Env:
  *   RESEND_API_KEY  (secret)
- *   RESEND_FROM     ("VPV Alerts <alerts@myvpv.com>")
+ *   RESEND_FROM     ("VPV Alerts <support@myvpv.com>")
  */
 
 import { NextResponse } from "next/server";

@@ -88,7 +88,7 @@ For a new customer:
 
 - **Bugs**: open a GitHub issue with a reproduction and the browser
   you saw it in.
-- **Security**: email `security@myvpv.com` instead of filing publicly.
+- **Security**: email `support@myvpv.com` instead of filing publicly.
   See `/security` for our disclosure policy.
 
 ---

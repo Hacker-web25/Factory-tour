@@ -5,7 +5,7 @@
  * e-mail that fails to send must never roll back a payment that
  * succeeded. Failures are recorded on the order so you can re-send.
  *
- * Env: RESEND_API_KEY, RESEND_FROM ("VPV <billing@myvpv.com>")
+ * Env: RESEND_API_KEY, RESEND_FROM ("VPV <support@myvpv.com>")
  */
 
 export function emailConfigured(): boolean {
@@ -31,7 +31,7 @@ export async function sendEmail(args: {
 }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
-  const from = process.env.RESEND_FROM || "VPV <billing@myvpv.com>";
+  const from = process.env.RESEND_FROM || "VPV <support@myvpv.com>";
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10_000);

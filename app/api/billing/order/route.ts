@@ -178,7 +178,7 @@ export async function POST(req: Request) {
     return fail(
       503,
       "prices_not_final",
-      "Online payment for these plans is not open yet. Please contact billing@myvpv.com and we will take your order directly."
+      "Online payment for these plans is not open yet. Please contact support@myvpv.com and we will take your order directly."
     );
   }
 
@@ -217,7 +217,7 @@ export async function POST(req: Request) {
     // Pro and Ultra already have unlimited scenes and support included.
     if (org.plan !== "basic") return fail(400, "not_applicable", "Your plan already includes this.");
     if (org.plan_status === "cancelled" || org.plan_status === "suspended") {
-      return fail(403, "workspace_unavailable", "This workspace is closed. Please contact billing@myvpv.com.");
+      return fail(403, "workspace_unavailable", "This workspace is closed. Please contact support@myvpv.com.");
     }
   }
 

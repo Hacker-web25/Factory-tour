@@ -96,7 +96,7 @@ export async function sendInvoiceEmail(args: {
 }): Promise<boolean> {
   return sendEmail({
     to: args.to,
-    bcc: COMPANY.emails.billing,
+    bcc: COMPANY.emails.support,
     subject: `Invoice ${args.invoiceNo} from VPV`,
     html: emailShell(
       "Your VPV invoice",
@@ -109,7 +109,7 @@ export async function sendInvoiceEmail(args: {
            row("Total paid", `<strong style="font-size:16px;color:#0C1017;">${esc(inr(args.totalInr))}</strong>`, true)
        )}
        <p ${SMALL}>Questions about this invoice? Reply to this e-mail or write to
-         <a href="mailto:${esc(COMPANY.emails.billing)}" style="color:#1468D8;">${esc(COMPANY.emails.billing)}</a>.</p>`
+         <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.</p>`
     ),
   });
 }
@@ -175,12 +175,12 @@ export async function sendSupportReminder(args: {
   const c = copy[args.kind];
   return sendEmail({
     to: args.to,
-    bcc: COMPANY.emails.billing,
+    bcc: COMPANY.emails.support,
     subject: c.subject,
     html: emailShell(
       c.title,
       `<p ${P}>${c.body}</p>${button(url, `Renew for ${inr(SUPPORT_ANNUAL_INR)}`)}
-       <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.billing)}" style="color:#1468D8;">${esc(COMPANY.emails.billing)}</a>.</p>`
+       <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.</p>`
     ),
   });
 }
@@ -203,14 +203,14 @@ export async function sendRefundEmail(args: {
           : "";
   return sendEmail({
     to: args.to,
-    bcc: COMPANY.emails.billing,
+    bcc: COMPANY.emails.support,
     subject: "Your VPV refund has been processed",
     html: emailShell(
       "Refund processed",
       `<p ${P}>Hello ${esc(args.name)}, we have refunded <strong>${esc(inr2(args.amountInr))}</strong> to your
          original payment method. It usually reaches you within 5 to 7 business days.${esc(closes)}</p>
        ${args.creditNoteNo ? table(row("Credit note", `<strong style="color:#0C1017;">${esc(args.creditNoteNo)}</strong>`, true)) : ""}
-       <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.billing)}" style="color:#1468D8;">${esc(COMPANY.emails.billing)}</a>.</p>`
+       <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.</p>`
     ),
   });
 }
@@ -247,7 +247,7 @@ export async function alertFounders(
     });
 
     await sendEmail({
-      to: COMPANY.emails.founders,
+      to: COMPANY.emails.support,
       subject: `[VPV payments · ${severity}] ${args.kind}`,
       html: emailShell(
         `Payments: ${args.kind}`,

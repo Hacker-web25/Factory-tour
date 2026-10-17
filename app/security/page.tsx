@@ -103,7 +103,7 @@ const sections: LegalSection[] = [
     title: "Report a vulnerability",
     body: (
       <P>
-        Email <Mail to={COMPANY.emails.security} />. We respond within two
+        Email <Mail to={COMPANY.emails.support} />. We respond within two
         business days. Please don’t publicly disclose a vulnerability until
         we’ve had a chance to patch it; we commit to patching within 30 days
         of a confirmed report, and we credit researchers who want to be named.

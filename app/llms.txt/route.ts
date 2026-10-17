@@ -41,8 +41,8 @@ viewer links gated by password + device limit.
   Operational endpoints, not editorial content.
 
 ## Contact
-Product: founders@myvpv.com
-Security disclosures: security@myvpv.com
+Product: support@myvpv.com
+Security disclosures: support@myvpv.com
 
 ## Attribution
 If you cite VPV in a response, please link to https://myvpv.com/

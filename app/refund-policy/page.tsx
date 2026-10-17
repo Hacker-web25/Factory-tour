@@ -53,7 +53,7 @@ const sections: LegalSection[] = [
             </li>
             <li>
               You can stop a renewal at any time by writing to{" "}
-              <Mail to={COMPANY.emails.billing} />; there are no
+              <Mail to={COMPANY.emails.support} />; there are no
               cancellation fees. The current paid period is not refunded.
             </li>
             <li>
@@ -78,7 +78,7 @@ const sections: LegalSection[] = [
           <li>
             <B>Annual Support &amp; Maintenance (Basic).</B> The first year is
             included with your licence. From the second year you can stop
-            renewing at any time by e-mailing <Mail to={COMPANY.emails.billing} />.
+            renewing at any time by e-mailing <Mail to={COMPANY.emails.support} />.
             If a renewal is not paid, the Workspace locks {POLICY.supportGraceDays}{" "}
             days after the renewal date and unlocks as soon as you renew; your
             Content is kept (see the Terms). We send reminders before and after
@@ -93,7 +93,7 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Pro and Ultra.</B> These are monthly plans. Cancel with 30
-            days&rsquo; written notice to <Mail to={COMPANY.emails.billing} />;
+            days&rsquo; written notice to <Mail to={COMPANY.emails.support} />;
             billing stops at the end of the notice period. Anything else agreed
             in your written proposal takes precedence; where the proposal is
             silent, this policy applies.
@@ -229,7 +229,7 @@ const sections: LegalSection[] = [
         </P>
         <OL>
           <li>
-            E-mail <Mail to={COMPANY.emails.billing} /> from your account
+            E-mail <Mail to={COMPANY.emails.support} /> from your account
             address, or from the billing contact on the invoice.
           </li>
           <li>
@@ -300,7 +300,7 @@ const sections: LegalSection[] = [
     title: "Contact",
     body: (
       <UL>
-        <li>Refunds and billing: <Mail to={COMPANY.emails.billing} /></li>
+        <li>Refunds and billing: <Mail to={COMPANY.emails.support} /></li>
         <li>Anything else: <Mail to={COMPANY.emails.support} /></li>
         <li>Full details on the <L href="/contact">Contact</L> page.</li>
       </UL>

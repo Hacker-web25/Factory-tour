@@ -450,7 +450,7 @@ export default function ApplyPage() {
     );
     if (!rl.allowed) {
       setError(
-        "You've submitted this form a few times already. Please wait a day before trying again, or email us directly at founders@myvpv.com."
+        "You've submitted this form a few times already. Please wait a day before trying again, or email us directly at support@myvpv.com."
       );
       return;
     }

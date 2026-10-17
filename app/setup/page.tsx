@@ -168,10 +168,10 @@ export default function SetupPage() {
           <br />
           If your organization hasn&apos;t been set up yet, contact{" "}
           <a
-            href="mailto:sales@myvpv.com"
+            href="mailto:support@myvpv.com"
             className="text-cyan-300 hover:text-cyan-200"
           >
-            sales@myvpv.com
+            support@myvpv.com
           </a>
           .
         </p>

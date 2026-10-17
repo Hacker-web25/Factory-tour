@@ -230,7 +230,7 @@ export default function AccessGate() {
           </h2>
           <p className="mt-3 text-[14.5px] leading-relaxed text-slate-600">
             {closed ? (
-              <>This workspace was closed after a refund or at the owner&apos;s request. To reopen it, write to billing@myvpv.com.</>
+              <>This workspace was closed after a refund or at the owner&apos;s request. To reopen it, write to support@myvpv.com.</>
             ) : (
               <>
                 Technical support and hosting ended on {endedOn}, and the {SUPPORT_GRACE_DAYS}-day reminder
@@ -253,8 +253,8 @@ export default function AccessGate() {
                 Please ask your organisation&apos;s admin to renew. Only an admin can make this payment.
               </p>
             )}
-            <a href="mailto:billing@myvpv.com" className="text-[13.5px] font-medium text-[#1468D8] underline underline-offset-2">
-              Write to billing@myvpv.com
+            <a href="mailto:support@myvpv.com" className="text-[13.5px] font-medium text-[#1468D8] underline underline-offset-2">
+              Write to support@myvpv.com
             </a>
             <button type="button" onClick={signOut} className="text-[13px] text-slate-500 hover:text-slate-800">
               Sign out

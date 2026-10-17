@@ -21,31 +21,31 @@ export const metadata: Metadata = {
   alternates: { canonical: "/contact" },
 };
 
-const CHANNELS = [
+/**
+ * What you can write to us about. There is deliberately no address on
+ * each card: VPV has ONE mailbox (lib/company.ts), shown once above, so
+ * nobody has to guess which address their question belongs to.
+ */
+const TOPICS = [
   {
     icon: LifeBuoy,
     title: "Support",
     text: "Help using VPV, access problems, or questions about your Workspace.",
-    email: COMPANY.emails.support,
   },
   {
     icon: CreditCard,
     title: "Billing and refunds",
     text: "Invoices, payments, renewals, price notices and refund requests.",
-    email: COMPANY.emails.billing,
   },
   {
     icon: Scale,
     title: "Legal and privacy",
     text: "Terms, data-protection requests and complaints to our grievance officer.",
-    email: COMPANY.emails.legal,
-    email2: COMPANY.grievanceOfficer.email,
   },
   {
     icon: ShieldCheck,
     title: "Security",
     text: "Report a vulnerability responsibly. We respond within two business days.",
-    email: COMPANY.emails.security,
   },
 ];
 
@@ -56,12 +56,46 @@ export default function ContactPage() {
       <PageHero
         eyebrow="Contact us"
         title="We are easy to reach."
-        summary={`Write to the team that handles your question. Every message gets a reply within ${POLICY.replyBusinessDays} business days.`}
+        summary={`One address reaches us for everything. Every message gets a reply within ${POLICY.replyBusinessDays} business days.`}
       />
 
       <div className="mx-auto max-w-6xl px-5 py-12 lg:py-16">
-        <div className="grid gap-5 sm:grid-cols-2">
-          {CHANNELS.map((c) => (
+        <div className="rounded-2xl border border-vpv-blue/25 bg-vpv-tint/40 p-6 sm:p-7">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-vpv-blue ring-1 ring-vpv-blue/20">
+              <Mail size={19} />
+            </span>
+            <h2 className="text-[17px] font-semibold text-vpv-ink">
+              One address for everything
+            </h2>
+          </div>
+          <a
+            href={`mailto:${COMPANY.emails.support}`}
+            className="mt-4 inline-block text-[22px] font-semibold tracking-tight text-vpv-blue hover:text-vpv-navy break-all sm:text-[26px]"
+          >
+            {COMPANY.emails.support}
+          </a>
+          <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-slate-600">
+            Support, billing, refunds, legal, privacy and security all reach
+            the same team. You never have to work out which address to use.
+            {COMPANY.phone && (
+              <>
+                {" "}
+                Prefer to talk?{" "}
+                <a
+                  href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`}
+                  className="font-medium text-vpv-blue hover:text-vpv-navy"
+                >
+                  {COMPANY.phone}
+                </a>
+                .
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          {TOPICS.map((c) => (
             <div key={c.title} className="rounded-2xl border border-vpv-line p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-vpv-tint text-vpv-blue">
@@ -70,20 +104,6 @@ export default function ContactPage() {
                 <h2 className="text-[17px] font-semibold text-vpv-ink">{c.title}</h2>
               </div>
               <p className="mt-3 text-[14px] leading-relaxed text-slate-600">{c.text}</p>
-              <a
-                href={`mailto:${c.email}`}
-                className="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-vpv-blue hover:text-vpv-navy break-all"
-              >
-                <Mail size={15} /> {c.email}
-              </a>
-              {c.email2 && c.email2 !== c.email && (
-                <a
-                  href={`mailto:${c.email2}`}
-                  className="mt-1.5 flex items-center gap-2 text-[13px] text-slate-500 hover:text-vpv-blue break-all"
-                >
-                  <Mail size={14} /> {c.email2}
-                </a>
-              )}
             </div>
           ))}
         </div>
