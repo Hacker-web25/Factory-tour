@@ -378,17 +378,189 @@ export function fromPaise(paise: number): number {
   return Math.round(paise) / 100;
 }
 
+/* ═══════════════ SITE PLANS: the named packs on myvpv.com ═════════ */
+
+/**
+ * The three plans the marketing site sells (VPV Confidence, Authority,
+ * Control). They are the SAME product as a Basic licence — a workspace
+ * with a fixed number of areas — just sold as named packs at a flat
+ * price instead of by the scene ladder. An "AOA" (area of attention) is
+ * a scene, so `scenes` below feeds the identical fulfilment path and
+ * nothing downstream has to learn a new shape.
+ *
+ * ┌─ BEFORE YOU TAKE REAL MONEY ──────────────────────────────────────┐
+ * │ Every price here is still the placeholder the site was built with. │
+ * │ Set the real figures, then set PLACEHOLDER_PRICES to false. Until  │
+ * │ you do, the order route REFUSES these plans whenever Razorpay is   │
+ * │ in live mode, so a placeholder can never be charged to a card.     │
+ * │ Test mode is unaffected, so the whole flow can be rehearsed now.   │
+ * └────────────────────────────────────────────────────────────────────┘
+ *
+ * Amounts are INR and EXCLUDE GST, exactly like the scene ladder.
+ */
+export const PLACEHOLDER_PRICES = true;
+
+export type SitePlanId = "confidence" | "authority" | "control";
+
+export type SitePlanSpec = {
+  id: SitePlanId;
+  name: string;
+  tagline: string;
+  /** One-time licence price, GST excluded. */
+  priceInr: number;
+  /** AOAs — areas of attention. These become the workspace's scenes. */
+  scenes: number;
+  videos: number;
+  pdfs: number;
+  infoIcons: boolean;
+  sharingControls: boolean;
+};
+
+export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
+  confidence: {
+    id: "confidence",
+    name: "VPV Confidence",
+    tagline: "Prove you're a trusted manufacturer.",
+    priceInr: 49_000,
+    scenes: 5,
+    videos: 0,
+    pdfs: 0,
+    infoIcons: false,
+    sharingControls: false,
+  },
+  authority: {
+    id: "authority",
+    name: "VPV Authority",
+    tagline: "Show your systems, processes and capabilities.",
+    priceInr: 99_000,
+    scenes: 10,
+    videos: 5,
+    pdfs: 5,
+    infoIcons: true,
+    sharingControls: false,
+  },
+  control: {
+    id: "control",
+    name: "VPV Control",
+    tagline: "Secure, controlled access and sharing.",
+    priceInr: 199_000,
+    scenes: 20,
+    videos: 10,
+    pdfs: 20,
+    infoIcons: true,
+    sharingControls: true,
+  },
+};
+
+export const SITE_PLAN_ORDER: SitePlanId[] = ["confidence", "authority", "control"];
+
+export function isSitePlanId(v: unknown): v is SitePlanId {
+  return v === "confidence" || v === "authority" || v === "control";
+}
+
+/**
+ * The launch discount shown on the site.
+ *
+ * `limit` is a PROMISE made to the buyer ("our first 100 customers"), so
+ * it has to be true. Turn `active` off once that many have bought — an
+ * offer that never ends is a false-urgency claim under the CCPA's
+ * dark-pattern guidelines, and this one is printed on the page.
+ */
+export const LAUNCH_OFFER = {
+  active: true,
+  percent: 20,
+  limit: 100,
+  label: "Launch offer (20% off)",
+};
+
+/** Discount in rupees for a plan, 0 when the offer is off. */
+export function launchDiscount(base: number): number {
+  if (!LAUNCH_OFFER.active) return 0;
+  return Math.round((base * LAUNCH_OFFER.percent) / 100);
+}
+
+/**
+ * Travel and logistics for the factory shoot, charged with the order.
+ * Delhi NCR is a day trip; anywhere else carries a night and a longer
+ * journey for the crew.
+ */
+export type TravelZone = "ncr" | "outside";
+
+export const TRAVEL_FEES: Record<TravelZone, { label: string; amountInr: number }> = {
+  ncr: { label: "Delhi NCR", amountInr: 3_000 },
+  outside: { label: "Outside Delhi NCR", amountInr: 15_000 },
+};
+
+export function isTravelZone(v: unknown): v is TravelZone {
+  return v === "ncr" || v === "outside";
+}
+
+/**
+ * The full breakdown for a site plan, so the checkout screen and the
+ * order route quote identical numbers from one calculation.
+ *
+ * Digital Care (₹9,999/yr) is deliberately NOT in here: it is mandatory
+ * but billed from go-live, not taken with this payment.
+ */
+export function sitePlanQuote(planId: SitePlanId, travel: TravelZone): {
+  plan: SitePlanSpec;
+  base: number;
+  discount: number;
+  travelFee: number;
+  /** Payable now, GST excluded. */
+  amountInr: number;
+} {
+  const plan = SITE_PLANS[planId];
+  const discount = launchDiscount(plan.priceInr);
+  const travelFee = TRAVEL_FEES[travel].amountInr;
+  return {
+    plan,
+    base: plan.priceInr,
+    discount,
+    travelFee,
+    amountInr: plan.priceInr - discount + travelFee,
+  };
+}
+
 /* ═══════════════════════ What we charge for ═══════════════════════ */
 
 /**
- * The only two things the website takes money for. Pro and Ultra are
- * deliberately absent: they are large recurring amounts, agreed in
- * conversation and invoiced separately.
+ * The things the website takes money for, AS STORED in billing_orders.
+ * Pro and Ultra are deliberately absent: they are large recurring
+ * amounts, agreed in conversation and invoiced separately.
+ *
+ * This list is mirrored by a CHECK constraint in supabase/billing.sql
+ * and branched on by fulfilment, the one-workspace lock and the refund
+ * reversal. Adding a value here means changing all of those, so a new
+ * way to SELL something is added as a RequestPurpose below instead.
  */
 export type PurchasePurpose = "basic_licence" | "support_renewal" | "scene_topup";
 
 export function isPurchasePurpose(v: unknown): v is PurchasePurpose {
   return v === "basic_licence" || v === "support_renewal" || v === "scene_topup";
+}
+
+/**
+ * What the BROWSER may ask to buy.
+ *
+ * "site_plan" is the marketing site's named pack — VPV Confidence,
+ * Authority or Control. It is not a fourth product: it is a Basic
+ * licence with a fixed number of areas, sold at a flat price instead of
+ * by the scene ladder. So it is priced as a plan and then STORED as
+ * `basic_licence`, which is what it is. That way the workspace is built,
+ * the one-purchase-per-buyer lock holds and a refund reverses the plan
+ * exactly as they already do for every other licence — no new branch in
+ * the money code, and no change to the database.
+ */
+export type RequestPurpose = PurchasePurpose | "site_plan";
+
+export function isRequestPurpose(v: unknown): v is RequestPurpose {
+  return isPurchasePurpose(v) || v === "site_plan";
+}
+
+/** The purpose actually written to billing_orders. */
+export function storedPurpose(p: RequestPurpose): PurchasePurpose {
+  return p === "site_plan" ? "basic_licence" : p;
 }
 
 /**
@@ -402,8 +574,13 @@ export function isPurchasePurpose(v: unknown): v is PurchasePurpose {
  * than starting again at ₹5,000.
  */
 export function priceFor(
-  purpose: PurchasePurpose,
-  opts: { scenes?: number; existingScenes?: number } = {}
+  purpose: RequestPurpose,
+  opts: {
+    scenes?: number;
+    existingScenes?: number;
+    sitePlanId?: SitePlanId;
+    travel?: TravelZone;
+  } = {}
 ): { amountInr: number; description: string; scenes: number | null } {
   switch (purpose) {
     case "basic_licence": {
@@ -423,6 +600,24 @@ export function priceFor(
         amountInr: Math.max(0, priceForScenes(capped) - priceForScenes(have)),
         description: `VPV scene top-up — ${added} more scene${added === 1 ? "" : "s"} (${have} → ${capped})`,
         scenes: capped,
+      };
+    }
+    case "site_plan": {
+      // The browser names a plan and a travel zone. Both are checked
+      // against the tables above, and the price comes from here — a
+      // tampered request can pick a different plan, never a cheaper one.
+      const planId: SitePlanId = isSitePlanId(opts.sitePlanId)
+        ? opts.sitePlanId
+        : "confidence";
+      const travel: TravelZone = isTravelZone(opts.travel) ? opts.travel : "outside";
+      const q = sitePlanQuote(planId, travel);
+      const parts = [`${q.plan.name} — ${q.plan.scenes} areas`];
+      if (q.discount > 0) parts.push(LAUNCH_OFFER.label);
+      parts.push(`travel ${TRAVEL_FEES[travel].label}`);
+      return {
+        amountInr: q.amountInr,
+        description: `${parts.join(", ")} (includes 1 year support and hosting)`,
+        scenes: q.plan.scenes,
       };
     }
     case "support_renewal":

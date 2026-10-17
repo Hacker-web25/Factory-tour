@@ -42,6 +42,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
         disallow: [
           "/api/",
+          "/checkout",
           "/auth/",
           "/login",
           "/signup",

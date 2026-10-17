@@ -18,7 +18,9 @@
  * so there is exactly one implementation to keep correct.
  *
  * Also used, with `purpose="support_renewal"`, by the billing page
- * inside the dashboard.
+ * inside the dashboard, and with `purpose="site_plan"` by /checkout,
+ * where the marketing site has already settled the plan and the travel
+ * zone, so the scene step is skipped and a plan summary takes its place.
  */
 
 import { useState } from "react";
@@ -26,7 +28,20 @@ import Link from "next/link";
 import { AlertCircle, ArrowLeft, CheckCircle2, Clock, Loader2, Lock, ShieldCheck } from "lucide-react";
 import SceneCalculator from "./SceneCalculator";
 import { useRazorpayPayment, type Buyer, type Purpose } from "./useRazorpayPayment";
-import { SCENE_DEFAULT, SUPPORT_ANNUAL_INR, inr, inr2, priceForScenes, withGst } from "@/lib/pricing";
+import {
+  LAUNCH_OFFER,
+  SCENE_DEFAULT,
+  SUPPORT_ANNUAL_INR,
+  SUPPORT_ANNUAL_INR as DIGITAL_CARE_INR,
+  TRAVEL_FEES,
+  inr,
+  inr2,
+  priceForScenes,
+  sitePlanQuote,
+  withGst,
+  type SitePlanId,
+  type TravelZone,
+} from "@/lib/pricing";
 import { INDIAN_STATES, canonicalIndianState } from "@/lib/indianStates";
 
 type Step = "choose" | "details";
@@ -34,6 +49,10 @@ type Step = "choose" | "details";
 
 export default function CheckoutFlow({
   purpose = "basic_licence",
+  /** Which named pack, when purpose is "site_plan". */
+  sitePlanId,
+  /** Where the factory is, when purpose is "site_plan". Sets the travel fee. */
+  travel,
   /** Pre-filled for a signed-in customer renewing support. */
   prefill,
   /** Supabase access token, when an existing customer is buying. */
@@ -44,12 +63,16 @@ export default function CheckoutFlow({
   subtitle,
 }: {
   purpose?: Purpose;
+  sitePlanId?: SitePlanId;
+  travel?: TravelZone;
   prefill?: Partial<Buyer>;
   accessToken?: string | null;
   onComplete?: () => void;
   title?: string;
   subtitle?: string;
 }) {
+  // Only the scene-ladder purchase starts on the calculator. A site plan
+  // was already chosen on the marketing site, so it opens on the form.
   const [step, setStep] = useState<Step>(purpose === "basic_licence" ? "choose" : "details");
   const [scenes, setScenes] = useState(SCENE_DEFAULT);
   const [buyer, setBuyer] = useState<Buyer>({
@@ -67,7 +90,18 @@ export default function CheckoutFlow({
   const { phase, busy, error, notice, testMode, result, scriptReady } = payment;
   const scriptState = scriptReady;
 
-  const amount = purpose === "support_renewal" ? SUPPORT_ANNUAL_INR : priceForScenes(scenes);
+  // The plan quote, when this is a site plan. Same function the server
+  // prices the order with, so the screen and the charge cannot disagree.
+  const quote =
+    purpose === "site_plan" && sitePlanId && travel
+      ? sitePlanQuote(sitePlanId, travel)
+      : null;
+
+  const amount = quote
+    ? quote.amountInr
+    : purpose === "support_renewal"
+      ? SUPPORT_ANNUAL_INR
+      : priceForScenes(scenes);
   // What the server will send to Razorpay (base + 18% GST). We show this
   // breakdown on the final checkout screen, right before the Pay button.
   const split = withGst(amount);
@@ -76,6 +110,8 @@ export default function CheckoutFlow({
     void payment.start({
       purpose,
       scenes: purpose === "basic_licence" ? scenes : undefined,
+      sitePlanId: purpose === "site_plan" ? sitePlanId : undefined,
+      travel: purpose === "site_plan" ? travel : undefined,
       buyer,
     });
   };
@@ -122,7 +158,7 @@ export default function CheckoutFlow({
                 : "Thank you. We have e-mailed your sign-in details and your GST invoice. Check your spam folder if it is not there in a few minutes."}
           </p>
 
-          {result.slug && purpose === "basic_licence" && (
+          {result.slug && (purpose === "basic_licence" || purpose === "site_plan") && (
             <a
               href={`https://${result.slug}.myvpv.com`}
               className="mt-6 inline-block rounded-full bg-vpv-grad px-6 py-3 text-[14px] font-semibold text-white"
@@ -130,7 +166,7 @@ export default function CheckoutFlow({
               Open {result.slug}.myvpv.com
             </a>
           )}
-          {purpose !== "basic_licence" && onComplete && (
+          {purpose !== "basic_licence" && purpose !== "site_plan" && onComplete && (
             <button
               type="button"
               onClick={onComplete}
@@ -225,7 +261,7 @@ export default function CheckoutFlow({
 
   // For a signed-in customer the invoice identity is the organisation's,
   // set by the server — so these two fields are shown but not editable.
-  const identityLocked = purpose !== "basic_licence";
+  const identityLocked = purpose !== "basic_licence" && purpose !== "site_plan";
 
   return (
     <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_330px] items-start">
@@ -393,14 +429,31 @@ export default function CheckoutFlow({
           Your order
         </div>
         <div className="mt-4 space-y-3 text-[14px]">
-          <Row
-            label={purpose === "support_renewal" ? "Annual technical support" : `Basic licence · ${scenes} scenes`}
-            value={inr(amount)}
-          />
-          {purpose === "basic_licence" && (
+          {quote ? (
             <>
-              <Row label="Price per scene" value={inr(Math.round(amount / scenes))} muted />
+              <Row label={`${quote.plan.name} · ${quote.plan.scenes} areas`} value={inr(quote.base)} />
+              {quote.discount > 0 && (
+                <Row label={LAUNCH_OFFER.label} value={`− ${inr(quote.discount)}`} muted />
+              )}
+              <Row
+                label={`Travel & logistics · ${TRAVEL_FEES[travel!].label}`}
+                value={inr(quote.travelFee)}
+                muted
+              />
               <Row label="First year of support" value="Free" muted />
+            </>
+          ) : (
+            <>
+              <Row
+                label={purpose === "support_renewal" ? "Annual technical support" : `Basic licence · ${scenes} scenes`}
+                value={inr(amount)}
+              />
+              {purpose === "basic_licence" && (
+                <>
+                  <Row label="Price per scene" value={inr(Math.round(amount / scenes))} muted />
+                  <Row label="First year of support" value="Free" muted />
+                </>
+              )}
             </>
           )}
         </div>
@@ -416,6 +469,14 @@ export default function CheckoutFlow({
           You pay the total above. The invoice carries our GSTIN so you can
           claim input credit.
         </p>
+        {quote && (
+          <p className="mt-3 rounded-xl bg-white px-3 py-2.5 text-[12.5px] leading-relaxed text-slate-600 ring-1 ring-vpv-line">
+            <strong className="text-vpv-ink">Not in this payment:</strong> Digital
+            Care is {inr(DIGITAL_CARE_INR)} + GST a year and is required to keep
+            your VPV online. Your first year is included, so the first bill comes
+            a year after go-live.
+          </p>
+        )}
 
         <div className="mt-5 flex gap-2 rounded-xl bg-white p-3 text-[12.5px] text-slate-600 ring-1 ring-vpv-line">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-vpv-blue" />

@@ -21,7 +21,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type Purpose = "basic_licence" | "support_renewal" | "scene_topup";
+/**
+ * What the browser asks to buy. "site_plan" is the marketing site's
+ * named pack — a Basic licence at a flat price — so the server prices it
+ * as a plan and records it as a basic_licence. See lib/pricing.ts.
+ */
+export type Purpose = "basic_licence" | "support_renewal" | "scene_topup" | "site_plan";
+
+export type SitePlanId = "confidence" | "authority" | "control";
+export type TravelZone = "ncr" | "outside";
 export type PayPhase = "idle" | "creating" | "checkout" | "verifying" | "done";
 
 export type PayOutcome = "ready" | "processing" | "review" | "refunded" | "failed";
@@ -248,7 +256,13 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
   }, [waitForOrder]);
 
   const start = useCallback(
-    async (args: { purpose: Purpose; scenes?: number; buyer?: Partial<Buyer> }) => {
+    async (args: {
+      purpose: Purpose;
+      scenes?: number;
+      sitePlanId?: SitePlanId;
+      travel?: TravelZone;
+      buyer?: Partial<Buyer>;
+    }) => {
       if (lock.current) return; // double-click / second tab race: ignore
       lock.current = true;
       paid.current = false;
@@ -270,7 +284,13 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
           {
             method: "POST",
             headers,
-            body: JSON.stringify({ purpose: args.purpose, scenes: args.scenes, buyer: args.buyer ?? {} }),
+            body: JSON.stringify({
+              purpose: args.purpose,
+              scenes: args.scenes,
+              sitePlanId: args.sitePlanId,
+              travel: args.travel,
+              buyer: args.buyer ?? {},
+            }),
           },
           25_000
         );

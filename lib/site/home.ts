@@ -12,6 +12,12 @@
  *   2. A "Sign in" link in the site header, pointing at /login on this
  *      domain. The site has no sign-in entry of its own, and a customer
  *      who has already bought needs one.
+ *   3. The payment bridge. The site ships its own pay button that takes
+ *      no money ("TEST MODE … coming soon"), because the build has no
+ *      back end. That button is replaced with one that goes to
+ *      /checkout, where the real Razorpay flow runs against the server
+ *      that prices the order. Leaving the site's own button in place
+ *      would let a buyer finish a purchase that never happened.
  *
  * The app's own footer carries the company identity and all seven policy
  * links, so nothing is injected there.
@@ -86,6 +92,20 @@ const SIGNIN_CSS = `#vpv-signin-btn{display:inline-flex;align-items:center;justi
  * altogether. The observer gives up after 15s so it cannot sit watching
  * the DOM for the life of the tab.
  */
+/**
+ * Replaces the site's own, inert pay button with one that goes to the
+ * real checkout, carrying the chosen plan and travel zone in the URL so
+ * the hand-off works even where storage is blocked.
+ *
+ * Anchored to the site's `data-testid` attributes, which are part of its
+ * own test suite and so are the most stable handle it offers. The
+ * failure mode is deliberately safe: if the button is not found nothing
+ * is replaced, and the visitor sees the site's "coming soon" notice
+ * instead of a payment screen. Nothing here decides a price — /checkout
+ * names a plan and the server prices it.
+ */
+const PAY_BRIDGE_SCRIPT = String.raw`(function(){var KEY="myvpv:phase1:v1";function pick(){try{var s=JSON.parse(localStorage.getItem(KEY)||"null")||{},a=s.assessment||{};return{plan:a.selectedPlanId,travel:a.travel}}catch(e){return{}}}function dest(){var s=pick(),q=[];if(s.plan)q.push("plan="+encodeURIComponent(s.plan));if(s.travel)q.push("travel="+encodeURIComponent(s.travel));return"/checkout"+(q.length?"?"+q.join("&"):"")}function hideNotice(){try{var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null),n;while(n=w.nextNode()){if((n.nodeValue||"").trim().indexOf("TEST MODE")===0&&n.parentElement){var e=n.parentElement;e.style.display="none";for(var i=0;i<2;i++){var p=e.parentElement;if(!p||p===document.body)break;if((p.innerText||"").trim()!=="")break;p.style.display="none";e=p}return true}}}catch(e){}return false}function swap(){var b=document.querySelector('[data-testid="pay-btn"]');if(!b||!b.parentNode)return false;var a=document.createElement("a");a.className=b.className;a.textContent="Pay securely";a.setAttribute("data-testid","pay-btn-real");a.href=dest();a.addEventListener("click",function(ev){ev.preventDefault();window.location.href=dest()});b.parentNode.replaceChild(a,b);hideNotice();return true}var o=new MutationObserver(function(){swap();if(document.querySelector('[data-testid="pay-btn-real"]'))hideNotice()});if(document.readyState!=="loading"){swap()}else{document.addEventListener("DOMContentLoaded",swap)}o.observe(document.documentElement,{childList:true,subtree:true});})();`;
+
 const SIGNIN_SCRIPT = String.raw`(function(){function add(){if(document.getElementById("vpv-signin-btn"))return true;var h=document.querySelector('header[data-testid="site-header"]')||document.querySelector("header");if(!h)return false;var a=document.createElement("a");a.id="vpv-signin-btn";a.href="/login";a.textContent="Sign in";var cta=h.querySelector('a[href="/assessment"]');if(cta&&cta.parentNode){cta.parentNode.insertBefore(a,cta)}else{(h.firstElementChild||h).appendChild(a)}return true}if(document.readyState!=="loading"&&add())return;document.addEventListener("DOMContentLoaded",add);var o=new MutationObserver(function(){if(add())o.disconnect()});o.observe(document.documentElement,{childList:true,subtree:true});setTimeout(function(){o.disconnect()},15000)})();`;
 
 /**
@@ -135,5 +155,6 @@ ${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""
 <noscript>You need to enable JavaScript to run this app.</noscript>\
 <div id="root"></div>\
 <script id="vpv-signin-btn-script">${SIGNIN_SCRIPT}</script>\
+<script id="vpv-pay-bridge-script">${PAY_BRIDGE_SCRIPT}</script>\
 </body></html>`;
 }

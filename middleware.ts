@@ -50,6 +50,7 @@ const APEX_ONLY_PATHS = [
   // bare "/" here would match every path and send the whole subdomain
   // to the apex.
   ...SITE_PATHS.filter((p) => p !== "/"),
+  "/checkout",       // paying for a plan chosen on the site
   "/login",
   "/signup",
   "/setup",          // post-signup org creation (you sign in on the apex)

@@ -21,6 +21,9 @@
  * ── Who may call it ───────────────────────────────────────────────────
  *   basic_licence    anyone WITHOUT an existing account (this is how a new
  *                    customer buys; existing customers sign in instead)
+ *   site_plan        the same thing, bought as one of the marketing
+ *                    site's named packs. Priced as a plan, STORED as a
+ *                    basic_licence, because that is what it is.
  *   support_renewal  the organisation's own admin, signed in
  *   scene_topup      the organisation's own admin, signed in
  * For the signed-in purposes the invoice identity is the ORGANISATION'S,
@@ -30,7 +33,7 @@
  *   per IP, per e-mail, per signed-in user, and one global ceiling; a
  *   limiter that errors does NOT switch itself off (see billingGuard).
  *
- * Request  { purpose, scenes?, buyer{ name,email,phone,company,gstin,address,state } }
+ * Request  { purpose, scenes?, sitePlanId?, travel?, buyer{ name,email,phone,company,gstin,address,state } }
  * Response { ok, orderId, razorpayOrderId, amountPaise, keyId, testMode, description }
  */
 
@@ -66,12 +69,17 @@ import {
   GST_RATE,
   SCENE_MAX,
   SUPPORT_RENEW_WINDOW_DAYS,
-  isPurchasePurpose,
+  isRequestPurpose,
+  isSitePlanId,
+  isTravelZone,
   isValidSceneCount,
+  PLACEHOLDER_PRICES,
   priceFor,
+  storedPurpose,
   withGst,
   toPaise,
   type PurchasePurpose,
+  type RequestPurpose,
 } from "@/lib/pricing";
 
 export const runtime = "nodejs";
@@ -155,7 +163,24 @@ export async function POST(req: Request) {
   const body = parsed.body;
 
   const purpose = body.purpose;
-  if (!isPurchasePurpose(purpose)) return fail(400, "unknown_purpose");
+  if (!isRequestPurpose(purpose)) return fail(400, "unknown_purpose");
+  // What goes in billing_orders. A site plan is a Basic licence sold as a
+  // named pack, so everything downstream sees the purpose it already knows.
+  const stored: PurchasePurpose = storedPurpose(purpose as RequestPurpose);
+
+  // A placeholder price must never reach a real card. The site's plan
+  // prices are still the ones it was built with, so while that is true
+  // this purpose is refused outright on live keys. Test mode is left
+  // open, so the whole flow can be rehearsed before the numbers are set.
+  // Clear it by setting the real prices in lib/pricing.ts and flipping
+  // PLACEHOLDER_PRICES to false.
+  if (purpose === "site_plan" && PLACEHOLDER_PRICES && razorpayIsLive()) {
+    return fail(
+      503,
+      "prices_not_final",
+      "Online payment for these plans is not open yet. Please contact billing@myvpv.com and we will take your order directly."
+    );
+  }
 
   /* ── Who is asking, and are they allowed to ask for this? ────────── */
 
@@ -165,7 +190,7 @@ export async function POST(req: Request) {
   let authName = "";
   let authEmail = "";
 
-  if (purpose !== "basic_licence") {
+  if (stored !== "basic_licence") {
     const auth = await authenticateRequest(req);
     if (!auth) return fail(401, "unauthorized", "Please sign in again.");
     if (!isOrgAdmin(auth.profile) || !auth.profile.org_id) {
@@ -284,7 +309,19 @@ export async function POST(req: Request) {
   const existingScenes = org ? Number(org.scene_quota ?? 0) : 0;
   let scenesWanted: number | undefined;
 
-  if (purpose === "basic_licence") {
+  let sitePlanId: unknown;
+  let travel: unknown;
+
+  if (purpose === "site_plan") {
+    // The browser names a plan and says where the factory is. Neither is
+    // a price: priceFor() looks both up in lib/pricing.ts.
+    sitePlanId = body.sitePlanId;
+    travel = body.travel;
+    if (!isSitePlanId(sitePlanId)) return fail(400, "invalid_plan", "Please choose one of the three plans.");
+    if (!isTravelZone(travel)) {
+      return fail(400, "invalid_travel", "Please tell us whether your factory is in Delhi NCR.");
+    }
+  } else if (purpose === "basic_licence") {
     if (!isValidSceneCount(body.scenes)) return fail(400, "invalid_scenes", "Please choose between 2 and 20 scenes.");
     scenesWanted = body.scenes;
   } else if (purpose === "scene_topup") {
@@ -310,7 +347,12 @@ export async function POST(req: Request) {
     }
   }
 
-  const quote = priceFor(purpose as PurchasePurpose, { scenes: scenesWanted, existingScenes });
+  const quote = priceFor(purpose as RequestPurpose, {
+    scenes: scenesWanted,
+    existingScenes,
+    sitePlanId: isSitePlanId(sitePlanId) ? sitePlanId : undefined,
+    travel: isTravelZone(travel) ? travel : undefined,
+  });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 
   const split = withGst(quote.amountInr);
@@ -335,7 +377,7 @@ export async function POST(req: Request) {
   let reused = false;
   try {
     const got = await getOrCreateOrder(sb, {
-      purpose: purpose as PurchasePurpose,
+      purpose: stored,
       scenes: quote.scenes,
       amountPaise,
       split,
@@ -344,7 +386,7 @@ export async function POST(req: Request) {
       createdBy,
       ip,
       description: quote.description,
-      quotaBefore: purpose === "scene_topup" ? existingScenes : null,
+      quotaBefore: stored === "scene_topup" ? existingScenes : null,
     });
     order = got.order;
     reused = got.reused;
@@ -377,7 +419,7 @@ export async function POST(req: Request) {
   let razorpayOrderId: string;
   try {
     razorpayOrderId = await ensureRazorpayOrder(sb, order, {
-      purpose,
+      purpose: stored,
       company: buyer.company,
       scenes: quote.scenes,
     });
