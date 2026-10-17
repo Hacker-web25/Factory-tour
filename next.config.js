@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 
+// Every path the marketing single-page app owns. Shared with
+// lib/site/pages.ts, which fails the build if the two disagree.
+const { SITE_PATHS } = require("./lib/site/paths");
+
 /**
  * Site-wide security headers. These apply to every response — the
  * middleware adds a few more on auth-sensitive paths (no-store cache,
@@ -68,7 +72,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com https://www.youtube.com https://api.bigdatacloud.net https://generativelanguage.googleapis.com https://integrate.api.nvidia.com https://api.razorpay.com https://lumberjack.razorpay.com",
-      "frame-src 'self' https://www.youtube.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com",
+      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com",
       "media-src 'self' blob: https://*.supabase.co",
       "worker-src 'self' blob:",
       "object-src 'none'",
@@ -81,12 +85,14 @@ const securityHeaders = [
 ];
 
 /**
- * The front page (the original marketing site, served from app/route.ts)
- * embeds a Kuula demo tour and YouTube testimonials. Only that one URL gets
- * the extra permissions; every other page keeps the strict set above.
+ * The marketing site embeds a Kuula demo tour and YouTube testimonials,
+ * and it does so on several of its pages — not just the front page.
+ * Those pages, and only those pages, get the extra frame permissions;
+ * every dashboard and viewer path keeps the strict set above.
  */
-const HOME_EMBEDS = '"https://kuula.co" "https://www.youtube.com"';
-const homeHeaders = securityHeaders.map((h) => {
+const SITE_EMBEDS =
+  '"https://kuula.co" "https://www.youtube.com" "https://www.youtube-nocookie.com"';
+const siteHeaders = securityHeaders.map((h) => {
   if (h.key === "Content-Security-Policy") {
     const value = h.value.replace("frame-src 'self'", "frame-src 'self' https://kuula.co");
     if (value === h.value) throw new Error("CSP frame-src anchor not found");
@@ -95,11 +101,11 @@ const homeHeaders = securityHeaders.map((h) => {
   if (h.key === "Permissions-Policy") {
     let value = h.value;
     for (const [from, to] of [
-      ["accelerometer=()", `accelerometer=(self ${HOME_EMBEDS})`],
-      ["gyroscope=()", `gyroscope=(self ${HOME_EMBEDS})`],
-      ["magnetometer=()", `magnetometer=(self ${HOME_EMBEDS})`],
-      ["fullscreen=(self)", `fullscreen=(self ${HOME_EMBEDS})`],
-      ["autoplay=(self)", `autoplay=(self ${HOME_EMBEDS})`],
+      ["accelerometer=()", `accelerometer=(self ${SITE_EMBEDS})`],
+      ["gyroscope=()", `gyroscope=(self ${SITE_EMBEDS})`],
+      ["magnetometer=()", `magnetometer=(self ${SITE_EMBEDS})`],
+      ["fullscreen=(self)", `fullscreen=(self ${SITE_EMBEDS})`],
+      ["autoplay=(self)", `autoplay=(self ${SITE_EMBEDS})`],
     ]) {
       if (!value.includes(from)) throw new Error(`Permissions-Policy anchor not found: ${from}`);
       value = value.replace(from, to);
@@ -146,11 +152,9 @@ const nextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
-      // Later rule wins for the same header, so "/" gets the embed-friendly set.
-      {
-        source: "/",
-        headers: homeHeaders,
-      },
+      // Later rule wins for the same header, so the marketing pages get
+      // the embed-friendly set while everything else keeps the strict one.
+      ...SITE_PATHS.map((path) => ({ source: path, headers: siteHeaders })),
       // API endpoints: short-circuit any proxy cache.
       {
         source: "/api/:path*",

@@ -21,6 +21,12 @@ export default function robots(): MetadataRoute.Robots {
         allow: [
           "/",
           "/apply",
+          // the marketing site (lib/site/pages.ts)
+          "/how-it-works",
+          "/plans",
+          "/case-studies",
+          "/faq",
+          "/assessment",
           "/get-started",
           "/legal",
           "/pricing",

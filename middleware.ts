@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { RESERVED_SLUGS } from "@/lib/slugs";
 import { PUBLIC_LEGAL_PATHS } from "@/components/legal/nav";
+import { SITE_PATHS } from "@/lib/site/pages";
 
 /**
  * Edge middleware — subdomain routing + security hardening.
@@ -44,6 +45,11 @@ const RESERVED = RESERVED_SLUGS;
 // redirecting it to the apex would break login outright.
 const APEX_ONLY_PATHS = [
   ...PUBLIC_LEGAL_PATHS,
+  // The marketing site (/plans, /faq, /assessment/…). "/" is dropped on
+  // purpose: on a subdomain it is the customer's own dashboard, and a
+  // bare "/" here would match every path and send the whole subdomain
+  // to the apex.
+  ...SITE_PATHS.filter((p) => p !== "/"),
   "/login",
   "/signup",
   "/setup",          // post-signup org creation (you sign in on the apex)
