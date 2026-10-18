@@ -24,7 +24,7 @@ import {
   readJson,
   validEmail,
 } from "@/lib/server/billingGuard";
-import { hashOtp } from "../send/route";
+import { hashOtp } from "@/lib/server/otp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

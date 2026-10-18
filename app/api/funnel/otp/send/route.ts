@@ -18,7 +18,8 @@
  */
 
 import { NextResponse } from "next/server";
-import { createHash, randomInt } from "node:crypto";
+import { randomInt } from "node:crypto";
+import { hashOtp } from "@/lib/server/otp";
 import { getClientIp } from "@/lib/getClientIp";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { emailShell, esc, sendEmail } from "@/lib/server/email";
@@ -41,13 +42,7 @@ const MAX_BODY_BYTES = 2 * 1024;
 
 /** How long a code is good for. Long enough to find the e-mail, short
  *  enough that a shoulder-surfed code is useless by the time it is read. */
-export const OTP_TTL_SECONDS = 10 * 60;
-
-export function hashOtp(email: string, code: string): string {
-  // The address is in the hash as well, so a code issued for one e-mail can
-  // never verify a different one.
-  return createHash("sha256").update(`${email.toLowerCase()}:${code}`).digest("hex");
-}
+const OTP_TTL_SECONDS = 10 * 60;
 
 export async function POST(req: Request) {
   const sb = supabaseAdmin();
