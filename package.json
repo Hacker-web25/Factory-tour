@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:billing": "NODE_ENV=test tsx --test tests/billing/*.test.ts"
+    "test:billing": "NODE_ENV=test tsx --test tests/billing/*.test.ts",
+    "sync:site": "tsx scripts/sync-site-bundle.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",

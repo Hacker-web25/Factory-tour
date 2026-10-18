@@ -36,7 +36,12 @@ export type FunnelState = {
   factoryCity: string;
   factoryState: string;
 
-  /* Step 2 — the scope they want. */
+  /* Step 2 — the scope they want. Areas and processes are picked from the
+     catalogue in lib/factoryAreas.ts; the counts follow from the picks. */
+  selectedAreas: string[];
+  customAreas: string[];
+  selectedProcesses: string[];
+  customProcesses: string[];
   aoaCount: number | null;
   videoCount: number | null;
   pdfCount: number | null;
@@ -66,6 +71,10 @@ export const EMPTY_FUNNEL: FunnelState = {
   industryOther: "",
   factoryCity: "",
   factoryState: "",
+  selectedAreas: [],
+  customAreas: [],
+  selectedProcesses: [],
+  customProcesses: [],
   aoaCount: null,
   videoCount: null,
   pdfCount: null,
@@ -199,10 +208,10 @@ export function recommendPlan(s: {
   const p = SITE_PLANS.control;
   const extraAreas = Math.max(0, aoa - p.scenes);
   const extraVideos = Math.max(0, videos - p.videos);
-  reasons.push(
-    `Your ${aoa} areas go beyond every plan, so this is Control plus ${extraAreas} extra area${extraAreas === 1 ? "" : "s"}.`
-  );
-  if (extraVideos > 0) reasons.push(`And ${extraVideos} extra process video${extraVideos === 1 ? "" : "s"}.`);
+  reasons.push(`What you picked goes beyond every plan, so this is ${p.name}, our largest, with the rest added on.`);
+  if (extraAreas > 0) reasons.push(`${extraAreas} extra area${extraAreas === 1 ? "" : "s"} on top of the ${p.scenes} included.`);
+  if (extraVideos > 0) reasons.push(`${extraVideos} extra process video${extraVideos === 1 ? "" : "s"} on top of the ${p.videos} included.`);
+  if (pdfs > p.pdfs) reasons.push(`${p.pdfs} PDF reports are included; you can add more from your dashboard.`);
   return { plan: "control", reasons, extraAreas, extraVideos, needsExtras: true };
 }
 
@@ -237,6 +246,10 @@ export async function mirrorLead(
         factoryCity: state.factoryCity,
         factoryState: state.factoryState,
         aoaCount: state.aoaCount,
+        selectedAreas: state.selectedAreas,
+        customAreas: state.customAreas,
+        selectedProcesses: state.selectedProcesses,
+        customProcesses: state.customProcesses,
         videoCount: state.videoCount,
         pdfCount: state.pdfCount,
         wantsSharingControls: state.wantsSharingControls,

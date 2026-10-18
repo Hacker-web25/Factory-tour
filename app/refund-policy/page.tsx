@@ -209,11 +209,49 @@ const sections: LegalSection[] = [
         </li>
         <li>
           Third-party costs you incurred, such as your own photography,
-          travel, or software you bought from someone else.
+          travel, or software you bought from someone else. This includes
+          flights, local transport and accommodation you arranged for our
+          crew, except the flight change fees we reimburse when we move a
+          shoot ourselves (see below).
+        </li>
+        <li>
+          The travel &amp; logistics charge and any extra shoot time, once the
+          shoot has taken place. They pay for a visit that has already
+          happened.
         </li>
         <li>
           A change of mind, lower-than-expected use of the Service, or a
           decision to switch providers.
+        </li>
+      </UL>
+    ),
+  },
+  {
+    id: "shoot-changes",
+    title: "Moving or cancelling a factory shoot",
+    body: (
+      <UL>
+        <li>
+          <B>You move the date</B> with at least {POLICY.rescheduleNoticeHours}{" "}
+          hours&rsquo; notice: no charge. With less notice, or if the crew
+          arrives and cannot shoot because of something on your side, travel
+          costs we have already incurred may be charged again for the new
+          date.
+        </li>
+        <li>
+          <B>We move the date:</B> we reschedule at no extra charge and
+          reimburse reasonable change fees on flights you booked for the crew
+          on dates we agreed, against the airline&rsquo;s receipt.
+        </li>
+        <li>
+          <B>We cannot shoot at all</B> for a reason on our side: you may ask
+          for a refund under &ldquo;When a refund may be considered&rdquo;
+          above.
+        </li>
+        <li>
+          <B>Special offer price.</B> A refunded order gives up its place in
+          the special offer. If you order again later, you pay the price shown
+          at that time.
         </li>
       </UL>
     ),

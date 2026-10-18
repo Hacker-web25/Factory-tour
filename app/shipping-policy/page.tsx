@@ -25,9 +25,11 @@ const sections: LegalSection[] = [
     body: (
       <>
         <Callout title="No physical shipping">
-          VPV is delivered entirely online. We do not ship physical goods, so
-          there are no shipping charges, couriers or delivery addresses
-          involved in an order.
+          VPV is delivered online. We do not ship physical goods, so there are
+          no shipping charges, couriers or delivery addresses. The only
+          physical part of an order is our crew visiting your factory to shoot
+          it, which is charged as travel &amp; logistics and shown on your bill
+          before you pay.
         </Callout>
       </>
     ),
@@ -55,6 +57,39 @@ const sections: LegalSection[] = [
           Pro and Ultra Workspaces are not bought through the website. We set
           them up for you after the proposal is agreed, normally on the same
           business day, and send the sign-in details by e-mail.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "vpv-delivery",
+    title: "When your VPV is ready",
+    body: (
+      <>
+        <P>For a VPV plan (Confidence, Authority or Control):</P>
+        <OL>
+          <li>
+            Your Workspace and sign-in are created as soon as payment is
+            confirmed, as above.
+          </li>
+          <li>
+            We contact you within <B>{POLICY.shootContactBusinessDays} business
+            days</B> to agree a shoot date.
+          </li>
+          <li>
+            Our crew shoots your factory on the agreed date, for the shoot time
+            shown on your bill.
+          </li>
+          <li>
+            The finished VPV — your areas, process videos, PDF reports and
+            information icons — is placed in your Workspace within{" "}
+            <B>{POLICY.vpvDeliveryWorkingDays} working days</B> of the shoot,
+            and we e-mail you when it is live.
+          </li>
+        </OL>
+        <P>
+          Process videos are shot on iPhone and colour-graded by our team. A
+          shoot moved at your request moves the delivery date with it.
         </P>
       </>
     ),

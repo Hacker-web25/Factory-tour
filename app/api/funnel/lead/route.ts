@@ -33,6 +33,7 @@ import {
 } from "@/lib/server/billingGuard";
 import { canonicalIndianState } from "@/lib/indianStates";
 import { canonicalIndustry } from "@/lib/industries";
+import { describeSelection } from "@/lib/factoryAreas";
 import { logisticsFor } from "@/lib/logistics";
 import {
   clampExtraAreas,
@@ -118,6 +119,14 @@ export async function POST(req: Request) {
   if (aoa !== null) patch.aoa_count = aoa;
   if (videos !== null) patch.video_count = videos;
   if (pdfs !== null) patch.pdf_count = pdfs;
+
+  // The named areas and processes, for the rep's call. Only sent by step 2.
+  if (Array.isArray(body.selectedAreas) || Array.isArray(body.customAreas)) {
+    patch.areas = describeSelection(body.selectedAreas, body.customAreas, "area");
+  }
+  if (Array.isArray(body.selectedProcesses) || Array.isArray(body.customProcesses)) {
+    patch.processes = describeSelection(body.selectedProcesses, body.customProcesses, "process");
+  }
 
   if (typeof body.wantsSharingControls === "boolean") {
     patch.wants_sharing_controls = body.wantsSharingControls;

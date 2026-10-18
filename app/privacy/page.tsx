@@ -70,7 +70,7 @@ const sections: LegalSection[] = [
             ],
             [
               "Quote and enquiry data",
-              "What you tell us on the pricing questions: your name, company, work e-mail, mobile number, industry and your factory's city, along with the areas, videos and PDF reports you ask for, whether you want sharing restrictions, the plan we recommended, the plan you chose and the price we quoted.",
+              "What you tell us on the pricing questions: your name, company, work e-mail, mobile number, industry and your factory's city, along with the Active Operational Areas and processes you pick (by name), the number of PDF reports you ask for, whether you want sharing restrictions, the plan we recommended, the plan you chose and the price we quoted.",
               "To work out your travel charge and your price, to show and e-mail you that quote, to raise your invoice if you buy, and \u2014 only if you tick the box asking us to \u2014 to contact you about it.",
             ],
             [

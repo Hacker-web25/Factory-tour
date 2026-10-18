@@ -22,6 +22,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Clock, CreditCard, Lock, Mail, Receipt, ScrollText, ShieldCheck } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -30,13 +31,15 @@ import {
   FunnelHeader,
   PrimaryButton,
   RestartNotice,
+  SectionTitle,
   SelectInput,
   TextInput,
+  useOfferState,
 } from "@/components/funnel/FunnelShell";
 import { useRazorpayPayment } from "@/components/billing/useRazorpayPayment";
 import { INDIAN_STATES } from "@/lib/indianStates";
 import { validGstin } from "@/lib/gstin";
-import { SUPPORT_ANNUAL_INR, inr, siteQuote } from "@/lib/pricing";
+import { LAUNCH_OFFER, SUPPORT_ANNUAL_INR, hoursLabel, inr, siteQuote } from "@/lib/pricing";
 import { ACCOMMODATION_RULE } from "@/lib/logistics";
 import { COMPANY } from "@/lib/company";
 import {
@@ -57,6 +60,9 @@ export default function Step5Billing() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [gstinError, setGstinError] = useState<string | null>(null);
   const pay = useRazorpayPayment();
+  const offer = useOfferState();
+  const [offerClosedNotice, setOfferClosedNotice] = useState(false);
+  const offerOpen = offer.open && LAUNCH_OFFER.active && !offerClosedNotice;
 
   useEffect(() => {
     const loaded = loadFunnel();
@@ -72,9 +78,10 @@ export default function Step5Billing() {
             extraAreas: s.extraAreas,
             extraVideos: s.extraVideos,
             city: s.factoryCity,
+            offerOpen,
           })
         : null,
-    [s]
+    [s, offerOpen]
   );
 
   async function sendCode() {
@@ -125,8 +132,26 @@ export default function Step5Billing() {
     }
   }
 
-  function onPay() {
+  async function onPay() {
     if (!s || !s.chosenPlan || !quote) return;
+    // The special offer is for the first 100 customers. If the last place
+    // went while this page was open, show the new total HERE, before
+    // Razorpay opens — never let the first sight of it be the payment sheet.
+    if (offerOpen) {
+      try {
+        const res = await fetch("/api/funnel/offer", { cache: "no-store" });
+        const data = (await res.json()) as { open?: boolean };
+        if (data.open === false) {
+          // Re-prices the bill on this screen and says why; the buyer
+          // presses Pay again once they have seen the new total.
+          setOfferClosedNotice(true);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+      } catch {
+        /* intentional — the order route re-checks the count for real. */
+      }
+    }
     if (s.gstin && !validGstin(s.gstin)) {
       setGstinError("That GSTIN does not look right. Leave it blank if you do not have one.");
       return;
@@ -154,7 +179,7 @@ export default function Step5Billing() {
   if (!ready || !s) {
     return (
       <>
-        <FunnelHeader step={4} eyebrow="Step 5 of 5" title="Your bill" />
+        <FunnelHeader step={4} title="Your bill" />
         <FunnelBody>
           <Card>
             <div className="h-5 w-40 animate-pulse rounded bg-vpv-tint" />
@@ -167,7 +192,7 @@ export default function Step5Billing() {
   if (!s.chosenPlan || !quote || !s.factoryCity) {
     return (
       <>
-        <FunnelHeader step={4} eyebrow="Step 5 of 5" title="Your bill" />
+        <FunnelHeader step={4} title="Your bill" />
         <FunnelBody>
           <RestartNotice missing="your plan and your factory's city" />
         </FunnelBody>
@@ -179,7 +204,7 @@ export default function Step5Billing() {
   if (pay.result && pay.result.outcome === "ready") {
     return (
       <>
-        <FunnelHeader step={4} eyebrow="Done" title="Your VPV is paid for" />
+        <FunnelHeader step={4} title="Your VPV is paid for" />
         <FunnelBody>
           <Card>
             <p className="text-[15px] leading-relaxed text-slate-700">
@@ -222,24 +247,39 @@ export default function Step5Billing() {
     <>
       <FunnelHeader
         step={4}
-        eyebrow="Step 5 of 5"
+       
         title="Your bill"
         summary="Everything you are paying for, itemised. Nothing is added after this screen."
+        image="shoot-crew"
+        imageAlt="The VPV crew getting ready for a factory shoot"
+        caption="Our crew comes to your plant"
       />
       <FunnelBody>
         {/* The bill. */}
         <Card>
-          <h2 className="text-[17px] font-semibold text-vpv-ink">
-            {quote.plan.name} for {s.company}
-          </h2>
+          <SectionTitle
+            icon={Receipt}
+            title={`${quote.plan.name} for ${s.company}`}
+            aside={
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
+                <Clock className="h-4 w-4 text-vpv-blue" aria-hidden />
+                {hoursLabel(quote.shoot.totalHours)} on site
+              </span>
+            }
+          />
           <dl className="mt-5 divide-y divide-vpv-line text-[14.5px]">
             {quote.lines.map((l) => (
-              <div key={l.label} className="flex items-start justify-between gap-4 py-3">
-                <dt className="text-slate-600">
+              <div
+                key={l.label}
+                className={`flex items-start justify-between gap-4 py-3 ${l.kind === "offer" ? "-mx-3 rounded-lg bg-[#FFF7E0] px-3" : ""}`}
+              >
+                <dt className={l.kind === "offer" ? "font-semibold text-[#7A5600]" : "text-slate-600"}>
                   {l.label}
-                  {l.note && <span className="mt-0.5 block text-[12.5px] text-slate-500">{l.note}</span>}
+                  {l.note && <span className="mt-0.5 block text-[12.5px] font-normal text-slate-500">{l.note}</span>}
                 </dt>
-                <dd className="shrink-0 tabular-nums font-medium text-vpv-ink">{inr(l.amountInr)}</dd>
+                <dd className={`shrink-0 tabular-nums font-semibold ${l.kind === "offer" ? "text-[#7A5600]" : "text-vpv-ink"}`}>
+                  {l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
+                </dd>
               </div>
             ))}
             <div className="flex items-center justify-between gap-4 py-3">
@@ -252,7 +292,7 @@ export default function Step5Billing() {
             </div>
             <div className="flex items-center justify-between gap-4 pt-4">
               <dt className="text-[16px] font-semibold text-vpv-ink">Total payable now</dt>
-              <dd className="text-[28px] font-semibold tabular-nums text-vpv-ink">{inr(quote.totalInr)}</dd>
+              <dd className="text-[34px] font-semibold tracking-[-0.02em] tabular-nums text-vpv-ink">{inr(quote.totalInr)}</dd>
             </div>
           </dl>
 
@@ -287,7 +327,9 @@ export default function Step5Billing() {
 
         {/* Invoice details. */}
         <Card className="mt-5">
-          <h2 className="text-[17px] font-semibold text-vpv-ink">Invoice details</h2>
+          <SectionTitle icon={ScrollText} title="Invoice details">
+            Your GST invoice is raised to these details and e-mailed to you.
+          </SectionTitle>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
             <Field label="Billed to">
               <TextInput value={s.company} onChange={(e) => setS({ ...s, company: e.target.value })} />
@@ -325,12 +367,10 @@ export default function Step5Billing() {
 
         {/* E-mail verification. */}
         <Card className="mt-5">
-          <h2 className="text-[17px] font-semibold text-vpv-ink">Confirm your e-mail</h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-            Your workspace link, your first password and your GST invoice all
-            go to <strong className="font-semibold text-vpv-ink">{s.email}</strong>, so we
-            check it before taking any money.
-          </p>
+          <SectionTitle icon={Mail} title="Confirm your e-mail">
+            Your workspace link, your first password and your GST invoice all go to{" "}
+            <strong className="font-semibold text-vpv-ink">{s.email}</strong>, so we check it before taking any money.
+          </SectionTitle>
 
           {otp === "verified" ? (
             <p className="mt-5 flex items-center gap-2 rounded-xl border border-vpv-line bg-vpv-tint/50 px-4 py-3 text-[14px] font-medium text-vpv-blue">
@@ -414,6 +454,12 @@ export default function Step5Billing() {
 
         {/* Pay. */}
         <div className="mt-7">
+          {offerClosedNotice && (
+            <p className="mb-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] text-slate-700">
+              The special offer has just been taken by our {LAUNCH_OFFER.limit}th customer, so your total has been
+              updated to the regular price. Please check it before you pay.
+            </p>
+          )}
           {pay.testMode && (
             <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-[12.5px] font-medium text-amber-900">
               Razorpay is in test mode. No real money will move.
@@ -429,7 +475,7 @@ export default function Step5Billing() {
               {pay.notice}
             </p>
           )}
-          <PrimaryButton onClick={onPay} disabled={!canPay} busy={pay.busy}>
+          <PrimaryButton onClick={() => void onPay()} disabled={!canPay} busy={pay.busy}>
             Pay {inr(quote.totalInr)}
           </PrimaryButton>
           {!canPay && !pay.busy && (
@@ -439,6 +485,11 @@ export default function Step5Billing() {
                 : "Accept the Terms and the Refund Policy to continue."}
             </p>
           )}
+          <ul className="mt-6 grid gap-3 text-[12.5px] text-slate-600 sm:grid-cols-3">
+            <li className="flex items-center gap-2"><Lock className="h-4 w-4 text-vpv-blue" aria-hidden />Secure payment by Razorpay</li>
+            <li className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-vpv-blue" aria-hidden />UPI, cards and netbanking</li>
+            <li className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-vpv-blue" aria-hidden />GST invoice by e-mail</li>
+          </ul>
           <p className="mt-4 text-[12.5px] leading-relaxed text-slate-500">
             Payment is taken by Razorpay. We never see or store your card
             details. Questions before you pay? Write to{" "}

@@ -147,7 +147,7 @@ const STRIP_FULL = [
   { href: "/cookies", label: SHORT("/cookies") },
   { href: "/disclaimer", label: SHORT("/disclaimer") },
   { href: "/security", label: SHORT("/security") },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/plans", label: "Pricing" },
   { href: "/contact", label: "Contact" },
 ];
 

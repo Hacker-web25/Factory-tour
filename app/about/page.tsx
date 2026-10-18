@@ -142,7 +142,7 @@ export default function AboutPage() {
           </div>
           <div className="flex flex-wrap gap-3 lg:justify-end">
             <Link
-              href="/pricing"
+              href="/plans"
               className="rounded-full bg-vpv-grad px-5 py-2.5 text-[13.5px] font-semibold text-white hover:opacity-90 transition-opacity"
             >
               See pricing

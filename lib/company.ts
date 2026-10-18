@@ -141,7 +141,7 @@ export {
 
 export const POLICY = {
   /** Shown as "Effective" on every policy page. Bump on material edits. */
-  updated: "14 October 2026",
+  updated: "18 October 2026",
   /** Prior e-mail notice before a new price applies to an existing customer. */
   priceChangeNoticeDays: 30,
   /** Prior notice before changed Terms / Privacy Policy take effect. */
@@ -162,6 +162,13 @@ export const POLICY = {
   replyBusinessDays: 2,
   /** Workspace set-up after payment is confirmed. */
   provisioningHours: 24,
+  /** After a plan is paid for, we call to agree the shoot date within this. */
+  shootContactBusinessDays: 2,
+  /** The finished VPV is in the customer's workspace within this many
+   *  working days of the shoot. ◀ CONFIRM: what the team can promise. */
+  vpvDeliveryWorkingDays: 10,
+  /** Notice the customer gives to move a shoot without losing travel costs. */
+  rescheduleNoticeHours: 48,
 } as const;
 
 /* ───────────────────────────── Helpers ────────────────────────────── */

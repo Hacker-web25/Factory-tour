@@ -30,7 +30,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${SITE}${l.href}`,
     lastModified: now,
     changeFrequency: "monthly",
-    priority: l.href === "/pricing" ? 0.8 : 0.5,
+    priority: 0.5,
   }));
 
   const site: MetadataRoute.Sitemap = SITE_PAGES.filter((p) => p.indexable).map(
@@ -42,10 +42,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })
   );
 
+  // /plans and /assessment are marketing-site pages AND company links; list
+  // each URL once.
+  const seen = new Set(site.map((e) => e.url));
   return [
     ...site,
     { url: `${SITE}/apply`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
-    ...company,
+    ...company.filter((e) => !seen.has(e.url)),
     { url: `${SITE}/legal`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
     ...legal,
   ];

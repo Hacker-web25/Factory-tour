@@ -52,6 +52,7 @@ import {
   billingPreflight,
 } from "@/lib/server/razorpay";
 import { syncOrderFromRazorpay } from "@/lib/server/payments";
+import { launchOfferState } from "@/lib/server/launchOffer";
 import { canonicalIndianState } from "@/lib/indianStates";
 import { stateFromGstin } from "@/lib/gstin";
 import {
@@ -364,6 +365,11 @@ export async function POST(req: Request) {
     }
   }
 
+  // The special offer is "for our first 100 customers", so whether it still
+  // applies is decided HERE, from the real count of paid site-plan orders —
+  // never from anything the browser says.
+  const offer = purpose === "site_plan" ? await launchOfferState(sb) : null;
+
   const quote = priceFor(purpose as RequestPurpose, {
     scenes: scenesWanted,
     existingScenes,
@@ -372,6 +378,7 @@ export async function POST(req: Request) {
     city: siteCity || undefined,
     extraAreas,
     extraVideos,
+    offerOpen: offer ? offer.open : undefined,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 

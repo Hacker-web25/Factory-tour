@@ -20,12 +20,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, Link2, Lock, ShieldCheck, Timer } from "lucide-react";
 import {
   BackLink,
   Card,
   FunnelBody,
   PrimaryButton,
   RestartNotice,
+  SectionTitle,
   StepBar,
   YesNo,
 } from "@/components/funnel/FunnelShell";
@@ -72,17 +74,14 @@ export default function Step3Security() {
           "radial-gradient(60% 120% at 90% 0%, rgba(25,184,242,0.14), rgba(255,255,255,0) 60%), radial-gradient(50% 100% at 0% 0%, rgba(20,104,216,0.09), rgba(255,255,255,0) 55%)",
       }}
     >
-      <div className="mx-auto max-w-3xl px-5 pt-10 pb-10">
+      <div className="mx-auto max-w-5xl px-5 pt-8 pb-10">
         <StepBar current={2} />
-        <div className="mt-8 text-[11.5px] font-semibold uppercase tracking-[0.18em] text-vpv-blue">
-          Step 3 of 5
-        </div>
         {/* The biggest type on the page, on purpose. This is the sentence
             the whole screen exists to put in front of a factory owner. */}
-        <p className="mt-3 text-[32px] sm:text-[46px] font-semibold leading-[1.06] tracking-tight text-vpv-blue">
+        <p className="mt-10 max-w-4xl text-[34px] font-semibold leading-[1.05] tracking-[-0.025em] text-vpv-blue sm:text-[52px]">
           Stop your VPV link being shared with your competitors.
         </p>
-        <p className="mt-4 text-[16px] leading-relaxed text-slate-600">
+        <p className="mt-5 max-w-[36rem] text-[17px] leading-relaxed text-slate-600">
           A brochure or a factory video, once sent, is out of your hands
           forever. A VPV does not have to be.
         </p>
@@ -117,7 +116,7 @@ export default function Step3Security() {
   return (
     <>
       {header}
-      <FunnelBody>
+      <FunnelBody wide>
         {/* The demonstration, directly under the headline. */}
         <div className="overflow-hidden rounded-2xl border border-vpv-line bg-vpv-ink">
           {videoFailed ? (
@@ -147,55 +146,29 @@ export default function Step3Security() {
           )}
         </div>
 
-        <Card className="mt-5">
-          <h2 className="text-[19px] font-semibold text-vpv-ink">
-            How it works
-          </h2>
-          <ul className="mt-4 space-y-3 text-[14.5px] leading-relaxed text-slate-700">
-            <li className="flex gap-3">
-              <span aria-hidden className="mt-0.5 shrink-0 text-vpv-blue">●</span>
-              <span>
-                <strong className="font-semibold text-vpv-ink">One-time links.</strong>{" "}
-                A link opens once, for the buyer you sent it to, and is dead
-                afterwards. Forwarding it achieves nothing.
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {[
+            { icon: Link2, title: "One-time links", body: "A link opens once, for the buyer you sent it to, and is dead afterwards. Forwarding it achieves nothing." },
+            { icon: Timer, title: "Expiry you set", body: "Give a link 24 hours, or a week. After that it stops working, whether or not anybody opened it." },
+            { icon: Lock, title: "Device limits and passwords", body: "Cap how many devices a link works on, and put a password in front of it." },
+            { icon: Eye, title: "See who looked", body: "Every opened link is recorded, so you know which buyer walked through your plant and which did not." },
+          ].map(({ icon: Icon, title, body }) => (
+            <div key={title} className="rounded-2xl border border-vpv-line bg-white p-5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-vpv-grad text-white">
+                <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden />
               </span>
-            </li>
-            <li className="flex gap-3">
-              <span aria-hidden className="mt-0.5 shrink-0 text-vpv-blue">●</span>
-              <span>
-                <strong className="font-semibold text-vpv-ink">Expiry you set.</strong>{" "}
-                Give a link 24 hours, or a week. After that it stops working
-                whether or not anybody has opened it.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span aria-hidden className="mt-0.5 shrink-0 text-vpv-blue">●</span>
-              <span>
-                <strong className="font-semibold text-vpv-ink">Device limits and passwords.</strong>{" "}
-                Cap how many devices a link works on, and put a password in
-                front of it.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span aria-hidden className="mt-0.5 shrink-0 text-vpv-blue">●</span>
-              <span>
-                <strong className="font-semibold text-vpv-ink">You can see who looked.</strong>{" "}
-                Every opened link is recorded, so you know which buyer actually
-                walked through your plant and which did not.
-              </span>
-            </li>
-          </ul>
-        </Card>
+              <h3 className="mt-4 text-[15.5px] font-semibold text-vpv-ink">{title}</h3>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-600">{body}</p>
+            </div>
+          ))}
+        </div>
 
-        <Card className="mt-5">
-          <h2 className="text-[19px] font-semibold text-vpv-ink">
-            Do you want these controls on your VPV?
-          </h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+        <Card className="mt-8">
+          <SectionTitle icon={ShieldCheck} title="Do you want these controls on your VPV?">
             They are part of VPV Control and are not sold separately. Answer
-            honestly — if your tour is something you would happily put on your
+            honestly: if your tour is something you would happily put on your
             website, you do not need them and we will not recommend them.
-          </p>
+          </SectionTitle>
           <div className="mt-5">
             <YesNo
               value={s.wantsSharingControls}

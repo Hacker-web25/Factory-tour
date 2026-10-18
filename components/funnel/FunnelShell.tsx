@@ -1,20 +1,22 @@
 /**
- * The chrome and the form atoms shared by the five funnel steps.
+ * The chrome and the building blocks shared by the five funnel steps.
  *
- * One file because the steps must look like one flow: the same step bar,
- * the same card, the same inputs, the same primary button in the same
- * place. A visitor should feel they are filling in one form across five
- * screens, not meeting five pages.
+ * One file because the steps must read as one flow: the same step bar, the
+ * same header with a real factory photograph, the same section headings,
+ * inputs and button. A visitor should feel they are filling in one form
+ * across five screens, not meeting five pages.
  *
- * Styling follows the VPV brand tokens in tailwind.config.ts (navy → blue →
- * cyan on a light canvas), the same system the customer dashboards and the
- * policy pages use.
+ * Colour follows the VPV brand tokens (navy → blue → cyan on a light
+ * canvas). GOLD is used for exactly one thing — the special offer — so
+ * that on every screen, gold means "offer" and nothing else.
  */
 
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Check, Minus, Plus, type LucideIcon } from "lucide-react";
+import { LAUNCH_OFFER } from "@/lib/pricing";
 
 /* ───────────────────────────── Steps ─────────────────────────────── */
 
@@ -28,82 +30,131 @@ export const FUNNEL_STEPS = [
 
 export function StepBar({ current }: { current: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-[12px] font-medium">
-      {FUNNEL_STEPS.map((s, i) => {
-        const done = i < current;
-        const now = i === current;
-        return (
-          <li key={s.href} className="flex items-center gap-2">
-            <span
-              className={[
-                "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold",
-                now
-                  ? "bg-vpv-grad text-white"
-                  : done
-                    ? "bg-vpv-tint text-vpv-blue"
-                    : "border border-vpv-line text-slate-400",
-              ].join(" ")}
-            >
-              {done ? "✓" : i + 1}
-            </span>
-            <span className={now ? "text-vpv-ink" : done ? "text-vpv-blue" : "text-slate-400"}>
-              {s.label}
-            </span>
-            {i < FUNNEL_STEPS.length - 1 && (
-              <span aria-hidden className="mx-1 hidden h-px w-6 bg-vpv-line sm:block" />
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    <nav aria-label="Progress">
+      <ol className="flex items-center gap-1.5">
+        {FUNNEL_STEPS.map((s, i) => {
+          const done = i < current;
+          const now = i === current;
+          return (
+            <li key={s.href} className="flex flex-1 flex-col gap-2" aria-current={now ? "step" : undefined}>
+              <span
+                className={[
+                  "h-1.5 rounded-full transition-colors",
+                  now ? "bg-vpv-grad" : done ? "bg-vpv-blue/45" : "bg-vpv-line",
+                ].join(" ")}
+              />
+              <span
+                className={[
+                  "hidden text-[12px] font-medium sm:block",
+                  now ? "text-vpv-ink" : done ? "text-vpv-blue" : "text-slate-400",
+                ].join(" ")}
+              >
+                {s.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-2 text-[12.5px] text-slate-500 sm:hidden">
+        Step {current + 1} of {FUNNEL_STEPS.length} · {FUNNEL_STEPS[current].label}
+      </p>
+    </nav>
   );
 }
 
 /* ───────────────────────────── Layout ───────────────────────────── */
 
+/**
+ * The step header: the question on the left, a photograph from a real
+ * Indian plant on the right. The photograph is not decoration — it keeps
+ * a factory owner looking at a factory while they answer questions about
+ * theirs.
+ */
 export function FunnelHeader({
   step,
-  eyebrow,
   title,
   summary,
+  image,
+  imageAlt = "",
+  caption,
 }: {
   step: number;
-  eyebrow: string;
   title: ReactNode;
   summary?: ReactNode;
+  image?: string;
+  imageAlt?: string;
+  caption?: string;
 }) {
   return (
-    <div
-      className="border-b border-vpv-line"
-      style={{
-        backgroundImage:
-          "radial-gradient(60% 120% at 90% 0%, rgba(25,184,242,0.12), rgba(255,255,255,0) 60%), radial-gradient(50% 100% at 0% 0%, rgba(20,104,216,0.08), rgba(255,255,255,0) 55%)",
-      }}
-    >
-      <div className="mx-auto max-w-3xl px-5 pt-10 pb-9">
+    <div className="border-b border-vpv-line bg-vpv-canvas">
+      <div className="mx-auto max-w-5xl px-5 pt-8 pb-10">
         <StepBar current={step} />
-        <div className="mt-7 text-[11.5px] font-semibold uppercase tracking-[0.18em] text-vpv-blue">
-          {eyebrow}
+        <div className={`mt-8 grid items-center gap-8 ${image ? "lg:grid-cols-[1.15fr_1fr]" : ""}`}>
+          <div>
+            <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.02em] text-vpv-ink sm:text-[40px]">
+              {title}
+            </h1>
+            {summary && (
+              <p className="mt-4 max-w-[34rem] text-[16px] leading-relaxed text-slate-600">{summary}</p>
+            )}
+          </div>
+          {image && (
+            <figure className="relative hidden overflow-hidden rounded-[22px] shadow-[0_30px_60px_-30px_rgba(11,61,145,0.45)] lg:block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/img/${image}.webp`}
+                srcSet={`/img/${image}-sm.webp 640w, /img/${image}.webp 1280w`}
+                sizes="(min-width: 1024px) 440px, 100vw"
+                alt={imageAlt}
+                className="aspect-[4/3] w-full object-cover"
+                loading="eager"
+              />
+              {caption && (
+                <figcaption className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1.5 text-[12px] font-medium text-vpv-ink backdrop-blur">
+                  {caption}
+                </figcaption>
+              )}
+            </figure>
+          )}
         </div>
-        <h1 className="mt-3 text-[30px] sm:text-[38px] leading-[1.1] font-semibold tracking-tight text-vpv-ink">
-          {title}
-        </h1>
-        {summary && (
-          <p className="mt-3 text-[16px] leading-relaxed text-slate-600">{summary}</p>
-        )}
       </div>
     </div>
   );
 }
 
-export function FunnelBody({ children }: { children: ReactNode }) {
-  return <div className="mx-auto max-w-3xl px-5 py-10 lg:py-12">{children}</div>;
+export function FunnelBody({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return <div className={`mx-auto px-5 py-10 lg:py-12 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>{children}</div>;
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-2xl border border-vpv-line bg-white p-6 sm:p-7 ${className}`}>{children}</div>;
+}
+
+/** A section heading with its icon. The icon says what kind of question it
+ *  is at a glance, which matters on a long form read on a phone. */
+export function SectionTitle({
+  icon: Icon,
+  title,
+  children,
+  aside,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children?: ReactNode;
+  aside?: ReactNode;
+}) {
   return (
-    <div className={`rounded-2xl border border-vpv-line bg-white p-6 sm:p-7 ${className}`}>
-      {children}
+    <div className="flex items-start gap-4">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-vpv-tint text-vpv-blue">
+        <Icon className="h-5 w-5" strokeWidth={1.9} aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-[18px] font-semibold text-vpv-ink">{title}</h2>
+          {aside}
+        </div>
+        {children && <div className="mt-1.5 text-[14px] leading-relaxed text-slate-600">{children}</div>}
+      </div>
     </div>
   );
 }
@@ -159,8 +210,7 @@ export function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>
   );
 }
 
-/** A plus/minus counter. Clearer than a bare number box on a phone, and it
- *  cannot be left holding a half-typed value. */
+/** A plus/minus counter. Clearer than a bare number box on a phone. */
 export function Counter({
   value,
   onChange,
@@ -175,37 +225,79 @@ export function Counter({
   suffix?: string;
 }) {
   const set = (n: number) => onChange(Math.max(min, Math.min(max, n)));
+  const btn =
+    "flex h-10 w-10 items-center justify-center rounded-full border border-vpv-line text-vpv-ink transition-colors " +
+    "hover:border-vpv-blue/40 hover:text-vpv-blue disabled:opacity-35 disabled:hover:border-vpv-line disabled:hover:text-vpv-ink";
   return (
     <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={() => set(value - 1)}
-        disabled={value <= min}
-        aria-label="One fewer"
-        className="h-10 w-10 rounded-full border border-vpv-line text-[18px] font-semibold text-vpv-ink transition-colors hover:border-vpv-blue/40 hover:text-vpv-blue disabled:opacity-35 disabled:hover:border-vpv-line disabled:hover:text-vpv-ink"
-      >
-        −
+      <button type="button" onClick={() => set(value - 1)} disabled={value <= min} aria-label="One fewer" className={btn}>
+        <Minus className="h-4 w-4" aria-hidden />
       </button>
       <div className="min-w-[4.5rem] text-center">
         <span className="text-[24px] font-semibold tabular-nums text-vpv-ink">{value}</span>
         {suffix && <span className="ml-1 text-[13px] text-slate-500">{suffix}</span>}
       </div>
-      <button
-        type="button"
-        onClick={() => set(value + 1)}
-        disabled={value >= max}
-        aria-label="One more"
-        className="h-10 w-10 rounded-full border border-vpv-line text-[18px] font-semibold text-vpv-ink transition-colors hover:border-vpv-blue/40 hover:text-vpv-blue disabled:opacity-35 disabled:hover:border-vpv-line disabled:hover:text-vpv-ink"
-      >
-        +
+      <button type="button" onClick={() => set(value + 1)} disabled={value >= max} aria-label="One more" className={btn}>
+        <Plus className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );
 }
 
-/** Yes / No. Both options are styled identically until chosen: nudging a
- *  visitor by greying out the answer we like less is confirm shaming, which
- *  the CCPA's dark-pattern guidelines name directly. */
+/** A tile in the area / process picker. Pressing it is the whole
+ *  interaction — no separate checkbox to aim for. */
+export function PickTile({
+  selected,
+  onToggle,
+  icon,
+  name,
+  description,
+}: {
+  selected: boolean;
+  onToggle: () => void;
+  icon: ReactNode;
+  name: string;
+  description?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={selected}
+      className={[
+        "group relative flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vpv-blue/40",
+        selected ? "border-vpv-blue bg-vpv-tint/70" : "border-vpv-line bg-white hover:border-vpv-blue/40",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+          selected ? "bg-vpv-blue text-white" : "bg-vpv-canvas text-vpv-navy",
+        ].join(" ")}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 pr-5">
+        <span className="block text-[13.5px] font-semibold leading-snug text-vpv-ink">{name}</span>
+        {description && <span className="mt-0.5 block text-[12px] leading-snug text-slate-500">{description}</span>}
+      </span>
+      <span
+        aria-hidden
+        className={[
+          "absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
+          selected ? "border-vpv-blue bg-vpv-blue text-white" : "border-vpv-line text-transparent",
+        ].join(" ")}
+      >
+        <Check className="h-3 w-3" strokeWidth={3} />
+      </span>
+    </button>
+  );
+}
+
+/** Yes / No. Both options are styled identically until chosen: greying out
+ *  the answer we like less is confirm shaming, which the CCPA's dark-pattern
+ *  guidelines name directly. */
 export function YesNo({
   value,
   onChange,
@@ -217,12 +309,11 @@ export function YesNo({
   yesLabel?: string;
   noLabel?: string;
 }) {
-  const base =
-    "flex-1 rounded-xl border px-5 py-3.5 text-[15px] font-semibold transition-colors text-center";
+  const base = "flex-1 rounded-xl border px-5 py-3.5 text-[15px] font-semibold transition-colors text-center";
   const on = "border-vpv-blue bg-vpv-tint text-vpv-blue";
   const off = "border-vpv-line bg-white text-vpv-ink hover:border-vpv-blue/40";
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row">
       <button type="button" onClick={() => onChange(true)} aria-pressed={value === true} className={`${base} ${value === true ? on : off}`}>
         {yesLabel}
       </button>
@@ -231,6 +322,95 @@ export function YesNo({
       </button>
     </div>
   );
+}
+
+/* ───────────────────────────── The offer ────────────────────────── */
+
+/**
+ * The gold seal for the special offer. A sixteen-point starburst, because a
+ * seal is how a printed price list has always said "this price is special"
+ * — and it is the only gold object in the funnel.
+ *
+ * It appears with one short settle-in when the plan is revealed, and not
+ * at all for visitors who have asked their system for reduced motion.
+ */
+export function OfferSeal({ size = 128, className = "" }: { size?: number; className?: string }) {
+  const points = 16;
+  const outer = 50;
+  const inner = 43;
+  const d = Array.from({ length: points * 2 }, (_, i) => {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = (Math.PI * i) / points - Math.PI / 2;
+    return `${(50 + r * Math.cos(a)).toFixed(2)},${(50 + r * Math.sin(a)).toFixed(2)}`;
+  }).join(" ");
+  return (
+    <div
+      className={`vpv-seal pointer-events-none select-none ${className}`}
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={`${LAUNCH_OFFER.short}: ${LAUNCH_OFFER.percent}% off for our first ${LAUNCH_OFFER.limit} customers`}
+    >
+      <style>{`
+        @keyframes vpv-seal-in { from { transform: scale(.6) rotate(-24deg); opacity: 0 } to { transform: scale(1) rotate(-10deg); opacity: 1 } }
+        .vpv-seal { transform: rotate(-10deg); animation: vpv-seal-in .55s cubic-bezier(.2,1.4,.4,1) both .15s; }
+        @media (prefers-reduced-motion: reduce) { .vpv-seal { animation: none } }
+      `}</style>
+      <svg viewBox="0 0 100 100" className="h-full w-full drop-shadow-[0_10px_18px_rgba(160,110,10,0.35)]">
+        <defs>
+          <linearGradient id="vpv-gold" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#F7DC86" />
+            <stop offset="0.55" stopColor="#E2B23E" />
+            <stop offset="1" stopColor="#B7841A" />
+          </linearGradient>
+        </defs>
+        <polygon points={d} fill="url(#vpv-gold)" />
+        <circle cx="50" cy="50" r="37" fill="none" stroke="#FFF3CC" strokeOpacity="0.85" strokeWidth="0.9" strokeDasharray="1.6 1.8" />
+        <text x="50" y="35" textAnchor="middle" fontSize="7.4" fontWeight="700" fill="#5A3D00" letterSpacing="0.4">
+          SPECIAL OFFER
+        </text>
+        <text x="50" y="56" textAnchor="middle" fontSize="19" fontWeight="800" fill="#3D2900">
+          {LAUNCH_OFFER.percent}%
+        </text>
+        <text x="50" y="66" textAnchor="middle" fontSize="7" fontWeight="700" fill="#3D2900">
+          OFF
+        </text>
+        <text x="50" y="76" textAnchor="middle" fontSize="5.6" fontWeight="600" fill="#5A3D00">
+          first {LAUNCH_OFFER.limit} customers
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+export type OfferInfo = { open: boolean; remaining: number | null; loaded: boolean };
+
+/**
+ * Whether the special offer is still open, from the server's real count.
+ * Starts as "open" so the page does not flash the regular price at the
+ * thousands of visitors who arrive while it is; corrects itself within a
+ * request if the hundred places have gone.
+ */
+export function useOfferState(): OfferInfo {
+  const [info, setInfo] = useState<OfferInfo>({ open: LAUNCH_OFFER.active, remaining: null, loaded: false });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/funnel/offer");
+        const data = (await res.json()) as { open?: boolean; remaining?: number };
+        if (!cancelled && typeof data.open === "boolean") {
+          setInfo({ open: data.open, remaining: data.remaining ?? null, loaded: true });
+        }
+      } catch {
+        /* intentional — on a network error keep the default; the order route
+           re-checks for real before any card is charged. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return info;
 }
 
 /* ───────────────────────────── Actions ──────────────────────────── */
@@ -253,7 +433,7 @@ export function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
-      className="w-full rounded-full bg-vpv-grad px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(20,104,216,0.7)] transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none sm:w-auto sm:min-w-[15rem]"
+      className="w-full rounded-full bg-vpv-grad px-7 py-3.5 text-[15px] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(20,104,216,0.7)] transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vpv-blue/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none sm:w-auto sm:min-w-[15rem]"
     >
       {busy ? "Just a moment…" : children}
     </button>
@@ -262,10 +442,7 @@ export function PrimaryButton({
 
 export function BackLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-slate-500 transition-colors hover:text-vpv-blue"
-    >
+    <Link href={href} className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-slate-500 transition-colors hover:text-vpv-blue">
       ← {children}
     </Link>
   );
@@ -278,8 +455,8 @@ export function RestartNotice({ missing }: { missing: string }) {
     <Card>
       <h2 className="text-[18px] font-semibold text-vpv-ink">Let&rsquo;s pick this up from the start</h2>
       <p className="mt-2.5 text-[14.5px] leading-relaxed text-slate-600">
-        This step needs {missing}, and we don&rsquo;t have it in this browser. Nothing is
-        lost — the questions take about a minute.
+        This step needs {missing}, and we don&rsquo;t have it in this browser. Nothing is lost — the
+        questions take about a minute.
       </p>
       <div className="mt-6">
         <Link

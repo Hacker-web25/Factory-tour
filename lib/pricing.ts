@@ -391,7 +391,7 @@ export function fromPaise(paise: number): number {
  * The three plans the marketing site sells (VPV Confidence, Authority,
  * Control). They are the SAME product as a Basic licence — a workspace
  * with a fixed number of areas — just sold as named packs at a flat
- * price instead of by the scene ladder. An "AOA" (area of attention) is
+ * price instead of by the scene ladder. An "AOA" (Active Operational Area) is
  * a scene, so `scenes` below feeds the identical fulfilment path and
  * nothing downstream has to learn a new shape.
  *
@@ -435,12 +435,22 @@ export type SitePlanSpec = {
   id: SitePlanId;
   name: string;
   tagline: string;
-  /** One-time licence price, GST excluded. */
+  /** What the buyer pays WHILE the special offer is open, GST excluded.
+   *  These are the decided prices: ₹35,000 / ₹55,000 / ₹90,000. */
   priceInr: number;
-  /** AOAs — areas of attention. These become the workspace's scenes. */
+  /**
+   * The price once the special offer closes, GST excluded. Shown struck
+   * through beside priceInr while the offer runs, and charged after the
+   * hundredth buyer. It is a REAL future price, not a decoy — see
+   * LAUNCH_OFFER for why that matters.
+   */
+  regularInr: number;
+  /** AOAs — Active Operational Areas. These become the workspace's scenes. */
   scenes: number;
   videos: number;
   pdfs: number;
+  /** Shoot time on site that the plan includes, in hours. */
+  shootHours: number;
   /**
    * One-time link expiry and share restrictions. Deliberately TRUE on
    * Control alone and not buyable as an add-on anywhere: it is the only
@@ -458,20 +468,27 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     name: "VPV Confidence",
     tagline: "Prove you're a trusted manufacturer.",
     priceInr: 35_000,
+    regularInr: 43_750,
     scenes: 4,
     videos: 0,
     pdfs: 0,
+    shootHours: 2,
     sharingControls: false,
-    extraAreaLadder: [{ upTo: Infinity, each: 6_000 }],
+    extraAreaLadder: [
+      { upTo: 3, each: 6_000 },
+      { upTo: Infinity, each: 5_500 },
+    ],
   },
   authority: {
     id: "authority",
     name: "VPV Authority",
     tagline: "Show your systems, processes and capabilities.",
     priceInr: 55_000,
+    regularInr: 68_750,
     scenes: 8,
     videos: 3,
     pdfs: 5,
+    shootHours: 4,
     sharingControls: false,
     extraAreaLadder: [
       { upTo: 3, each: 5_500 },
@@ -481,11 +498,13 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   control: {
     id: "control",
     name: "VPV Control",
-    tagline: "Everything, with secure and controlled sharing.",
+    tagline: "Complete factory experience. Secure, controlled access and sharing.",
     priceInr: 90_000,
+    regularInr: 112_500,
     scenes: 15,
     videos: 8,
     pdfs: 15,
+    shootHours: 6,
     sharingControls: true,
     extraAreaLadder: [
       { upTo: 5, each: 4_500 },
@@ -501,6 +520,53 @@ export function isSitePlanId(v: unknown): v is SitePlanId {
   return v === "confidence" || v === "authority" || v === "control";
 }
 
+/* ─────────────────────── Special offer ──────────────────────────── */
+
+/**
+ * The special offer: 20% off the regular price for our first 100 customers.
+ *
+ * ┌─ THIS IS A PROMISE, AND THE CODE KEEPS IT ────────────────────────┐
+ * │ "First 100 customers" is printed on the site, so it has to be      │
+ * │ true. An offer that never ends is a false-urgency claim under the  │
+ * │ CCPA's dark-pattern guidelines. So the order route COUNTS paid     │
+ * │ site-plan orders (lib/server/launchOffer.ts) and, from the 101st,  │
+ * │ prices at regularInr — automatically, with nobody having to        │
+ * │ remember. Refunded orders do not count: they are not customers.    │
+ * └────────────────────────────────────────────────────────────────────┘
+ *
+ * `active: false` ends the offer early for everyone.
+ */
+export const LAUNCH_OFFER = {
+  active: true,
+  percent: 20,
+  limit: 100,
+  label: "Special offer for our first 100 customers",
+  short: "Special offer",
+};
+
+/** Is the offer open, given how many customers have already bought? */
+export function launchOfferOpen(sold: number): boolean {
+  return LAUNCH_OFFER.active && sold < LAUNCH_OFFER.limit;
+}
+
+/** What a plan costs right now, GST excluded. */
+export function planPrice(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
+  const p = SITE_PLANS[planId];
+  return offerOpen && LAUNCH_OFFER.active ? p.priceInr : p.regularInr;
+}
+
+/** The rupees the offer takes off a plan, 0 once it has closed. */
+export function offerSaving(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
+  const p = SITE_PLANS[planId];
+  return p.regularInr - planPrice(planId, offerOpen);
+}
+
+/** Kept for the older checkout screens: discount on a regular price. */
+export function launchDiscount(regular: number): number {
+  if (!LAUNCH_OFFER.active) return 0;
+  return Math.round((regular * LAUNCH_OFFER.percent) / 100);
+}
+
 /* ─────────────────────── Add-ons ─────────────────────────────────── */
 
 /** Each extra process video, GST excluded. Flat across plans: the cost to
@@ -512,38 +578,11 @@ export const EXTRA_AREA_MAX = 15;
 export const EXTRA_VIDEO_MAX = 12;
 
 /**
- * Said on every screen that sells a video, because a buyer paying ₹90,000
- * is entitled to know what the footage is shot on before they pay, not
- * after. It is not a disclaimer — a graded iPhone process clip is what
- * the product is, and saying so plainly has never cost us a sale.
+ * Said on every screen that sells a video, because a buyer is entitled to
+ * know what the footage is shot on before they pay, not after.
  */
 export const VIDEO_SHOT_NOTE =
   "Process videos are shot on iPhone and colour-graded by our team.";
-
-/**
- * How much of a shoot fits in one day.
- *
- * ┌─ A GUESS, PENDING THE REAL NUMBER ────────────────────────────────┐
- * │ Set deliberately ABOVE the largest plan (Control: 15 areas, 8      │
- * │ videos) so there is headroom. If a day covered exactly Control,    │
- * │ one extra area would tip the quote into a second day and add       │
- * │ ₹20,000 to a ₹4,500 slider step — a cliff the buyer would read as  │
- * │ a trick. With headroom, the second day only appears for a shoot    │
- * │ that is genuinely bigger than a day's work.                        │
- * │                                                                    │
- * │ Replace both numbers with what the crew can actually do in a day.  │
- * │ Every quote follows from here.                                     │
- * └────────────────────────────────────────────────────────────────────┘
- */
-export const AREAS_PER_SHOOT_DAY = 20;
-export const VIDEOS_PER_SHOOT_DAY = 10;
-
-/** Shoot days a given scope needs. Always at least one. */
-export function shootDaysFor(areas: number, videos: number): number {
-  const byArea = Math.ceil(Math.max(0, areas) / AREAS_PER_SHOOT_DAY);
-  const byVideo = Math.ceil(Math.max(0, videos) / VIDEOS_PER_SHOOT_DAY);
-  return Math.max(1, byArea, byVideo);
-}
 
 /** A whole number of extras inside the slider's range. */
 export function clampExtraAreas(n: unknown): number {
@@ -584,15 +623,54 @@ export function nextExtraAreaPrice(planId: SitePlanId, have: number): number {
  * on the add-on slider. It falls as extras are added, because every band
  * is cheaper than the plan's own per-area price.
  */
-export function sitePerArea(planId: SitePlanId, extraAreas = 0): number {
+export function sitePerArea(
+  planId: SitePlanId,
+  extraAreas = 0,
+  offerOpen = LAUNCH_OFFER.active
+): number {
   const plan = SITE_PLANS[planId];
   const n = clampExtraAreas(extraAreas);
   const areas = plan.scenes + n;
-  return Math.round((plan.priceInr + extraAreaCost(planId, n)) / areas);
+  return Math.round((planPrice(planId, offerOpen) + extraAreaCost(planId, n)) / areas);
+}
+
+/**
+ * The discount bands behind the "add more areas" banner: each band's price
+ * per area and how far below the plan's own per-area price it is. Honest
+ * by construction — the percentage is computed from the same two numbers
+ * the buyer can see.
+ */
+export function discountBands(
+  planId: SitePlanId,
+  offerOpen = LAUNCH_OFFER.active
+): { from: number; to: number | null; each: number; percentOff: number }[] {
+  const base = sitePerArea(planId, 0, offerOpen);
+  let from = 1;
+  return SITE_PLANS[planId].extraAreaLadder.map((band) => {
+    const to = Number.isFinite(band.upTo) ? band.upTo : null;
+    const row = {
+      from,
+      to,
+      each: band.each,
+      percentOff: Math.max(0, Math.round((1 - band.each / base) * 100)),
+    };
+    if (to !== null) from = to + 1;
+    return row;
+  });
+}
+
+/** What the extras save against paying the plan's own per-area rate. */
+export function extrasSaving(
+  planId: SitePlanId,
+  extraAreas: number,
+  offerOpen = LAUNCH_OFFER.active
+): number {
+  const n = clampExtraAreas(extraAreas);
+  return Math.max(0, n * sitePerArea(planId, 0, offerOpen) - extraAreaCost(planId, n));
 }
 
 /** Every step of the add-on slider, pre-computed for the table. */
-export function extraAreaRows(planId: SitePlanId): {
+export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): {
   extras: number;
   areas: number;
   total: number;
@@ -604,40 +682,70 @@ export function extraAreaRows(planId: SitePlanId): {
     rows.push({
       extras: n,
       areas: plan.scenes + n,
-      total: plan.priceInr + extraAreaCost(planId, n),
-      perArea: sitePerArea(planId, n),
+      total: planPrice(planId, offerOpen) + extraAreaCost(planId, n),
+      perArea: sitePerArea(planId, n, offerOpen),
     });
   }
   return rows;
 }
 
-/* ─────────────────────── Launch offer ───────────────────────────── */
+/* ─────────────────────── Shoot time ─────────────────────────────── */
 
 /**
- * The launch discount.
+ * How long the crew is on site.
  *
- * TURNED OFF because the plan prices themselves were cut instead — the
- * list price IS the offer now. Leaving a 20% discount on top of the new
- * figures would quietly sell Control at ₹72,000, which is not the price
- * that was decided.
+ * Each plan includes a fixed shoot time — 2, 4 and 6 hours — that covers
+ * its own areas and videos. Every extra area or video adds roughly
+ * MINUTES_PER_EXTRA_* minutes; the added time is rounded UP to whole hours
+ * and charged at EXTRA_HOUR_INR an hour, as its own line on the bill.
  *
- * `limit` is a PROMISE to the buyer ("our first 100 customers"), so if
- * this is ever switched back on it has to be true, and switched off again
- * once that many have bought. An offer that never ends is a false-urgency
- * claim under the CCPA's dark-pattern guidelines, and it gets printed on
- * the page.
+ * A shoot longer than SHOOT_DAY_HOURS runs into a second day. That is SHOWN
+ * (the buyer needs to plan the crew's overnight stay) but NOT charged as a
+ * day on top of the hours: time is already billed by the hour, and adding
+ * the logistics sheet's ₹20,000 day fee as well would bill the same hours
+ * twice — and turn one extra area into a ₹20,999 jump on the slider. To
+ * charge a second day as well, set CHARGE_ADDITIONAL_SHOOT_DAY to true.
+ *
+ * Change these to match what the crew actually takes; every quote follows.
  */
-export const LAUNCH_OFFER = {
-  active: false,
-  percent: 20,
-  limit: 100,
-  label: "Launch offer (20% off)",
+export const MINUTES_PER_EXTRA_AREA = 15;
+export const MINUTES_PER_EXTRA_VIDEO = 15;
+export const EXTRA_HOUR_INR = 999;
+export const SHOOT_DAY_HOURS = 8;
+export const CHARGE_ADDITIONAL_SHOOT_DAY = false;
+
+export type ShootTime = {
+  includedHours: number;
+  extraMinutes: number;
+  /** Whole hours charged beyond what the plan includes. */
+  extraHours: number;
+  totalHours: number;
+  days: number;
 };
 
-/** Discount in rupees for a plan, 0 when the offer is off. */
-export function launchDiscount(base: number): number {
-  if (!LAUNCH_OFFER.active) return 0;
-  return Math.round((base * LAUNCH_OFFER.percent) / 100);
+export function shootTimeFor(
+  planId: SitePlanId,
+  extraAreas = 0,
+  extraVideos = 0
+): ShootTime {
+  const plan = SITE_PLANS[planId];
+  const extraMinutes =
+    clampExtraAreas(extraAreas) * MINUTES_PER_EXTRA_AREA +
+    clampExtraVideos(extraVideos) * MINUTES_PER_EXTRA_VIDEO;
+  const extraHours = Math.ceil(extraMinutes / 60);
+  const totalHours = plan.shootHours + extraHours;
+  return {
+    includedHours: plan.shootHours,
+    extraMinutes,
+    extraHours,
+    totalHours,
+    days: Math.max(1, Math.ceil(totalHours / SHOOT_DAY_HOURS)),
+  };
+}
+
+/** "6 hours", "1 hour". */
+export function hoursLabel(h: number): string {
+  return `${h} hour${h === 1 ? "" : "s"}`;
 }
 
 /* ─────────────────────── Travel (legacy two-zone) ───────────────── */
@@ -646,9 +754,9 @@ export function launchDiscount(base: number): number {
  * The OLD two-zone travel question ("is your factory in Delhi NCR?").
  *
  * Superseded by the city-by-city tiers in lib/logistics.ts, which is what
- * the new funnel asks for and what the bill shows. Kept, and mapped onto
- * the real tiers, so the earlier /checkout page and the marketing site's
- * pay bridge keep pricing correctly until the new funnel replaces them.
+ * the funnel asks for and what the bill shows. Kept, and mapped onto the
+ * real tiers, so the earlier /checkout page and the marketing site's pay
+ * bridge keep pricing correctly.
  *
  * Prefer `city` over `travel` in every new call.
  */
@@ -666,17 +774,26 @@ export function isTravelZone(v: unknown): v is TravelZone {
 /* ─────────────────────── The quote ──────────────────────────────── */
 
 /** One line on the bill. The buyer sees exactly these, in this order. */
-export type QuoteLine = { label: string; amountInr: number; note?: string };
+export type QuoteLine = {
+  label: string;
+  amountInr: number;
+  note?: string;
+  kind?: "plan" | "offer" | "extra" | "travel" | "time";
+};
 
 export type SiteQuote = {
   plan: SitePlanSpec;
+  offerOpen: boolean;
+  /** What the special offer takes off, 0 once it has closed. */
+  savingInr: number;
   extraAreas: number;
   extraVideos: number;
-  /** Total areas and videos the buyer ends up with. */
   totalAreas: number;
   totalVideos: number;
   /** Null when priced by the legacy travel zone instead of a city. */
   logistics: LogisticsQuote | null;
+  shoot: ShootTime;
+  /** Kept for callers that only want the day count. */
   shootDays: number;
   lines: QuoteLine[];
   /** Sum of the lines, GST excluded. */
@@ -689,9 +806,9 @@ export type SiteQuote = {
 };
 
 /**
- * The full breakdown for a site plan — plan, extras, travel, shoot days,
- * GST — so the recommendation page, the billing page and the order route
- * all quote identical numbers from one calculation.
+ * The full breakdown for a site plan — plan, offer, extras, travel, shoot
+ * time, GST — so the recommendation page, the billing page and the order
+ * route all quote identical numbers from one calculation.
  *
  * Nothing is hidden until the end: every line this returns is meant to be
  * on screen before the buyer is asked to pay.
@@ -704,31 +821,42 @@ export function siteQuote(
   opts: {
     extraAreas?: number;
     extraVideos?: number;
-    /** The factory's city. Preferred. */
     city?: string;
-    /** Legacy fallback when no city is known. */
     travel?: TravelZone;
+    /** Whether the special offer still applies. The server decides this
+     *  from the real count of buyers; screens pass what the server said. */
+    offerOpen?: boolean;
   } = {}
 ): SiteQuote {
   const plan = SITE_PLANS[planId];
+  const offerOpen = (opts.offerOpen ?? true) && LAUNCH_OFFER.active;
   const extraAreas = clampExtraAreas(opts.extraAreas);
   const extraVideos = clampExtraVideos(opts.extraVideos);
   const totalAreas = plan.scenes + extraAreas;
   const totalVideos = plan.videos + extraVideos;
+  const shoot = shootTimeFor(planId, extraAreas, extraVideos);
+  const savingInr = offerSaving(planId, offerOpen);
 
   const lines: QuoteLine[] = [
     {
+      kind: "plan",
       label: `${plan.name} — ${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
-      amountInr: plan.priceInr,
-      note: "Includes 1 year technical support and hosting",
+      amountInr: plan.regularInr,
+      note: `${hoursLabel(plan.shootHours)} of shoot time and 1 year of support and hosting included`,
     },
   ];
-
-  const discount = launchDiscount(plan.priceInr);
-  if (discount > 0) lines.push({ label: LAUNCH_OFFER.label, amountInr: -discount });
+  if (savingInr > 0) {
+    lines.push({
+      kind: "offer",
+      label: `${LAUNCH_OFFER.short} — ${LAUNCH_OFFER.percent}% off`,
+      amountInr: -savingInr,
+      note: "For our first 100 customers",
+    });
+  }
 
   if (extraAreas > 0) {
     lines.push({
+      kind: "extra",
       label: `${extraAreas} extra area${extraAreas === 1 ? "" : "s"}`,
       amountInr: extraAreaCost(planId, extraAreas),
       note: `${totalAreas} areas in total`,
@@ -736,9 +864,19 @@ export function siteQuote(
   }
   if (extraVideos > 0) {
     lines.push({
+      kind: "extra",
       label: `${extraVideos} extra process video${extraVideos === 1 ? "" : "s"}`,
       amountInr: extraVideos * EXTRA_VIDEO_INR,
       note: VIDEO_SHOT_NOTE,
+    });
+  }
+
+  if (shoot.extraHours > 0) {
+    lines.push({
+      kind: "time",
+      label: `Extra shoot time — ${hoursLabel(shoot.extraHours)}`,
+      amountInr: shoot.extraHours * EXTRA_HOUR_INR,
+      note: `${hoursLabel(shoot.includedHours)} included, ${hoursLabel(shoot.totalHours)} needed · ₹${EXTRA_HOUR_INR}/hour`,
     });
   }
 
@@ -747,6 +885,7 @@ export function siteQuote(
   if (typeof opts.city === "string" && opts.city.trim()) {
     logistics = logisticsFor(opts.city);
     lines.push({
+      kind: "travel",
       label: `Travel & logistics — ${logistics.city || logistics.spec.label}`,
       amountInr: logistics.amountInr,
       note: logistics.needsConfirmation
@@ -756,20 +895,19 @@ export function siteQuote(
   } else {
     const zone: TravelZone = isTravelZone(opts.travel) ? opts.travel : "outside";
     lines.push({
+      kind: "travel",
       label: `Travel & logistics — ${TRAVEL_FEES[zone].label}`,
       amountInr: TRAVEL_FEES[zone].amountInr,
     });
   }
 
-  // Shoot days. Only a scope beyond one full day adds a line, so no stock
-  // plan is ever surprised by one.
-  const shootDays = shootDaysFor(totalAreas, totalVideos);
-  if (shootDays > 1) {
-    const extraDays = shootDays - 1;
+  if (shoot.days > 1 && CHARGE_ADDITIONAL_SHOOT_DAY) {
+    const extraDays = shoot.days - 1;
     lines.push({
+      kind: "time",
       label: `${extraDays} additional shoot day${extraDays === 1 ? "" : "s"}`,
       amountInr: extraDays * ADDITIONAL_SHOOT_DAY_INR,
-      note: `${totalAreas} areas and ${totalVideos} videos need ${shootDays} days on site`,
+      note: `${hoursLabel(shoot.totalHours)} on site runs past one ${SHOOT_DAY_HOURS}-hour day`,
     });
   }
 
@@ -778,17 +916,20 @@ export function siteQuote(
 
   return {
     plan,
+    offerOpen,
+    savingInr,
     extraAreas,
     extraVideos,
     totalAreas,
     totalVideos,
     logistics,
-    shootDays,
+    shoot,
+    shootDays: shoot.days,
     lines,
     taxableInr: g.taxable,
     gstInr: g.gst,
     totalInr: g.total,
-    perAreaInr: sitePerArea(planId, extraAreas),
+    perAreaInr: sitePerArea(planId, extraAreas, offerOpen),
   };
 }
 
@@ -797,7 +938,11 @@ export function siteQuote(
  * Kept so /checkout and the pay bridge keep working unchanged. New code
  * should call siteQuote().
  */
-export function sitePlanQuote(planId: SitePlanId, travel: TravelZone): {
+export function sitePlanQuote(
+  planId: SitePlanId,
+  travel: TravelZone,
+  offerOpen = LAUNCH_OFFER.active
+): {
   plan: SitePlanSpec;
   base: number;
   discount: number;
@@ -806,14 +951,14 @@ export function sitePlanQuote(planId: SitePlanId, travel: TravelZone): {
   amountInr: number;
 } {
   const plan = SITE_PLANS[planId];
-  const discount = launchDiscount(plan.priceInr);
+  const discount = offerSaving(planId, offerOpen);
   const travelFee = TRAVEL_FEES[travel].amountInr;
   return {
     plan,
-    base: plan.priceInr,
+    base: plan.regularInr,
     discount,
     travelFee,
-    amountInr: plan.priceInr - discount + travelFee,
+    amountInr: plan.regularInr - discount + travelFee,
   };
 }
 
@@ -878,6 +1023,8 @@ export function priceFor(
     city?: string;
     extraAreas?: number;
     extraVideos?: number;
+    /** Decided by the order route from the real count of buyers. */
+    offerOpen?: boolean;
   } = {}
 ): { amountInr: number; description: string; scenes: number | null } {
   switch (purpose) {
@@ -913,12 +1060,15 @@ export function priceFor(
         extraVideos: opts.extraVideos,
         city: opts.city,
         travel: opts.travel,
+        offerOpen: opts.offerOpen,
       });
       const parts = [`${q.plan.name} — ${q.totalAreas} areas`];
       if (q.totalVideos > 0) parts.push(`${q.totalVideos} videos`);
+      if (q.savingInr > 0) parts.push(LAUNCH_OFFER.short);
+      parts.push(`${hoursLabel(q.shoot.totalHours)} shoot`);
       if (q.logistics) parts.push(`travel ${q.logistics.city || q.logistics.spec.label}`);
       else parts.push(`travel ${TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label}`);
-      if (q.shootDays > 1) parts.push(`${q.shootDays} shoot days`);
+      if (q.shoot.days > 1) parts.push(`${q.shoot.days} shoot days`);
       return {
         amountInr: q.taxableInr,
         description: `${parts.join(", ")} (includes 1 year support and hosting)`,

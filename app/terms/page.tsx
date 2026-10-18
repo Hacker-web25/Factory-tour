@@ -14,6 +14,16 @@ import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, L, Mail, P, UL } from "@/components/legal/prose";
 import { COMPANY, POLICY, companyIdentity } from "@/lib/company";
 import {
+  EXTRA_HOUR_INR,
+  EXTRA_VIDEO_INR,
+  LAUNCH_OFFER,
+  MINUTES_PER_EXTRA_AREA,
+  SITE_PLANS,
+  SITE_PLAN_ORDER,
+  VIDEO_SHOT_NOTE,
+  discountBands,
+  hoursLabel,
+  siteQuote,
   GST_LABEL,
   PRO_MONTHLY_INR,
   SCENE_MAX,
@@ -26,6 +36,10 @@ import {
   pricePerScene,
   withGst,
 } from "@/lib/pricing";
+import { ACCOMMODATION_RULE, LOGISTICS_TIERS, LOGISTICS_TIER_ORDER, UNLISTED_CITY_NOTE } from "@/lib/logistics";
+
+/* Worked example for the GST paragraph: VPV Authority, factory in Manesar. */
+const EXAMPLE = siteQuote("authority", { city: "Manesar" });
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
@@ -63,7 +77,7 @@ const sections: LegalSection[] = [
           <L href="/shipping-policy">Shipping &amp; Delivery Policy</L>,{" "}
           <L href="/cookies">Cookie Policy</L>,{" "}
           <L href="/disclaimer">Disclaimer</L> and{" "}
-          <L href="/pricing">Pricing</L> page, all of which form part of the
+          <L href="/plans">Plans</L> page, all of which form part of the
           agreement. If a signed proposal for Pro or Ultra says something
           different from these Terms, the proposal prevails for that order.
         </P>
@@ -94,7 +108,7 @@ const sections: LegalSection[] = [
         </li>
         <li>
           <B>Plan</B> — Basic, Pro or Ultra, as described on the{" "}
-          <L href="/pricing">Pricing</L> page or in your proposal.
+          <L href="/plans">Plans</L> page or in your proposal.
         </li>
         <li>
           <B>Scene</B> — one 360° location in a tour.{" "}
@@ -156,6 +170,41 @@ const sections: LegalSection[] = [
           right to use the Service for your own internal business purposes
           and to show your tours to your Viewers.
         </P>
+        <P>
+          <B>VPV plans.</B> Our main offer is a done-for-you Virtual Plant
+          Visit: our crew shoots your factory and we build the VPV in your own
+          Workspace. Each plan is a one-time Licence Fee:
+        </P>
+        <UL>
+          {SITE_PLAN_ORDER.map((id) => {
+            const p = SITE_PLANS[id];
+            return (
+              <li key={id}>
+                <B>{p.name}.</B> {p.scenes} Active Operational Areas (AOAs),{" "}
+                {p.videos > 0 ? `${p.videos} process videos` : "no process videos"},{" "}
+                {p.pdfs > 0 ? `${p.pdfs} PDF reports` : "no PDF reports"}, information icons,{" "}
+                {hoursLabel(p.shootHours)} of shoot time on site
+                {p.sharingControls ? ", and one-time link expiry and sharing restrictions" : ""}.
+              </li>
+            );
+          })}
+        </UL>
+        <P>
+          An AOA is one area of your factory a Viewer can explore in 360°, and
+          becomes one Scene in your Workspace. One-time link expiry and sharing
+          restrictions are part of {SITE_PLANS.control.name} only and are not
+          sold separately. No link restriction can stop a Viewer from taking
+          screenshots or recording their screen.
+        </P>
+        <P>
+          <B>Add-ons.</B> On any plan you may add extra AOAs and extra process
+          videos when you order. {VIDEO_SHOT_NOTE} Extra shoot time that your
+          add-ons need is charged by the hour, as set out under{" "}
+          <L href="#shoot">The factory shoot</L>.
+        </P>
+        <P>
+          We also offer the following, which some customers buy instead:
+        </P>
         <UL>
           <li>
             <B>Basic — one-time.</B> A single Workspace. You choose how many
@@ -203,10 +252,35 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Current prices are on the <L href="/pricing">Pricing</L> page. At the
+          Current prices are on the <L href="/plans">Plans</L> page. At the
           time these Terms took effect:
         </P>
         <UL>
+          {SITE_PLAN_ORDER.map((id) => {
+            const p = SITE_PLANS[id];
+            return (
+              <li key={id}>
+                <B>{p.name}</B> is {inr(p.regularInr)}, one time
+                {LAUNCH_OFFER.active
+                  ? `, or ${inr(p.priceInr)} under the special offer for our first ${LAUNCH_OFFER.limit} customers (see Special offer below)`
+                  : ""}
+                .
+              </li>
+            );
+          })}
+          <li>
+            <B>Extra AOAs</B> are priced per plan and cost less the more you
+            add; on {SITE_PLANS.control.name}, for example, from{" "}
+            {inr(discountBands("control")[0].each)} down to{" "}
+            {inr(discountBands("control").slice(-1)[0].each)} each.{" "}
+            <B>Extra process videos</B> are {inr(EXTRA_VIDEO_INR)} each.{" "}
+            <B>Extra shoot time</B> is {inr(EXTRA_HOUR_INR)} per hour.
+          </li>
+          <li>
+            <B>Travel &amp; logistics</B> depends on your factory&rsquo;s city
+            and is charged with your order. See{" "}
+            <L href="#travel">Travel and logistics</L>.
+          </li>
           <li>
             <B>Basic</B> starts at {inr(priceForScenes(SCENE_MIN))} for{" "}
             {SCENE_MIN} Scenes, one time. The price per Scene falls as you add
@@ -231,10 +305,10 @@ const sections: LegalSection[] = [
             {GST_LABEL} is added at the final checkout step and shown in the
             breakdown before you pay. Our GSTIN ({COMPANY.gstin}) appears on
             every tax invoice, so a GST-registered customer can claim input
-            tax credit. For example, {inr(priceForScenes(5))} becomes{" "}
-            {inr2(withGst(priceForScenes(5)).taxable)} plus{" "}
-            {inr2(withGst(priceForScenes(5)).gst)} GST ={" "}
-            <B>{inr2(withGst(priceForScenes(5)).total)}</B> at checkout. If
+            tax credit. For example, {EXAMPLE.plan.name} for a factory in
+            Manesar is {inr2(EXAMPLE.taxableInr)} including travel, plus{" "}
+            {inr2(EXAMPLE.gstInr)} GST = <B>{inr2(EXAMPLE.totalInr)}</B> at
+            checkout. Every line of your own bill is shown before you pay. If
             tax law requires you to deduct tax at source, tell us before paying
             so we can document it correctly.
           </li>
@@ -261,6 +335,133 @@ const sections: LegalSection[] = [
           <li>
             <B>Late payment.</B> Overdue invoices may attract interest at a
             reasonable rate permitted by law, after written notice.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "special-offer",
+    title: "Special offer",
+    body: (
+      <>
+        <P>
+          {LAUNCH_OFFER.active
+            ? `While it runs, the VPV plans are ${LAUNCH_OFFER.percent}% off their regular price for our first ${LAUNCH_OFFER.limit} customers.`
+            : "The special offer has ended; the VPV plans are sold at their regular price."}
+        </P>
+        <UL>
+          <li>
+            <B>Who counts.</B> A customer is counted once their payment for a
+            VPV plan is received. Orders that are refunded do not count and
+            free up their place.
+          </li>
+          <li>
+            <B>It ends on its own.</B> From the{" "}
+            {LAUNCH_OFFER.limit + 1}st paid plan, the regular price applies.
+            Our checkout counts this automatically. If the last place is taken
+            while you are on the billing page, we show you the regular-price
+            total before you pay, never after.
+          </li>
+          <li>
+            <B>What it covers.</B> The discount applies to the plan&rsquo;s
+            Licence Fee only, not to add-ons, extra shoot time, travel or the
+            Annual Support &amp; Maintenance fee.
+          </li>
+          <li>
+            <B>Your price is locked.</B> The price on your bill when you pay is
+            your price. We may end the offer earlier than stated, but that
+            never changes an order already paid for.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "shoot",
+    title: "The factory shoot",
+    body: (
+      <>
+        <UL>
+          <li>
+            <B>Booking.</B> After your plan is paid for, we contact you within{" "}
+            {POLICY.shootContactBusinessDays} business days to agree a shoot
+            date. Dates are confirmed by us in writing.
+          </li>
+          <li>
+            <B>Shoot time.</B> Your plan includes the hours shown on it (
+            {SITE_PLAN_ORDER.map((id) => `${SITE_PLANS[id].name}: ${hoursLabel(SITE_PLANS[id].shootHours)}`).join("; ")}
+            ). Each extra AOA or video you add is estimated at about{" "}
+            {MINUTES_PER_EXTRA_AREA} minutes. Added time is rounded up to whole
+            hours and charged at {inr(EXTRA_HOUR_INR)} per hour, and is shown on
+            your bill before you pay. A shoot longer than one working day runs
+            over more than one day.
+          </li>
+          <li>
+            <B>On the day you provide</B> access to every area you chose, a
+            person who knows the plant to accompany the crew, any safety
+            induction and protective equipment your site requires, and, for
+            each process video, the machine or process running.
+          </li>
+          <li>
+            <B>People in the shot.</B> You are responsible for telling your
+            staff that photographs and video will be taken, and for any
+            consent your policies require. Tell us of any area, document or
+            product that must not be shown, and we will keep it out.
+          </li>
+          <li>
+            <B>Moving the date.</B> You may move a confirmed shoot by telling
+            us at least {POLICY.rescheduleNoticeHours} hours before it. With
+            less notice, or if the crew arrives and cannot shoot because of
+            something on your side, travel costs already incurred may be
+            charged again for the new date.
+          </li>
+          <li>
+            <B>If we have to move it.</B> If we cannot attend a confirmed shoot,
+            we reschedule at no extra charge and reimburse reasonable change
+            fees on flights you booked for the crew on the dates we agreed.
+          </li>
+          <li>
+            <B>Delivery.</B> The finished VPV is placed in your Workspace within{" "}
+            {POLICY.vpvDeliveryWorkingDays} working days of the shoot. See the{" "}
+            <L href="/shipping-policy">Shipping &amp; Delivery Policy</L>.
+          </li>
+        </UL>
+      </>
+    ),
+  },
+  {
+    id: "travel",
+    title: "Travel and logistics",
+    body: (
+      <>
+        <P>
+          Our crew travels from Gurgaon. Your travel &amp; logistics charge is
+          set by your factory&rsquo;s city and shown on your bill:
+        </P>
+        <UL>
+          {LOGISTICS_TIER_ORDER.map((t) => {
+            const tier = LOGISTICS_TIERS[t];
+            return (
+              <li key={t}>
+                <B>{tier.label}: {inr(tier.amountInr)}.</B> {tier.policy}
+                {tier.clientArranges.length > 0 && (
+                  <> You arrange and pay for: {tier.clientArranges.join("; ").toLowerCase()}.</>
+                )}
+              </li>
+            );
+          })}
+        </UL>
+        <UL>
+          <li>{ACCOMMODATION_RULE}</li>
+          <li>
+            {UNLISTED_CITY_NOTE} Until then, a city not on our list is quoted
+            at the air-travel charge.
+          </li>
+          <li>
+            The charge is for the address you give us. If the factory turns out
+            to be somewhere that falls in a different tier, we tell you the
+            difference before the shoot and you may cancel instead.
           </li>
         </UL>
       </>

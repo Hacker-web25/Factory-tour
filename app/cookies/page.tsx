@@ -96,6 +96,18 @@ const sections: LegalSection[] = [
               "Until the presenter removes the offline copy.",
             ],
             [
+              <code key="i" className="text-[12.5px]">vpv.funnel.v1</code>,
+              "Local storage — functional",
+              "Holds your answers to the pricing questions (your details, factory city, the areas and processes you picked, your plan) so you can move between steps or come back later without starting again.",
+              "Until you clear it, or press “Clear these answers” after buying.",
+            ],
+            [
+              <code key="j" className="text-[12.5px]">myvpv:phase1:v1</code>,
+              "Local storage — functional",
+              "Used by the plans and FAQ pages of our marketing site to remember choices made there.",
+              "Until cleared.",
+            ],
+            [
               <code key="h" className="text-[12.5px]">vpv:notif:*, factour:hotspotStyle:*</code>,
               "Local storage — functional",
               "Remembers which notifications you have seen and your tour-builder style preferences.",

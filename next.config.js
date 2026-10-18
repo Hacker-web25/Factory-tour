@@ -146,6 +146,23 @@ const nextConfig = {
     },
   },
 
+  /**
+   * Retired paths, sent somewhere real.
+   *   /pricing  — the old scene-ladder page. The three plans on /plans are the
+   *               one public price list now; app/pricing/page.tsx is kept as
+   *               the design reference for the scene slider (docs/DESIGN-REFERENCE.md).
+   *   /assessment/processes, /assessment/price — steps of the old site's
+   *               assessment, replaced by the funnel under app/assessment/.
+   * Temporary (307) on purpose, so any of them can be brought back.
+   */
+  async redirects() {
+    return [
+      { source: "/pricing", destination: "/plans", permanent: false },
+      { source: "/assessment/processes", destination: "/assessment/scope", permanent: false },
+      { source: "/assessment/price", destination: "/assessment/plan", permanent: false },
+    ];
+  },
+
   async headers() {
     return [
       {

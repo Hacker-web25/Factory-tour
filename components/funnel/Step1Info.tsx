@@ -17,12 +17,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Car, MapPin, Plane, ShieldCheck, TrainFront, UserRound } from "lucide-react";
 import {
   Card,
   Field,
   FunnelBody,
   FunnelHeader,
   PrimaryButton,
+  SectionTitle,
   SelectInput,
   TextInput,
 } from "@/components/funnel/FunnelShell";
@@ -103,7 +105,7 @@ export default function Step1Info() {
   if (!s) {
     return (
       <>
-        <FunnelHeader step={0} eyebrow="Step 1 of 5" title="Let's build your quote" />
+        <FunnelHeader step={0} title="Let's build your quote" />
         <FunnelBody>
           <Card>
             <div className="h-5 w-40 animate-pulse rounded bg-vpv-tint" />
@@ -119,9 +121,12 @@ export default function Step1Info() {
     <>
       <FunnelHeader
         step={0}
-        eyebrow="Step 1 of 5"
+       
         title="Let's build your quote"
-        summary="Four questions about you and one about your factory. The last one matters most — where your plant is decides what the crew's travel costs, so we cannot show you a real total without it."
+        summary="A few details about you, and where your plant is. The city matters most: our crew travels to you, so it decides what travel costs, and we can't show you a real total without it."
+        image="owner-tablet"
+        imageAlt="A factory owner smiling with a tablet on his shop floor"
+        caption="Takes about two minutes"
       />
       <FunnelBody>
         <form
@@ -132,8 +137,10 @@ export default function Step1Info() {
           noValidate
         >
           <Card>
-            <h2 className="text-[17px] font-semibold text-vpv-ink">About you</h2>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <SectionTitle icon={UserRound} title="About you">
+              Who we prepare the quote for, and where we send it.
+            </SectionTitle>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Field label="Your name" required error={errors.name}>
                 <TextInput
                   value={s.name}
@@ -203,11 +210,10 @@ export default function Step1Info() {
           </Card>
 
           <Card className="mt-5">
-            <h2 className="text-[17px] font-semibold text-vpv-ink">Where is your factory?</h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
+            <SectionTitle icon={MapPin} title="Where is your factory?">
               Our crew travels from Gurgaon. This sets your travel and logistics
               charge, which you will see on the bill before you pay anything.
-            </p>
+            </SectionTitle>
 
             <div className="mt-5">
               <Field label="City or industrial hub" required error={errors.city}>
@@ -247,9 +253,18 @@ export default function Step1Info() {
 
             {quote && (
               <div className="mt-5 rounded-xl border border-vpv-line bg-vpv-canvas p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="text-[13.5px] font-medium text-vpv-ink">
-                    Travel &amp; logistics — {quote.spec.label}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2.5 text-[13.5px] font-medium text-vpv-ink">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-vpv-blue shadow-sm">
+                      {quote.tier === 5 ? (
+                        <Plane className="h-4 w-4" aria-hidden />
+                      ) : quote.tier === 3 ? (
+                        <TrainFront className="h-4 w-4" aria-hidden />
+                      ) : (
+                        <Car className="h-4 w-4" aria-hidden />
+                      )}
+                    </span>
+                    Travel &amp; logistics: {quote.spec.label}
                   </span>
                   <span className="text-[17px] font-semibold tabular-nums text-vpv-ink">
                     ₹{quote.amountInr.toLocaleString("en-IN")}
@@ -281,8 +296,8 @@ export default function Step1Info() {
           </Card>
 
           <Card className="mt-5">
-            <h2 className="text-[17px] font-semibold text-vpv-ink">How we use this</h2>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-slate-600">
+            <SectionTitle icon={ShieldCheck} title="How we use this" />
+            <p className="mt-4 text-[13.5px] leading-relaxed text-slate-600">
               We use your name, company, e-mail, mobile, industry and factory
               city to prepare this quote, to confirm the shoot with you and to
               raise your GST invoice if you buy. You can ask us to show,

@@ -2,12 +2,17 @@ import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   EXTRA_AREA_MAX,
+  EXTRA_HOUR_INR,
   LAUNCH_OFFER,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   TRAVEL_FEES,
+  discountBands,
   extraAreaCost,
-  launchDiscount,
+  launchOfferOpen,
+  offerSaving,
+  planPrice,
+  shootTimeFor,
   siteQuote,
   sitePerArea,
   toPaise,
@@ -18,6 +23,7 @@ import {
   type TravelZone,
 } from "@/lib/pricing";
 import { logisticsFor } from "@/lib/logistics";
+import { launchOfferState } from "@/lib/server/launchOffer";
 import { makeWorld, BUYER, freshIp, type World } from "./harness/world";
 
 /**
@@ -107,10 +113,22 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(SITE_PLANS.authority.sharingControls, false);
     assert.equal(SITE_PLANS.control.sharingControls, true);
 
-    // The launch discount is OFF: the list prices were cut instead. Leaving
-    // it on would quietly sell Control at ₹72,000.
-    assert.equal(LAUNCH_OFFER.active, false);
-    assert.equal(launchDiscount(SITE_PLANS.control.priceInr), 0);
+    // The special offer: 20% off the regular price for the first 100
+    // customers, landing exactly on the decided prices. The regular prices
+    // are what is charged from the 101st buyer, so they are pinned too.
+    assert.equal(LAUNCH_OFFER.active, true);
+    assert.equal(LAUNCH_OFFER.percent, 20);
+    assert.equal(LAUNCH_OFFER.limit, 100);
+    assert.equal(SITE_PLANS.confidence.regularInr, 43_750);
+    assert.equal(SITE_PLANS.authority.regularInr, 68_750);
+    assert.equal(SITE_PLANS.control.regularInr, 112_500);
+    for (const id of SITE_PLAN_ORDER) {
+      const p = SITE_PLANS[id];
+      assert.equal(p.priceInr, p.regularInr * (1 - LAUNCH_OFFER.percent / 100), id);
+      assert.equal(planPrice(id, true), p.priceInr, id);
+      assert.equal(planPrice(id, false), p.regularInr, id);
+      assert.equal(offerSaving(id, false), 0, id);
+    }
 
     // Legacy two-zone travel, now mapped onto the real logistics tiers.
     assert.equal(TRAVEL_FEES.ncr.amountInr, 4_000);
@@ -138,7 +156,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
       confToAuth > auth.priceInr,
       `Confidence + ${auth.scenes - conf.scenes} areas = ${confToAuth}, must exceed Authority ${auth.priceInr}`
     );
-    assert.equal(confToAuth, 59_000);
+    assert.equal(confToAuth, 58_500);
 
     const authToCtrl = auth.priceInr + extraAreaCost("authority", ctrl.scenes - auth.scenes);
     assert.ok(
@@ -186,18 +204,57 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(logisticsFor("Manesar").needsConfirmation, false);
   });
 
-  it("only charges a second shoot day for a shoot that needs one", () => {
-    // No stock plan may trigger a second day, and nor may a few extras —
-    // a ₹20,000 jump next to a ₹4,500 slider step reads as a trick.
-    for (const planId of SITE_PLAN_ORDER) {
-      assert.equal(siteQuote(planId, { city: "Manesar" }).shootDays, 1, planId);
+  it("includes 2, 4 and 6 hours of shoot time, and charges extra time by the hour", () => {
+    assert.equal(shootTimeFor("confidence").totalHours, 2);
+    assert.equal(shootTimeFor("authority").totalHours, 4);
+    assert.equal(shootTimeFor("control").totalHours, 6);
+    for (const id of SITE_PLAN_ORDER) {
+      const q = siteQuote(id, { city: "Manesar" });
+      assert.equal(q.shoot.extraHours, 0, id);
+      assert.ok(!q.lines.some((l) => /extra shoot time/i.test(l.label)), id);
     }
-    assert.equal(siteQuote("control", { city: "Manesar", extraAreas: 5 }).shootDays, 1);
 
-    // A genuinely bigger shoot does, and it is a line on the bill.
+    // 4 extra areas = 60 minutes = exactly one extra hour.
+    const one = siteQuote("control", { city: "Manesar", extraAreas: 4 });
+    assert.equal(one.shoot.extraHours, 1);
+    assert.equal(one.shoot.totalHours, 7);
+    const line = one.lines.find((l) => /extra shoot time/i.test(l.label));
+    assert.ok(line);
+    assert.equal(line!.amountInr, EXTRA_HOUR_INR);
+
+    // 5 extra areas = 75 minutes, rounded UP to two hours.
+    assert.equal(shootTimeFor("control", 5).extraHours, 2);
+    // Videos count too.
+    assert.equal(shootTimeFor("authority", 0, 4).extraHours, 1);
+  });
+
+  it("shows a two-day shoot but never bills the same hours twice", () => {
+    assert.equal(siteQuote("control", { city: "Manesar", extraAreas: 5 }).shoot.days, 1);
+    // 6 h + 10 areas (150 min → 3 h) = 9 h: past an 8-hour day.
     const big = siteQuote("control", { city: "Manesar", extraAreas: 10 });
-    assert.equal(big.shootDays, 2);
-    assert.ok(big.lines.some((l) => /additional shoot day/i.test(l.label)));
+    assert.equal(big.shoot.days, 2);
+    // Time is billed by the hour; no day fee on top, so one extra area can
+    // never jump the total by ₹20,000.
+    assert.ok(!big.lines.some((l) => /additional shoot day/i.test(l.label)));
+    const nine = siteQuote("control", { city: "Manesar", extraAreas: 8 });
+    const ten = siteQuote("control", { city: "Manesar", extraAreas: 9 });
+    assert.ok(ten.taxableInr - nine.taxableInr <= 3_900 + EXTRA_HOUR_INR);
+  });
+
+  it("shows the discount bands with percentages the buyer can check", () => {
+    const bands = discountBands("control");
+    assert.deepEqual(
+      bands.map((b) => [b.from, b.to, b.each, b.percentOff]),
+      [
+        [1, 5, 4_500, 25],
+        [6, 10, 3_900, 35],
+        [11, null, 3_400, 43],
+      ]
+    );
+    // Every band on every plan is cheaper than the plan's own per-area rate.
+    for (const id of SITE_PLAN_ORDER) {
+      for (const b of discountBands(id)) assert.ok(b.percentOff > 0, `${id} ${b.each}`);
+    }
   });
 
   it("totals the quote to the sum of the lines it showed, plus GST", () => {
@@ -308,8 +365,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(storedPurpose("site_plan"), "basic_licence");
     assert.equal(row.scenes, SITE_PLANS.authority.scenes);
     assert.match(row.notes, /VPV Authority/);
-    // The launch offer is off, so it must NOT appear on a stored order.
-    assert.doesNotMatch(row.notes, /Launch offer/);
+    // The offer is open in a fresh world, and the order says it took it.
+    assert.match(row.notes, /Special offer/);
   });
 
   it("paying builds the workspace, with the plan's areas and a free first year", async () => {
@@ -368,6 +425,65 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(r.body.testMode, true);
     const paid = await w.payInBrowser(r.body);
     assert.equal(paid.body.status, "ready");
+  });
+
+  it("keeps the first-100 promise: the offer closes on its own after 100 buyers", async () => {
+    // A fake client returning N paid site-plan orders, plus noise that must
+    // NOT count: a scene-ladder licence, and a refunded plan (filtered by
+    // the status query, so it is simply never returned).
+    const fake = (n: number) =>
+      ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                limit: async () => ({
+                  data: [
+                    ...Array.from({ length: n }, (_, i) => ({
+                      notes: `${["VPV Confidence", "VPV Authority", "VPV Control"][i % 3]} — 8 areas`,
+                    })),
+                    { notes: "VPV Basic licence — 7 scenes (includes 1 year support and hosting)" },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }) as never;
+
+    const at99 = await launchOfferState(fake(99));
+    assert.equal(at99.sold, 99);
+    assert.equal(at99.open, true);
+    assert.equal(at99.remaining, 1);
+
+    const at100 = await launchOfferState(fake(100));
+    assert.equal(at100.open, false);
+    assert.equal(at100.remaining, 0);
+    assert.equal(launchOfferOpen(100), false);
+
+    // Once closed, the quote charges the regular price and shows no saving.
+    const closed = siteQuote("control", { city: "Manesar", offerOpen: false });
+    assert.equal(closed.savingInr, 0);
+    assert.ok(!closed.lines.some((l) => l.kind === "offer"));
+    assert.equal(closed.taxableInr, 112_500 + 4_000);
+  });
+
+  it("charges the regular price for real once 100 customers have paid", async () => {
+    await w.reset();
+    for (let i = 0; i < 100; i++) {
+      await w.q(
+        `insert into public.billing_orders (purpose, scenes, amount_paise, status, buyer_name, buyer_email, buyer_company, notes)
+         values ('basic_licence', 8, 100, 'paid', 'Earlier buyer', $1, 'Co', 'VPV Authority — 8 areas')`,
+        [`buyer${i}@example.com`]
+      );
+    }
+    const r = await open({ sitePlanId: "control", city: "Manesar" });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const expected = toPaise(siteQuote("control", { city: "Manesar", offerOpen: false }).totalInr);
+    assert.equal(r.body.amountPaise, expected);
+    const [row] = await w.q(`select notes from public.billing_orders where status = 'created'`);
+    assert.doesNotMatch(row.notes, /Special offer/);
   });
 
   it("the scene-ladder purchase is untouched by any of this", async () => {

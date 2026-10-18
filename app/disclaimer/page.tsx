@@ -116,6 +116,37 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    id: "quotes",
+    title: "Quotes, travel and shoot time",
+    body: (
+      <UL>
+        <li>
+          The recommended plan is a suggestion based on your answers. You may
+          choose any plan; the one you pay for is the one you get.
+        </li>
+        <li>
+          Shoot time for add-ons is an estimate made in advance. You are
+          charged for the extra time shown on your bill, not for what the
+          shoot actually takes on the day.
+        </li>
+        <li>
+          Where your travel tier says you arrange flights, local transport or
+          accommodation, those costs are yours and are not part of our bill.
+          Fares are set by the airlines, not by us.
+        </li>
+        <li>
+          The special offer is limited to our first 100 customers and ends on
+          its own once they have bought. See the{" "}
+          <L href="/terms#special-offer">Terms</L>.
+        </li>
+        <li>
+          Process videos are shot on iPhone and colour-graded. They are made
+          to show your process clearly, not as broadcast production.
+        </li>
+      </UL>
+    ),
+  },
+  {
     id: "payments",
     title: "Payments",
     body: (

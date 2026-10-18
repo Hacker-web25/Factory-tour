@@ -196,7 +196,7 @@ export default function ContactPage() {
               </li>
               <li>
                 Prefer to read first? See{" "}
-                <Link href="/pricing" className="text-vpv-blue underline underline-offset-2">Pricing</Link>,{" "}
+                <Link href="/plans" className="text-vpv-blue underline underline-offset-2">Pricing</Link>,{" "}
                 <Link href="/refund-policy" className="text-vpv-blue underline underline-offset-2">Refund Policy</Link> and{" "}
                 <Link href="/legal" className="text-vpv-blue underline underline-offset-2">all policies</Link>.
               </li>

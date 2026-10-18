@@ -149,3 +149,10 @@ begin
 end $$;
 
 revoke all on function public.funnel_otp_sweep() from public, anon, authenticated;
+
+-- ─────────────────────────── Added: what they picked ────────────────────────
+-- The named areas and processes from step 2, so a rep can open the call with
+-- "I see you'd like buyers to see your ETP and your tool room" instead of a
+-- bare count. Idempotent: safe on a database that already has funnel_leads.
+alter table public.funnel_leads add column if not exists areas     text[];
+alter table public.funnel_leads add column if not exists processes text[];

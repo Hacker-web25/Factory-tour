@@ -60,8 +60,8 @@ export const POLICY_LINKS: PolicyLink[] = [
 ];
 
 export const COMPANY_LINKS: { href: string; label: string }[] = [
-  { href: "/pricing", label: "Pricing" },
-  { href: "/get-started", label: "Get started" },
+  { href: "/plans", label: "Pricing" },
+  { href: "/assessment", label: "Get started" },
   { href: "/about", label: "About us" },
   { href: "/contact", label: "Contact us" },
 ];

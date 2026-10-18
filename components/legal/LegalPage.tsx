@@ -26,7 +26,7 @@ export type LegalSection = {
 };
 
 const HEADER_LINKS = [
-  { href: "/pricing", label: "Pricing" },
+  { href: "/plans", label: "Pricing" },
   { href: "/about", label: "About" },
   { href: "/security", label: "Security" },
   { href: "/contact", label: "Contact" },
@@ -48,7 +48,7 @@ export function SiteHeader() {
         </nav>
         <div className="flex shrink-0 items-center gap-2.5">
           <Link
-            href="/get-started"
+            href="/assessment"
             className="hidden sm:inline-flex rounded-full bg-vpv-grad px-4 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(20,104,216,0.7)] hover:opacity-90 transition-opacity"
           >
             Get started
