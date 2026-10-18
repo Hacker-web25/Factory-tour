@@ -80,37 +80,7 @@ export const SITE_PAGES: SitePage[] = [
     indexable: true,
     priority: 0.6,
   },
-  {
-    path: "/assessment",
-    title: "Find the right VPV for your factory | MyVPV.com",
-    description:
-      "A short assessment that recommends the lowest VPV plan covering everything you need, based on your plant, your processes and the areas your buyers ask about.",
-    indexable: true,
-    priority: 0.9,
-  },
 
-  /* ── Assessment steps: each one needs the answers from the step
-     before it, so they are served but never indexed. ───────────── */
-  {
-    path: "/assessment/processes",
-    title: "Choose your processes | MyVPV.com",
-    description:
-      "Pick the processes you would like buyers to see in action inside your VPV.",
-    indexable: false,
-  },
-  {
-    path: "/assessment/plan",
-    title: "Your recommended plan | MyVPV.com",
-    description: "The VPV plan that covers everything you selected.",
-    indexable: false,
-  },
-  {
-    path: "/assessment/price",
-    title: "Your price | MyVPV.com",
-    description:
-      "Tell us where your factory is to see the full price for your VPV.",
-    indexable: false,
-  },
   {
     path: "/booking",
     title: "Book your shoot | MyVPV.com",

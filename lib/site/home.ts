@@ -122,6 +122,26 @@ const ONE_EMAIL_SCRIPT = String.raw`(function(){
   try{var mo=new MutationObserver(function(){fix()});mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});}catch(e){}
 })();`;
 
+/**
+ * The funnel hand-off.
+ *
+ * /assessment and its steps used to be screens of this single-page app. They
+ * are now real app pages (app/assessment/), because every step of the funnel
+ * talks to the server — the lead row, the city logistics table, the e-mail
+ * code, the priced order — and a static bundle can do none of that.
+ *
+ * The site's own router still believes it owns those paths, so a click on one
+ * of its "Find my plan" links would push history and render nothing. This
+ * listener runs in the CAPTURE phase, so it pre-empts the site's router, and
+ * turns any such click into a real navigation.
+ *
+ * Deliberately narrow: it only acts on same-origin links whose path is
+ * /assessment or below, and it leaves modified clicks (new tab, new window,
+ * download) to the browser. If the site is ever rebuilt without those links,
+ * this does nothing at all rather than breaking anything.
+ */
+const FUNNEL_BRIDGE_SCRIPT = String.raw`(function(){function isFunnel(u){return u.pathname==="/assessment"||u.pathname.indexOf("/assessment/")===0}document.addEventListener("click",function(e){if(e.defaultPrevented)return;if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;if(a.target&&a.target!=="_self")return;if(a.hasAttribute("download"))return;var u;try{u=new URL(a.getAttribute("href"),window.location.origin)}catch(_){return}if(u.origin!==window.location.origin)return;if(!isFunnel(u))return;e.preventDefault();e.stopPropagation();window.location.assign(u.href)},true)})();`
+
 const SIGNIN_SCRIPT = String.raw`(function(){function add(){if(document.getElementById("vpv-signin-btn"))return true;var h=document.querySelector('header[data-testid="site-header"]')||document.querySelector("header");if(!h)return false;var a=document.createElement("a");a.id="vpv-signin-btn";a.href="/login";a.textContent="Sign in";var cta=h.querySelector('a[href="/assessment"]');if(cta&&cta.parentNode){cta.parentNode.insertBefore(a,cta)}else{(h.firstElementChild||h).appendChild(a)}return true}if(document.readyState!=="loading"&&add())return;document.addEventListener("DOMContentLoaded",add);var o=new MutationObserver(function(){if(add())o.disconnect()});o.observe(document.documentElement,{childList:true,subtree:true});setTimeout(function(){o.disconnect()},15000)})();`;
 
 /**
@@ -172,6 +192,7 @@ ${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""
 <div id="root"></div>\
 <script id="vpv-signin-btn-script">${SIGNIN_SCRIPT}</script>\
 <script id="vpv-pay-bridge-script">${PAY_BRIDGE_SCRIPT}</script>\
+<script id="vpv-funnel-bridge-script">${FUNNEL_BRIDGE_SCRIPT}</script>\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 </body></html>`;
 }

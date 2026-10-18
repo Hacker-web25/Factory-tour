@@ -261,6 +261,11 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
       scenes?: number;
       sitePlanId?: SitePlanId;
       travel?: TravelZone;
+      /** The factory's city. Prices travel by its logistics tier, and is
+       *  what the funnel sends instead of the older two-zone answer. */
+      city?: string;
+      extraAreas?: number;
+      extraVideos?: number;
       buyer?: Partial<Buyer>;
     }) => {
       if (lock.current) return; // double-click / second tab race: ignore
@@ -289,6 +294,9 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
               scenes: args.scenes,
               sitePlanId: args.sitePlanId,
               travel: args.travel,
+              city: args.city,
+              extraAreas: args.extraAreas,
+              extraVideos: args.extraVideos,
               buyer: args.buyer ?? {},
             }),
           },

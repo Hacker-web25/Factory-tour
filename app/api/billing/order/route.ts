@@ -73,6 +73,8 @@ import {
   isSitePlanId,
   isTravelZone,
   isValidSceneCount,
+  clampExtraAreas,
+  clampExtraVideos,
   PLACEHOLDER_PRICES,
   priceFor,
   storedPurpose,
@@ -311,16 +313,31 @@ export async function POST(req: Request) {
 
   let sitePlanId: unknown;
   let travel: unknown;
+  let siteCity = "";
+  let extraAreas = 0;
+  let extraVideos = 0;
 
   if (purpose === "site_plan") {
-    // The browser names a plan and says where the factory is. Neither is
-    // a price: priceFor() looks both up in lib/pricing.ts.
+    // The browser names a plan, a city and how many extras it wants. Not one
+    // of those is a price: priceFor() looks them all up in lib/pricing.ts.
     sitePlanId = body.sitePlanId;
     travel = body.travel;
     if (!isSitePlanId(sitePlanId)) return fail(400, "invalid_plan", "Please choose one of the three plans.");
-    if (!isTravelZone(travel)) {
-      return fail(400, "invalid_travel", "Please tell us whether your factory is in Delhi NCR.");
+
+    // The funnel sends the factory's city, which prices travel by its tier.
+    // The older /checkout page and the marketing site's pay bridge still send
+    // the two-zone answer, so either is accepted — but one of them must be
+    // there, or we would be guessing at the travel charge.
+    siteCity = clean(body.city, 80);
+    if (!siteCity && !isTravelZone(travel)) {
+      return fail(400, "invalid_travel", "Please tell us which city your factory is in.");
     }
+
+    // Add-ons. Out-of-range values are clamped rather than refused: the
+    // slider cannot produce them, and clamping charges the buyer for what we
+    // can actually deliver instead of failing a legitimate purchase.
+    extraAreas = clampExtraAreas(body.extraAreas);
+    extraVideos = clampExtraVideos(body.extraVideos);
   } else if (purpose === "basic_licence") {
     if (!isValidSceneCount(body.scenes)) return fail(400, "invalid_scenes", "Please choose between 2 and 20 scenes.");
     scenesWanted = body.scenes;
@@ -352,6 +369,9 @@ export async function POST(req: Request) {
     existingScenes,
     sitePlanId: isSitePlanId(sitePlanId) ? sitePlanId : undefined,
     travel: isTravelZone(travel) ? travel : undefined,
+    city: siteCity || undefined,
+    extraAreas,
+    extraVideos,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 

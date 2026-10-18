@@ -69,6 +69,11 @@ const sections: LegalSection[] = [
               "To create and secure your account, sign you in and send service messages.",
             ],
             [
+              "Quote and enquiry data",
+              "What you tell us on the pricing questions: your name, company, work e-mail, mobile number, industry and your factory's city, along with the areas, videos and PDF reports you ask for, whether you want sharing restrictions, the plan we recommended, the plan you chose and the price we quoted.",
+              "To work out your travel charge and your price, to show and e-mail you that quote, to raise your invoice if you buy, and \u2014 only if you tick the box asking us to \u2014 to contact you about it.",
+            ],
+            [
               "Organisation content",
               "Panoramas, logos, hotspot text, narration audio, media, client names and notes you add.",
               "To render your tours and run your dashboards.",
@@ -118,6 +123,49 @@ const sections: LegalSection[] = [
         <P>
           We do not collect your card number, CVV, UPI PIN or net-banking
           credentials. Those go straight to Razorpay on its secure checkout.
+        </P>
+      </>
+    ),
+  },
+  {
+    id: "quote-enquiries",
+    title: "If you ask us for a price",
+    body: (
+      <>
+        <P>
+          The pricing questions on this site ask for a few details before they
+          can show you a figure. The most important of them is your{" "}
+          <B>factory&rsquo;s city</B>: our crew travels to you, and the travel
+          charge depends entirely on where your plant is, so there is no honest
+          way to quote you a total without it.
+        </P>
+        <P>
+          We keep your answers so that the quote can be prepared and so the
+          figures you were shown are the figures on your invoice. We also keep
+          them if you stop part-way through, because an unfinished enquiry is
+          usually someone who still wants an answer.
+        </P>
+        <Callout title="Being contacted is a separate choice">
+          Answering the questions does <B>not</B> sign you up to anything. We
+          will only call or e-mail you about your enquiry if you tick the
+          optional box that says so. That tick is never pre-filled, it is not
+          needed to see your price, and you can withdraw it at any time by
+          writing to <Mail to={COMPANY.emails.support} /> &mdash; we will stop, and keeping your quote on
+          file does not depend on it.
+        </Callout>
+        <P>
+          Before we take any payment we send a short code to your work e-mail
+          address and ask you to type it back. That is to make sure the address
+          is right, because your workspace link, your first password and your
+          GST invoice are all delivered to it. The code is stored only as a
+          one-way hash, it expires after ten minutes, and it is deleted
+          afterwards. We do not send verification codes by SMS.
+        </P>
+        <P>
+          Your answers are also held in your own browser between the steps, so
+          you can close the tab and come back without starting again. Clearing
+          your browser&rsquo;s site data removes that copy; the copy on our
+          server is covered by the retention table below.
         </P>
       </>
     ),
@@ -328,6 +376,8 @@ const sections: LegalSection[] = [
           ["Security logs and device sessions", "30 days."],
           ["Billing, invoice and payment records", "As long as Indian tax and accounting law requires (currently up to 8 years)."],
           ["Support and enquiry messages", "24 months after the last message."],
+          ["Quote and enquiry data", "24 months from your last activity, or until you ask us to delete it \u2014 whichever is sooner. If you buy, the parts that belong on your invoice are kept for as long as tax law requires."],
+          ["E-mail verification codes", "Deleted within an hour of being used or expiring."],
         ]}
       />
     ),
