@@ -65,6 +65,13 @@ const sections: LegalSection[] = [
           <B>Service</B>).
         </P>
         <P>
+          You agree to these Terms, our{" "}
+          <L href="/privacy">Privacy Policy</L> and our other policies when you
+          tick the box to say so on the first step of our pricing questions,
+          and again when you accept the Terms and the Refund Policy before
+          paying.
+        </P>
+        <P>
           You accept the Terms when you place an order, accept a written
           proposal, create or use a VPV account, or open a VPV workspace —
           whichever happens first. If you are accepting for an organisation,

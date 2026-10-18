@@ -22,6 +22,7 @@ import {
   BackLink,
   Card,
   Counter,
+  StarBadge,
   FunnelBody,
   FunnelHeader,
   PickTile,
@@ -31,7 +32,15 @@ import {
   TextInput,
 } from "@/components/funnel/FunnelShell";
 import FunnelIcon from "@/components/funnel/FunnelIcon";
-import { FACTORY_AREAS, FACTORY_PROCESSES, type CatalogueItem } from "@/lib/factoryAreas";
+import {
+  CURATED_AREA_PICKS,
+  CURATED_PROCESS_PICKS,
+  FACTORY_AREAS,
+  FACTORY_PROCESSES,
+  STAR_COPY,
+  type CatalogueItem,
+  type StarPhase,
+} from "@/lib/factoryAreas";
 import { VIDEO_SHOT_NOTE } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
@@ -104,13 +113,17 @@ function TileGrid({
   items,
   selected,
   onToggle,
+  starred,
+  starLabel,
 }: {
   items: CatalogueItem[];
   selected: string[];
   onToggle: (id: string) => void;
+  starred: string[];
+  starLabel: string;
 }) {
   return (
-    <div className="mt-6 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mt-6 grid gap-x-2.5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => (
         <PickTile
           key={item.id}
@@ -119,10 +132,55 @@ function TileGrid({
           icon={<FunnelIcon name={item.icon} className="h-[18px] w-[18px]" />}
           name={item.name}
           description={item.description}
+          star={starred.includes(item.id) ? starLabel : undefined}
         />
       ))}
     </div>
   );
+}
+
+/** One line under a section saying what the gold star means. */
+function StarLegend({ phase }: { phase: StarPhase }) {
+  return (
+    <p className="mt-4 flex flex-wrap items-center gap-2 text-[12.5px] text-slate-600">
+      <StarBadge label={STAR_COPY[phase].badge} />
+      {STAR_COPY[phase].legend}
+    </p>
+  );
+}
+
+type Stars = { phase: StarPhase; areaIds: string[]; processIds: string[] };
+
+/** Which tiles get a star. Starts with our recommendations so nothing
+ *  flickers, then takes whatever the server says applies today. */
+function useStars(): Stars {
+  const [stars, setStars] = useState<Stars>({
+    phase: "curated",
+    areaIds: CURATED_AREA_PICKS,
+    processIds: CURATED_PROCESS_PICKS,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/funnel/popular");
+        const data = (await res.json()) as Partial<Stars>;
+        if (!cancelled && (data.phase === "curated" || data.phase === "popular")) {
+          setStars({
+            phase: data.phase,
+            areaIds: Array.isArray(data.areaIds) ? data.areaIds : [],
+            processIds: Array.isArray(data.processIds) ? data.processIds : [],
+          });
+        }
+      } catch {
+        /* intentional — keep the recommendations if the request fails. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return stars;
 }
 
 function CountPill({ n, unit }: { n: number; unit: string }) {
@@ -138,6 +196,8 @@ export default function Step2Scope() {
   const [s, setS] = useState<FunnelState | null>(null);
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
+  const stars = useStars();
+  const starLabel = STAR_COPY[stars.phase].badge;
 
   useEffect(() => {
     const loaded = loadFunnel();
@@ -228,10 +288,13 @@ export default function Step2Scope() {
               Pick at least one area to carry on.
             </p>
           )}
+          {stars.areaIds.length > 0 && <StarLegend phase={stars.phase} />}
           <TileGrid
             items={FACTORY_AREAS}
             selected={s.selectedAreas}
             onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
+            starred={stars.areaIds}
+            starLabel={starLabel}
           />
           <CustomAdder
             placeholder="Add an area that isn't listed"
@@ -245,10 +308,13 @@ export default function Step2Scope() {
             A short clip of a process actually running. An area shows a buyer the place; a video shows
             them the work. {VIDEO_SHOT_NOTE}
           </SectionTitle>
+          {stars.processIds.length > 0 && <StarLegend phase={stars.phase} />}
           <TileGrid
             items={FACTORY_PROCESSES}
             selected={s.selectedProcesses}
             onToggle={(id) => setS({ ...s, selectedProcesses: toggle(s.selectedProcesses, id) })}
+            starred={stars.processIds}
+            starLabel={starLabel}
           />
           <CustomAdder
             placeholder="Add a process that isn't listed"

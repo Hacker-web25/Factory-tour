@@ -71,7 +71,7 @@ const sections: LegalSection[] = [
             [
               "Quote and enquiry data",
               "What you tell us on the pricing questions: your name, company, work e-mail, mobile number, industry and your factory's city, along with the Active Operational Areas and processes you pick (by name), the number of PDF reports you ask for, whether you want sharing restrictions, the plan we recommended, the plan you chose and the price we quoted.",
-              "To work out your travel charge and your price, to show and e-mail you that quote, to raise your invoice if you buy, and \u2014 only if you tick the box asking us to \u2014 to contact you about it.",
+              "To work out your travel charge and your price, to show and e-mail you that quote, to raise your invoice if you buy, to contact you about this enquiry and the shoot, and to see which areas and processes factories most often pick.",
             ],
             [
               "Organisation content",
@@ -145,14 +145,36 @@ const sections: LegalSection[] = [
           them if you stop part-way through, because an unfinished enquiry is
           usually someone who still wants an answer.
         </P>
-        <Callout title="Being contacted is a separate choice">
-          Answering the questions does <B>not</B> sign you up to anything. We
-          will only call or e-mail you about your enquiry if you tick the
-          optional box that says so. That tick is never pre-filled, it is not
-          needed to see your price, and you can withdraw it at any time by
-          writing to <Mail to={COMPANY.emails.support} /> &mdash; we will stop, and keeping your quote on
-          file does not depend on it.
-        </Callout>
+        <P>
+          On the first step you agree to our Terms, this Privacy Policy and
+          our other policies before you continue. This section is what you
+          agree to about your enquiry:
+        </P>
+        <UL>
+          <li>
+            <B>We may contact you about this enquiry.</B> A member of our team
+            may call, e-mail or WhatsApp you on the details you gave, to answer
+            questions about your quote, to agree a shoot date, or to follow up
+            if you stopped part-way through. We contact you only about your
+            VPV enquiry, not with unrelated promotions.
+          </li>
+          <li>
+            <B>You can stop it at any time.</B> Tell the person who calls you,
+            reply &ldquo;stop&rdquo; to any message, or write to{" "}
+            <Mail to={COMPANY.emails.support} />. We stop straight away, and it
+            does not affect your quote or any order you have placed.
+          </li>
+          <li>
+            <B>Popular choices.</B> We count how often each area and process is
+            picked, across all enquiries, to mark the most popular ones for
+            other visitors. Only totals are shown; nobody sees what you chose.
+          </li>
+          <li>
+            <B>Your rights.</B> You can ask us to show, correct or delete what
+            we hold about you, or withdraw your agreement to be contacted, by
+            writing to <Mail to={COMPANY.emails.support} />.
+          </li>
+        </UL>
         <P>
           Before we take any payment we send a short code to your work e-mail
           address and ask you to type it back. That is to make sure the address

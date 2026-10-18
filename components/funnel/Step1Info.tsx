@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, MapPin, Plane, ShieldCheck, TrainFront, UserRound } from "lucide-react";
+import { Car, MapPin, Plane, TrainFront, UserRound } from "lucide-react";
 import {
   Card,
   Field,
@@ -30,13 +30,12 @@ import {
 } from "@/components/funnel/FunnelShell";
 import { INDUSTRY_OPTIONS, OTHER_INDUSTRY } from "@/lib/industries";
 import { citiesByState, findCity, logisticsFor } from "@/lib/logistics";
-import { COMPANY } from "@/lib/company";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
 const CITY_OTHER = "__other__";
 
 type Errors = Partial<Record<
-  "name" | "phone" | "email" | "company" | "industry" | "city",
+  "name" | "phone" | "email" | "company" | "industry" | "city" | "policies",
   string
 >>;
 
@@ -82,6 +81,7 @@ export default function Step1Info() {
       e.industry = "Tell us what you make.";
     }
     if (!resolvedCity.trim()) e.city = "Your travel cost depends on this.";
+    if (!state.policiesAccepted) e.policies = "Please agree to continue.";
     return e;
   }
 
@@ -96,6 +96,9 @@ export default function Step1Info() {
     const matched = findCity(withCity.factoryCity);
     const saved = saveFunnel({
       ...withCity,
+      // Being contacted about this enquiry is covered by the Privacy Policy
+      // they have just agreed to, so the rep may call back.
+      marketingConsent: true,
       factoryState: matched?.state ?? withCity.factoryState,
     });
     await mirrorLead("info", saved);
@@ -295,40 +298,38 @@ export default function Step1Info() {
             )}
           </Card>
 
-          <Card className="mt-5">
-            <SectionTitle icon={ShieldCheck} title="How we use this" />
-            <p className="mt-4 text-[13.5px] leading-relaxed text-slate-600">
-              We use your name, company, e-mail, mobile, industry and factory
-              city to prepare this quote, to confirm the shoot with you and to
-              raise your GST invoice if you buy. You can ask us to show,
-              correct or delete what we hold, or withdraw your consent, at any
-              time by writing to{" "}
-              <a href={`mailto:${COMPANY.emails.support}`} className="font-medium text-vpv-blue underline underline-offset-2">
-                {COMPANY.emails.support}
+          <label
+            className={`mt-6 flex cursor-pointer items-start gap-3 rounded-2xl border bg-white p-4 transition-colors ${
+              errors.policies ? "border-red-300" : "border-vpv-line hover:border-vpv-blue/40"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={s.policiesAccepted}
+              onChange={(e) => set("policiesAccepted", e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-vpv-blue"
+            />
+            <span className="text-[14px] leading-relaxed text-slate-700">
+              I agree to the{" "}
+              <a href="/terms" target="_blank" rel="noopener" className="font-medium text-vpv-blue underline underline-offset-2">
+                Terms &amp; Conditions
               </a>
-              . Our{" "}
-              <a href="/privacy" className="font-medium text-vpv-blue underline underline-offset-2">
+              ,{" "}
+              <a href="/privacy" target="_blank" rel="noopener" className="font-medium text-vpv-blue underline underline-offset-2">
                 Privacy Policy
               </a>{" "}
-              sets out the detail.
-            </p>
-
-            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-vpv-line p-3.5 transition-colors hover:border-vpv-blue/40">
-              <input
-                type="checkbox"
-                checked={s.marketingConsent}
-                onChange={(e) => set("marketingConsent", e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-vpv-blue"
-              />
-              <span className="text-[13.5px] leading-relaxed text-slate-700">
-                You may call or e-mail me about this quote and about VPV.{" "}
-                <span className="text-slate-500">
-                  Optional — leave it unticked and you will still get your quote
-                  on screen and by e-mail.
+              and{" "}
+              <a href="/legal" target="_blank" rel="noopener" className="font-medium text-vpv-blue underline underline-offset-2">
+                other VPV policies
+              </a>
+              .
+              {errors.policies && (
+                <span role="alert" className="mt-1 block text-[12.5px] font-medium text-red-600">
+                  {errors.policies}
                 </span>
-              </span>
-            </label>
-          </Card>
+              )}
+            </span>
+          </label>
 
           <div className="mt-7">
             <PrimaryButton type="submit" busy={busy}>

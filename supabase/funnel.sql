@@ -156,3 +156,8 @@ revoke all on function public.funnel_otp_sweep() from public, anon, authenticate
 -- bare count. Idempotent: safe on a database that already has funnel_leads.
 alter table public.funnel_leads add column if not exists areas     text[];
 alter table public.funnel_leads add column if not exists processes text[];
+
+-- When the visitor ticked "I agree to the Terms, Privacy Policy and other
+-- policies" on step 1. Being contacted about the enquiry is explained in the
+-- Privacy Policy, so this is the record that a call-back was agreed to.
+alter table public.funnel_leads add column if not exists policies_accepted_at timestamptz;

@@ -15,7 +15,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Minus, Plus, type LucideIcon } from "lucide-react";
+import { Check, Minus, Plus, Star, type LucideIcon } from "lucide-react";
 import { LAUNCH_OFFER } from "@/lib/pricing";
 
 /* ───────────────────────────── Steps ─────────────────────────────── */
@@ -244,6 +244,19 @@ export function Counter({
   );
 }
 
+/** The small gold star badge on a tile. Gold, like the special offer,
+ *  because it is the other thing on the page we want the eye to find. */
+export function StarBadge({ label, className = "" }: { label: string; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-[#F7DC86] to-[#E2B23E] px-2 py-0.5 text-[11px] font-semibold text-[#4A3200] shadow-[0_4px_10px_-4px_rgba(160,110,10,0.6)] ${className}`}
+    >
+      <Star className="h-3 w-3 fill-current" aria-hidden />
+      {label}
+    </span>
+  );
+}
+
 /** A tile in the area / process picker. Pressing it is the whole
  *  interaction — no separate checkbox to aim for. */
 export function PickTile({
@@ -252,12 +265,15 @@ export function PickTile({
   icon,
   name,
   description,
+  star,
 }: {
   selected: boolean;
   onToggle: () => void;
   icon: ReactNode;
   name: string;
   description?: string;
+  /** When set, a gold star badge with this label sits on the tile's edge. */
+  star?: string;
 }) {
   return (
     <button
@@ -267,9 +283,14 @@ export function PickTile({
       className={[
         "group relative flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vpv-blue/40",
-        selected ? "border-vpv-blue bg-vpv-tint/70" : "border-vpv-line bg-white hover:border-vpv-blue/40",
+        selected
+          ? "border-vpv-blue bg-vpv-tint/70"
+          : star
+            ? "border-[#E8C766] bg-[#FFFCF2] hover:border-vpv-blue/40"
+            : "border-vpv-line bg-white hover:border-vpv-blue/40",
       ].join(" ")}
     >
+      {star && <StarBadge label={star} className="absolute -top-2.5 left-3" />}
       <span
         className={[
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",

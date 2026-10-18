@@ -154,6 +154,8 @@ export async function POST(req: Request) {
   // are required to buy, agreeing to be contacted is not and must be its own
   // affirmative tick (DPDP Act — consent has to be specific, not bundled).
   if (body.termsAccepted === true) patch.terms_accepted_at = new Date().toISOString();
+  // Step 1's single tick: Terms, Privacy Policy and the other policies.
+  if (body.policiesAccepted === true) patch.policies_accepted_at = new Date().toISOString();
   if (typeof body.marketingConsent === "boolean") {
     patch.marketing_consent = body.marketingConsent;
     patch.marketing_consent_at = body.marketingConsent ? new Date().toISOString() : null;

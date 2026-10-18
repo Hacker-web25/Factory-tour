@@ -54,6 +54,11 @@ export type FunnelState = {
   extraAreas: number;
   extraVideos: number;
 
+  /* Step 1 — agreement to the Terms, Privacy Policy and other policies.
+     The Privacy Policy is where being contacted about this enquiry is
+     explained, so agreeing to it is what lets a rep call back. */
+  policiesAccepted: boolean;
+
   /* Step 5 — consent and verification. */
   marketingConsent: boolean;
   termsAccepted: boolean;
@@ -82,6 +87,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   chosenPlan: null,
   extraAreas: 0,
   extraVideos: 0,
+  policiesAccepted: false,
   marketingConsent: false,
   termsAccepted: false,
   emailVerified: false,
@@ -257,6 +263,7 @@ export async function mirrorLead(
         extraAreas: state.extraAreas,
         extraVideos: state.extraVideos,
         marketingConsent: state.marketingConsent,
+        policiesAccepted: state.policiesAccepted,
         ...extra,
       }),
     });

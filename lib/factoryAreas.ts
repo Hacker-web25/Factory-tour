@@ -98,3 +98,101 @@ export function describeSelection(
     : [];
   return [...new Set([...known, ...typed])].slice(0, 80);
 }
+
+/* ───────────────────────── Gold stars ────────────────────────────── */
+
+/**
+ * Which tiles get a gold star on step 2.
+ *
+ * Two phases, and the label always says which one it is, so the star never
+ * claims more than is true:
+ *
+ *   • "Must-show" — until POPULAR_MIN_FILLS different companies have filled
+ *     the page, the stars mark OUR recommendations: the areas and processes
+ *     buyers most often ask to see. That is a claim about our advice, which
+ *     is true from day one.
+ *   • "Popular pick" — once enough companies have answered, the stars move
+ *     to what they actually picked most. Calling a tile popular before
+ *     anyone has picked it would be a made-up statistic.
+ *
+ * The switch is automatic: /api/funnel/popular counts the picks stored on
+ * funnel_leads and answers with whichever phase applies.
+ */
+export const POPULAR_MIN_FILLS = 10;
+export const POPULAR_TOP_AREAS = 6;
+export const POPULAR_TOP_PROCESSES = 4;
+/** A tile must have been picked by at least this share of companies to be
+ *  called popular, so a near-empty sample cannot crown a one-off choice. */
+export const POPULAR_MIN_SHARE = 0.3;
+
+export const CURATED_AREA_PICKS = [
+  "manufacturing-production-area",
+  "quality-control-area",
+  "laboratory",
+  "assembly-area",
+  "fg-warehouse",
+  "cnc-machining-area",
+];
+export const CURATED_PROCESS_PICKS = [
+  "cnc-machining",
+  "assembly-process",
+  "quality-inspection",
+  "product-testing",
+];
+
+export type StarPhase = "curated" | "popular";
+
+export const STAR_COPY: Record<StarPhase, { badge: string; legend: string }> = {
+  curated: {
+    badge: "Must-show",
+    legend: "Buyers usually ask to see these, so we recommend them.",
+  },
+  popular: {
+    badge: "Popular pick",
+    legend: "Chosen by most factories so far.",
+  },
+};
+
+/**
+ * Rank the picks from stored leads. Pure, so it is tested without a
+ * database. Each row is one company's named areas and processes; rows are
+ * de-duplicated by e-mail first so one person filling the page ten times
+ * counts once.
+ */
+export function rankPopular(
+  rows: { email: string | null; areas: string[] | null; processes: string[] | null }[]
+): { phase: StarPhase; fills: number; areaIds: string[]; processIds: string[] } {
+  const byCompany = new Map<string, { areas: string[]; processes: string[] }>();
+  rows.forEach((r, i) => {
+    if (!r.areas || r.areas.length === 0) return;
+    const key = (r.email ?? "").trim().toLowerCase() || `anon-${i}`;
+    byCompany.set(key, { areas: r.areas, processes: r.processes ?? [] });
+  });
+  const fills = byCompany.size;
+  if (fills < POPULAR_MIN_FILLS) {
+    return { phase: "curated", fills, areaIds: CURATED_AREA_PICKS, processIds: CURATED_PROCESS_PICKS };
+  }
+
+  const top = (catalogue: CatalogueItem[], pick: (v: { areas: string[]; processes: string[] }) => string[], n: number) => {
+    const idByName = new Map(catalogue.map((c) => [c.name, c.id]));
+    const counts = new Map<string, number>();
+    for (const v of byCompany.values()) {
+      for (const name of new Set(pick(v))) {
+        const id = idByName.get(name);
+        if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .filter(([, c]) => c / fills >= POPULAR_MIN_SHARE)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, n)
+      .map(([id]) => id);
+  };
+
+  return {
+    phase: "popular",
+    fills,
+    areaIds: top(FACTORY_AREAS, (v) => v.areas, POPULAR_TOP_AREAS),
+    processIds: top(FACTORY_PROCESSES, (v) => v.processes, POPULAR_TOP_PROCESSES),
+  };
+}
