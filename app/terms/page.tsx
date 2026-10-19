@@ -571,7 +571,7 @@ const sections: LegalSection[] = [
             <L href="/privacy">Privacy Policy</L> allows.
           </li>
           <li>Fixes for defects in the Service.</li>
-          <li>Technical support by e-mail for the Workspace and its tours.</li>
+          <li>Technical support by e-mail for the Workspace and its tours, with a response within 48 hours (it is not instant or live support).</li>
           <li>Updates we release to the Plan you bought.</li>
         </UL>
         <P>

@@ -176,7 +176,7 @@ export const SUPPORT_INCLUDES: { title: string; body: string }[] = [
   { title: "Backups", body: "Your tours, media and settings are backed up, so nothing you have built can be lost." },
   { title: "Backup server", body: "If our main server ever has a problem, a backup keeps your VPV online." },
   { title: "Updates and fixes", body: "Every improvement we make to VPV reaches your workspace at no extra cost." },
-  { title: "Technical support", body: "A real person to help you by e-mail and phone whenever something needs attention." },
+  { title: "Technical support", body: "A real person to help you by e-mail and phone. We respond within 48 hours, so this is not an instant, live-chat service." },
 ];
 /** Months of support included free with a Basic purchase. */
 export const SUPPORT_FREE_MONTHS = 12;
