@@ -116,14 +116,15 @@ export async function POST(req: Request) {
     if (industry) patch.industry = industry;
   }
 
-  // The city is the answer that prices the travel, so it is resolved here and
-  // the tier stored alongside it — a rep should not have to look it up.
+  // The city decides whether we can shoot there today (cab only), so it is
+  // resolved here. logistics_tier is 1 for a city we serve and empty for one
+  // we do not yet; city_needs_confirmation marks the "coming soon" leads.
   const cityRaw = clean(body.factoryCity, 80);
   if (cityRaw) {
     const log = logisticsFor(cityRaw);
     patch.factory_city = log.city || cityRaw;
-    patch.logistics_tier = log.tier;
-    patch.city_needs_confirmation = log.needsConfirmation;
+    patch.logistics_tier = log.inServiceArea ? 1 : null;
+    patch.city_needs_confirmation = !log.inServiceArea;
     const st = log.matched?.state ?? canonicalIndianState(body.factoryState);
     if (st) patch.factory_state = st;
   }

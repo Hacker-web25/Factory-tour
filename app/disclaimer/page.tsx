@@ -131,9 +131,8 @@ const sections: LegalSection[] = [
           shoot actually takes on the day.
         </li>
         <li>
-          Where your travel tier says you arrange flights, local transport or
-          accommodation, those costs are yours and are not part of our bill.
-          Fares are set by the airlines, not by us.
+          Our crew travels by cab, and the cab charge on your bill is the whole
+          travel cost. There is nothing else for you to book or pay for.
         </li>
         <li>
           The special offer is limited to our first {LAUNCH_OFFER.limit} customers and ends on

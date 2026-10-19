@@ -12,7 +12,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
+import { bundleCareData, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
 import { SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
 
 const home = fs.readFileSync(path.join(process.cwd(), "lib/site/home.ts"), "utf8");
@@ -29,6 +29,7 @@ describe("the marketing site's bundle agrees with lib/pricing.ts", () => {
 
   it("carries the generated travel data, exactly", () => {
     assert.ok(bundle.includes(bundleTravelData()), "Travel data is stale. Run: npm run sync:site");
+    assert.ok(bundle.includes(bundleCareData()), "Support fee data is stale. Run: npm run sync:site");
   });
 
   it("has every hard-coded sentence patched", () => {

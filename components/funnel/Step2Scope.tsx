@@ -287,7 +287,7 @@ export default function Step2Scope() {
   const videoCount = s ? s.selectedProcesses.length + s.customProcesses.length : 0;
 
   const summary = useMemo(() => {
-    const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`, `${videoCount} video${videoCount === 1 ? "" : "s"}`];
+    const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`, `${videoCount} process video${videoCount === 1 ? "" : "s"}`];
     const pdfs = s?.pdfCount ?? 0;
     parts.push(`${pdfs} PDF${pdfs === 1 ? "" : "s"}`);
     return parts.join(", ");

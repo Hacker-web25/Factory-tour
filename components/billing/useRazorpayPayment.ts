@@ -268,6 +268,8 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
       extraVideos?: number;
       /** Sales-team logins bought with a site plan. */
       salesSeats?: number;
+      /** A coupon code the buyer entered. The server checks it. */
+      coupon?: string;
       buyer?: Partial<Buyer>;
     }) => {
       if (lock.current) return; // double-click / second tab race: ignore
@@ -300,6 +302,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
               extraAreas: args.extraAreas,
               extraVideos: args.extraVideos,
               salesSeats: args.salesSeats,
+              coupon: args.coupon,
               buyer: args.buyer ?? {},
             }),
           },

@@ -20,12 +20,16 @@ import {
   SALES_TEAM,
   SITE_PLANS,
   SITE_PLAN_ORDER,
+  SUPPORT_ANNUAL_INR,
+  SUPPORT_INCLUDES,
+  SUPPORT_MONTHLY_INR,
+  SUPPORT_NAME,
   TRAVEL_FEES,
   discountBands,
   hoursLabel,
   inr,
 } from "@/lib/pricing";
-import { LOGISTICS_TIERS } from "@/lib/logistics";
+import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
 const js = (v: unknown) => JSON.stringify(v);
 
@@ -73,6 +77,22 @@ export function bundleTravelData(): string {
   );
 }
 
+/** `cn={…}` — the yearly support, hosting & security fee, as the bundle
+ *  names it (it used to be "Digital Care"). */
+export function bundleCareData(): string {
+  return (
+    `cn={name:${js(SUPPORT_NAME)},amount:${SUPPORT_ANNUAL_INR},period:"year",mandatory:!0,gstApplies:!0,payableNow:!1,` +
+    `includes:${js(SUPPORT_INCLUDES.map((i) => i.title.toLowerCase()))},billingStart:"year_2",` +
+    `billingStartLabels:{go_live:"Billed annually, starting from go-live",` +
+    `year_2:${js(`${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first year for our first ${LAUNCH_OFFER.limit} customers`)}}}`
+  );
+}
+
+/** Travel, in one sentence, for the bundle's hard-coded copy. */
+function travelSentence(): string {
+  return `Cab travel for our crew is ${inr(CAB_TRAVEL.amountInr)} + GST, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
+}
+
 /**
  * Hard-coded sentences in the bundle that quote numbers the data objects do
  * not drive. Each is an exact [old, new] pair; the sync applies a pair only
@@ -82,13 +102,22 @@ export function bundleTextPatches(): [string, string][] {
   const conf = SITE_PLANS.confidence;
   const ctrl = SITE_PLANS.control;
   const ctrlBands = discountBands("control");
-  const tierAmounts = Object.values(LOGISTICS_TIERS).map((t) => t.amountInr);
-  const travelFrom = inr(Math.min(...tierAmounts));
-  const travelTo = inr(Math.max(...tierAmounts));
+  const travelLong = `${travelSentence()} Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`;
+  const travelShort = `is ${inr(CAB_TRAVEL.amountInr)} + GST, by cab, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
   return [
     [
       "Travel & logistics (${mn(un.options.ncr.amount)} for Delhi NCR or ${mn(un.options.outside.amount)} outside Delhi NCR, + GST) is paid with your order.",
-      `Travel & logistics depends on your factory's city, from ${travelFrom} to ${travelTo} + GST, and is shown before you pay. For cities we fly to, you book the crew's flights. Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`,
+      travelLong,
+    ],
+    // October 2026: travel became cab only. These two carry the bundle from
+    // the city-tier wording it had before to the cab wording above.
+    [
+      "Travel & logistics depends on your factory's city, from ₹2,000 to ₹15,000 + GST, and is shown before you pay. For cities we fly to, you book the crew's flights. Shoot time beyond what your plan includes is ₹999 an hour.",
+      travelLong,
+    ],
+    [
+      JSON.stringify("depends on your factory's city: from ₹2,000 to ₹15,000 + GST, shown before you pay. For cities we fly to, you book the crew's flights."),
+      JSON.stringify(travelShort),
     ],
     ['q:"What if I need more than 20 AOAs?"', 'q:"What if I need more areas than my plan includes?"'],
     [
@@ -107,9 +136,7 @@ export function bundleTextPatches(): [string, string][] {
     // The plans page's travel line, rendered from the old two-zone object.
     [
       'mn(un.options.ncr.amount)," for Delhi NCR, ",mn(un.options.outside.amount)," outside Delhi NCR, + GST."',
-      JSON.stringify(
-        `depends on your factory's city: from ${travelFrom} to ${travelTo} + GST, shown before you pay. For cities we fly to, you book the crew's flights.`
-      ),
+      JSON.stringify(travelShort),
     ],
     // The introductory-offer block and its FAQ, written for a 100-customer
     // offer; the count now comes from LAUNCH_OFFER.limit.
@@ -122,7 +149,11 @@ export function bundleTextPatches(): [string, string][] {
     ['q:"What is the first 100 customers offer?"', `q:${JSON.stringify(`What is the first ${LAUNCH_OFFER.limit} customers offer?`)}`],
     [
       "The ${ln.percent}% applies to the plan price only; travel & logistics and ${cn.name} are not discounted.",
+      `The \${ln.percent}% applies to the plan price, Sales Team logins are ${SALES_TEAM.percentOff}% off, and the first year of support, hosting & security is free. Extra areas, process videos, shoot time and cab travel are not discounted.`,
+    ],
+    [
       `The \${ln.percent}% applies to the plan price, and Sales Team logins are ${SALES_TEAM.percentOff}% off. Extra areas, videos, shoot time, travel & logistics and \${cn.name} are not discounted.`,
+      `The \${ln.percent}% applies to the plan price, Sales Team logins are ${SALES_TEAM.percentOff}% off, and the first year of support, hosting & security is free. Extra areas, process videos, shoot time and cab travel are not discounted.`,
     ],
     // "No per-salesperson fee" stopped being true when Sales Team logins
     // arrived; and the prices are no longer placeholders.
@@ -137,11 +168,14 @@ export function bundleTextPatches(): [string, string][] {
         `Your whole sales team can present your VPV. Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson, one time, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`
       ),
     ],
-    // Digital Care: the first year is free (SUPPORT_FREE_MONTHS), so it is
-    // billed from year two — not from go-live, as the old site said.
+    // The yearly fee is no longer "Digital Care", and travel is a cab.
     [
-      'billingStart:"go_live",billingStartLabels:{go_live:"Billed annually, starting from go-live",year_2:"Billed annually, starting from year 2"}',
-      'billingStart:"year_2",billingStartLabels:{go_live:"Billed annually, starting from go-live",year_2:"Your first year is free; billed annually from year 2"}',
+      '"See every charge upfront, including GST, travel & logistics and the yearly Digital Care, then confirm your order."',
+      '"See every charge upfront, including GST, cab travel and support, hosting & security, then confirm your order."',
+    ],
+    [
+      '"Travel & logistics and the yearly Digital Care charge are shown on the next step."',
+      '"Cab travel and support, hosting & security are shown on the next step."',
     ],
     // ── Homepage, October 2026 ─────────────────────────────────────────
     // The hero's photo and two buttons become the live product (the

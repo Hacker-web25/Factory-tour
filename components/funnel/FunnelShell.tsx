@@ -15,8 +15,9 @@
 
 import Link from "next/link";
 import { useEffect, useId, useState, type ReactNode } from "react";
-import { Check, Minus, Plus, Star, type LucideIcon } from "lucide-react";
+import { Check, Minus, Plus, Sparkles, Star, type LucideIcon } from "lucide-react";
 import { LAUNCH_OFFER } from "@/lib/pricing";
+import { COMING_SOON_BODY, comingSoonTitle } from "@/lib/logistics";
 
 /* ───────────────────────────── Steps ─────────────────────────────── */
 
@@ -499,5 +500,78 @@ export function RestartNotice({ missing }: { missing: string }) {
         </Link>
       </div>
     </Card>
+  );
+}
+
+/**
+ * The golden "we are coming to your city" card, for a factory outside the
+ * cities we shoot in today. Gold rather than amber-warning on purpose: it is
+ * good news that is not here yet, not an error.
+ */
+export function ComingSoonCity({
+  city,
+  className = "",
+  body = COMING_SOON_BODY,
+  children,
+}: {
+  city: string;
+  className?: string;
+  body?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      role="status"
+      className={`relative overflow-hidden rounded-2xl border border-[#EBC468] p-5 ${className}`}
+      style={{ background: "linear-gradient(135deg, #FFFBEA 0%, #FFF1C9 55%, #FFE7A3 100%)" }}
+    >
+      <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/60 blur-2xl" />
+      <div className="relative flex items-start gap-3.5">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_6px_16px_rgba(184,134,11,0.35)]"
+          style={{ background: "linear-gradient(135deg, #F0C04A, #B8860B)" }}
+        >
+          <Sparkles className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p
+            className="bg-clip-text text-[19px] font-bold leading-snug tracking-[-0.01em] text-transparent"
+            style={{ backgroundImage: "linear-gradient(90deg, #7A4E00, #C8901A 50%, #7A4E00)" }}
+          >
+            {comingSoonTitle(city)}
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-[#6B4E12]">{body}</p>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A small "?" in a circle that opens an explanation. The caller decides
+ *  where the explanation appears; this is only the button. */
+export function HelpButton({
+  label,
+  open,
+  onToggle,
+  className = "",
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      aria-expanded={open}
+      className={`inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px] text-[12px] font-bold leading-none transition-colors ${
+        open ? "border-vpv-blue bg-vpv-blue text-white" : "border-vpv-blue/50 text-vpv-blue hover:bg-vpv-tint"
+      } ${className}`}
+    >
+      ?
+    </button>
   );
 }

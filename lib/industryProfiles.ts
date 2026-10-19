@@ -445,6 +445,7 @@ export type IndustryMatch = {
 };
 
 const MAX_AREAS = 12;
+const FIRST_AREA = "factory-exterior";
 const MAX_PROCESSES = 8;
 
 /**
@@ -498,7 +499,12 @@ export function matchIndustries(text: unknown, excluded: string[] = []): Industr
 
   return {
     profiles,
-    areaIds: merge(profiles.map((p) => p.areas), MAX_AREAS, (id) => Boolean(areaById(id))),
+    // The factory exterior leads every industry's list: it is the first
+    // thing a visiting buyer sees.
+    areaIds: [
+      FIRST_AREA,
+      ...merge(profiles.map((p) => p.areas.filter((id) => id !== FIRST_AREA)), MAX_AREAS - 1, (id) => Boolean(areaById(id))),
+    ],
     processIds: merge(profiles.map((p) => p.processes), MAX_PROCESSES, (id) => Boolean(processById(id))),
     matched: true,
   };

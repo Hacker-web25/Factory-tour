@@ -83,10 +83,13 @@ describe("cities", () => {
       SERVICE_AREAS.map((g) => g.group),
       ["Haryana", "Delhi NCR"]
     );
-    for (const c of ["Gurugram", "Manesar", "Panipat", "Delhi", "Noida", "Greater Noida", "Ghaziabad"]) {
+    for (const c of ["Gurugram", "Manesar", "Delhi", "Noida", "Greater Noida", "Ghaziabad"]) {
       assert.ok(isServiceCity(c), c);
-      assert.equal(logisticsFor(c).needsConfirmation, false, c);
+      assert.equal(logisticsFor(c).inServiceArea, true, c);
+      assert.equal(logisticsFor(c).amountInr, 4_000, c);
     }
+    assert.equal(isServiceCity("Panipat"), false, "Panipat is no longer offered");
+    assert.ok(!SERVICE_AREAS.some((g) => g.cities.includes("Panipat")));
   });
 
   it("understand the names people type", () => {
@@ -95,17 +98,13 @@ describe("cities", () => {
     assert.ok(isServiceCity("Gurgaon"));
   });
 
-  it("still price a typed city from the sheet, flagged for a rep", () => {
-    const jaipur = logisticsFor("Jaipur");
-    assert.equal(jaipur.tier, 4);
-    assert.equal(jaipur.amountInr, 15_000);
-    assert.equal(jaipur.needsConfirmation, true);
-    const faridabad = logisticsFor("Faridabad");
-    assert.equal(faridabad.amountInr, 4_000);
-    assert.equal(faridabad.inServiceArea, false);
-    const nowhere = logisticsFor("Nowhere-upon-Sea");
-    assert.equal(nowhere.tier, 5);
-    assert.equal(nowhere.needsConfirmation, true);
+  it("call any other city 'coming soon', with nothing to charge for travel", () => {
+    for (const c of ["Jaipur", "Faridabad", "Ludhiana", "Nowhere-upon-Sea"]) {
+      const q = logisticsFor(c);
+      assert.equal(q.inServiceArea, false, c);
+      assert.equal(q.amountInr, 0, c);
+    }
+    assert.equal(logisticsFor("Jaipur").matched?.state, "Rajasthan", "still recognised, for the demand report");
   });
 
   it("are counted by demand, one company once, at its furthest step", () => {

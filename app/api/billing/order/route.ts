@@ -53,6 +53,9 @@ import {
 } from "@/lib/server/razorpay";
 import { syncOrderFromRazorpay } from "@/lib/server/payments";
 import { launchOfferState } from "@/lib/server/launchOffer";
+import { checkCoupon } from "@/lib/server/coupons";
+import { comingSoonTitle, logisticsFor } from "@/lib/logistics";
+import type { Coupon } from "@/lib/pricing";
 import { canonicalIndianState } from "@/lib/indianStates";
 import { stateFromGstin } from "@/lib/gstin";
 import {
@@ -335,6 +338,15 @@ export async function POST(req: Request) {
     if (!siteCity && !isTravelZone(travel)) {
       return fail(400, "invalid_travel", "Please tell us which city your factory is in.");
     }
+    // Travel is by cab, so we can only take an order for a city we shoot in.
+    if (siteCity ? !logisticsFor(siteCity).inServiceArea : travel !== "ncr") {
+      const where = siteCity ? logisticsFor(siteCity).city : "";
+      return fail(
+        400,
+        "city_not_served",
+        `${comingSoonTitle(where)}. We do not shoot there just yet, so we cannot take your order today; we will contact you as soon as we do.`
+      );
+    }
 
     // Add-ons. Out-of-range values are clamped rather than refused: the
     // slider cannot produce them, and clamping charges the buyer for what we
@@ -373,6 +385,15 @@ export async function POST(req: Request) {
   // never from anything the browser says.
   const offer = purpose === "site_plan" ? await launchOfferState(sb) : null;
 
+  // A coupon, if the buyer entered one. Checked here against the database —
+  // the browser's own preview of the discount is never used.
+  let coupon: Coupon | null = null;
+  if (purpose === "site_plan" && typeof body.coupon === "string" && body.coupon.trim()) {
+    const check = await checkCoupon(sb, body.coupon);
+    if (!check.ok) return fail(400, "coupon_invalid", check.message);
+    coupon = check.coupon;
+  }
+
   const quote = priceFor(purpose as RequestPurpose, {
     scenes: scenesWanted,
     existingScenes,
@@ -383,6 +404,7 @@ export async function POST(req: Request) {
     extraVideos,
     offerOpen: offer ? offer.open : undefined,
     salesSeats,
+    coupon,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 

@@ -28,6 +28,7 @@ import {
 import {
   BackLink,
   Card,
+  ComingSoonCity,
   FunnelBody,
   FunnelHeader,
   OfferSeal,
@@ -46,7 +47,7 @@ import {
   SHOOT_DAY_HOURS,
   SITE_PLANS,
   SITE_PLAN_ORDER,
-  SUPPORT_ANNUAL_INR,
+  SUPPORT_MONTHLY_INR,
   VIDEO_SHOT_NOTE,
   discountBands,
   extraAreaCost,
@@ -275,7 +276,9 @@ export default function Step4Plan() {
     { icon: Clock, text: `${hoursLabel(plan.shootHours)} of shoot time on site` },
     { icon: Check, text: "Information icons on every hotspot" },
     { icon: Check, text: "Your own branded workspace and domain" },
-    { icon: Check, text: "First year of support and hosting free" },
+    offerOpen
+      ? { icon: Check, text: "First year of support is free", strong: true }
+      : { icon: Check, text: `Support from ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly` },
   ];
 
   return (
@@ -314,8 +317,8 @@ export default function Step4Plan() {
               </div>
 
               <ul className="grid content-start gap-3 rounded-2xl bg-white/[0.08] p-5 text-[14.5px] sm:p-6">
-                {inclusions.map(({ icon: Icon, text }) => (
-                  <li key={text} className="flex items-center gap-3">
+                {inclusions.map(({ icon: Icon, text, strong }) => (
+                  <li key={text} className={`flex items-center gap-3 ${strong ? "font-bold text-[#FFE7A0]" : ""}`}>
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15">
                       <Icon className="h-4 w-4" aria-hidden />
                     </span>
@@ -377,7 +380,7 @@ export default function Step4Plan() {
               <div>
                 <Slider
                   id="extra-videos"
-                  label={`Extra videos: ${s.extraVideos} more, ${quote.totalVideos} in total`}
+                  label={`Extra process videos: ${s.extraVideos} more, ${quote.totalVideos} in total`}
                   value={s.extraVideos}
                   max={EXTRA_VIDEO_MAX}
                   onChange={(n) => setS({ ...s, extraVideos: n })}
@@ -408,7 +411,7 @@ export default function Step4Plan() {
             title="Time on site"
             aside={<span className="text-[22px] font-semibold tabular-nums text-vpv-ink">{hoursLabel(quote.shoot.totalHours)}</span>}
           >
-            {plan.name} includes {hoursLabel(plan.shootHours)} of shooting. Each extra area or video adds about{" "}
+            {plan.name} includes {hoursLabel(plan.shootHours)} of shooting. Each extra area or process video adds about{" "}
             {MINUTES_PER_EXTRA_AREA} minutes; any time beyond the plan is {inr(EXTRA_HOUR_INR)} an hour, rounded up to
             the hour.
           </SectionTitle>
@@ -418,7 +421,7 @@ export default function Step4Plan() {
           {quote.shoot.days > 1 && (
             <p className="mt-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] leading-relaxed text-slate-700">
               That is more than one {SHOOT_DAY_HOURS}-hour working day, so the shoot runs over {quote.shoot.days} days.
-              The time is already priced by the hour above; if the crew stays overnight, you arrange their accommodation.
+              The time is already priced by the hour above.
             </p>
           )}
         </Card>
@@ -433,8 +436,13 @@ export default function Step4Plan() {
                   {l.label}
                   {l.note && <span className="mt-0.5 block text-[12px] font-normal text-slate-500">{l.note}</span>}
                 </dt>
-                <dd className={`shrink-0 tabular-nums font-medium ${l.kind === "offer" ? "text-[#8A6100]" : "text-vpv-ink"}`}>
-                  {l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
+                <dd className={`shrink-0 text-right tabular-nums font-medium ${l.kind === "offer" ? "text-[#8A6100]" : "text-vpv-ink"}`}>
+                  {l.regularInr != null && l.regularInr > l.amountInr && (
+                    <span className="mr-2 text-[12.5px] font-normal text-slate-400 line-through">{inr(l.regularInr)}</span>
+                  )}
+                  {l.kind === "support" && l.amountInr === 0
+                    ? <span className="font-semibold text-[#1F8A4C]">Free</span>
+                    : l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
                 </dd>
               </div>
             ))}
@@ -447,16 +455,13 @@ export default function Step4Plan() {
               <dd className="text-[24px] font-semibold tabular-nums text-vpv-ink">{inr(quote.totalInr)}</dd>
             </div>
           </dl>
-          {quote.logistics && quote.logistics.spec.clientArranges.length > 0 && (
-            <p className="mt-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[12.5px] leading-relaxed text-slate-700">
-              <strong className="font-semibold">Not included above:</strong> {quote.logistics.spec.clientArranges.join("; ")}.
-              You arrange and pay for these directly.
-            </p>
+          {!quote.available && quote.logistics && (
+            <ComingSoonCity
+              city={quote.logistics.city}
+              className="mt-5"
+              body="We do not shoot there just yet, so this is your price for when we do. Cab travel will be added once we start in your city."
+            />
           )}
-          <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
-            Annual support and hosting is {inr(SUPPORT_ANNUAL_INR)}/year + GST, and your first year is free, so it is not on
-            this bill.
-          </p>
         </Card>
 
         {/* ── Compare ──────────────────────────────────────────────── */}
@@ -490,7 +495,7 @@ export default function Step4Plan() {
                   </div>
                   <ul className="mt-5 flex-1 space-y-2 text-[13.5px] text-slate-600">
                     <li>{p.scenes} areas</li>
-                    <li>{p.videos} videos, {p.pdfs} PDFs</li>
+                    <li>{p.videos} process videos, {p.pdfs} PDFs</li>
                     <li>{hoursLabel(p.shootHours)} shoot</li>
                     <li className={p.sharingControls ? "font-medium text-vpv-blue" : "text-slate-400"}>
                       {p.sharingControls ? "Sharing controls included" : "No sharing controls"}

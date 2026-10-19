@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, DataTable, L, Mail, OL, P, UL } from "@/components/legal/prose";
 import { COMPANY, POLICY } from "@/lib/company";
-import { PRO_MONTHLY_INR, SCENE_MIN, SUPPORT_ANNUAL_INR, inr, priceForScenes } from "@/lib/pricing";
+import { PRO_MONTHLY_INR, SCENE_MIN, SUPPORT_ANNUAL_INR, SUPPORT_NAME, inr, priceForScenes } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Cancellation & Refund Policy",
@@ -161,12 +161,13 @@ const sections: LegalSection[] = [
               </>,
             ],
             [
-              `Annual Support & Maintenance renewal (${inr(SUPPORT_ANNUAL_INR)} + 18% GST)`,
+              `${SUPPORT_NAME} (${inr(SUPPORT_ANNUAL_INR)} + 18% GST a year)`,
               <>
-                <B>Non-refundable</B> and not pro-rated. The first year of
-                support is bundled free with a Basic licence and is never
-                charged separately. You can stop a renewal at any time
-                before it is paid.
+                <B>Non-refundable</B> and not pro-rated once the year has
+                started. When the first year is charged with your order, it is
+                refunded with the order if the order is refunded before your
+                Workspace goes live. You can stop a renewal at any time before
+                it is paid.
               </>,
             ],
             [
@@ -209,13 +210,10 @@ const sections: LegalSection[] = [
         </li>
         <li>
           Third-party costs you incurred, such as your own photography,
-          travel, or software you bought from someone else. This includes
-          flights, local transport and accommodation you arranged for our
-          crew, except the flight change fees we reimburse when we move a
-          shoot ourselves (see below).
+          travel, or software you bought from someone else.
         </li>
         <li>
-          The travel &amp; logistics charge and any extra shoot time, once the
+          The cab travel charge and any extra shoot time, once the
           shoot has taken place. They pay for a visit that has already
           happened.
         </li>
@@ -239,9 +237,7 @@ const sections: LegalSection[] = [
           date.
         </li>
         <li>
-          <B>We move the date:</B> we reschedule at no extra charge and
-          reimburse reasonable change fees on flights you booked for the crew
-          on dates we agreed, against the airline&rsquo;s receipt.
+          <B>We move the date:</B> we reschedule at no extra charge.
         </li>
         <li>
           <B>We cannot shoot at all</B> for a reason on our side: you may ask

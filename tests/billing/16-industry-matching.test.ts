@@ -88,8 +88,13 @@ describe("matching what a factory makes", () => {
     assert.ok(textile.areaIds.includes("spinning-department"));
     assert.ok(textile.processIds.includes("dyeing"));
     assert.ok(!textile.areaIds.includes("canteen"));
+    // The factory exterior leads every list; then the industry's own first pick.
     const pharma = matchIndustries("tablets");
-    assert.equal(pharma.areaIds[0], "clean-room");
+    assert.equal(pharma.areaIds[0], "factory-exterior");
+    assert.equal(pharma.areaIds[1], "clean-room");
+    for (const t of ["textile", "castings", "food", "plastic pipes", "zzz"]) {
+      assert.equal(matchIndustries(t).areaIds[0], "factory-exterior", t);
+    }
     // Two industries share the list rather than one crowding out the other.
     const both = matchIndustries("cotton yarn and garments");
     assert.ok(both.areaIds.includes("spinning-department"));

@@ -22,6 +22,8 @@ export type CatalogueItem = {
 };
 
 export const FACTORY_AREAS: CatalogueItem[] = [
+  // First everywhere: it is the first thing a buyer sees when they arrive.
+  { id: "factory-exterior", name: "Factory Exterior", description: "Building, gate and premises", icon: "Building2" },
   { id: "manufacturing-production-area", name: "Manufacturing / Production Area", description: "Your main shop floor", icon: "Factory" },
   { id: "assembly-area", name: "Assembly Area", icon: "Cog" },
   { id: "cnc-machining-area", name: "CNC Machining Area", description: "Computer-controlled machining centres", icon: "Cpu" },
@@ -47,7 +49,6 @@ export const FACTORY_AREAS: CatalogueItem[] = [
   { id: "utilities-area", name: "Utilities Area", description: "Compressors, chillers and boilers", icon: "Gauge" },
   { id: "fire-and-safety-area", name: "Fire and Safety Area", description: "Fire-fighting and safety stations", icon: "FireExtinguisher" },
   { id: "waste-management-area", name: "Waste Management Area", description: "Scrap and waste segregation", icon: "Recycle" },
-  { id: "factory-exterior", name: "Factory Exterior", description: "Building, gate and premises", icon: "Building2" },
   { id: "security-entry-gate", name: "Security / Entry Gate", icon: "ShieldCheck" },
   { id: "administration-office", name: "Administration Office", icon: "Building2" },
   { id: "training-area", name: "Training Area", icon: "GraduationCap" },
@@ -231,6 +232,7 @@ export const POPULAR_TOP_PROCESSES = 4;
 export const POPULAR_MIN_SHARE = 0.3;
 
 export const CURATED_AREA_PICKS = [
+  "factory-exterior",
   "manufacturing-production-area",
   "quality-control-area",
   "laboratory",

@@ -21,7 +21,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
+import { bundleCareData, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
 
 const ROOT = process.cwd();
 const HOME_TS = path.join(ROOT, "lib/site/home.ts");
@@ -41,15 +41,23 @@ const oldName = m[1];
 const oldPath = path.join(ROOT, "public/static/js", oldName);
 let src = fs.readFileSync(oldPath, "utf8");
 
-src = replaceRegion(src, "ln={active:", ',cn={name:"Digital Care"', bundlePlanData());
+src = replaceRegion(src, "ln={active:", ",cn={name:", bundlePlanData());
+src = replaceRegion(src, "cn={name:", ",un={question:", bundleCareData());
 src = replaceRegion(src, "un={question:", ",dn=function(", bundleTravelData());
 
+// Apply every pair whose old text is present, then check every new text
+// landed. Checking only afterwards lets a later "migration" pair carry the
+// bundle from an older wording to the current one in the same run.
 let applied = 0;
-for (const [from, to] of bundleTextPatches()) {
+const patches = bundleTextPatches();
+for (const [from, to] of patches) {
   if (src.includes(from)) {
     src = src.split(from).join(to);
     applied++;
-  } else if (!src.includes(to)) {
+  }
+}
+for (const [from, to] of patches) {
+  if (!src.includes(to)) {
     throw new Error(`sync-site-bundle: neither the old nor the new text is in the bundle:\n  ${from.slice(0, 90)}`);
   }
 }

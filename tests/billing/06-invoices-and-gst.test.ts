@@ -89,8 +89,8 @@ describe("prices, GST invoices and credit notes", () => {
       }
     });
 
-    it("annual support is ₹9,999 + 18% GST, and a renewal is charged ₹11,798.82", async () => {
-      assert.equal(SUPPORT_ANNUAL_INR, 9_999);
+    it("support is ₹999 a month, billed yearly as ₹11,988 + 18% GST, and a renewal is charged ₹14,145.84", async () => {
+      assert.equal(SUPPORT_ANNUAL_INR, 11_988);
       const o = await w.seedOrg({ name: "Ren Co", slug: "ren-co", quota: 5, supportUntil: new Date(Date.now() + 5 * 86_400_000).toISOString() });
       const uid = await w.seedUser({ email: "admin@ren-co.in", orgId: o.id });
       const res = await w.routes.order.POST(w.request("/api/billing/order", { as: uid, body: { purpose: "support_renewal", buyer: {} } }));
@@ -374,7 +374,7 @@ describe("prices, GST invoices and credit notes", () => {
       assert.match(inv.description, /9 scenes/);
     });
 
-    it("a renewal invoice for ₹9,999 splits to the paisa — CGST+SGST in-state", async () => {
+    it("a renewal invoice for ₹11,988 splits to the paisa — CGST+SGST in-state", async () => {
       const { uid } = await authed("Haryana");
       const { body } = await open(uid, "support_renewal");
       await w.payInBrowser(body);

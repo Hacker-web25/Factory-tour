@@ -14,9 +14,10 @@
  * │ PRO    ₹5,000 / month. Unlimited scenes. Sold by conversation.     │
  * │ ULTRA  ₹15,000 / month. Everything, incl. AI meeting review.       │
  * │                                                                   │
- * │ ANNUAL SUPPORT & HOSTING  ₹9,999 / year, FIRST YEAR FREE with     │
- * │        every Basic purchase. Billed from year two. If it is not    │
- * │        renewed, pop-ups start, then the workspace locks (below).   │
+ * │ SUPPORT, HOSTING & SECURITY  ₹999 a month, billed yearly as       │
+ * │        ₹11,988 + GST. FREE for the first year for our first 50     │
+ * │        customers; payable with the order after that. Renewed every │
+ * │        year; if not, pop-ups start, then the workspace locks.      │
  * └───────────────────────────────────────────────────────────────────┘
  *
  * Every amount here is INR and is EXCLUSIVE of GST — the number on the
@@ -34,8 +35,8 @@
 
 import {
   ADDITIONAL_SHOOT_DAY_INR,
+  CAB_TRAVEL,
   logisticsFor,
-  LOGISTICS_TIERS,
   type LogisticsQuote,
 } from "@/lib/logistics";
 
@@ -158,8 +159,25 @@ export function sceneLadderRows(): {
 export const PRO_MONTHLY_INR = 5_000;
 export const ULTRA_MONTHLY_INR = 15_000;
 
-/** Annual technical support, maintenance and hosting, GST excluded. */
-export const SUPPORT_ANNUAL_INR = 9_999;
+/** Support, hosting & security, per month, GST excluded. Billed yearly. */
+export const SUPPORT_MONTHLY_INR = 999;
+/** Support, hosting & security, per year, GST excluded (₹999 × 12). */
+export const SUPPORT_ANNUAL_INR = SUPPORT_MONTHLY_INR * 12;
+/** What the yearly fee is called on every screen and invoice. */
+export const SUPPORT_NAME = "Support, hosting & security";
+/**
+ * What the yearly fee pays for, point by point. Shown behind the (?) next
+ * to the fee on the bill, on the plans page and in the Terms, so a buyer
+ * knows exactly why it exists and never has to think about any of it.
+ */
+export const SUPPORT_INCLUDES: { title: string; body: string }[] = [
+  { title: "Hosting", body: "Your tours live on fast, reliable servers and open quickly for buyers anywhere in the world." },
+  { title: "Security", body: "Encrypted links, the protection on your shared links, and security updates applied for you." },
+  { title: "Backups", body: "Your tours, media and settings are backed up, so nothing you have built can be lost." },
+  { title: "Backup server", body: "If our main server ever has a problem, a backup keeps your VPV online." },
+  { title: "Updates and fixes", body: "Every improvement we make to VPV reaches your workspace at no extra cost." },
+  { title: "Technical support", body: "A real person to help you by e-mail and phone whenever something needs attention." },
+];
 /** Months of support included free with a Basic purchase. */
 export const SUPPORT_FREE_MONTHS = 12;
 /**
@@ -264,8 +282,8 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   { label: "Tours saved for offline presenting", basic: true, pro: true, ultra: "Unlimited" },
   { label: "AI meeting review: transcript, score, insights", basic: false, pro: false, ultra: true },
   {
-    label: "Technical support, maintenance and hosting",
-    basic: `Year 1 free, then ${inr(SUPPORT_ANNUAL_INR)}/year + GST`,
+    label: SUPPORT_NAME,
+    basic: `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly + GST`,
     pro: "Included",
     ultra: "Included, priority",
   },
@@ -417,12 +435,10 @@ export function fromPaise(paise: number): number {
  * live mode, so nothing half-settled can reach a card. Test mode is
  * unaffected, so the whole flow can be rehearsed now.
  *
- * The PLAN prices below are final. This guard is still on for the
- * LOGISTICS side: the travel tiers in lib/logistics.ts are under revision,
- * and Tier 5 — 134 of the 150 cities — charges only the airport transfers
- * while the buyer books the flights themselves. Until that is settled and
- * every screen says plainly what the buyer still has to arrange, a live
- * card must not be charged. Set this to false once it is.
+ * The PLAN prices below are final, and travel is now one flat cab charge
+ * for the cities we shoot in (lib/logistics.ts), with nothing left for the
+ * buyer to arrange. Set this to false when the business is ready to take
+ * live payments.
  */
 export const PLACEHOLDER_PRICES = true;
 
@@ -834,18 +850,18 @@ export function hoursLabel(h: number): string {
 /**
  * The OLD two-zone travel question ("is your factory in Delhi NCR?").
  *
- * Superseded by the city-by-city tiers in lib/logistics.ts, which is what
- * the funnel asks for and what the bill shows. Kept, and mapped onto the
- * real tiers, so the earlier /checkout page and the marketing site's pay
- * bridge keep pricing correctly.
+ * Superseded by the city in lib/logistics.ts, which is what the funnel asks
+ * for and what the bill shows. Kept so the earlier /checkout page and the
+ * marketing site's code keep working: inside NCR is the cab; outside is a
+ * place we do not shoot yet, and the order route refuses it.
  *
  * Prefer `city` over `travel` in every new call.
  */
 export type TravelZone = "ncr" | "outside";
 
 export const TRAVEL_FEES: Record<TravelZone, { label: string; amountInr: number }> = {
-  ncr: { label: LOGISTICS_TIERS[1].label, amountInr: LOGISTICS_TIERS[1].amountInr },
-  outside: { label: LOGISTICS_TIERS[4].label, amountInr: LOGISTICS_TIERS[4].amountInr },
+  ncr: { label: "Delhi NCR", amountInr: CAB_TRAVEL.amountInr },
+  outside: { label: "Outside Delhi NCR (coming soon)", amountInr: CAB_TRAVEL.amountInr },
 };
 
 export function isTravelZone(v: unknown): v is TravelZone {
@@ -859,8 +875,37 @@ export type QuoteLine = {
   label: string;
   amountInr: number;
   note?: string;
-  kind?: "plan" | "offer" | "extra" | "travel" | "time";
+  kind?: "plan" | "offer" | "extra" | "travel" | "time" | "support" | "coupon";
+  /** The full price when this line is discounted to less (the support
+   *  year, free for our first customers), so a screen can strike it out. */
+  regularInr?: number;
 };
+
+/**
+ * A coupon, as the order route found it in the database. Pricing never
+ * looks a coupon up itself: whoever calls siteQuote() has already checked
+ * the code is real, active and not used up (lib/server/coupons.ts).
+ */
+export type Coupon = {
+  code: string;
+  /** Exactly one of these is set. */
+  percentOff: number | null;
+  amountOffInr: number | null;
+};
+
+/** Rupees a coupon takes off a base, never more than the base. */
+export function couponDiscount(c: Coupon, base: number): number {
+  if (!(base > 0)) return 0;
+  const raw =
+    c.percentOff != null
+      ? Math.round((base * Math.min(100, Math.max(0, c.percentOff))) / 100)
+      : Math.max(0, Math.round(c.amountOffInr ?? 0));
+  return Math.min(base, raw);
+}
+
+export function couponLabel(c: Coupon): string {
+  return c.percentOff != null ? `${c.percentOff}% off` : `${inr(c.amountOffInr ?? 0)} off`;
+}
 
 export type SiteQuote = {
   plan: SitePlanSpec;
@@ -873,6 +918,14 @@ export type SiteQuote = {
   totalVideos: number;
   /** Null when priced by the legacy travel zone instead of a city. */
   logistics: LogisticsQuote | null;
+  /** False for a city we do not shoot in yet: the bill can be shown, but
+   *  it cannot be paid. */
+  available: boolean;
+  /** What the support year costs on THIS order: 0 while the offer is open. */
+  supportInr: number;
+  /** What the coupon took off, 0 without one. */
+  couponInr: number;
+  coupon: Coupon | null;
   shoot: ShootTime;
   /** Kept for callers that only want the day count. */
   shootDays: number;
@@ -896,8 +949,10 @@ export type SiteQuote = {
  * Nothing is hidden until the end: every line this returns is meant to be
  * on screen before the buyer is asked to pay.
  *
- * Digital Care (₹9,999/yr) is deliberately NOT in here: it is mandatory
- * but billed from go-live, not taken with this payment.
+ * The first year of support, hosting & security is a line of its own:
+ * free (struck out) while the offer is open, charged with the order after.
+ * A coupon comes off the plan, extras, shoot time and sales team — never
+ * the travel or the support year.
  */
 export function siteQuote(
   planId: SitePlanId,
@@ -911,6 +966,8 @@ export function siteQuote(
     offerOpen?: boolean;
     /** Sales-team logins bought with the plan. */
     salesSeats?: number;
+    /** A coupon the caller has already checked is valid. */
+    coupon?: Coupon | null;
   } = {}
 ): SiteQuote {
   const plan = SITE_PLANS[planId];
@@ -925,9 +982,9 @@ export function siteQuote(
   const lines: QuoteLine[] = [
     {
       kind: "plan",
-      label: `${plan.name} — ${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
+      label: `${plan.name} — ${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} process videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
       amountInr: plan.regularInr,
-      note: `${hoursLabel(plan.shootHours)} of shoot time and 1 year of support and hosting included`,
+      note: `${hoursLabel(plan.shootHours)} of shoot time included`,
     },
   ];
   if (savingInr > 0) {
@@ -983,26 +1040,59 @@ export function siteQuote(
     }
   }
 
-  // Travel. A known city prices by its tier; otherwise the legacy zone.
+  // The coupon, on everything above: plan, offer, extras, time, sales team.
+  const coupon = opts.coupon ?? null;
+  let couponInr = 0;
+  if (coupon) {
+    const base = lines.reduce((sum, l) => sum + l.amountInr, 0);
+    couponInr = couponDiscount(coupon, base);
+    if (couponInr > 0) {
+      lines.push({
+        kind: "coupon",
+        label: `Coupon ${coupon.code} — ${couponLabel(coupon)}`,
+        amountInr: -couponInr,
+      });
+    }
+  }
+
+  // Travel: the cab, for a city we shoot in.
   let logistics: LogisticsQuote | null = null;
+  let available = true;
   if (typeof opts.city === "string" && opts.city.trim()) {
     logistics = logisticsFor(opts.city);
-    lines.push({
-      kind: "travel",
-      label: `Travel & logistics — ${logistics.city || logistics.spec.label}`,
-      amountInr: logistics.amountInr,
-      note: logistics.needsConfirmation
-        ? "We will confirm your travel arrangement with you before the shoot"
-        : logistics.spec.mode,
-    });
+    available = logistics.inServiceArea;
+    if (available) {
+      lines.push({
+        kind: "travel",
+        label: `${CAB_TRAVEL.label} — ${logistics.city}`,
+        amountInr: logistics.amountInr,
+        note: logistics.mode,
+      });
+    }
   } else {
     const zone: TravelZone = isTravelZone(opts.travel) ? opts.travel : "outside";
-    lines.push({
-      kind: "travel",
-      label: `Travel & logistics — ${TRAVEL_FEES[zone].label}`,
-      amountInr: TRAVEL_FEES[zone].amountInr,
-    });
+    available = zone === "ncr";
+    if (available) {
+      lines.push({
+        kind: "travel",
+        label: `${CAB_TRAVEL.label} — ${TRAVEL_FEES[zone].label}`,
+        amountInr: TRAVEL_FEES[zone].amountInr,
+        note: CAB_TRAVEL.mode,
+      });
+    }
   }
+
+  // The first year of support, hosting & security.
+  const supportInr = offerOpen ? 0 : SUPPORT_ANNUAL_INR;
+  lines.push({
+    kind: "support",
+    label: `First year of ${SUPPORT_NAME.toLowerCase()}`,
+    amountInr: supportInr,
+    regularInr: SUPPORT_ANNUAL_INR,
+    note: offerOpen
+      ? `Free for our first ${LAUNCH_OFFER.limit} customers. From year 2, ${inr(SUPPORT_ANNUAL_INR)} + GST a year (${inr(SUPPORT_MONTHLY_INR)}/month)`
+      : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Renews at ${inr(SUPPORT_ANNUAL_INR)} + GST a year`,
+  });
 
   if (shoot.days > 1 && CHARGE_ADDITIONAL_SHOOT_DAY) {
     const extraDays = shoot.days - 1;
@@ -1026,6 +1116,10 @@ export function siteQuote(
     totalAreas,
     totalVideos,
     logistics,
+    available,
+    supportInr,
+    couponInr,
+    coupon: couponInr > 0 ? coupon : null,
     shoot,
     shootDays: shoot.days,
     salesSeats,
@@ -1130,6 +1224,8 @@ export function priceFor(
     /** Decided by the order route from the real count of buyers. */
     offerOpen?: boolean;
     salesSeats?: number;
+    /** Looked up and checked by the order route. */
+    coupon?: Coupon | null;
   } = {}
 ): { amountInr: number; description: string; scenes: number | null } {
   switch (purpose) {
@@ -1167,25 +1263,29 @@ export function priceFor(
         travel: opts.travel,
         offerOpen: opts.offerOpen,
         salesSeats: opts.salesSeats,
+        coupon: opts.coupon,
       });
       const parts = [`${q.plan.name} — ${q.totalAreas} areas`];
-      if (q.totalVideos > 0) parts.push(`${q.totalVideos} videos`);
+      if (q.totalVideos > 0) parts.push(`${q.totalVideos} process videos`);
       if (q.savingInr > 0) parts.push(LAUNCH_OFFER.short);
       parts.push(`${hoursLabel(q.shoot.totalHours)} shoot`);
       if (q.salesSeats > 0) parts.push(`sales team ${q.salesSeats} login${q.salesSeats === 1 ? "" : "s"}`);
-      if (q.logistics) parts.push(`travel ${q.logistics.city || q.logistics.spec.label}`);
-      else parts.push(`travel ${TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label}`);
+      if (q.logistics) parts.push(`cab ${q.logistics.city}`);
+      else parts.push(`cab ${TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label}`);
       if (q.shoot.days > 1) parts.push(`${q.shoot.days} shoot days`);
+      // The coupon's code is how lib/server/coupons.ts counts its uses, so
+      // it is written in a fixed shape.
+      if (q.coupon) parts.push(`coupon ${q.coupon.code}`);
       return {
         amountInr: q.taxableInr,
-        description: `${parts.join(", ")} (includes 1 year support and hosting)`,
+        description: `${parts.join(", ")} (includes year 1 of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
         scenes: q.totalAreas,
       };
     }
     case "support_renewal":
       return {
         amountInr: SUPPORT_ANNUAL_INR,
-        description: "VPV annual technical support, maintenance and hosting — 1 year",
+        description: `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year`,
         scenes: null,
       };
   }

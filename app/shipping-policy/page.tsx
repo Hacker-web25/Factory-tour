@@ -28,7 +28,7 @@ const sections: LegalSection[] = [
           VPV is delivered online. We do not ship physical goods, so there are
           no shipping charges, couriers or delivery addresses. The only
           physical part of an order is our crew visiting your factory to shoot
-          it, which is charged as travel &amp; logistics and shown on your bill
+          it, which is charged as cab travel and shown on your bill
           before you pay.
         </Callout>
       </>

@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Link2, Lock, ShieldCheck, Timer } from "lucide-react";
+import { KeyRound, Link2, MonitorSmartphone, ShieldCheck, Timer } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -149,9 +149,9 @@ export default function Step3Security() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           {[
             { icon: Link2, title: "One-time links", body: "A link opens once, for the buyer you sent it to, and is dead afterwards. Forwarding it achieves nothing." },
-            { icon: Timer, title: "Expiry you set", body: "Give a link 24 hours, or a week. After that it stops working, whether or not anybody opened it." },
-            { icon: Lock, title: "Device limits and passwords", body: "Cap how many devices a link works on, and put a password in front of it." },
-            { icon: Eye, title: "See who looked", body: "Every opened link is recorded, so you know which buyer walked through your plant and which did not." },
+            { icon: Timer, title: "Links that expire", body: "Give a link 24 hours, or a week. After that it stops working, whether or not anybody opened it." },
+            { icon: MonitorSmartphone, title: "Device limits", body: "Decide how many devices a link works on. Once that many have opened it, it works on no other." },
+            { icon: KeyRound, title: "Password protection", body: "Put a password in front of a link, so only the buyer you gave it to can get in." },
           ].map(({ icon: Icon, title, body }) => (
             <div key={title} className="rounded-2xl border border-vpv-line bg-white p-5">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-vpv-grad text-white">

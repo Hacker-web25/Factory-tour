@@ -17,9 +17,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, MapPin, Plane, Sparkles, TrainFront, UserRound, X } from "lucide-react";
+import { Car, MapPin, Sparkles, UserRound, X } from "lucide-react";
 import {
   Card,
+  ComingSoonCity,
   Field,
   FunnelBody,
   FunnelHeader,
@@ -267,8 +268,8 @@ export default function Step1Info() {
 
           <Card className="mt-5">
             <SectionTitle icon={MapPin} title="Where is your factory?">
-              Our crew travels from Gurgaon. This sets your travel and logistics
-              charge, which you will see on the bill before you pay anything.
+              Our crew comes to your plant by cab from Gurugram, there and back
+              the same day. The cab charge is on your bill before you pay.
             </SectionTitle>
 
             <div className="mt-5">
@@ -309,47 +310,25 @@ export default function Step1Info() {
               <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">{SERVICE_AREA_NOTE}</p>
             </div>
 
-            {quote && (
+            {quote && quote.inServiceArea && (
               <div className="mt-5 rounded-xl border border-vpv-line bg-vpv-canvas p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="flex items-center gap-2.5 text-[13.5px] font-medium text-vpv-ink">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-vpv-blue shadow-sm">
-                      {quote.tier === 5 ? (
-                        <Plane className="h-4 w-4" aria-hidden />
-                      ) : quote.tier === 3 ? (
-                        <TrainFront className="h-4 w-4" aria-hidden />
-                      ) : (
-                        <Car className="h-4 w-4" aria-hidden />
-                      )}
+                      <Car className="h-4 w-4" aria-hidden />
                     </span>
-                    Travel &amp; logistics: {quote.spec.label}
+                    Cab travel to {quote.city}
                   </span>
                   <span className="text-[17px] font-semibold tabular-nums text-vpv-ink">
                     ₹{quote.amountInr.toLocaleString("en-IN")}
                     <span className="ml-1 text-[12px] font-normal text-slate-500">+ GST</span>
                   </span>
                 </div>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">{quote.spec.mode}</p>
-                {quote.spec.clientArranges.length > 0 && (
-                  <div className="mt-3 border-t border-vpv-line pt-3">
-                    <p className="text-[12.5px] font-semibold text-vpv-ink">
-                      Arranged and paid by you, not on our bill:
-                    </p>
-                    <ul className="mt-1.5 space-y-1 text-[12.5px] leading-relaxed text-slate-600">
-                      {quote.spec.clientArranges.map((c) => (
-                        <li key={c}>• {c}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {quote.needsConfirmation && (
-                  <p className="mt-3 border-t border-vpv-line pt-3 text-[12.5px] leading-relaxed text-amber-700">
-                    {quote.matched
-                      ? "This is outside the area we shoot in today. The figure above is our travel charge for this city, and a member of our team will confirm the arrangement with you before the shoot."
-                      : "We have not priced this city yet. The figure above is our standard air-travel charge, and a member of our team will confirm your exact travel arrangement before the shoot."}
-                  </p>
-                )}
+                <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">{quote.mode}</p>
               </div>
+            )}
+            {quote && !quote.inServiceArea && quote.city.trim().length >= 3 && (
+              <ComingSoonCity city={quote.city} className="mt-5" />
             )}
           </Card>
 

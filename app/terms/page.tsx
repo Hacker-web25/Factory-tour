@@ -30,6 +30,8 @@ import {
   SCENE_MAX,
   SCENE_MIN,
   SUPPORT_ANNUAL_INR,
+  SUPPORT_MONTHLY_INR,
+  SUPPORT_NAME,
   ULTRA_MONTHLY_INR,
   inr,
   inr2,
@@ -37,7 +39,7 @@ import {
   pricePerScene,
   withGst,
 } from "@/lib/pricing";
-import { ACCOMMODATION_RULE, LOGISTICS_TIERS, LOGISTICS_TIER_ORDER, SERVICE_AREAS, UNLISTED_CITY_NOTE } from "@/lib/logistics";
+import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
 /* Worked example for the GST paragraph: VPV Authority, factory in Manesar. */
 const EXAMPLE = siteQuote("authority", { city: "Manesar" });
@@ -304,8 +306,8 @@ const sections: LegalSection[] = [
             .
           </li>
           <li>
-            <B>Travel &amp; logistics</B> depends on your factory&rsquo;s city
-            and is charged with your order. See{" "}
+            <B>Cab travel</B> for our crew is {inr(CAB_TRAVEL.amountInr)} and is
+            charged with your order. See{" "}
             <L href="#travel">Travel and logistics</L>.
           </li>
           <li>
@@ -320,10 +322,11 @@ const sections: LegalSection[] = [
             {inr(ULTRA_MONTHLY_INR)} per month.
           </li>
           <li>
-            <B>Annual Support &amp; Maintenance</B> on Basic is{" "}
-            {inr(SUPPORT_ANNUAL_INR)} per year, and the first year is included
-            free with your Licence Fee. It is included at no extra charge in Pro
-            and Ultra.
+            <B>{SUPPORT_NAME}</B> is {inr(SUPPORT_MONTHLY_INR)} a month, billed
+            yearly as {inr(SUPPORT_ANNUAL_INR)} per year. For our first{" "}
+            {LAUNCH_OFFER.limit} customers the first year is free; after that,
+            the first year is charged with your order. It is included at no
+            extra charge in Pro and Ultra.
           </li>
         </UL>
         <UL>
@@ -391,10 +394,18 @@ const sections: LegalSection[] = [
             total before you pay, never after.
           </li>
           <li>
-            <B>What it covers.</B> The plan&rsquo;s Licence Fee and Sales Team
-            logins bought with it. It does not apply to extra areas, extra
-            videos, extra shoot time, travel or the Annual Support &amp;
-            Maintenance fee.
+            <B>What it covers.</B> The plan&rsquo;s Licence Fee, Sales Team
+            logins bought with it, and the first year of{" "}
+            {SUPPORT_NAME.toLowerCase()}, which is free. It does not apply to
+            extra areas, extra process videos, extra shoot time, travel or
+            support renewals from the second year.
+          </li>
+          <li>
+            <B>Coupon codes.</B> A coupon code we give you takes the stated
+            amount off your plan, extras, shoot time and Sales Team logins, not
+            off travel or support. One code per order. A code may be limited in
+            how many times it can be used and until when, has no cash value,
+            and can be withdrawn before it is used.
           </li>
           <li>
             <B>Your price is locked.</B> The price on your bill when you pay is
@@ -446,8 +457,7 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>If we have to move it.</B> If we cannot attend a confirmed shoot,
-            we reschedule at no extra charge and reimburse reasonable change
-            fees on flights you booked for the crew on the dates we agreed.
+            we reschedule at no extra charge.
           </li>
           <li>
             <B>Delivery.</B> The finished VPV is placed in your Workspace within{" "}
@@ -464,35 +474,22 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Our crew travels from Gurgaon. We currently shoot in{" "}
-          {SERVICE_AREAS.map((g) => g.cities.join(", ")).join(" and ")}. For a
-          factory elsewhere we confirm the travel arrangement with you before
-          the shoot. Your travel &amp; logistics charge is set by your
-          factory&rsquo;s city and shown on your bill:
+          Our crew travels <B>by cab</B> from our Gurugram office and returns the
+          same day. We currently shoot in {SERVICE_CITY_LIST}. Cab travel is{" "}
+          <B>{inr(CAB_TRAVEL.amountInr)}</B> plus GST per shoot, shown on your
+          bill before you pay. There are no flights, train tickets, airport
+          transfers or accommodation for you to book or pay for.
         </P>
         <UL>
-          {LOGISTICS_TIER_ORDER.map((t) => {
-            const tier = LOGISTICS_TIERS[t];
-            return (
-              <li key={t}>
-                <B>{tier.label}: {inr(tier.amountInr)}.</B> {tier.policy}
-                {tier.clientArranges.length > 0 && (
-                  <> You arrange and pay for: {tier.clientArranges.join("; ").toLowerCase()}.</>
-                )}
-              </li>
-            );
-          })}
-        </UL>
-        <UL>
-          <li>{ACCOMMODATION_RULE}</li>
           <li>
-            {UNLISTED_CITY_NOTE} Until then, a city not on our list is quoted
-            at the air-travel charge.
+            We do not yet shoot in other cities, so an order cannot be placed for
+            a factory outside them. You can still see your plan and price, and
+            we will contact you when we start in your city.
           </li>
           <li>
-            The charge is for the address you give us. If the factory turns out
-            to be somewhere that falls in a different tier, we tell you the
-            difference before the shoot and you may cancel instead.
+            The charge is for the factory address you give us. If it turns out to
+            be outside the cities above, we tell you before the shoot and you
+            may cancel for a full refund.
           </li>
         </UL>
       </>
@@ -549,10 +546,13 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          The Basic Licence Fee includes <B>the first year of Annual Support
-          &amp; Maintenance at no extra charge</B>, starting on the day your
-          Workspace is activated. After that, support continues for each further
-          year you renew at {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, which
+          {SUPPORT_NAME} is {inr(SUPPORT_MONTHLY_INR)} a month, billed yearly
+          as <B>{inr(SUPPORT_ANNUAL_INR)} plus 18% GST</B>. Your first year
+          starts on the day your Workspace is activated. For our first{" "}
+          {LAUNCH_OFFER.limit} customers <B>the first year is free</B>; for
+          later customers it is charged with the order. After the first year,
+          support continues for each further year you renew at{" "}
+          {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, which
           you can do from the Plan and billing page in your dashboard. Support
           is included throughout Pro and Ultra at no separate charge. The
           support period and its renewal date are shown on your order
@@ -1023,8 +1023,9 @@ export default function TermsPage() {
       <Callout title="Plain-language summary">
         Basic is a one-time licence from {inr(priceForScenes(SCENE_MIN))} plus
         18% GST — you choose how many scenes, and the price per scene falls as
-        you add more. The first year of support is included; after that it is
-        {" "}{inr(SUPPORT_ANNUAL_INR)} a year plus 18% GST, and a Workspace
+        you add more. {SUPPORT_NAME} is {inr(SUPPORT_MONTHLY_INR)} a month,
+        billed yearly as {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, with the first
+        year free for our first {LAUNCH_OFFER.limit} customers, and a Workspace
         whose support is more than {POLICY.supportGraceDays} days overdue is
         locked until it is renewed. Pro is {inr(PRO_MONTHLY_INR)} a month plus
         GST and Ultra {inr(ULTRA_MONTHLY_INR)} a month plus GST, both with

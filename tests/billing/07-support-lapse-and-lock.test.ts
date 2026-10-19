@@ -7,7 +7,7 @@ const DAY = 86_400_000;
 const at = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 /**
- * The ₹9,999 support year: free for 12 months, then a pop-up on every click for
+ * The ₹11,988 support year: free for 12 months, then a pop-up on every click for
  * 7 days (level 1), then the workspace locks (level 2) until it is renewed.
  * The database decides; the screen only shows it. Here the database is attacked
  * from every side: clocks, boundaries, direct table access, self-upgrades.
@@ -314,7 +314,7 @@ describe("support lapse ladder and the lock", () => {
 
   /* ───────────────────────────── paying to get out ───────────────────────────── */
 
-  describe("renewing the ₹9,999 support year", () => {
+  describe("renewing the ₹11,988 support year", () => {
     async function renew(uid: string) {
       const res = await w.routes.order.POST(w.request("/api/billing/order", { as: uid, body: { purpose: "support_renewal", buyer: {} } }));
       return { res, body: await w.readJson(res), status: res.status };
@@ -325,7 +325,7 @@ describe("support lapse ladder and the lock", () => {
       assert.equal(await stateOf(org.id), "locked");
       const order = await renew(admin);
       assert.equal(order.status, 200, JSON.stringify(order.body));
-      assert.equal(order.body.amountPaise, 1_179_882);
+      assert.equal(order.body.amountPaise, 1_414_584);
 
       await w.payInBrowser(order.body);
       assert.equal((await w.poll(order.body.orderId)).body.status, "ready");
