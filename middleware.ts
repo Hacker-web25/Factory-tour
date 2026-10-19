@@ -55,6 +55,8 @@ const APEX_ONLY_PATHS = [
   "/signup",
   "/setup",          // post-signup org creation (you sign in on the apex)
   "/apply",          // public qualification form
+  "/why-vpv",        // the loss calculator, linked from the site
+  "/experience",     // the live tour the homepage hero frames
   "/admin",          // platform-owner admin
   "/dashboard",      // platform-owner dashboard
   "/auth/callback",  // Google sign-in lands on the apex

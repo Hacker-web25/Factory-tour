@@ -38,7 +38,7 @@ import { sitePage } from "@/lib/site/pages";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.2faa2e77.js";
+const JS_SRC = "/static/js/main.2ab91b04.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -140,9 +140,56 @@ const ONE_EMAIL_SCRIPT = String.raw`(function(){
  * download) to the browser. If the site is ever rebuilt without those links,
  * this does nothing at all rather than breaking anything.
  */
-const FUNNEL_BRIDGE_SCRIPT = String.raw`(function(){function isFunnel(u){return u.pathname==="/assessment"||u.pathname.indexOf("/assessment/")===0}document.addEventListener("click",function(e){if(e.defaultPrevented)return;if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;if(a.target&&a.target!=="_self")return;if(a.hasAttribute("download"))return;var u;try{u=new URL(a.getAttribute("href"),window.location.origin)}catch(_){return}if(u.origin!==window.location.origin)return;if(!isFunnel(u))return;e.preventDefault();e.stopPropagation();window.location.assign(u.href)},true)})();`
+const FUNNEL_BRIDGE_SCRIPT = String.raw`(function(){function isFunnel(u){return u.pathname==="/assessment"||u.pathname.indexOf("/assessment/")===0||u.pathname==="/why-vpv"}document.addEventListener("click",function(e){if(e.defaultPrevented)return;if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;if(a.target&&a.target!=="_self")return;if(a.hasAttribute("download"))return;var u;try{u=new URL(a.getAttribute("href"),window.location.origin)}catch(_){return}if(u.origin!==window.location.origin)return;if(!isFunnel(u))return;e.preventDefault();e.stopPropagation();window.location.assign(u.href)},true)})();`
 
 const SIGNIN_SCRIPT = String.raw`(function(){function add(){if(document.getElementById("vpv-signin-btn"))return true;var h=document.querySelector('header[data-testid="site-header"]')||document.querySelector("header");if(!h)return false;var a=document.createElement("a");a.id="vpv-signin-btn";a.href="/login";a.textContent="Sign in";var cta=h.querySelector('a[href="/assessment"]');if(cta&&cta.parentNode){cta.parentNode.insertBefore(a,cta)}else{(h.firstElementChild||h).appendChild(a)}return true}if(document.readyState!=="loading"&&add())return;document.addEventListener("DOMContentLoaded",add);var o=new MutationObserver(function(){if(add())o.disconnect()});o.observe(document.documentElement,{childList:true,subtree:true});setTimeout(function(){o.disconnect()},15000)})();`;
+
+/**
+ * The homepage hero (see the "Homepage, October 2026" patches in
+ * lib/site/bundleData.ts). The bundle's own stylesheet has no grid
+ * placement classes, so the layout lives here, keyed on data-testid:
+ *
+ *   phone    heading → the live tour → the two buttons
+ *   desktop  heading and buttons on the left, the live tour on the right
+ *            across both rows, a little wider than before
+ */
+const HOME_CSS = `[data-testid="hero-experience"]{position:relative;width:100%;height:clamp(420px,64vh,560px);border-radius:24px;overflow:hidden;background:#0B1220;box-shadow:0 30px 65px rgba(20,104,216,.22);isolation:isolate}\
+[data-testid="hero-experience"] iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}\
+[data-testid="hero-case-study"]{text-align:left;gap:.75rem;line-height:1.25;justify-content:flex-start}\
+.vpv-cs-text{display:flex;flex-direction:column}.vpv-cs-text b{font-size:15px;color:#0f172a}.vpv-cs-text small{font-size:12.5px;font-weight:600;color:${BRAND};margin-top:2px}\
+.vpv-play{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9999px;background:${BRAND};flex:none;box-shadow:0 0 0 4px rgba(20,104,216,.14)}\
+.vpv-play::after{content:"";margin-left:3px;border-left:9px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent}\
+@media (max-width:1023px){div:has(>[data-testid="hero-experience"]){gap:1.5rem;padding-top:2rem}}\
+@media (min-width:1024px){div:has(>[data-testid="hero-experience"]){grid-template-columns:1fr 1.2fr;row-gap:2rem;align-items:stretch}\
+[data-testid="hero-text"]{grid-column:1;grid-row:1;align-self:end}\
+[data-testid="hero-ctas"]{grid-column:1;grid-row:2;align-self:start;flex-direction:row;flex-wrap:wrap;align-items:center}\
+[data-testid="hero-experience"]{grid-column:2;grid-row:1/span 2;height:clamp(520px,76vh,680px)}}\
+@media (max-width:639px){.vpv-tagline{font-size:8px;letter-spacing:.2em;white-space:nowrap}}\
+#vpv-focus{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,14,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:vpvFocusIn .35s ease-out both}\
+#vpv-focus .vf-card{position:relative;width:min(100%,calc((100vh - 170px) * 16 / 9),1100px)}\
+#vpv-focus .vf-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 30px 90px rgba(0,0,0,.5)}\
+#vpv-focus iframe{position:absolute;inset:0;width:100%;height:100%;border:0}\
+#vpv-focus .vf-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;color:#fff;font-family:inherit}\
+#vpv-focus .vf-top b{display:block;font-size:17px}#vpv-focus .vf-top span{font-size:13px;opacity:.75}\
+#vpv-focus button{font:inherit;cursor:pointer;border:0}\
+#vpv-focus .vf-x{flex:none;width:40px;height:40px;border-radius:9999px;background:rgba(255,255,255,.14);color:#fff;font-size:20px;line-height:40px}\
+#vpv-focus .vf-x:hover{background:rgba(255,255,255,.26)}\
+#vpv-focus .vf-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px}\
+#vpv-focus .vf-sound{padding:11px 20px;border-radius:9999px;background:#fff!important;color:#0B3D91;font-weight:700;font-size:14px}\
+#vpv-focus .vf-skip{padding:11px 18px;border-radius:9999px;background:transparent!important;color:#fff;font-size:14px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.4)}\
+#vpv-focus:focus{outline:none}\
+@keyframes vpvFocusIn{from{opacity:0}to{opacity:1}}\
+@media (prefers-reduced-motion:reduce){#vpv-focus{animation:none}}`;
+
+/**
+ * /case-studies opens on Anuj Anand's story, full screen and already
+ * playing. Browsers only autoplay a video that starts muted, so it starts
+ * muted with a large "Turn on sound" button (which also counts as the
+ * visitor's tap, so the sound then plays). Closed with ✕, Esc, "Browse all
+ * stories" or a tap outside. Shown once each time the visitor arrives on the
+ * page, including arrivals through the site's own menu.
+ */
+const CASE_STUDY_FOCUS_SCRIPT = String.raw`(function(){var ID="62asCfqRRbw",was=false;function on(){return location.pathname.replace(/\/+$/,"")==="/case-studies"}function src(m){return"https://www.youtube-nocookie.com/embed/"+ID+"?autoplay=1&mute="+(m?1:0)+"&playsinline=1&rel=0&modestbranding=1"}function key(e){if(e.key==="Escape")close()}function close(){var o=document.getElementById("vpv-focus");if(!o)return;o.parentNode.removeChild(o);document.documentElement.style.overflow="";document.removeEventListener("keydown",key)}function open(){if(document.getElementById("vpv-focus")||!document.body)return;var o=document.createElement("div");o.id="vpv-focus";o.setAttribute("role","dialog");o.setAttribute("aria-modal","true");o.setAttribute("aria-label","Anuj Anand's story");o.innerHTML='<div class="vf-card"><div class="vf-top"><div><b>80%+ conversion with VPV</b><span>Mr. Anuj Anand, Export Head, Kesaria Rubber Industries</span></div><button type="button" class="vf-x" aria-label="Close">✕</button></div><div class="vf-frame"><iframe title="Anuj Anand on VPV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="'+src(true)+'"></iframe></div><div class="vf-row"><button type="button" class="vf-sound">🔊 Turn on sound</button><button type="button" class="vf-skip">Browse all stories</button></div></div>';o.addEventListener("click",function(e){var t=e.target;if(t===o||t.closest(".vf-x")||t.closest(".vf-skip")){close();return}if(t.closest(".vf-sound")){o.querySelector("iframe").src=src(false);t.closest(".vf-sound").style.display="none"}});document.body.appendChild(o);document.documentElement.style.overflow="hidden";document.addEventListener("keydown",key);o.tabIndex=-1;o.focus()}function check(){var n=on();if(n&&!was)setTimeout(open,350);if(!n)close();was=n}["pushState","replaceState"].forEach(function(k){var f=history[k];history[k]=function(){var r=f.apply(this,arguments);setTimeout(check,0);return r}});window.addEventListener("popstate",check);if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",check);else check()})();`;
 
 /**
  * The HTML shell for one page of the site. `path` must be a path listed
@@ -187,6 +234,7 @@ ${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""
 <script defer="defer" src="${JS_SRC}"></script>\
 <link href="${CSS_HREF}" rel="stylesheet"/>\
 <style id="vpv-signin-btn-style">${SIGNIN_CSS}</style>\
+<style id="vpv-home-style">${HOME_CSS}</style>\
 </head><body>\
 <noscript>You need to enable JavaScript to run this app.</noscript>\
 <div id="root"></div>\
@@ -194,5 +242,6 @@ ${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""
 <script id="vpv-pay-bridge-script">${PAY_BRIDGE_SCRIPT}</script>\
 <script id="vpv-funnel-bridge-script">${FUNNEL_BRIDGE_SCRIPT}</script>\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
+<script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
 </body></html>`;
 }

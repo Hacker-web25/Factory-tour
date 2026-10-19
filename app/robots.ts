@@ -25,6 +25,7 @@ export default function robots(): MetadataRoute.Robots {
           "/how-it-works",
           "/plans",
           "/case-studies",
+          "/why-vpv",
           "/faq",
           "/assessment",
           "/get-started",

@@ -26,6 +26,7 @@ export type LegalSection = {
 };
 
 const HEADER_LINKS = [
+  { href: "/why-vpv", label: "Why VPV" },
   { href: "/plans", label: "Pricing" },
   { href: "/about", label: "About" },
   { href: "/security", label: "Security" },

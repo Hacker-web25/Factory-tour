@@ -172,6 +172,9 @@ const nextConfig = {
       // Later rule wins for the same header, so the marketing pages get
       // the embed-friendly set while everything else keeps the strict one.
       ...SITE_PATHS.map((path) => ({ source: path, headers: siteHeaders })),
+      // The homepage hero frames /experience, which frames the 360° tour —
+      // so it needs the site's embed permissions too.
+      { source: "/experience", headers: siteHeaders },
       // API endpoints: short-circuit any proxy cache.
       {
         source: "/api/:path*",
