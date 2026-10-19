@@ -161,3 +161,12 @@ alter table public.funnel_leads add column if not exists processes text[];
 -- policies" on step 1. Being contacted about the enquiry is explained in the
 -- Privacy Policy, so this is the record that a call-back was agreed to.
 alter table public.funnel_leads add column if not exists policies_accepted_at timestamptz;
+
+-- ─────────────────────────── Added: the sales team step ─────────────────────
+-- A sixth step between "Your plan" and "Billing" asks whether the buyer has a
+-- sales team and how many logins they want. 'sales' joins the stage list.
+alter table public.funnel_leads drop constraint if exists funnel_leads_stage_check;
+alter table public.funnel_leads add constraint funnel_leads_stage_check
+  check (stage in ('info','scope','security','plan','sales','billing','paid'));
+alter table public.funnel_leads add column if not exists has_sales_team boolean;
+alter table public.funnel_leads add column if not exists sales_seats    integer;

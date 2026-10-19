@@ -2,9 +2,9 @@
  * lib/server/launchOffer.ts — how many customers have taken the special
  * offer, and so whether it is still open.
  *
- * "20% off for our first 100 customers" is printed on the site. This is
+ * "Our first 50 customers" is printed on the site. This is
  * what makes it true: the order route asks here before pricing a plan, and
- * from the 101st paid site-plan order onwards the plan is charged at its
+ * from the 51st paid site-plan order onwards the plan is charged at its
  * regular price. Nobody has to remember to switch the offer off.
  *
  * What counts as a customer: a billing_orders row that is PAID, stored as a

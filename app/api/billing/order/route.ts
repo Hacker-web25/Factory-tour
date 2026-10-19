@@ -76,6 +76,7 @@ import {
   isValidSceneCount,
   clampExtraAreas,
   clampExtraVideos,
+  clampSalesSeats,
   PLACEHOLDER_PRICES,
   priceFor,
   storedPurpose,
@@ -317,6 +318,7 @@ export async function POST(req: Request) {
   let siteCity = "";
   let extraAreas = 0;
   let extraVideos = 0;
+  let salesSeats = 0;
 
   if (purpose === "site_plan") {
     // The browser names a plan, a city and how many extras it wants. Not one
@@ -339,6 +341,7 @@ export async function POST(req: Request) {
     // can actually deliver instead of failing a legitimate purchase.
     extraAreas = clampExtraAreas(body.extraAreas);
     extraVideos = clampExtraVideos(body.extraVideos);
+    salesSeats = clampSalesSeats(body.salesSeats);
   } else if (purpose === "basic_licence") {
     if (!isValidSceneCount(body.scenes)) return fail(400, "invalid_scenes", "Please choose between 2 and 20 scenes.");
     scenesWanted = body.scenes;
@@ -365,7 +368,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // The special offer is "for our first 100 customers", so whether it still
+  // The special offer is "for our first 50 customers", so whether it still
   // applies is decided HERE, from the real count of paid site-plan orders —
   // never from anything the browser says.
   const offer = purpose === "site_plan" ? await launchOfferState(sb) : null;
@@ -379,6 +382,7 @@ export async function POST(req: Request) {
     extraAreas,
     extraVideos,
     offerOpen: offer ? offer.open : undefined,
+    salesSeats,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
 

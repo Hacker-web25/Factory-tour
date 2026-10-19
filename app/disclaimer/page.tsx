@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, L, Mail, P, UL } from "@/components/legal/prose";
 import { COMPANY } from "@/lib/company";
+import { LAUNCH_OFFER } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Disclaimer",
@@ -135,7 +136,7 @@ const sections: LegalSection[] = [
           Fares are set by the airlines, not by us.
         </li>
         <li>
-          The special offer is limited to our first 100 customers and ends on
+          The special offer is limited to our first {LAUNCH_OFFER.limit} customers and ends on
           its own once they have bought. See the{" "}
           <L href="/terms#special-offer">Terms</L>.
         </li>

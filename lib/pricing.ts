@@ -220,7 +220,7 @@ export const PLANS: Record<PlanId, PlanSpec> = {
   ultra: {
     id: "ultra",
     name: "Ultra",
-    tagline: "Everything, including AI meeting review.",
+    tagline: "Everything, including AI meeting review and unlimited offline tours.",
     billing: "monthly",
     monthlyInr: ULTRA_MONTHLY_INR,
     sceneQuota: null,
@@ -261,6 +261,7 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   { label: "Sales team accounts and reports", basic: true, pro: true, ultra: true },
   { label: "Measure tool, image clean-up, capture shield", basic: true, pro: true, ultra: true },
   { label: "Add scenes any time", basic: "Buy a top-up", pro: true, ultra: true },
+  { label: "Tours saved for offline presenting", basic: true, pro: true, ultra: "Unlimited" },
   { label: "AI meeting review: transcript, score, insights", basic: false, pro: false, ultra: true },
   {
     label: "Technical support, maintenance and hosting",
@@ -523,13 +524,14 @@ export function isSitePlanId(v: unknown): v is SitePlanId {
 /* ─────────────────────── Special offer ──────────────────────────── */
 
 /**
- * The special offer: 20% off the regular price for our first 100 customers.
+ * The special offer for our first 50 customers: 20% off the regular plan
+ * price, and 50% off each sales-team login (see SALES_TEAM).
  *
  * ┌─ THIS IS A PROMISE, AND THE CODE KEEPS IT ────────────────────────┐
- * │ "First 100 customers" is printed on the site, so it has to be      │
+ * │ "First 50 customers" is printed on the site, so it has to be       │
  * │ true. An offer that never ends is a false-urgency claim under the  │
  * │ CCPA's dark-pattern guidelines. So the order route COUNTS paid     │
- * │ site-plan orders (lib/server/launchOffer.ts) and, from the 101st,  │
+ * │ site-plan orders (lib/server/launchOffer.ts) and, from the 51st,   │
  * │ prices at regularInr — automatically, with nobody having to        │
  * │ remember. Refunded orders do not count: they are not customers.    │
  * └────────────────────────────────────────────────────────────────────┘
@@ -539,8 +541,8 @@ export function isSitePlanId(v: unknown): v is SitePlanId {
 export const LAUNCH_OFFER = {
   active: true,
   percent: 20,
-  limit: 100,
-  label: "Special offer for our first 100 customers",
+  limit: 50,
+  label: "Special offer for our first 50 customers",
   short: "Special offer",
 };
 
@@ -689,6 +691,85 @@ export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.activ
   return rows;
 }
 
+/* ─────────────────────── Sales team ─────────────────────────────── */
+
+/**
+ * The Sales Team add-on: a login for each salesperson, with the MD's sales
+ * dashboard — every meeting's start time and place, meetings per client,
+ * and how far each deal has moved.
+ *
+ * ONE-TIME per salesperson, bought with the plan. One flat price per login,
+ * with no volume discount. While the special offer is open it is 50% off,
+ * so ₹999 per login; from the 51st customer it is the regular ₹1,998. Like
+ * the plan prices, the regular price is a real future price, not a decoy.
+ */
+export const SALES_TEAM = {
+  regularInr: 1_998,
+  offerInr: 999,
+  percentOff: 50,
+  /** Slider limit. A bigger team is a conversation, not a slider. */
+  maxSeats: 200,
+  /** What the salary calculator starts from, per salesperson per month. */
+  defaultMonthlySalaryInr: 30_000,
+};
+
+export function clampSalesSeats(n: unknown): number {
+  const v = typeof n === "number" && Number.isFinite(n) ? Math.round(n) : 0;
+  return Math.max(0, Math.min(SALES_TEAM.maxSeats, v));
+}
+
+/** One salesperson login, right now. */
+export function seatPrice(offerOpen = LAUNCH_OFFER.active): number {
+  return offerOpen && LAUNCH_OFFER.active ? SALES_TEAM.offerInr : SALES_TEAM.regularInr;
+}
+
+/**
+ * The calculator on the Sales team step: what the team costs in salary,
+ * and what the add-on costs against it. Every figure is arithmetic on the
+ * two numbers the buyer typed — there is no invented "return" in here.
+ */
+export function salesTeamMaths(
+  seats: number,
+  monthlySalaryInr: number,
+  offerOpen = LAUNCH_OFFER.active
+): {
+  seats: number;
+  monthlySalaryBill: number;
+  annualSalaryBill: number;
+  addOnCost: number;
+  regularAddOnCost: number;
+  /** Add-on cost as a share of ONE year's salary bill, in percent. */
+  percentOfAnnualSalary: number;
+  /** How many days of one salesperson's pay one login costs. */
+  daysOfSalaryPerLogin: number;
+} {
+  const n = Math.max(1, clampSalesSeats(seats));
+  const salary = Math.max(1_000, Math.round(monthlySalaryInr || SALES_TEAM.defaultMonthlySalaryInr));
+  const monthly = n * salary;
+  const annual = monthly * 12;
+  const cost = n * seatPrice(offerOpen);
+  return {
+    seats: n,
+    monthlySalaryBill: monthly,
+    annualSalaryBill: annual,
+    addOnCost: cost,
+    regularAddOnCost: n * SALES_TEAM.regularInr,
+    percentOfAnnualSalary: Math.round((cost / annual) * 10_000) / 100,
+    // Not rounded: ₹999 against ₹1,000 a day is 0.999 days, and the page
+    // says "less than one day" — rounding to 1.00 would make that false.
+    daysOfSalaryPerLogin: seatPrice(offerOpen) / (salary / 30),
+  };
+}
+
+/** ₹36 lakh, ₹1.08 crore — how a factory owner says a big rupee figure. */
+export function inrLakhs(amount: number): string {
+  const n = Math.round(amount);
+  const trim = (v: number) => v.toFixed(2).replace(/\.?0+$/, "");
+  if (n >= 1_00_00_000) return `₹${trim(n / 1_00_00_000)} crore`;
+  if (n >= 1_00_000) return `₹${trim(n / 1_00_000)} lakh`;
+  return inr(n);
+}
+
 /* ─────────────────────── Shoot time ─────────────────────────────── */
 
 /**
@@ -795,6 +876,8 @@ export type SiteQuote = {
   shoot: ShootTime;
   /** Kept for callers that only want the day count. */
   shootDays: number;
+  /** Sales-team logins on this order, 0 when none. */
+  salesSeats: number;
   lines: QuoteLine[];
   /** Sum of the lines, GST excluded. */
   taxableInr: number;
@@ -826,6 +909,8 @@ export function siteQuote(
     /** Whether the special offer still applies. The server decides this
      *  from the real count of buyers; screens pass what the server said. */
     offerOpen?: boolean;
+    /** Sales-team logins bought with the plan. */
+    salesSeats?: number;
   } = {}
 ): SiteQuote {
   const plan = SITE_PLANS[planId];
@@ -850,7 +935,7 @@ export function siteQuote(
       kind: "offer",
       label: `${LAUNCH_OFFER.short} — ${LAUNCH_OFFER.percent}% off`,
       amountInr: -savingInr,
-      note: "For our first 100 customers",
+      note: `For our first ${LAUNCH_OFFER.limit} customers`,
     });
   }
 
@@ -878,6 +963,24 @@ export function siteQuote(
       amountInr: shoot.extraHours * EXTRA_HOUR_INR,
       note: `${hoursLabel(shoot.includedHours)} included, ${hoursLabel(shoot.totalHours)} needed · ₹${EXTRA_HOUR_INR}/hour`,
     });
+  }
+
+  const salesSeats = clampSalesSeats(opts.salesSeats);
+  if (salesSeats > 0) {
+    lines.push({
+      kind: "extra",
+      label: `Sales team — ${salesSeats} salesperson login${salesSeats === 1 ? "" : "s"}`,
+      amountInr: salesSeats * SALES_TEAM.regularInr,
+      note: `One-time, ${inr(SALES_TEAM.regularInr)} per login, with the MD's sales dashboard`,
+    });
+    if (offerOpen) {
+      lines.push({
+        kind: "offer",
+        label: `${LAUNCH_OFFER.short} — ${SALES_TEAM.percentOff}% off sales team`,
+        amountInr: -salesSeats * (SALES_TEAM.regularInr - SALES_TEAM.offerInr),
+        note: `For our first ${LAUNCH_OFFER.limit} customers`,
+      });
+    }
   }
 
   // Travel. A known city prices by its tier; otherwise the legacy zone.
@@ -925,6 +1028,7 @@ export function siteQuote(
     logistics,
     shoot,
     shootDays: shoot.days,
+    salesSeats,
     lines,
     taxableInr: g.taxable,
     gstInr: g.gst,
@@ -1025,6 +1129,7 @@ export function priceFor(
     extraVideos?: number;
     /** Decided by the order route from the real count of buyers. */
     offerOpen?: boolean;
+    salesSeats?: number;
   } = {}
 ): { amountInr: number; description: string; scenes: number | null } {
   switch (purpose) {
@@ -1061,11 +1166,13 @@ export function priceFor(
         city: opts.city,
         travel: opts.travel,
         offerOpen: opts.offerOpen,
+        salesSeats: opts.salesSeats,
       });
       const parts = [`${q.plan.name} — ${q.totalAreas} areas`];
       if (q.totalVideos > 0) parts.push(`${q.totalVideos} videos`);
       if (q.savingInr > 0) parts.push(LAUNCH_OFFER.short);
       parts.push(`${hoursLabel(q.shoot.totalHours)} shoot`);
+      if (q.salesSeats > 0) parts.push(`sales team ${q.salesSeats} login${q.salesSeats === 1 ? "" : "s"}`);
       if (q.logistics) parts.push(`travel ${q.logistics.city || q.logistics.spec.label}`);
       else parts.push(`travel ${TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label}`);
       if (q.shoot.days > 1) parts.push(`${q.shoot.days} shoot days`);

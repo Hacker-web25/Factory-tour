@@ -228,7 +228,7 @@ export default function Step4Plan() {
     setBusy(true);
     const saved = saveFunnel({ chosenPlan: planId, extraAreas: s.extraAreas, extraVideos: s.extraVideos });
     await mirrorLead("plan", saved, { recommendedPlan: rec?.plan });
-    router.push("/assessment/billing");
+    router.push("/assessment/sales-team");
   }
 
   const header = (title: string, summary?: string) => (

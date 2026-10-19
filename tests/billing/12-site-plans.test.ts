@@ -113,12 +113,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(SITE_PLANS.authority.sharingControls, false);
     assert.equal(SITE_PLANS.control.sharingControls, true);
 
-    // The special offer: 20% off the regular price for the first 100
+    // The special offer: 20% off the regular price for the first 50
     // customers, landing exactly on the decided prices. The regular prices
     // are what is charged from the 101st buyer, so they are pinned too.
     assert.equal(LAUNCH_OFFER.active, true);
     assert.equal(LAUNCH_OFFER.percent, 20);
-    assert.equal(LAUNCH_OFFER.limit, 100);
+    assert.equal(LAUNCH_OFFER.limit, 50);
     assert.equal(SITE_PLANS.confidence.regularInr, 43_750);
     assert.equal(SITE_PLANS.authority.regularInr, 68_750);
     assert.equal(SITE_PLANS.control.regularInr, 112_500);
@@ -427,7 +427,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(paid.body.status, "ready");
   });
 
-  it("keeps the first-100 promise: the offer closes on its own after 100 buyers", async () => {
+  it("keeps the first-50 promise: the offer closes on its own after 50 buyers", async () => {
     // A fake client returning N paid site-plan orders, plus noise that must
     // NOT count: a scene-ladder licence, and a refunded plan (filtered by
     // the status query, so it is simply never returned).
@@ -452,15 +452,15 @@ describe("site plans: the named packs sold by the marketing site", () => {
         }),
       }) as never;
 
-    const at99 = await launchOfferState(fake(99));
-    assert.equal(at99.sold, 99);
-    assert.equal(at99.open, true);
-    assert.equal(at99.remaining, 1);
+    const at49 = await launchOfferState(fake(49));
+    assert.equal(at49.sold, 49);
+    assert.equal(at49.open, true);
+    assert.equal(at49.remaining, 1);
 
-    const at100 = await launchOfferState(fake(100));
-    assert.equal(at100.open, false);
-    assert.equal(at100.remaining, 0);
-    assert.equal(launchOfferOpen(100), false);
+    const at50 = await launchOfferState(fake(50));
+    assert.equal(at50.open, false);
+    assert.equal(at50.remaining, 0);
+    assert.equal(launchOfferOpen(50), false);
 
     // Once closed, the quote charges the regular price and shows no saving.
     const closed = siteQuote("control", { city: "Manesar", offerOpen: false });
@@ -469,9 +469,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(closed.taxableInr, 112_500 + 4_000);
   });
 
-  it("charges the regular price for real once 100 customers have paid", async () => {
+  it("charges the regular price for real once 50 customers have paid", async () => {
     await w.reset();
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 50; i++) {
       await w.q(
         `insert into public.billing_orders (purpose, scenes, amount_paise, status, buyer_name, buyer_email, buyer_company, notes)
          values ('basic_licence', 8, 100, 'paid', 'Earlier buyer', $1, 'Co', 'VPV Authority — 8 areas')`,

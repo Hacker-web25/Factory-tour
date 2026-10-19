@@ -38,6 +38,7 @@ import { logisticsFor } from "@/lib/logistics";
 import {
   clampExtraAreas,
   clampExtraVideos,
+  clampSalesSeats,
   isSitePlanId,
   siteQuote,
 } from "@/lib/pricing";
@@ -47,7 +48,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
-const STAGES = ["info", "scope", "security", "plan", "billing", "paid"] as const;
+const STAGES = ["info", "scope", "security", "plan", "sales", "billing", "paid"] as const;
 type Stage = (typeof STAGES)[number];
 
 function isStage(v: unknown): v is Stage {
@@ -134,6 +135,11 @@ export async function POST(req: Request) {
 
   if (isSitePlanId(body.recommendedPlan)) patch.recommended_plan = body.recommendedPlan;
 
+  // The sales team step. The salary typed into the calculator is NOT sent
+  // or stored: it only ever lives in the visitor's browser.
+  if (typeof body.hasSalesTeam === "boolean") patch.has_sales_team = body.hasSalesTeam;
+  if (typeof body.salesSeats === "number") patch.sales_seats = clampSalesSeats(body.salesSeats);
+
   // Re-price whatever plan they are looking at, so quoted_total_inr in our
   // notes is a number WE calculated and matches what they were shown.
   if (isSitePlanId(body.chosenPlan)) {
@@ -145,6 +151,7 @@ export async function POST(req: Request) {
     const q = siteQuote(body.chosenPlan, {
       extraAreas,
       extraVideos,
+      salesSeats: body.hasSalesTeam === false ? 0 : clampSalesSeats(body.salesSeats),
       city: typeof patch.factory_city === "string" ? patch.factory_city : undefined,
     });
     patch.quoted_total_inr = Math.round(q.totalInr);

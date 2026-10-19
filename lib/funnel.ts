@@ -20,7 +20,7 @@
 import { SITE_PLAN_ORDER, SITE_PLANS, type SitePlanId } from "@/lib/pricing";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
-export type FunnelStage = "info" | "scope" | "security" | "plan" | "billing" | "paid";
+export type FunnelStage = "info" | "scope" | "security" | "plan" | "sales" | "billing" | "paid";
 
 export type FunnelState = {
   /** The funnel_leads row for this visitor, once the first step is saved. */
@@ -59,7 +59,13 @@ export type FunnelState = {
      explained, so agreeing to it is what lets a rep call back. */
   policiesAccepted: boolean;
 
-  /* Step 5 — consent and verification. */
+  /* Step 5 — the sales team. The salary is only for the calculator and
+     never leaves the browser. */
+  hasSalesTeam: boolean | null;
+  salesSeats: number;
+  monthlySalary: number;
+
+  /* Step 6 — consent and verification. */
   marketingConsent: boolean;
   termsAccepted: boolean;
   emailVerified: boolean;
@@ -88,6 +94,9 @@ export const EMPTY_FUNNEL: FunnelState = {
   extraAreas: 0,
   extraVideos: 0,
   policiesAccepted: false,
+  hasSalesTeam: null,
+  salesSeats: 5,
+  monthlySalary: 30_000,
   marketingConsent: false,
   termsAccepted: false,
   emailVerified: false,
@@ -264,6 +273,8 @@ export async function mirrorLead(
         extraVideos: state.extraVideos,
         marketingConsent: state.marketingConsent,
         policiesAccepted: state.policiesAccepted,
+        hasSalesTeam: state.hasSalesTeam,
+        salesSeats: state.hasSalesTeam ? state.salesSeats : 0,
         ...extra,
       }),
     });

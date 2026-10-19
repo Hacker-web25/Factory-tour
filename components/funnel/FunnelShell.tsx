@@ -14,7 +14,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Check, Minus, Plus, Star, type LucideIcon } from "lucide-react";
 import { LAUNCH_OFFER } from "@/lib/pricing";
 
@@ -25,6 +25,7 @@ export const FUNNEL_STEPS = [
   { href: "/assessment/scope", label: "What to show" },
   { href: "/assessment/security", label: "Protection" },
   { href: "/assessment/plan", label: "Your plan" },
+  { href: "/assessment/sales-team", label: "Sales team" },
   { href: "/assessment/billing", label: "Billing" },
 ] as const;
 
@@ -355,7 +356,17 @@ export function YesNo({
  * It appears with one short settle-in when the plan is revealed, and not
  * at all for visitors who have asked their system for reduced motion.
  */
-export function OfferSeal({ size = 128, className = "" }: { size?: number; className?: string }) {
+export function OfferSeal({
+  size = 128,
+  className = "",
+  percent = LAUNCH_OFFER.percent,
+}: {
+  size?: number;
+  className?: string;
+  /** The discount the seal announces. 20% on plans, 50% on sales team. */
+  percent?: number;
+}) {
+  const gradId = `vpv-gold-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const points = 16;
   const outer = 50;
   const inner = 43;
@@ -369,7 +380,7 @@ export function OfferSeal({ size = 128, className = "" }: { size?: number; class
       className={`vpv-seal pointer-events-none select-none ${className}`}
       style={{ width: size, height: size }}
       role="img"
-      aria-label={`${LAUNCH_OFFER.short}: ${LAUNCH_OFFER.percent}% off for our first ${LAUNCH_OFFER.limit} customers`}
+      aria-label={`${LAUNCH_OFFER.short}: ${percent}% off for our first ${LAUNCH_OFFER.limit} customers`}
     >
       <style>{`
         @keyframes vpv-seal-in { from { transform: scale(.6) rotate(-24deg); opacity: 0 } to { transform: scale(1) rotate(-10deg); opacity: 1 } }
@@ -378,19 +389,19 @@ export function OfferSeal({ size = 128, className = "" }: { size?: number; class
       `}</style>
       <svg viewBox="0 0 100 100" className="h-full w-full drop-shadow-[0_10px_18px_rgba(160,110,10,0.35)]">
         <defs>
-          <linearGradient id="vpv-gold" x1="0" y1="0" x2="1" y2="1">
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#F7DC86" />
             <stop offset="0.55" stopColor="#E2B23E" />
             <stop offset="1" stopColor="#B7841A" />
           </linearGradient>
         </defs>
-        <polygon points={d} fill="url(#vpv-gold)" />
+        <polygon points={d} fill={`url(#${gradId})`} />
         <circle cx="50" cy="50" r="37" fill="none" stroke="#FFF3CC" strokeOpacity="0.85" strokeWidth="0.9" strokeDasharray="1.6 1.8" />
         <text x="50" y="35" textAnchor="middle" fontSize="7.4" fontWeight="700" fill="#5A3D00" letterSpacing="0.4">
           SPECIAL OFFER
         </text>
         <text x="50" y="56" textAnchor="middle" fontSize="19" fontWeight="800" fill="#3D2900">
-          {LAUNCH_OFFER.percent}%
+          {percent}%
         </text>
         <text x="50" y="66" textAnchor="middle" fontSize="7" fontWeight="700" fill="#3D2900">
           OFF
@@ -409,7 +420,7 @@ export type OfferInfo = { open: boolean; remaining: number | null; loaded: boole
  * Whether the special offer is still open, from the server's real count.
  * Starts as "open" so the page does not flash the regular price at the
  * thousands of visitors who arrive while it is; corrects itself within a
- * request if the hundred places have gone.
+ * request if the 50 places have gone.
  */
 export function useOfferState(): OfferInfo {
   const [info, setInfo] = useState<OfferInfo>({ open: LAUNCH_OFFER.active, remaining: null, loaded: false });

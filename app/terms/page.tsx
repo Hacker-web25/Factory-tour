@@ -18,6 +18,7 @@ import {
   EXTRA_VIDEO_INR,
   LAUNCH_OFFER,
   MINUTES_PER_EXTRA_AREA,
+  SALES_TEAM,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   VIDEO_SHOT_NOTE,
@@ -36,7 +37,7 @@ import {
   pricePerScene,
   withGst,
 } from "@/lib/pricing";
-import { ACCOMMODATION_RULE, LOGISTICS_TIERS, LOGISTICS_TIER_ORDER, UNLISTED_CITY_NOTE } from "@/lib/logistics";
+import { ACCOMMODATION_RULE, LOGISTICS_TIERS, LOGISTICS_TIER_ORDER, SERVICE_AREAS, UNLISTED_CITY_NOTE } from "@/lib/logistics";
 
 /* Worked example for the GST paragraph: VPV Authority, factory in Manesar. */
 const EXAMPLE = siteQuote("authority", { city: "Manesar" });
@@ -210,6 +211,16 @@ const sections: LegalSection[] = [
           <L href="#shoot">The factory shoot</L>.
         </P>
         <P>
+          <B>Sales Team.</B> On any plan you may add a login for each of your
+          salespeople. It gives your organisation&rsquo;s administrator (usually
+          the MD) the sales dashboard: each presentation&rsquo;s start time and
+          location, the meetings held with each client, and each client&rsquo;s
+          stage (new, moving ahead, won or lost). Logins are paid once, per
+          salesperson, at one flat price whatever the number. Location is
+          recorded only with the salesperson&rsquo;s device permission; see{" "}
+          <L href="#recording-ai">Recording, location and AI features</L>.
+        </P>
+        <P>
           We also offer the following, which some customers buy instead:
         </P>
         <UL>
@@ -229,7 +240,8 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Ultra — {inr(ULTRA_MONTHLY_INR)} per month.</B> Everything in
-            Pro, plus AI-assisted meeting review and priority support. Agreed
+            Pro, plus AI-assisted meeting review, unlimited tours saved for
+            offline presenting, and priority support. Agreed
             in a written proposal.
           </li>
         </UL>
@@ -282,6 +294,14 @@ const sections: LegalSection[] = [
             {inr(discountBands("control").slice(-1)[0].each)} each.{" "}
             <B>Extra process videos</B> are {inr(EXTRA_VIDEO_INR)} each.{" "}
             <B>Extra shoot time</B> is {inr(EXTRA_HOUR_INR)} per hour.
+          </li>
+          <li>
+            <B>Sales Team logins</B> are {inr(SALES_TEAM.regularInr)} per
+            salesperson, one time
+            {LAUNCH_OFFER.active
+              ? `, or ${inr(SALES_TEAM.offerInr)} under the special offer for our first ${LAUNCH_OFFER.limit} customers`
+              : ""}
+            .
           </li>
           <li>
             <B>Travel &amp; logistics</B> depends on your factory&rsquo;s city
@@ -354,7 +374,7 @@ const sections: LegalSection[] = [
       <>
         <P>
           {LAUNCH_OFFER.active
-            ? `While it runs, the VPV plans are ${LAUNCH_OFFER.percent}% off their regular price for our first ${LAUNCH_OFFER.limit} customers.`
+            ? `While it runs, our first ${LAUNCH_OFFER.limit} customers get the VPV plans at ${LAUNCH_OFFER.percent}% off their regular price, and Sales Team logins at ${SALES_TEAM.percentOff}% off.`
             : "The special offer has ended; the VPV plans are sold at their regular price."}
         </P>
         <UL>
@@ -371,9 +391,10 @@ const sections: LegalSection[] = [
             total before you pay, never after.
           </li>
           <li>
-            <B>What it covers.</B> The discount applies to the plan&rsquo;s
-            Licence Fee only, not to add-ons, extra shoot time, travel or the
-            Annual Support &amp; Maintenance fee.
+            <B>What it covers.</B> The plan&rsquo;s Licence Fee and Sales Team
+            logins bought with it. It does not apply to extra areas, extra
+            videos, extra shoot time, travel or the Annual Support &amp;
+            Maintenance fee.
           </li>
           <li>
             <B>Your price is locked.</B> The price on your bill when you pay is
@@ -443,8 +464,11 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Our crew travels from Gurgaon. Your travel &amp; logistics charge is
-          set by your factory&rsquo;s city and shown on your bill:
+          Our crew travels from Gurgaon. We currently shoot in{" "}
+          {SERVICE_AREAS.map((g) => g.cities.join(", ")).join(" and ")}. For a
+          factory elsewhere we confirm the travel arrangement with you before
+          the shoot. Your travel &amp; logistics charge is set by your
+          factory&rsquo;s city and shown on your bill:
         </P>
         <UL>
           {LOGISTICS_TIER_ORDER.map((t) => {

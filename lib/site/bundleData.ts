@@ -17,6 +17,7 @@
 import {
   EXTRA_HOUR_INR,
   LAUNCH_OFFER,
+  SALES_TEAM,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   TRAVEL_FEES,
@@ -108,6 +109,32 @@ export function bundleTextPatches(): [string, string][] {
       'mn(un.options.ncr.amount)," for Delhi NCR, ",mn(un.options.outside.amount)," outside Delhi NCR, + GST."',
       JSON.stringify(
         `depends on your factory's city: from ${travelFrom} to ${travelTo} + GST, shown before you pay. For cities we fly to, you book the crew's flights.`
+      ),
+    ],
+    // The introductory-offer block and its FAQ, written for a 100-customer
+    // offer; the count now comes from LAUNCH_OFFER.limit.
+    [
+      '"A Special Introductory Offer for Our First 100 Customers."',
+      JSON.stringify(`A Special Introductory Offer for Our First ${LAUNCH_OFFER.limit} Customers.`),
+    ],
+    ["Be among the first 100 customers to experience", `Be among the first ${LAUNCH_OFFER.limit} customers to experience`],
+    ['"Available to the first 100 verified paid orders."', JSON.stringify(`Available to the first ${LAUNCH_OFFER.limit} verified paid orders.`)],
+    ['q:"What is the first 100 customers offer?"', `q:${JSON.stringify(`What is the first ${LAUNCH_OFFER.limit} customers offer?`)}`],
+    [
+      "The ${ln.percent}% applies to the plan price only; travel & logistics and ${cn.name} are not discounted.",
+      `The \${ln.percent}% applies to the plan price, and Sales Team logins are ${SALES_TEAM.percentOff}% off. Extra areas, videos, shoot time, travel & logistics and \${cn.name} are not discounted.`,
+    ],
+    // "No per-salesperson fee" stopped being true when Sales Team logins
+    // arrived; and the prices are no longer placeholders.
+    ['"No per-salesperson fee to use it"', '"Every salesperson can present it"'],
+    [
+      "Your whole sales team can use the VPV, with no per-salesperson fee. Plan prices shown are placeholders, to be confirmed.",
+      `Your whole sales team can present the VPV. Sales Team logins, which give you a dashboard of every meeting they hold, are an optional one-time add-on: ${inr(SALES_TEAM.offerInr)} per salesperson for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`,
+    ],
+    [
+      '"The whole sales team can use your VPV. There is no per-salesperson fee. Multiple factories are quoted separately based on scope."',
+      JSON.stringify(
+        `Your whole sales team can present your VPV. Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson, one time, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`
       ),
     ],
     // Digital Care: the first year is free (SUPPORT_FREE_MONTHS), so it is

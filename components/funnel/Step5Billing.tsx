@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Clock, CreditCard, Lock, Mail, Receipt, ScrollText, ShieldCheck } from "lucide-react";
 import {
@@ -60,6 +60,7 @@ export default function Step5Billing() {
   const [otpError, setOtpError] = useState<string | null>(null);
   const [gstinError, setGstinError] = useState<string | null>(null);
   const pay = useRazorpayPayment();
+  const paidMirrored = useRef(false);
   const offer = useOfferState();
   const [offerClosedNotice, setOfferClosedNotice] = useState(false);
   const offerOpen = offer.open && LAUNCH_OFFER.active && !offerClosedNotice;
@@ -79,10 +80,20 @@ export default function Step5Billing() {
             extraVideos: s.extraVideos,
             city: s.factoryCity,
             offerOpen,
+            salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
           })
         : null,
     [s, offerOpen]
   );
+
+  // Mark the lead as paid once, so /admin/cities counts the order against
+  // the city it came from.
+  useEffect(() => {
+    if (pay.result?.outcome === "ready" && s && !paidMirrored.current) {
+      paidMirrored.current = true;
+      void mirrorLead("paid", s);
+    }
+  }, [pay.result, s]);
 
   async function sendCode() {
     if (!s) return;
@@ -134,7 +145,7 @@ export default function Step5Billing() {
 
   async function onPay() {
     if (!s || !s.chosenPlan || !quote) return;
-    // The special offer is for the first 100 customers. If the last place
+    // The special offer is for the first 50 customers. If the last place
     // went while this page was open, show the new total HERE, before
     // Razorpay opens — never let the first sight of it be the payment sheet.
     if (offerOpen) {
@@ -165,6 +176,7 @@ export default function Step5Billing() {
       city: s.factoryCity,
       extraAreas: s.extraAreas,
       extraVideos: s.extraVideos,
+      salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
       buyer: {
         name: s.name,
         email: s.email,
@@ -179,7 +191,7 @@ export default function Step5Billing() {
   if (!ready || !s) {
     return (
       <>
-        <FunnelHeader step={4} title="Your bill" />
+        <FunnelHeader step={5} title="Your bill" />
         <FunnelBody>
           <Card>
             <div className="h-5 w-40 animate-pulse rounded bg-vpv-tint" />
@@ -192,7 +204,7 @@ export default function Step5Billing() {
   if (!s.chosenPlan || !quote || !s.factoryCity) {
     return (
       <>
-        <FunnelHeader step={4} title="Your bill" />
+        <FunnelHeader step={5} title="Your bill" />
         <FunnelBody>
           <RestartNotice missing="your plan and your factory's city" />
         </FunnelBody>
@@ -204,7 +216,7 @@ export default function Step5Billing() {
   if (pay.result && pay.result.outcome === "ready") {
     return (
       <>
-        <FunnelHeader step={4} title="Your VPV is paid for" />
+        <FunnelHeader step={5} title="Your VPV is paid for" />
         <FunnelBody>
           <Card>
             <p className="text-[15px] leading-relaxed text-slate-700">
@@ -246,7 +258,7 @@ export default function Step5Billing() {
   return (
     <>
       <FunnelHeader
-        step={4}
+        step={5}
        
         title="Your bill"
         summary="Everything you are paying for, itemised. Nothing is added after this screen."
@@ -501,7 +513,7 @@ export default function Step5Billing() {
         </div>
 
         <div className="mt-7">
-          <BackLink href="/assessment/plan">Back to your plan</BackLink>
+          <BackLink href="/assessment/sales-team">Back to sales team</BackLink>
         </div>
       </FunnelBody>
     </>

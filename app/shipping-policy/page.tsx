@@ -91,6 +91,12 @@ const sections: LegalSection[] = [
           Process videos are shot on iPhone and colour-graded by our team. A
           shoot moved at your request moves the delivery date with it.
         </P>
+        <P>
+          If you bought Sales Team logins, they are ready as soon as your
+          Workspace is: add your salespeople from your dashboard with an
+          invite code, and their meetings appear on your sales dashboard from
+          their first presentation.
+        </P>
       </>
     ),
   },

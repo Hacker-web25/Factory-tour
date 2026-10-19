@@ -165,6 +165,16 @@ const sections: LegalSection[] = [
             does not affect your quote or any order you have placed.
           </li>
           <li>
+            <B>Your sales team.</B> If you tell us you have a sales team, we
+            keep that answer and the number of logins you chose. The salary
+            you type into the sales-team calculator is used only on your
+            screen to do the sum; it is never sent to us or stored.
+          </li>
+          <li>
+            <B>Cities.</B> We count enquiries and orders by factory city to
+            decide where to offer shoots next. Only totals are used.
+          </li>
+          <li>
             <B>Popular choices.</B> We count how often each area and process is
             picked, across all enquiries, to mark the most popular ones for
             other visitors. Only totals are shown; nobody sees what you chose.

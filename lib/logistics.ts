@@ -175,6 +175,8 @@ export const LOGISTICS_CITIES: CitySpec[] = [
   { city: "Dahej", state: "Gujarat", tier: 5, sectors: "Chemicals, petrochemicals" },
   { city: "Davanagere", state: "Karnataka", tier: 5, sectors: "Textiles, food processing" },
   { city: "Dewas", state: "Madhya Pradesh", tier: 5, sectors: "Pharmaceuticals, engineering, food products" },
+  // Not in the original sheet; added as the NCR road rate it plainly is.
+  { city: "Delhi", state: "Delhi", tier: 1, sectors: "Engineering, garments, electricals, printing" },
   { city: "Dharuhera", state: "Haryana", tier: 1, sectors: "Automobiles, auto components" },
   { city: "Dharwad", state: "Karnataka", tier: 5, sectors: "Engineering, automobiles" },
   { city: "Dindigul", state: "Tamil Nadu", tier: 5, sectors: "Textiles, leather, food processing" },
@@ -307,12 +309,48 @@ const BY_KEY = new Map<string, CitySpec>(
   LOGISTICS_CITIES.map((c) => [cityKey(c.city), c])
 );
 
+/** Other names people type for the same place. */
+const CITY_ALIASES: Record<string, string> = {
+  gurgaon: "Gurugram",
+  "new delhi": "Delhi",
+  "delhi ncr": "Delhi",
+  "gr noida": "Greater Noida",
+  "greater noida west": "Greater Noida",
+  "noida extension": "Greater Noida",
+};
+
 /** The listed city, or null when we have not priced it. */
 export function findCity(value: unknown): CitySpec | null {
   const k = cityKey(value);
   if (!k) return null;
-  return BY_KEY.get(k) ?? null;
+  const alias = CITY_ALIASES[k];
+  return BY_KEY.get(alias ? cityKey(alias) : k) ?? null;
 }
+
+/* ═══════════════════════ Where we shoot today ══════════════════════ */
+
+/**
+ * The cities the dropdown offers. We are starting close to home; anyone
+ * else types their city, and every typed city is stored on the lead, so
+ * /admin/cities shows where demand is coming from and which city to add
+ * next. A typed city is still priced from the full table above when we
+ * know it, and always flagged for a rep to confirm the travel.
+ */
+export const SERVICE_AREAS: { group: string; cities: string[] }[] = [
+  { group: "Haryana", cities: ["Gurugram", "Manesar", "Panipat"] },
+  { group: "Delhi NCR", cities: ["Delhi", "Noida", "Greater Noida", "Ghaziabad"] },
+];
+
+const SERVICE_KEYS = new Set(SERVICE_AREAS.flatMap((g) => g.cities.map(cityKey)));
+
+export function isServiceCity(value: unknown): boolean {
+  const c = findCity(value);
+  return c !== null && SERVICE_KEYS.has(cityKey(c.city));
+}
+
+/** Printed under the city picker. */
+export const SERVICE_AREA_NOTE =
+  "We are starting with Delhi NCR, Gurugram, Manesar and Panipat. If your factory is somewhere else, type your city: we will confirm the travel with you, and the cities we hear from most are the ones we add next.";
 
 export type LogisticsQuote = {
   /** What the buyer typed or picked, cleaned up. */
@@ -324,11 +362,13 @@ export type LogisticsQuote = {
   /** The travel charge on the bill, GST excluded. */
   amountInr: number;
   /**
-   * True when the city is not on our list. We still quote a number, but
-   * every screen must say we confirm the arrangement before the shoot —
-   * and a rep should ring them.
+   * True when the city is outside the area we shoot in today. We still
+   * quote a number, but every screen must say we confirm the arrangement
+   * before the shoot — and a rep should ring them.
    */
   needsConfirmation: boolean;
+  /** One of the SERVICE_AREAS cities. */
+  inServiceArea: boolean;
 };
 
 /**
@@ -347,13 +387,15 @@ export function logisticsFor(value: unknown): LogisticsQuote {
   const matched = findCity(typed);
   const tier: LogisticsTier = matched ? matched.tier : 5;
   const spec = LOGISTICS_TIERS[tier];
+  const inServiceArea = matched !== null && SERVICE_KEYS.has(cityKey(matched.city));
   return {
     city: matched ? matched.city : typed,
     matched,
     tier,
     spec,
     amountInr: spec.amountInr,
-    needsConfirmation: matched === null,
+    needsConfirmation: !inServiceArea,
+    inServiceArea,
   };
 }
 

@@ -266,6 +266,8 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
       city?: string;
       extraAreas?: number;
       extraVideos?: number;
+      /** Sales-team logins bought with a site plan. */
+      salesSeats?: number;
       buyer?: Partial<Buyer>;
     }) => {
       if (lock.current) return; // double-click / second tab race: ignore
@@ -297,6 +299,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
               city: args.city,
               extraAreas: args.extraAreas,
               extraVideos: args.extraVideos,
+              salesSeats: args.salesSeats,
               buyer: args.buyer ?? {},
             }),
           },

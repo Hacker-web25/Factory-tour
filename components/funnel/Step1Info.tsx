@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Car, MapPin, Plane, TrainFront, UserRound } from "lucide-react";
 import {
@@ -29,7 +29,7 @@ import {
   TextInput,
 } from "@/components/funnel/FunnelShell";
 import { INDUSTRY_OPTIONS, OTHER_INDUSTRY } from "@/lib/industries";
-import { citiesByState, findCity, logisticsFor } from "@/lib/logistics";
+import { SERVICE_AREAS, SERVICE_AREA_NOTE, findCity, isServiceCity, logisticsFor } from "@/lib/logistics";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
 const CITY_OTHER = "__other__";
@@ -52,11 +52,10 @@ export default function Step1Info() {
     const loaded = loadFunnel();
     setS(loaded);
     if (loaded.factoryCity) {
-      setCityChoice(findCity(loaded.factoryCity) ? loaded.factoryCity : CITY_OTHER);
+      setCityChoice(isServiceCity(loaded.factoryCity) ? findCity(loaded.factoryCity)!.city : CITY_OTHER);
     }
   }, []);
 
-  const states = useMemo(() => citiesByState(), []);
 
   function set<K extends keyof FunnelState>(key: K, value: FunnelState[K]) {
     setS((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -229,16 +228,16 @@ export default function Step1Info() {
                   }}
                 >
                   <option value="">Select your city…</option>
-                  {states.map((g) => (
-                    <optgroup key={g.state} label={g.state}>
+                  {SERVICE_AREAS.map((g) => (
+                    <optgroup key={g.group} label={g.group}>
                       {g.cities.map((c) => (
-                        <option key={c.city} value={c.city}>
-                          {c.city}
+                        <option key={c} value={c}>
+                          {c}
                         </option>
                       ))}
                     </optgroup>
                   ))}
-                  <option value={CITY_OTHER}>My city is not on this list</option>
+                  <option value={CITY_OTHER}>My city is not on this list, I&apos;ll type it</option>
                 </SelectInput>
               </Field>
 
@@ -247,11 +246,13 @@ export default function Step1Info() {
                   <TextInput
                     value={s.factoryCity}
                     onChange={(e) => set("factoryCity", e.target.value)}
-                    placeholder="Type your city"
+                    placeholder="Type your city, e.g. Ludhiana"
                     aria-label="Your city"
+                    autoFocus
                   />
                 </div>
               )}
+              <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">{SERVICE_AREA_NOTE}</p>
             </div>
 
             {quote && (
@@ -289,9 +290,9 @@ export default function Step1Info() {
                 )}
                 {quote.needsConfirmation && (
                   <p className="mt-3 border-t border-vpv-line pt-3 text-[12.5px] leading-relaxed text-amber-700">
-                    We have not priced this city yet. The figure above is our
-                    standard air-travel charge, and a member of our team will
-                    confirm your exact travel arrangement before the shoot.
+                    {quote.matched
+                      ? "This is outside the area we shoot in today. The figure above is our travel charge for this city, and a member of our team will confirm the arrangement with you before the shoot."
+                      : "We have not priced this city yet. The figure above is our standard air-travel charge, and a member of our team will confirm your exact travel arrangement before the shoot."}
                   </p>
                 )}
               </div>
