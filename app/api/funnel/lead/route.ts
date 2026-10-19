@@ -34,6 +34,7 @@ import {
 import { canonicalIndianState } from "@/lib/indianStates";
 import { canonicalIndustry } from "@/lib/industries";
 import { describeSelection } from "@/lib/factoryAreas";
+import { matchIndustries } from "@/lib/industryProfiles";
 import { logisticsFor } from "@/lib/logistics";
 import {
   clampExtraAreas,
@@ -99,8 +100,21 @@ export async function POST(req: Request) {
   if (phone) patch.phone = phone;
   if (email && validEmail(email)) patch.email = email;
 
-  const industry = canonicalIndustry(body.industry, body.industryOther);
-  if (industry) patch.industry = industry;
+  // "What does your factory make?" is now typed. Keep their exact words, and
+  // work out the industry here as well, so the lead row says "Foundry,
+  // castings & forgings" whatever the browser sent.
+  const industryText = clean(body.industryText, 160);
+  if (industryText) {
+    const excluded = Array.isArray(body.industryExcluded)
+      ? body.industryExcluded.filter((x): x is string => typeof x === "string").slice(0, 20)
+      : [];
+    const m = matchIndustries(industryText, excluded);
+    patch.industry_text = industryText;
+    patch.industry = m.matched ? m.profiles.map((p) => p.label).join(", ") : industryText.slice(0, 80);
+  } else {
+    const industry = canonicalIndustry(body.industry, body.industryOther);
+    if (industry) patch.industry = industry;
+  }
 
   // The city is the answer that prices the travel, so it is resolved here and
   // the tier stored alongside it — a rep should not have to look it up.

@@ -31,8 +31,14 @@ export type FunnelState = {
   phone: string;
   email: string;
   company: string;
+  /** The matched industry labels, for display and the lead row. */
   industry: string;
+  /** Kept for leads saved before the typed answer existed. */
   industryOther: string;
+  /** What they typed for "What does your factory make?". */
+  industryText: string;
+  /** Industry guesses the visitor removed from the chips. */
+  industryExcluded: string[];
   factoryCity: string;
   factoryState: string;
 
@@ -80,6 +86,8 @@ export const EMPTY_FUNNEL: FunnelState = {
   company: "",
   industry: "",
   industryOther: "",
+  industryText: "",
+  industryExcluded: [],
   factoryCity: "",
   factoryState: "",
   selectedAreas: [],
@@ -258,6 +266,8 @@ export async function mirrorLead(
         company: state.company,
         industry: state.industry,
         industryOther: state.industryOther,
+        industryText: state.industryText,
+        industryExcluded: state.industryExcluded,
         factoryCity: state.factoryCity,
         factoryState: state.factoryState,
         aoaCount: state.aoaCount,

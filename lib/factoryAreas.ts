@@ -76,8 +76,113 @@ export const FACTORY_PROCESSES: CatalogueItem[] = [
   { id: "packaging-process", name: "Packaging Process", icon: "Package" },
 ];
 
-const AREA_BY_ID = new Map(FACTORY_AREAS.map((a) => [a.id, a]));
-const PROCESS_BY_ID = new Map(FACTORY_PROCESSES.map((p) => [p.id, p]));
+/**
+ * Areas and processes that belong to particular industries — a spinning
+ * department, a clean room, a melting shop. They are not in the general
+ * grids above (a car-parts maker should not scroll past "Weaving Shed");
+ * they appear in the "Picked for your factory" section on step 2 when the
+ * buyer's answer to "what does your factory make?" points to that
+ * industry. See lib/industryProfiles.ts.
+ */
+export const INDUSTRY_AREAS: CatalogueItem[] = [
+  // Textiles and garments
+  { id: "spinning-department", name: "Spinning Department", description: "Blow room, carding and ring frames", icon: "Wind" },
+  { id: "weaving-shed", name: "Weaving Shed", description: "Looms turning yarn into fabric", icon: "Grid3x3" },
+  { id: "dyeing-processing-house", name: "Dyeing & Processing House", description: "Dyeing, printing and finishing of fabric", icon: "Palette" },
+  { id: "knitting-section", name: "Knitting Section", description: "Circular and flat knitting machines", icon: "Shapes" },
+  { id: "cutting-section", name: "Cutting Section", description: "Material laid out and cut to pattern", icon: "Scissors" },
+  { id: "stitching-floor", name: "Stitching Floor", description: "Sewing lines putting the product together", icon: "Shirt" },
+  { id: "fabric-inspection-area", name: "Fabric Inspection Area", description: "Fabric checked for faults before it moves on", icon: "ScanLine" },
+  // Engineering and auto
+  { id: "press-shop", name: "Press Shop", description: "Power presses forming sheet metal", icon: "ArrowDownToLine" },
+  { id: "heat-treatment-shop", name: "Heat Treatment Shop", description: "Furnaces hardening and tempering parts", icon: "Thermometer" },
+  { id: "testing-bay", name: "Testing Bay", description: "Products run and tested before dispatch", icon: "Gauge" },
+  { id: "metrology-room", name: "Metrology Room", description: "CMM and precision measuring instruments", icon: "Ruler" },
+  // Metals
+  { id: "melting-shop", name: "Melting Shop", description: "Furnaces melting metal for casting", icon: "Flame" },
+  { id: "moulding-section", name: "Moulding Section", description: "Sand moulds made ready for pouring", icon: "Box" },
+  { id: "fettling-shop", name: "Fettling & Shot Blasting", description: "Castings cleaned, ground and blasted", icon: "Wind" },
+  { id: "forge-shop", name: "Forge Shop", description: "Hammers and presses forging hot metal", icon: "Hammer" },
+  { id: "rolling-mill", name: "Rolling Mill", description: "Hot or cold rolling of steel", icon: "Cylinder" },
+  // Plastics and rubber
+  { id: "moulding-shop", name: "Moulding Machine Hall", description: "Injection or blow moulding machines at work", icon: "Factory" },
+  { id: "extrusion-line", name: "Extrusion Line", description: "Pipes, profiles or film being extruded", icon: "Spline" },
+  { id: "mould-store", name: "Mould Storage", description: "Moulds stored, tagged and maintained", icon: "Box" },
+  // Pharma and medical
+  { id: "clean-room", name: "Clean Room", description: "Controlled, filtered area for sterile work", icon: "Shield" },
+  { id: "granulation-compression", name: "Granulation & Compression", description: "Where powder becomes tablets", icon: "Pill" },
+  { id: "microbiology-lab", name: "Microbiology Lab", description: "Sterility and microbial testing", icon: "Microscope" },
+  { id: "sterilisation-area", name: "Sterilisation Area", description: "Autoclave or ETO sterilisation", icon: "Thermometer" },
+  // Chemicals
+  { id: "reactor-plant", name: "Reactor Plant", description: "Reactors where each batch is made", icon: "FlaskRound" },
+  { id: "tank-farm", name: "Tank Farm", description: "Bulk storage tanks for liquids", icon: "Cylinder" },
+  { id: "drum-filling-area", name: "Filling Area", description: "Drums, cans or bags filled and sealed", icon: "Container" },
+  // Food
+  { id: "processing-line", name: "Processing Line", description: "Where raw material becomes product", icon: "Workflow" },
+  { id: "hygiene-zone", name: "Hygiene Entry Zone", description: "Hand wash, changing and air curtain", icon: "Droplet" },
+  { id: "cold-storage", name: "Cold Storage", description: "Chilled and frozen storage", icon: "Snowflake" },
+  // Electronics and electricals
+  { id: "smt-line", name: "SMT Line", description: "Machines placing components on circuit boards", icon: "CircuitBoard" },
+  { id: "winding-section", name: "Winding Section", description: "Coils and transformer windings", icon: "Cable" },
+  // Packaging, wood, ceramics, jewellery
+  { id: "printing-section", name: "Printing Section", description: "Printing presses and colour matching", icon: "Printer" },
+  { id: "corrugation-plant", name: "Corrugation Plant", description: "Corrugated board and boxes made", icon: "Box" },
+  { id: "panel-processing", name: "Panel Processing", description: "Boards cut, edge-banded and drilled", icon: "Armchair" },
+  { id: "kiln-area", name: "Kiln", description: "Firing tiles, sanitaryware or bricks", icon: "Flame" },
+  { id: "glazing-line", name: "Glazing Line", description: "Glaze and design applied", icon: "SprayCan" },
+  { id: "polishing-setting", name: "Polishing & Setting", description: "Stones set and pieces polished", icon: "Gem" },
+];
+
+export const INDUSTRY_PROCESSES: CatalogueItem[] = [
+  { id: "spinning", name: "Spinning", icon: "Wind" },
+  { id: "weaving", name: "Weaving", icon: "Grid3x3" },
+  { id: "dyeing", name: "Dyeing", icon: "Palette" },
+  { id: "knitting", name: "Knitting", icon: "Shapes" },
+  { id: "printing-process", name: "Printing", icon: "Printer" },
+  { id: "stitching", name: "Stitching", icon: "Shirt" },
+  { id: "press-stamping", name: "Pressing and Stamping", icon: "ArrowDownToLine" },
+  { id: "melting-pouring", name: "Melting and Pouring", icon: "Flame" },
+  { id: "sand-moulding", name: "Sand Moulding", icon: "Box" },
+  { id: "forging", name: "Forging", icon: "Hammer" },
+  { id: "shot-blasting", name: "Fettling and Shot Blasting", icon: "Wind" },
+  { id: "rolling", name: "Rolling", icon: "Cylinder" },
+  { id: "blow-moulding", name: "Blow Moulding", icon: "Fan" },
+  { id: "extrusion", name: "Extrusion", icon: "Spline" },
+  { id: "granulation", name: "Granulation", icon: "Blend" },
+  { id: "tablet-compression", name: "Tablet Compression", icon: "Pill" },
+  { id: "capsule-filling", name: "Capsule Filling", icon: "Pill" },
+  { id: "blister-packing", name: "Blister Packing", icon: "Package" },
+  { id: "batch-reaction", name: "Batch Reaction", icon: "FlaskRound" },
+  { id: "blending-mixing", name: "Blending and Mixing", icon: "Blend" },
+  { id: "filling-sealing", name: "Filling and Sealing", icon: "Container" },
+  { id: "cleaning-sorting", name: "Cleaning and Sorting", icon: "Droplet" },
+  { id: "cooking-processing", name: "Cooking and Processing", icon: "ChefHat" },
+  { id: "smt-assembly", name: "SMT Assembly", icon: "CircuitBoard" },
+  { id: "soldering", name: "Soldering", icon: "Zap" },
+  { id: "coil-winding", name: "Coil Winding", icon: "Cable" },
+  { id: "lamination", name: "Lamination", icon: "Layers" },
+  { id: "die-cutting", name: "Die Cutting", icon: "Scissors" },
+  { id: "edge-banding", name: "Edge Banding", icon: "Ruler" },
+  { id: "glazing", name: "Glazing", icon: "SprayCan" },
+  { id: "kiln-firing", name: "Kiln Firing", icon: "Flame" },
+  { id: "sterilisation", name: "Sterilisation", icon: "Thermometer" },
+  { id: "stone-setting", name: "Stone Setting", icon: "Gem" },
+];
+
+/** Every area and every process, general and industry-specific — what any
+ *  lookup by id or by name must search. */
+export const ALL_AREAS: CatalogueItem[] = [...FACTORY_AREAS, ...INDUSTRY_AREAS];
+export const ALL_PROCESSES: CatalogueItem[] = [...FACTORY_PROCESSES, ...INDUSTRY_PROCESSES];
+
+const AREA_BY_ID = new Map(ALL_AREAS.map((a) => [a.id, a]));
+const PROCESS_BY_ID = new Map(ALL_PROCESSES.map((p) => [p.id, p]));
+
+export function areaById(id: string): CatalogueItem | undefined {
+  return AREA_BY_ID.get(id);
+}
+export function processById(id: string): CatalogueItem | undefined {
+  return PROCESS_BY_ID.get(id);
+}
 
 /** Names for the ids we know, plus the buyer's own typed entries, capped —
  *  what the lead row stores so a rep can see what they asked for. */
@@ -192,7 +297,7 @@ export function rankPopular(
   return {
     phase: "popular",
     fills,
-    areaIds: top(FACTORY_AREAS, (v) => v.areas, POPULAR_TOP_AREAS),
-    processIds: top(FACTORY_PROCESSES, (v) => v.processes, POPULAR_TOP_PROCESSES),
+    areaIds: top(ALL_AREAS, (v) => v.areas, POPULAR_TOP_AREAS),
+    processIds: top(ALL_PROCESSES, (v) => v.processes, POPULAR_TOP_PROCESSES),
   };
 }

@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, MapPin, Plane, TrainFront, UserRound } from "lucide-react";
+import { Car, MapPin, Plane, Sparkles, TrainFront, UserRound, X } from "lucide-react";
 import {
   Card,
   Field,
@@ -28,7 +28,8 @@ import {
   SelectInput,
   TextInput,
 } from "@/components/funnel/FunnelShell";
-import { INDUSTRY_OPTIONS, OTHER_INDUSTRY } from "@/lib/industries";
+import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
+import PreparingScreen, { preparingDurationMs } from "@/components/funnel/PreparingScreen";
 import { SERVICE_AREAS, SERVICE_AREA_NOTE, findCity, isServiceCity, logisticsFor } from "@/lib/logistics";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
@@ -45,11 +46,17 @@ export default function Step1Info() {
   const [cityChoice, setCityChoice] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState(false);
 
   // localStorage is only readable after mount, so the first paint is a
   // skeleton rather than a form that visibly changes under the visitor.
   useEffect(() => {
     const loaded = loadFunnel();
+    // A visitor from before the typed answer existed: start them from what
+    // they picked in the old dropdown.
+    if (!loaded.industryText && loaded.industry) {
+      loaded.industryText = loaded.industry === "Other (please specify)" ? loaded.industryOther : loaded.industry;
+    }
     setS(loaded);
     if (loaded.factoryCity) {
       setCityChoice(isServiceCity(loaded.factoryCity) ? findCity(loaded.factoryCity)!.city : CITY_OTHER);
@@ -61,6 +68,7 @@ export default function Step1Info() {
     setS((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
+  const industryMatch = matchIndustries(s?.industryText ?? "", s?.industryExcluded ?? []);
   const typedCity = cityChoice === CITY_OTHER;
   const resolvedCity = typedCity ? (s?.factoryCity ?? "") : cityChoice;
   const quote = resolvedCity.trim() ? logisticsFor(resolvedCity) : null;
@@ -75,10 +83,7 @@ export default function Step1Info() {
       e.email = "We send your quote here, so it needs to be right.";
     }
     if (state.company.trim().length < 2) e.company = "Your company's name.";
-    if (!state.industry) e.industry = "Pick the closest match.";
-    else if (state.industry === OTHER_INDUSTRY && state.industryOther.trim().length < 2) {
-      e.industry = "Tell us what you make.";
-    }
+    if (state.industryText.trim().length < 2) e.industry = "Tell us in a word or two, for example \u201cauto parts\u201d.";
     if (!resolvedCity.trim()) e.city = "Your travel cost depends on this.";
     if (!state.policiesAccepted) e.policies = "Please agree to continue.";
     return e;
@@ -93,14 +98,23 @@ export default function Step1Info() {
 
     setBusy(true);
     const matched = findCity(withCity.factoryCity);
+    const ind = matchIndustries(withCity.industryText, withCity.industryExcluded);
     const saved = saveFunnel({
       ...withCity,
+      industry: ind.matched ? ind.profiles.map((p) => p.label).join(", ") : withCity.industryText.trim(),
       // Being contacted about this enquiry is covered by the Privacy Policy
       // they have just agreed to, so the rep may call back.
       marketingConsent: true,
       factoryState: matched?.state ?? withCity.factoryState,
     });
-    await mirrorLead("info", saved);
+    // The preparing screen and the lead save run side by side; we move on
+    // when both are done.
+    setPreparing(true);
+    router.prefetch("/assessment/scope");
+    await Promise.all([
+      mirrorLead("info", saved),
+      new Promise((r) => setTimeout(r, preparingDurationMs())),
+    ]);
     router.push("/assessment/scope");
   }
 
@@ -121,6 +135,12 @@ export default function Step1Info() {
 
   return (
     <>
+      {preparing && (
+        <PreparingScreen
+          industry={industryMatch.matched ? shortLabels(industryMatch.profiles) : ""}
+          city={resolvedCity.trim()}
+        />
+      )}
       <FunnelHeader
         step={0}
        
@@ -184,29 +204,63 @@ export default function Step1Info() {
                 label="What does your factory make?"
                 required
                 error={errors.industry}
-                hint="It tells us what your buyers will want to look at."
+                hint={
+                  industryMatch.matched || s.industryText.trim().length >= 3
+                    ? undefined
+                    : "A word or two is enough. We use it to suggest what your buyers will want to see."
+                }
               >
-                <SelectInput
-                  value={s.industry}
-                  onChange={(e) => set("industry", e.target.value)}
-                >
-                  <option value="">Select your industry…</option>
-                  {INDUSTRY_OPTIONS.map((i) => (
-                    <option key={i} value={i}>
-                      {i}
-                    </option>
-                  ))}
-                </SelectInput>
+                <TextInput
+                  value={s.industryText}
+                  onChange={(e) => set("industryText", e.target.value)}
+                  placeholder="e.g. cotton yarn, auto parts, tablets, plastic moulding"
+                  autoComplete="off"
+                  maxLength={160}
+                />
               </Field>
-              {s.industry === OTHER_INDUSTRY && (
-                <div className="mt-3">
-                  <TextInput
-                    value={s.industryOther}
-                    onChange={(e) => set("industryOther", e.target.value)}
-                    placeholder="Tell us what you manufacture"
-                    aria-label="Your industry"
-                  />
+              {industryMatch.matched && (
+                <div className="mt-3 rounded-xl border border-[#E8C766] bg-[#FFFCF2] px-3.5 py-3">
+                  <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-[#7A5600]">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                    We&rsquo;ll tailor your VPV for
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {industryMatch.profiles.map((p) => (
+                      <li
+                        key={p.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-vpv-blue bg-white py-1 pl-3 pr-1.5 text-[13px] font-medium text-vpv-ink"
+                      >
+                        {p.label}
+                        <button
+                          type="button"
+                          onClick={() => set("industryExcluded", [...s.industryExcluded, p.id])}
+                          aria-label={`Not ${p.label}`}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-vpv-tint hover:text-vpv-ink"
+                        >
+                          <X className="h-3 w-3" aria-hidden />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
+              )}
+              {!industryMatch.matched && s.industryText.trim().length >= 3 && (
+                <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
+                  We&rsquo;ll start you with the areas most factories show. Words like &ldquo;castings&rdquo;,
+                  &ldquo;garments&rdquo; or &ldquo;tablets&rdquo; help us tailor it to your plant.
+                  {s.industryExcluded.length > 0 && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        onClick={() => set("industryExcluded", [])}
+                        className="font-medium text-vpv-blue underline underline-offset-2"
+                      >
+                        Undo removed suggestions
+                      </button>
+                    </>
+                  )}
+                </p>
               )}
             </div>
           </Card>

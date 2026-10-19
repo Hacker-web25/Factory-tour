@@ -170,3 +170,8 @@ alter table public.funnel_leads add constraint funnel_leads_stage_check
   check (stage in ('info','scope','security','plan','sales','billing','paid'));
 alter table public.funnel_leads add column if not exists has_sales_team boolean;
 alter table public.funnel_leads add column if not exists sales_seats    integer;
+
+-- ─────────────────────────── Added: the typed industry ──────────────────────
+-- "What does your factory make?" is answered in the buyer's own words now.
+-- `industry` holds the matched industries; this holds exactly what they typed.
+alter table public.funnel_leads add column if not exists industry_text text;

@@ -14,6 +14,7 @@ import {
   GraduationCap, Hammer, Layers, Lightbulb, Move, Package, PackageOpen, Recycle,
   RotateCw, ScanSearch, Scissors, Search, ShieldCheck, Sparkles, SprayCan, Syringe,
   Thermometer, Truck, UtensilsCrossed, Warehouse, Waves, Wrench, Zap,
+  Armchair, ArrowDownToLine, Blend, Box, Cable, ChefHat, CircuitBoard, Container, Cylinder, Droplet, Fan, FlaskRound, Gem, Grid3x3, Microscope, Palette, Pill, Printer, Ruler, ScanLine, Shapes, Shield, Shirt, Snowflake, Spline, Wind, Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ const ICONS: Record<string, LucideIcon> = {
   GraduationCap, Hammer, Layers, Lightbulb, Move, Package, PackageOpen, Recycle,
   RotateCw, ScanSearch, Scissors, Search, ShieldCheck, Sparkles, SprayCan, Syringe,
   Thermometer, Truck, UtensilsCrossed, Warehouse, Waves, Wrench, Zap,
+  Armchair, ArrowDownToLine, Blend, Box, Cable, ChefHat, CircuitBoard, Container, Cylinder, Droplet, Fan, FlaskRound, Gem, Grid3x3, Microscope, Palette, Pill, Printer, Ruler, ScanLine, Shapes, Shield, Shirt, Snowflake, Spline, Wind, Workflow,
 };
 
 export default function FunnelIcon({ name, className }: { name: string; className?: string }) {
