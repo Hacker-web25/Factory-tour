@@ -4,6 +4,7 @@ import {
   EXTRA_AREA_MAX,
   EXTRA_HOUR_INR,
   LAUNCH_OFFER,
+  PLACEHOLDER_PRICES,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   SUPPORT_ANNUAL_INR,
@@ -435,14 +436,15 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
   /* ── the placeholder guard ─────────────────────────────────────── */
 
-  it("refuses live keys while the prices are still placeholders", async () => {
+  it("the plan prices are final, so live keys in production are NOT refused by the price guard", async () => {
+    assert.equal(PLACEHOLDER_PRICES, false);
     await withEnv(
       { RAZORPAY_KEY_ID: "rzp_live_AbCdEf123456", VERCEL_ENV: "production" },
       async () => {
         const r = await open({ sitePlanId: "authority", travel: "ncr" });
-        assert.equal(r.status, 503, JSON.stringify(r.body));
-        assert.equal(r.body.error, "prices_not_final");
-        assert.equal(await w.count("billing_orders"), 0, "no order is opened");
+        assert.notEqual(r.body.error, "prices_not_final", JSON.stringify(r.body));
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.equal(r.body.testMode, false, "a live key opens a live order");
       }
     );
   });

@@ -11,7 +11,7 @@ Work in this order. Steps 1 to 5 are TEST mode: no KYC, no real money.
 |---|---|
 | Basic licence | one-time, 2–20 scenes, price per scene falls as scenes rise |
 | Site plans | one-time. VPV Confidence / Authority / Control, bought from the marketing site. A Basic licence at a flat price — see §0 below |
-| Annual hosting & support | **₹9,999 / year** (GST inclusive). **The first year is free.** |
+| Annual support, hosting & security | **₹999 / month, billed yearly as ₹11,988 + 18% GST.** **Free for the first year** for the first 50 customers; charged with the order after that. |
 | After the support year ends | day 0–7: a renewal pop-up on **every click** · day 7: the workspace **locks** (editor and public tours) until renewed · renewing unlocks instantly · nothing is deleted |
 | Pro / Ultra | not self-serve; created by you in `/admin/customers` |
 
@@ -30,26 +30,19 @@ migration is needed.**
 The buyer's route is: the site's assessment → `/checkout` → the same
 order route and the same Razorpay flow as `/get-started`.
 
-### Their prices are still placeholders
+### Their prices are final — live payments are open
 
-`SITE_PLANS` in `lib/pricing.ts` holds the figures the site was built
-with — ₹49,000, ₹99,000 and ₹1,99,000 — plus a 20% launch discount and
-the travel fee (₹3,000 in Delhi NCR, ₹15,000 outside). The site shows
-each one with a *"Placeholder price, to be confirmed"* badge.
+`SITE_PLANS` in `lib/pricing.ts` holds the real prices (Confidence
+₹35,000 / 4 areas, Authority ₹55,000 / 8, Control ₹90,000 / 15 after the
+first-50 offer; regular ₹43,750 / ₹68,750 / ₹1,12,500), and the marketing
+site is built from the same numbers. `PLACEHOLDER_PRICES` is `false`, so
+site plans can be bought with live Razorpay keys exactly like the
+scene-ladder licence.
 
-While `PLACEHOLDER_PRICES` is `true`, **the order route refuses these
-plans whenever Razorpay is in live mode** and returns
-`prices_not_final`. Test mode is untouched, so you can rehearse the
-whole flow today. To open them for real money:
-
-1. Set the real figures in `SITE_PLANS` in `lib/pricing.ts`.
-2. Set `PLACEHOLDER_PRICES = false`.
-3. Rebuild the marketing site with the same numbers, or its `/plans`
-   page will quote prices the server does not charge. **The server is
-   the authority** — a visitor is always charged what `lib/pricing.ts`
-   says, whatever the site shows — but the two disagreeing in public is
-   its own problem.
-4. Redeploy, then do §7 below.
+`PLACEHOLDER_PRICES` is kept as a **kill switch**: set it to `true` and
+redeploy, and the order route refuses site plans on live keys
+(`prices_not_final`) while you correct something. Test mode is never
+affected.
 
 ### The launch offer is a promise
 
@@ -268,11 +261,8 @@ Every suite must say `pass` and `fail 0`. If one fails, do not deploy.
    from the Razorpay dashboard and confirm the credit note arrives.
 7. Have your CA confirm the SAC code (`998434`, in `lib/pricing.ts`) and the
    GST treatment, and whether you want PDF invoices.
-8. **For the site plans only:** set the real prices and turn
-   `PLACEHOLDER_PRICES` off (§0). Until you do, live checkout for those
-   plans is refused on purpose and buyers are told to e-mail
-   support@myvpv.com. The scene-ladder purchase at `/get-started` is not
-   affected and can go live on its own.
+8. Site plans open together with the scene ladder: `PLACEHOLDER_PRICES`
+   is already `false` (§0), so there is nothing extra to switch on.
 
 Test data does **not** have to be deleted: test invoices use their own
 `TEST/…` number series, so live invoices start at `VPV/2026-27/0001`. Tax

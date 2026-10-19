@@ -58,6 +58,7 @@ export type FakeRefund = {
 export type SentEmail = { to: string[]; bcc?: string[]; subject: string; html: string };
 
 export const TEST_KEY_ID = "rzp_test_AbCdEf123456";
+export const LIVE_STYLE_KEY_ID = "rzp_live_AbCdEf123456";
 export const TEST_KEY_SECRET = "test_key_secret_value_1234567890";
 export const TEST_WEBHOOK_SECRET = "whsec_test_0123456789abcdef0123456789abcdef";
 
@@ -139,8 +140,11 @@ export class FakeGateway {
     if (url.startsWith("https://api.razorpay.com/v1")) {
       const p = url.replace("https://api.razorpay.com", "");
       const auth = (init.headers?.Authorization ?? init.headers?.authorization) as string | undefined;
-      const expected = "Basic " + Buffer.from(`${TEST_KEY_ID}:${TEST_KEY_SECRET}`).toString("base64");
-      if (auth !== expected) return json({ error: { code: "BAD_REQUEST_ERROR", description: "Authentication failed" } }, 401);
+      const basic = (id: string) => "Basic " + Buffer.from(`${id}:${TEST_KEY_SECRET}`).toString("base64");
+      // The one live-style key some tests set, to prove live keys are not
+      // blocked by anything but the guards under test. Any other id fails.
+      const ok = auth === basic(TEST_KEY_ID) || auth === basic(LIVE_STYLE_KEY_ID);
+      if (!ok) return json({ error: { code: "BAD_REQUEST_ERROR", description: "Authentication failed" } }, 401);
 
       const h = this.hangs.find((x) => x.remaining > 0 && `${method} ${p}`.startsWith(x.match));
       if (h) {

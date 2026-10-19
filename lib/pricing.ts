@@ -431,16 +431,17 @@ export function fromPaise(paise: number): number {
  */
 
 /**
- * While true, the order route REFUSES site plans whenever Razorpay is in
- * live mode, so nothing half-settled can reach a card. Test mode is
- * unaffected, so the whole flow can be rehearsed now.
+ * Kill switch for LIVE payments on the site plans.
  *
- * The PLAN prices below are final, and travel is now one flat cab charge
- * for the cities we shoot in (lib/logistics.ts), with nothing left for the
- * buyer to arrange. Set this to false when the business is ready to take
- * live payments.
+ * false (now): the plan prices are final, so site plans can be bought with
+ * live Razorpay keys, exactly as the scene-ladder licence can.
+ *
+ * true: the order route REFUSES site plans whenever Razorpay is in live
+ * mode (503 `prices_not_final`) and tells the buyer to e-mail support, so
+ * nothing half-settled can reach a card. Test mode is unaffected. Set it
+ * back to true if a price ever has to be pulled while it is corrected.
  */
-export const PLACEHOLDER_PRICES = true;
+export const PLACEHOLDER_PRICES = false;
 
 export type SitePlanId = "confidence" | "authority" | "control";
 
