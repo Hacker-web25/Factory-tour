@@ -97,6 +97,13 @@ export async function POST(req: Request) {
   const sent = await sendEmail({
     to: email,
     subject: `${code} is your VPV verification code`,
+    replyTo: COMPANY.emails.support,
+    text:
+      `Your VPV verification code is ${code}\n\n` +
+      `Enter it on the VPV billing page to confirm this e-mail address. ` +
+      `It expires in 10 minutes. Your workspace details and GST invoice will be sent to this address.\n\n` +
+      `If you did not ask for this, ignore this e-mail; nothing has been charged.\n` +
+      `Questions: ${COMPANY.emails.support}`,
     html: emailShell(
       "Confirm your e-mail",
       `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;">
@@ -113,10 +120,20 @@ export async function POST(req: Request) {
     ),
   });
 
-  // Whether the code was sent is reported, but the code never is, and an
-  // address that does not exist gets the same shape of answer as one that
-  // does — so this endpoint cannot be used to test whether we have a customer.
-  return json({ ok: true, sent, expiresInSeconds: OTP_TTL_SECONDS });
+  // If the e-mail provider refused the message the buyer must be told, not
+  // left staring at "code sent". This says nothing about the address (the
+  // provider accepts any well-formed one), only that OUR sending failed.
+  if (!sent) {
+    return fail(
+      502,
+      "email_not_sent",
+      "We could not send the e-mail just now. Please try again in a minute, or write to " +
+        COMPANY.emails.support +
+        "."
+    );
+  }
+  // The code itself is never returned.
+  return json({ ok: true, sent: true, expiresInSeconds: OTP_TTL_SECONDS });
 }
 
 export function GET() {

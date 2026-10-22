@@ -55,7 +55,7 @@ export type FakeRefund = {
   created_at: number;
 };
 
-export type SentEmail = { to: string[]; bcc?: string[]; subject: string; html: string };
+export type SentEmail = { to: string[]; bcc?: string[]; subject: string; html: string; text?: string };
 
 export const TEST_KEY_ID = "rzp_test_AbCdEf123456";
 export const LIVE_STYLE_KEY_ID = "rzp_live_AbCdEf123456";
@@ -132,7 +132,7 @@ export class FakeGateway {
         return json({ message: "bounced" }, 422);
       }
       const b = JSON.parse(init.body);
-      this.emails.push({ to: b.to, bcc: b.bcc, subject: b.subject, html: b.html });
+      this.emails.push({ to: b.to, bcc: b.bcc, subject: b.subject, html: b.html, text: b.text });
       return json({ id: this.nextId("email") });
     }
 

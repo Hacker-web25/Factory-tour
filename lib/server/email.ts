@@ -26,6 +26,9 @@ export async function sendEmail(args: {
   to: string;
   subject: string;
   html: string;
+  /** Plain-text twin of the HTML. Mail with both parts is filtered as
+   *  less spammy than HTML alone, so OTP and invoice mail should pass it. */
+  text?: string;
   replyTo?: string;
   bcc?: string;
 }): Promise<boolean> {
@@ -50,10 +53,26 @@ export async function sendEmail(args: {
         ...(args.replyTo ? { reply_to: args.replyTo } : {}),
         subject: args.subject,
         html: args.html,
+        ...(args.text ? { text: args.text } : {}),
       }),
     });
+    if (!res.ok) {
+      // Say WHY in the Vercel logs (no secrets): an unverified sending
+      // domain, a bad key and a rate limit all look alike to a customer.
+      let why = "";
+      try {
+        const body = (await res.json()) as { message?: string; name?: string };
+        why = `${body.name ?? ""} ${body.message ?? ""}`.trim();
+      } catch {
+        /* body was not JSON */
+      }
+      // eslint-disable-next-line no-console
+      console.error(`[email] Resend refused the message (HTTP ${res.status}) from "${from}": ${why}`);
+    }
     return res.ok;
-  } catch {
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("[email] could not reach Resend:", e instanceof Error ? e.message : e);
     return false;
   } finally {
     clearTimeout(timer);

@@ -11,6 +11,7 @@ const files = [
   "supabase/billing.sql",
   "supabase/billing_hardening.sql",
   "supabase/coupons.sql",
+  "supabase/funnel.sql",
 ];
 for (const f of files) {
   try {
