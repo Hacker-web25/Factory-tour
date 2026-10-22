@@ -172,12 +172,23 @@ export const SUPPORT_NAME = "Support, hosting & security";
  */
 export const SUPPORT_INCLUDES: { title: string; body: string }[] = [
   { title: "Hosting", body: "Your tours live on fast, reliable servers and open quickly for buyers anywhere in the world." },
-  { title: "Security", body: "Encrypted links, the protection on your shared links, and security updates applied for you." },
+  { title: "Security & protection", body: "Regular security updates and protection to help keep your VPV safe and working smoothly, with encrypted, controlled access to every link you share." },
   { title: "Backups", body: "Your tours, media and settings are backed up, so nothing you have built can be lost." },
   { title: "Backup server", body: "If our main server ever has a problem, a backup keeps your VPV online." },
-  { title: "Updates and fixes", body: "Every improvement we make to VPV reaches your workspace at no extra cost." },
+  { title: "Updates and fixes", body: "Regular fixes and improvements to keep your VPV working smoothly, at no extra cost." },
   { title: "Technical support", body: "A real person to help you by e-mail and phone. We respond within 48 hours, so this is not an instant, live-chat service." },
 ];
+/**
+ * The support year's value as the marketing copy quotes it: the real price
+ * rounded to the nearest 1,000 (11,988 → "₹12,000"). The BILL always shows
+ * the exact SUPPORT_ANNUAL_INR; this is only for "first year free, worth …"
+ * lines on the plan cards and the plans page, so one constant keeps them
+ * from drifting apart if the price ever changes.
+ */
+export function supportWorthLabel(): string {
+  return inr(Math.round(SUPPORT_ANNUAL_INR / 1000) * 1000);
+}
+
 /** Months of support included free with a Basic purchase. */
 export const SUPPORT_FREE_MONTHS = 12;
 /**

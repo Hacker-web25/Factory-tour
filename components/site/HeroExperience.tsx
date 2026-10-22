@@ -8,7 +8,10 @@
  *
  *   top bar     VPV, "Live factory tour", a full-screen button that works
  *   the stage   the tour itself — drag, swipe, pinch, tap the hotspots
- *   coach mark  "Drag to look around", gone the moment they touch it
+ *   coach mark  two steps: the tour opens on the factory's index page,
+ *               so the first mark points at the arrow that walks them
+ *               in; the drag mark follows, and both go the moment they
+ *               touch the tour
  *   bottom bar  what they just did, and "Get this for your factory"
  *
  * The coach mark cannot see a touch inside the tour (the tour is its own
@@ -19,35 +22,66 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Hand, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Hand, Maximize2, Minimize2 } from "lucide-react";
 import { experienceSource } from "@/lib/site/experience";
 import { VPV_LOGO_URL } from "@/components/dashboard/VpvLogo";
 
-const TIPS = ["Drag to look around", "Tap the glowing dots", "Pinch or scroll to zoom"];
+const TIPS = ["Use the arrows to walk through", "Drag to look around", "Tap the glowing dots", "Pinch or scroll to zoom"];
+
+/** The tour opens on the factory's index, so the arrow comes first. */
+const COACH = [
+  { icon: ChevronRight, anim: "xp-nudge", text: "Click the arrow to enter the factory" },
+  { icon: Hand, anim: "xp-drag", text: "Drag to look around this factory" },
+] as const;
+/** How long the drag mark stays once the arrow mark has done its job. */
+const DRAG_MARK_MS = 7000;
 
 export default function HeroExperience() {
   const stage = useRef<HTMLDivElement>(null);
   const [src] = useState(experienceSource);
   const [loaded, setLoaded] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [step, setStep] = useState(0);
   const [full, setFull] = useState(false);
   const [tip, setTip] = useState(0);
 
-  // The visitor pressed into the tour: the frame takes focus from us.
+  // The visitor pressed into the tour: the frame takes focus from us. That
+  // first press is them clicking the arrow, so it moves the mark on to the
+  // drag hint rather than clearing it. Blur fires once (focus is already in
+  // the frame after that), so the drag hint leaves on a timer.
   useEffect(() => {
-    const onBlur = () => setTouched(true);
-    window.addEventListener("blur", onBlur);
-    const t = setTimeout(() => setTouched(true), 9000);
+    const advance = () => setStep((n) => n + 1);
+    window.addEventListener("blur", advance);
+    // If they just watch, show the arrow mark, then the drag mark, then stop.
+    const t = setTimeout(advance, 9000);
     return () => {
-      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("blur", advance);
       clearTimeout(t);
     };
   }, []);
 
+  // Once the arrow mark has been answered, the drag mark has its own life.
   useEffect(() => {
+    if (step < 1) return;
+    if (step >= COACH.length) {
+      setTouched(true);
+      return;
+    }
+    const t = setTimeout(() => setTouched(true), DRAG_MARK_MS);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  // The ticker holds on the arrow tip while the arrow coach mark is up, so
+  // the two never tell the visitor different things at the same moment.
+  useEffect(() => {
+    if (step < 1) return;
     const id = setInterval(() => setTip((i) => (i + 1) % TIPS.length), 2600);
     return () => clearInterval(id);
-  }, []);
+  }, [step]);
+
+  useEffect(() => {
+    if (step >= 1) setTip((i) => (i === 0 ? 1 : i));
+  }, [step]);
 
   useEffect(() => {
     const onChange = () => setFull(Boolean(document.fullscreenElement));
@@ -69,11 +103,13 @@ export default function HeroExperience() {
       <style>{`
         @keyframes xp-pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
         @keyframes xp-drag { 0%,100% { transform: translateX(-22px) rotate(-8deg) } 50% { transform: translateX(22px) rotate(8deg) } }
+        @keyframes xp-nudge { 0%,100% { transform: translateX(-6px) } 50% { transform: translateX(10px) } }
         @keyframes xp-fade { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
         .xp-pulse { animation: xp-pulse 1.6s ease-in-out infinite }
         .xp-drag { animation: xp-drag 2.2s ease-in-out infinite }
+        .xp-nudge { animation: xp-nudge 1.1s ease-in-out infinite }
         .xp-fade { animation: xp-fade .45s ease-out both }
-        @media (prefers-reduced-motion: reduce) { .xp-pulse, .xp-drag, .xp-fade { animation: none } }
+        @media (prefers-reduced-motion: reduce) { .xp-pulse, .xp-drag, .xp-nudge, .xp-fade { animation: none } }
       `}</style>
 
       {/* The tour itself. */}
@@ -119,12 +155,18 @@ export default function HeroExperience() {
         </div>
       </div>
 
-      {/* Coach mark: centred, never in the way of a drag. */}
-      {loaded && !touched && (
+      {/* Coach marks: centred, never in the way of a drag. */}
+      {loaded && !touched && step < COACH.length && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="xp-fade flex flex-col items-center gap-3 rounded-2xl bg-black/45 px-6 py-5 backdrop-blur-sm">
-            <Hand className="xp-drag h-9 w-9" aria-hidden />
-            <p className="text-[15px] font-semibold">Drag to look around this factory</p>
+          <div
+            key={step}
+            className="xp-fade flex flex-col items-center gap-3 rounded-2xl bg-black/45 px-6 py-5 backdrop-blur-sm"
+          >
+            {(() => {
+              const { icon: Icon, anim } = COACH[step];
+              return <Icon className={`${anim} h-9 w-9`} aria-hidden />;
+            })()}
+            <p className="text-[15px] font-semibold">{COACH[step].text}</p>
           </div>
         </div>
       )}

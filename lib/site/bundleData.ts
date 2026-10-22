@@ -28,6 +28,7 @@ import {
   discountBands,
   hoursLabel,
   inr,
+  supportWorthLabel,
 } from "@/lib/pricing";
 import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
@@ -84,7 +85,7 @@ export function bundleCareData(): string {
     `cn={name:${js(SUPPORT_NAME)},amount:${SUPPORT_ANNUAL_INR},period:"year",mandatory:!0,gstApplies:!0,payableNow:!1,` +
     `includes:${js(SUPPORT_INCLUDES.map((i) => i.title.toLowerCase()))},billingStart:"year_2",` +
     `billingStartLabels:{go_live:"Billed annually, starting from go-live",` +
-    `year_2:${js(`${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first year for our first ${LAUNCH_OFFER.limit} customers`)}}}`
+    `year_2:${js(`${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first year for our first ${LAUNCH_OFFER.limit} customers — worth ${supportWorthLabel()}`)}}}`
   );
 }
 
@@ -193,6 +194,34 @@ export function bundleTextPatches(): [string, string][] {
     ["eyebrow:\"Featured story\",title:\"Two minutes with a CEO\"", "eyebrow:\"Featured story\",title:\"Orders closed on a Zoom call\""],
     // The "Virtual Plant Visit" tagline under the logo shows on phones too.
     ["\"mt-0.5 hidden text-[9px] font-bold uppercase tracking-[0.28em] text-slate-500 sm:block\",children:\"Virtual Plant Visit\"", "\"vpv-tagline mt-0.5 block text-[9px] font-bold uppercase tracking-[0.28em] text-slate-500\",children:\"Virtual Plant Visit\""],
+    // ── October 2026, round two ────────────────────────────────────────
+    // PLANS PAGE: the "Compare every feature" table goes, and the one CTA
+    // moves up to sit straight under the three plan cards.
+    [
+      '(0,Dt.jsx)("h2",{className:"mt-16 text-2xl font-extrabold tracking-tight text-brand-deep sm:text-3xl",children:"Compare every feature"}),(0,Dt.jsx)("div",{className:"mt-6",children:(0,Dt.jsx)(ac,{})}),',
+      '(0,Dt.jsx)("div",{className:"mt-10 flex flex-col gap-3 sm:flex-row","data-testid":"plans-cta-top",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),',
+    ],
+    [
+      ',(0,Dt.jsx)("div",{className:"mt-8 flex flex-col gap-3 sm:flex-row",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),(0,Dt.jsx)(va,{testId:"speak-cta-plans-page",className:"mt-10"})',
+      ',(0,Dt.jsx)(va,{testId:"speak-cta-plans-page",className:"mt-10"})',
+    ],
+    // A plan is an investment, not a price tag.
+    ['children:"Three VPV plans. One clear price."', 'children:"Three VPV plans. One clear investment."'],
+    // The sub-heading: one line, a size up, the promise in blue, and no GST
+    // note (every price on the page already carries "+ GST").
+    [
+      '(0,Dt.jsx)("p",{className:"mt-3 max-w-2xl text-slate-600",children:"Not sure which fits? Our assessment recommends the lowest plan that covers everything you need. All prices exclude 18% GST."})',
+      '(0,Dt.jsxs)("p",{className:"mt-3 text-lg text-slate-600 sm:text-xl",children:["Not sure which fits? Our assessment recommends the lowest plan that ",(0,Dt.jsx)("span",{className:"font-semibold text-brand",children:"covers everything you need"}),"."]})',
+    ],
+    // CASE STUDIES: the client logo strip is a new image, and the page ends
+    // on a nudge before the call to action.
+    ['Nr=["Kesaria","Nandan","ViR","Daffodil Engravers","AgroMach","Saa Vishnu Group","GRKC","Uttam","JFL","Param"]',
+      'Nr=["Kesaria Rubber Industries","Nandan GSE","ViR","Ecoste","Saa Vishnu Group","GRKC","Miicron","JFL"]'],
+    ['width:"871",height:"176"', 'width:"1400",height:"291"'],
+    [
+      '(0,Dt.jsxs)(At,{to:"/assessment",className:"btn-primary mt-10","data-testid":"case-studies-cta",children:["Find the Right VPV for Your Factory ",(0,Dt.jsx)(cr,{className:"h-4 w-4"})]})',
+      '(0,Dt.jsx)("div",{className:"mt-10 rounded-3xl p-8 text-center sm:p-10",style:{background:"linear-gradient(120deg,#0B3D91,#1468D8 55%,#19B8F2)"},"data-testid":"case-studies-nudge",children:(0,Dt.jsx)("p",{className:"mx-auto max-w-3xl text-2xl font-extrabold leading-snug tracking-tight text-white sm:text-3xl",children:"Don’t wait for your competitors to get ahead. Start your case study today."})}),(0,Dt.jsxs)(At,{to:"/assessment",className:"btn-primary mt-8","data-testid":"case-studies-cta",children:["Find the Right VPV for Your Factory ",(0,Dt.jsx)(cr,{className:"h-4 w-4"})]})',
+    ],
     // "Why VPV" in the site menu.
     ["Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/how-it-works\"", "Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/why-vpv\",label:\"Why VPV\",id:\"why-vpv\"},{to:\"/how-it-works\""],
   ];

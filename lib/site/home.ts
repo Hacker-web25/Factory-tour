@@ -38,7 +38,7 @@ import { sitePage } from "@/lib/site/pages";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.c8dcd989.js";
+const JS_SRC = "/static/js/main.be6073d7.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";

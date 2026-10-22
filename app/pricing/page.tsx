@@ -19,6 +19,7 @@ import EnquiryForm from "@/components/billing/EnquiryForm";
 import { POLICY } from "@/lib/company";
 import {
   FEATURE_MATRIX,
+  supportWorthLabel,
   GST_LABEL,
   PRO_MONTHLY_INR,
   SCENE_MAX,
@@ -159,7 +160,7 @@ export default function PricingPage() {
             <ul className="mt-6 space-y-2.5 text-[14px]">
               {[
                 "Every feature of Pro",
-                "First year of technical support free",
+                `First year of technical support free (worth ${supportWorthLabel()})`,
                 "Your own branded workspace",
                 "One payment — no monthly fee",
                 "Add scenes later at the same falling rate",

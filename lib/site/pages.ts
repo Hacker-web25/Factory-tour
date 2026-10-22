@@ -60,7 +60,7 @@ export const SITE_PAGES: SitePage[] = [
     path: "/plans",
     title: "VPV plans and pricing | MyVPV.com",
     description:
-      "Three VPV plans, one clear price. Compare the areas, videos, PDFs and sharing controls in each plan. All prices exclude 18% GST.",
+      "Three VPV plans, one clear investment. See the areas, process videos, PDFs and sharing controls in each plan. All prices exclude 18% GST.",
     indexable: true,
     priority: 0.9,
   },

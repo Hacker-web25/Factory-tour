@@ -258,7 +258,7 @@ export default function WhyVpv() {
         <div className="mx-auto max-w-6xl px-5 pb-28 pt-14 sm:pb-32 sm:pt-20">
           <p className="wv-rise text-[12px] font-bold uppercase tracking-[0.22em] text-[#9FD8FF]">Why VPV</p>
           <h1 className="wv-rise mt-3 max-w-3xl text-[34px] font-extrabold leading-[1.08] tracking-tight sm:text-[52px]" style={{ animationDelay: "80ms" }}>
-            Your buyers can&apos;t see your factory. That is where the orders go.
+            Your buyers can&apos;t see your factory. That is where the orders leak.
           </h1>
           <p className="wv-rise mt-5 max-w-2xl text-[17px] leading-relaxed text-white/80 sm:text-[19px]" style={{ animationDelay: "160ms" }}>
             Most buyers decide without ever visiting your plant: on slides, a catalogue and a phone call. Put in your own
@@ -336,7 +336,7 @@ export default function WhyVpv() {
                 </p>
               </div>
               <div className="rounded-2xl p-4 ring-1 ring-[#FF8A7A]/40" style={{ background: "linear-gradient(160deg, rgba(255,107,91,.22), rgba(255,107,91,.08))" }}>
-                <p className="text-[12px] font-semibold text-[#FFC2B8]">Left on the table</p>
+                <p className="text-[12px] font-semibold text-[#FFC2B8]">Business going to competition</p>
                 <p className="mt-1 text-[22px] font-bold text-[#FFD9D2] sm:text-[26px]">
                   <Money value={lost} />
                 </p>
@@ -435,9 +435,9 @@ export default function WhyVpv() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { icon: Eye, t: "They see the machines, not slides", d: "Every line, machine and quality check, in 360°, at the buyer's own pace." },
-            { icon: ShieldCheck, t: "Authority before the first meeting", d: "A real walkthrough tells a buyer you are the serious supplier, before price comes up." },
-            { icon: Video, t: "Close on a video call", d: "Walk an international buyer through your plant on Zoom, with no travel on either side." },
-            { icon: Users, t: "Every salesperson, the same story", d: "Your whole team presents the plant the same way, every time, in every meeting." },
+            { icon: ShieldCheck, t: "Creates your authority in the first meeting itself", d: "A real walkthrough tells a buyer you are the serious supplier, before price comes up." },
+            { icon: Video, t: "Close deals on a Zoom call", d: "Walk an international buyer through your plant on Zoom, with no travel on either side." },
+            { icon: Users, t: "Every salesperson presenting the way you would", d: "Your whole team presents the plant the same way, every time, in every meeting." },
           ].map(({ icon: Icon, t, d }, i) => (
             <div
               key={t}
@@ -489,7 +489,7 @@ export default function WhyVpv() {
       {/* ── CTA ──────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pb-20 pt-16 text-center sm:pb-28 sm:pt-24">
         <h2 className="mx-auto max-w-2xl text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[38px]">
-          Stop leaving <span style={{ color: BLUE }}>{inrLakhs(lost)}</span> a year on the table.
+          Stop handing <span style={{ color: BLUE }}>{inrLakhs(lost)}</span> a year to your competition.
         </h2>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a
@@ -498,12 +498,6 @@ export default function WhyVpv() {
             style={{ background: `linear-gradient(120deg, ${NAVY}, ${BLUE} 55%, ${CYAN})` }}
           >
             Explore the plans <ArrowRight className="h-5 w-5" aria-hidden />
-          </a>
-          <a
-            href="/assessment"
-            className="inline-flex h-14 items-center rounded-full border-2 border-slate-200 px-7 text-[15px] font-semibold text-slate-800 transition-colors hover:border-[#1468D8] hover:text-[#1468D8]"
-          >
-            Find the right VPV for your factory
           </a>
         </div>
         <p className="mx-auto mt-10 max-w-2xl text-[12px] leading-relaxed text-slate-400">

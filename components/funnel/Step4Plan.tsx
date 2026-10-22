@@ -48,6 +48,7 @@ import {
   SITE_PLANS,
   SITE_PLAN_ORDER,
   SUPPORT_MONTHLY_INR,
+  supportWorthLabel,
   VIDEO_SHOT_NOTE,
   discountBands,
   extraAreaCost,
@@ -277,7 +278,7 @@ export default function Step4Plan() {
     { icon: Check, text: "Information icons on every hotspot" },
     { icon: Check, text: "Your own branded workspace and domain" },
     offerOpen
-      ? { icon: Check, text: "First year of support is free", strong: true }
+      ? { icon: Check, text: `First year of support is free — worth ${supportWorthLabel()}`, strong: true }
       : { icon: Check, text: `Support from ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly` },
   ];
 
