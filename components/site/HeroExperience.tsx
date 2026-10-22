@@ -155,18 +155,19 @@ export default function HeroExperience() {
         </div>
       </div>
 
-      {/* Coach marks: centred, never in the way of a drag. */}
+      {/* Coach marks: a caption low on the stage, clear of the tour's own
+          scene and its own navigation arrows, which sit mid-screen. */}
       {loaded && !touched && step < COACH.length && (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[84px] flex justify-center px-4 sm:bottom-[96px]">
           <div
             key={step}
-            className="xp-fade flex flex-col items-center gap-3 rounded-2xl bg-black/45 px-6 py-5 backdrop-blur-sm"
+            className="xp-fade flex items-center gap-2.5 rounded-full bg-black/60 py-2.5 pl-3 pr-4 shadow-lg backdrop-blur-sm"
           >
             {(() => {
               const { icon: Icon, anim } = COACH[step];
-              return <Icon className={`${anim} h-9 w-9`} aria-hidden />;
+              return <Icon className={`${anim} h-5 w-5 shrink-0`} aria-hidden />;
             })()}
-            <p className="text-[15px] font-semibold">{COACH[step].text}</p>
+            <p className="text-[13.5px] font-semibold leading-tight sm:text-[14.5px]">{COACH[step].text}</p>
           </div>
         </div>
       )}
