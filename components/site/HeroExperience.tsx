@@ -45,31 +45,31 @@ export default function HeroExperience() {
   const [full, setFull] = useState(false);
   const [tip, setTip] = useState(0);
 
-  // The visitor pressed into the tour: the frame takes focus from us. That
-  // first press is them clicking the arrow, so it moves the mark on to the
-  // drag hint rather than clearing it. Blur fires once (focus is already in
-  // the frame after that), so the drag hint leaves on a timer.
+  // One effect per mark, keyed on `step`, so moving to the next mark always
+  // tears down the previous mark's own listener and timer first. (An earlier
+  // version ran one mount-long timer alongside the blur listener; the timer
+  // kept ticking after blur had already advanced the step, so it could fire
+  // a SECOND advance later and cut the drag mark's 7s short, or skip it
+  // Keying the effect on `step` and cleaning up on every change removes
+  // that leftover timer instead of letting it fire late.
   useEffect(() => {
-    const advance = () => setStep((n) => n + 1);
-    window.addEventListener("blur", advance);
-    // If they just watch, show the arrow mark, then the drag mark, then stop.
-    const t = setTimeout(advance, 9000);
-    return () => {
-      window.removeEventListener("blur", advance);
-      clearTimeout(t);
-    };
-  }, []);
-
-  // Once the arrow mark has been answered, the drag mark has its own life.
-  useEffect(() => {
-    if (step < 1) return;
-    if (step >= COACH.length) {
-      setTouched(true);
-      return;
+    if (touched) return;
+    if (step === 0) {
+      // Arrow mark: gone the moment they click in, or after 9s if they don't.
+      const onBlur = () => setStep(1);
+      window.addEventListener("blur", onBlur);
+      const t = setTimeout(() => setStep(1), 9000);
+      return () => {
+        window.removeEventListener("blur", onBlur);
+        clearTimeout(t);
+      };
     }
-    const t = setTimeout(() => setTouched(true), DRAG_MARK_MS);
-    return () => clearTimeout(t);
-  }, [step]);
+    if (step === 1) {
+      // Drag mark: up for its own fixed window, then done either way.
+      const t = setTimeout(() => setTouched(true), DRAG_MARK_MS);
+      return () => clearTimeout(t);
+    }
+  }, [step, touched]);
 
   // The ticker holds on the arrow tip while the arrow coach mark is up, so
   // the two never tell the visitor different things at the same moment.
