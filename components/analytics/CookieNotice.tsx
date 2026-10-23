@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { OPT_OUT_COOKIE, VISITOR_MAX_AGE } from "@/lib/analytics/attribution";
+import { isFramed } from "@/lib/analytics/client";
 import { CLARITY_PROJECT_ID, GA_MEASUREMENT_ID } from "@/lib/analytics/config";
 
 const SEEN_KEY = "vpv.cookie.notice.v1";
@@ -36,12 +37,23 @@ export default function CookieNotice() {
   useEffect(() => {
     // Nothing is being set, so there is nothing to notify about.
     if (!GA_MEASUREMENT_ID && !CLARITY_PROJECT_ID) return;
+    // Never inside a frame (the hero demo, a customer's embedded tour): the
+    // page around it shows the notice, and a link clicked in here would
+    // open the policy inside the frame instead of the page.
+    if (isFramed()) return;
     try {
       if (localStorage.getItem(SEEN_KEY)) return;
     } catch {
       /* private window: show it, closing it just will not persist */
     }
     setShow(true);
+
+    // An answer given in another tab closes the notice here too.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === SEEN_KEY && e.newValue) setShow(false);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   function close(optOut: boolean) {

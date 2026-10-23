@@ -247,7 +247,7 @@ export default function CookiePolicyPage() {
   return (
     <LegalPage
       title="Cookie Policy"
-      summary="VPV sets no tracking cookies. Here is everything the product keeps in your browser, and why."
+      summary="What VPV keeps in your browser and why, including the measurement cookies you can turn off."
       sections={sections}
     />
   );

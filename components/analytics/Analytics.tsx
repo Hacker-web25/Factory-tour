@@ -27,7 +27,7 @@ import {
   clarityConfigured,
   gaConfigured,
 } from "@/lib/analytics/config";
-import { captureAttribution, hasOptedOut, track } from "@/lib/analytics/client";
+import { captureAttribution, hasOptedOut, isFramed, track } from "@/lib/analytics/client";
 
 /**
  * One page_view per route change. In the App Router a navigation does not
@@ -42,6 +42,8 @@ function PageViews() {
   const search = useSearchParams();
 
   useEffect(() => {
+    // The page that frames us is already counted.
+    if (isFramed()) return;
     captureAttribution();
     track("page_view");
     // Google needs telling too: its automatic page_view only fires on load.
@@ -67,7 +69,7 @@ export default function Analytics() {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    setAllowed(!hasOptedOut());
+    setAllowed(!hasOptedOut() && !isFramed());
   }, []);
 
   return (

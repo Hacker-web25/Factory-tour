@@ -280,3 +280,37 @@ describe("/q/<code> — the link on the pamphlet", () => {
     assert.equal(new URL(res.headers.get("location")!).pathname, "/plans");
   });
 });
+
+describe("the security policy lets the analytics tags run", () => {
+  // A Content-Security-Policy that omits Google or Microsoft makes the
+  // browser silently drop the tag: the dashboards stay empty and nothing
+  // errors on our side. This happened once; this keeps it from happening
+  // again when someone tightens the policy.
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const config = fs.readFileSync(path.join(process.cwd(), "next.config.js"), "utf8");
+  const directive = (name: string) => {
+    const m = config.match(new RegExp(`"(${name} [^"]*)"`));
+    assert.ok(m, `no ${name} directive found in next.config.js`);
+    return m![1];
+  };
+
+  it("allows the Google and Microsoft scripts to load", () => {
+    const d = directive("script-src");
+    assert.ok(d.includes("https://*.googletagmanager.com"));
+    assert.ok(d.includes("https://*.clarity.ms"));
+  });
+
+  it("allows both to send what they collect", () => {
+    const d = directive("connect-src");
+    assert.ok(d.includes("https://*.google-analytics.com"));
+    assert.ok(d.includes("https://*.analytics.google.com"));
+    assert.ok(d.includes("https://*.clarity.ms"));
+  });
+
+  it("allows the tracking pixels", () => {
+    const d = directive("img-src");
+    assert.ok(d.includes("https://*.google-analytics.com"));
+    assert.ok(d.includes("https://*.clarity.ms"));
+  });
+});

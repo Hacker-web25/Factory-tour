@@ -41,6 +41,25 @@ function safeLocal(): Storage | null {
   }
 }
 
+/**
+ * True when this page is shown inside another page's frame: the hero demo
+ * on our own home page, or a customer's tour embedded on their site.
+ *
+ * Measurement and the cookie notice both stay out of frames. The parent
+ * page is already measured, so a second copy would double-count; the notice
+ * would sit inside a small window and send its "Cookie Policy" link into
+ * the frame; and a customer's embedded tour must not start tracking their
+ * visitors with our Google and Microsoft scripts.
+ */
+export function isFramed(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    // Reading window.top across origins throws: that means we are framed.
+    return true;
+  }
+}
+
 export function hasOptedOut(): boolean {
   try {
     return document.cookie.includes(`${OPT_OUT_COOKIE}=1`);
