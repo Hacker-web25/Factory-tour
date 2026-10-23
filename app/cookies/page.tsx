@@ -1,9 +1,14 @@
 /**
  * /cookies — Cookie & Local Storage Policy.
  *
- * Accurate to the codebase: VPV sets NO cookies of its own (Supabase
- * sessions live in localStorage). Keep this table in sync when a new
- * storage key is introduced.
+ * Accurate to the codebase. Keep the table in sync when a storage key or
+ * a third-party script is added or removed.
+ *
+ * October 2026: this page used to say VPV set no cookies at all. That
+ * stopped being true when Google Analytics, Microsoft Clarity and our own
+ * visitor cookie were added, so the claim was removed rather than quietly
+ * left standing. If analytics is ever switched off again, the honest thing
+ * is to change this page back on the same day.
  */
 
 import type { Metadata } from "next";
@@ -14,7 +19,7 @@ import { COMPANY } from "@/lib/company";
 export const metadata: Metadata = {
   title: "Cookie Policy",
   description:
-    "VPV sets no tracking cookies. This page lists the small amount of browser storage the product uses to keep you signed in and remember your settings.",
+    "What VPV stores in your browser and why: the cookies that keep you signed in, the ones that tell us how people find the site, and how to turn the measurement ones off.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/cookies" },
 };
@@ -24,12 +29,28 @@ const sections: LegalSection[] = [
     id: "summary",
     title: "The short version",
     body: (
-      <Callout title="No tracking cookies">
-        VPV does not use advertising, analytics or cross-site tracking cookies,
-        and we do not set any cookies of our own. We use your browser’s{" "}
-        <B>local storage</B> and <B>session storage</B> — small, site-specific
-        notes — only so the product works.
-      </Callout>
+      <>
+        <Callout title="No advertising, ever">
+          We do not use advertising cookies, we do not run ads, and we never
+          sell or share what we measure with an advertising network.
+        </Callout>
+        <P>
+          Two kinds of storage are used here. The first kind is{" "}
+          <B>necessary</B>: it keeps you signed in and remembers your settings,
+          and the product cannot work without it. The second kind is{" "}
+          <B>measurement</B>: it tells us how people found this site and which
+          pages they read, so we know whether a pamphlet, a search result or an
+          advertisement for ourselves was worth the money.
+        </P>
+        <P>
+          You can refuse the measurement kind. Choose <B>Decline</B> on the
+          notice at the bottom of the page, and Google Analytics and Microsoft
+          Clarity are not loaded at all on any page you visit afterwards, and
+          our own measurement stops recording your visit. Nothing about the
+          product stops working, and you can change your mind by clearing this
+          site&rsquo;s data in your browser.
+        </P>
+      </>
     ),
   },
   {
@@ -108,6 +129,36 @@ const sections: LegalSection[] = [
               "Until cleared.",
             ],
             [
+              <code key="m1" className="text-[12.5px]">vpv_vid</code>,
+              "Cookie — measurement",
+              "A random number that stands for this browser, so we can tell one visit from another and see whether a printed QR code led to an enquiry. It holds no name, e-mail or address, and is not shared with anyone.",
+              "One year, or until you clear this site's data.",
+            ],
+            [
+              <code key="m2" className="text-[12.5px]">vpv_no_analytics</code>,
+              "Cookie — your choice",
+              "Set when you press Decline. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
+              "One year, or until you clear this site's data.",
+            ],
+            [
+              <code key="m3" className="text-[12.5px]">vpv.attr.v1, vpv.sid.v1</code>,
+              "Local storage — measurement",
+              "Remembers how you first arrived (a search, a link, or a code from a pamphlet) and groups the pages of one visit together.",
+              "Until cleared.",
+            ],
+            [
+              <code key="m4" className="text-[12.5px]">_ga, _ga_*</code>,
+              "Cookie — measurement (Google Analytics)",
+              "Google Analytics: counts visitors and shows which pages and sources bring them. Set by Google under Google's policy.",
+              "Up to two years.",
+            ],
+            [
+              <code key="m5" className="text-[12.5px]">_clck, _clsk</code>,
+              "Cookie — measurement (Microsoft Clarity)",
+              "Microsoft Clarity: records how pages are used — scrolling, clicks and a replay of the visit — so we can see where the site confuses people. Typed text is masked before it leaves your browser. Set by Microsoft under Microsoft's policy.",
+              "Up to one year.",
+            ],
+            [
               <code key="h" className="text-[12.5px]">vpv:notif:*, factour:hotspotStyle:*</code>,
               "Local storage — functional",
               "Remembers which notifications you have seen and your tour-builder style preferences.",
@@ -140,6 +191,16 @@ const sections: LegalSection[] = [
             <B>Razorpay</B> — when you pay, Razorpay’s checkout runs on its own
             domain and sets the cookies it needs to secure the payment.
           </li>
+          <li>
+            <B>Google Analytics</B> (Google) — counts visits and tells us which
+            pages and which sources bring people here. We ask it to shorten
+            your IP address before storing it.
+          </li>
+          <li>
+            <B>Microsoft Clarity</B> (Microsoft) — shows how a page was used,
+            including a replay of the visit, so we can find the parts that
+            confuse people. It masks text you type before it is sent.
+          </li>
         </UL>
       </>
     ),
@@ -150,12 +211,17 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Because we use only storage that is necessary or that you would
-          expect (staying signed in, remembering a language), there is no
-          marketing consent banner. You can clear VPV’s stored data at any time
-          from your browser settings (“Clear site data”). Signing out removes
-          the session; clearing everything will sign you out and reset the
-          settings above.
+          <B>Turning measurement off.</B> Press <B>Decline</B> on the notice at
+          the bottom of the page. From then on Google Analytics and Microsoft
+          Clarity are never loaded, and our own measurement discards anything
+          from this browser. The necessary storage in the table above stays,
+          because signing in does not work without it.
+        </P>
+        <P>
+          You can clear VPV’s stored data at any time from your browser
+          settings (“Clear site data”). Signing out removes the session;
+          clearing everything will sign you out, reset the settings above and
+          also reset your choice about measurement.
         </P>
         <P>
           You can also block cookies in your browser, which stops embedded

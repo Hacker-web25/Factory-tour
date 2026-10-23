@@ -36,6 +36,8 @@ import { canonicalIndustry } from "@/lib/industries";
 import { describeSelection } from "@/lib/factoryAreas";
 import { matchIndustries } from "@/lib/industryProfiles";
 import { logisticsFor } from "@/lib/logistics";
+import { normaliseCode } from "@/lib/analytics/attribution";
+import { visitorIdFrom } from "@/lib/server/analytics";
 import {
   clampExtraAreas,
   clampExtraVideos,
@@ -89,6 +91,37 @@ export async function POST(req: Request) {
 
   /* ---- Build only the columns this step actually carries. ---- */
   const patch: Record<string, unknown> = { stage };
+
+  /* ---- Where this enquiry came from. ----------------------------------
+   * The visitor id comes from the cookie middleware set, never from the
+   * body, so one visitor cannot file their enquiry under another's id.
+   * The utm_* fields DO come from the browser, because they were in the
+   * URL the visitor landed on; they are notes on a lead row, they buy
+   * nothing, and the worst a forged one can do is misfile a lead.
+   *
+   * Written on every step but only where we have a value, so a later step
+   * (which no longer has the landing URL) can never blank out what the
+   * first step learned.
+   */
+  const vid = visitorIdFrom(req.headers);
+  if (vid) patch.visitor_id = vid;
+  const attribution = body.attribution;
+  if (attribution && typeof attribution === "object" && !Array.isArray(attribution)) {
+    const a = attribution as Record<string, unknown>;
+    const code = normaliseCode(a.code);
+    if (code) patch.campaign_code = code;
+    const put = (col: string, v: unknown, max = 120) => {
+      const t = clean(v, max);
+      if (t) patch[col] = t;
+    };
+    put("utm_source", a.source);
+    put("utm_medium", a.medium);
+    put("utm_campaign", a.campaign);
+    put("utm_term", a.term);
+    put("utm_content", a.content);
+    put("referrer", a.referrer, 300);
+    put("landing_path", a.landingPath, 300);
+  }
 
   const name = clean(body.name, 80);
   const email = clean(body.email, 254).toLowerCase();

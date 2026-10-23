@@ -413,6 +413,7 @@ export async function createTestDb(repoRoot: string): Promise<TestDb> {
     "tests/billing/harness/rlsSchema.sql",
     "supabase/coupons.sql",
     "supabase/funnel.sql",
+    "supabase/analytics.sql",
   ];
   for (const f of files) {
     try {

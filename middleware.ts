@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { RESERVED_SLUGS } from "@/lib/slugs";
 import { PUBLIC_LEGAL_PATHS } from "@/components/legal/nav";
 import { SITE_PATHS } from "@/lib/site/pages";
+import {
+  VISITOR_COOKIE,
+  VISITOR_HEADER,
+  VISITOR_MAX_AGE,
+} from "@/lib/analytics/attribution";
 
 /**
  * Edge middleware — subdomain routing + security hardening.
@@ -159,6 +164,23 @@ export function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-vpv-ip", ip);
 
+  // ── 4b. Anonymous visitor id ────────────────────────────────────
+  //
+  // One random uuid per browser, in a first-party cookie, so a pamphlet
+  // scan can be joined to the funnel step and the order that follow it.
+  // It identifies a BROWSER, never a person: no name, no e-mail, nothing
+  // taken from the device. Issued here rather than in the page so it
+  // exists on the very first request — including the /q/<code> redirect,
+  // which has to log a scan before any page has rendered.
+  //
+  // Handed to route handlers on a header (the x-vpv-ip trick again),
+  // because a cookie set on the RESPONSE is not visible in the request
+  // that created it.
+  const existingVid = req.cookies.get(VISITOR_COOKIE)?.value;
+  const vid = isUuid(existingVid) ? existingVid! : crypto.randomUUID();
+  const freshVid = vid !== existingVid;
+  requestHeaders.set(VISITOR_HEADER, vid);
+
   // ── 5. Host routing ─────────────────────────────────────────────
   //
   // The ONLY hosts that serve the product are:
@@ -190,12 +212,12 @@ export function middleware(req: NextRequest) {
     ) {
       return toApex(path);
     }
-    return tenantPathRedirect(url, path, "") ?? nextWithHeaders(requestHeaders, path);
+    return tenantPathRedirect(url, path, "") ?? nextWithHeaders(requestHeaders, path, vid, freshVid);
   }
 
   const onMyVpv = host === APEX || host.endsWith(`.${APEX}`);
   // localhost / previews — no real subdomains, nothing to enforce.
-  if (!onMyVpv) return nextWithHeaders(requestHeaders, path);
+  if (!onMyVpv) return nextWithHeaders(requestHeaders, path, vid, freshVid);
 
   const isApex = host === APEX;
   const sub = isApex ? "" : host.slice(0, -(APEX.length + 1));
@@ -221,7 +243,7 @@ export function middleware(req: NextRequest) {
   const leak = tenantPathRedirect(url, path, slug);
   if (leak) return leak;
 
-  if (isApex) return nextWithHeaders(requestHeaders, path);
+  if (isApex) return nextWithHeaders(requestHeaders, path, vid, freshVid);
 
   // Canonicalise: subdomain + path-slug = strip the path-slug.
   if (path === `/${slug}` || path.startsWith(`/${slug}/`)) {
@@ -238,16 +260,46 @@ export function middleware(req: NextRequest) {
       tail = `/owner${tail}`;
     }
     url.pathname = `/${slug}${tail}`;
-    return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    return withVisitor(
+      NextResponse.rewrite(url, { request: { headers: requestHeaders } }),
+      vid,
+      freshVid
+    );
   }
 
-  return nextWithHeaders(requestHeaders, path);
+  return nextWithHeaders(requestHeaders, path, vid, freshVid);
 }
 
 /* ───────────────── Response-side headers ─────────────────────────── */
 
-function nextWithHeaders(requestHeaders: Headers, path: string) {
-  const res = NextResponse.next({ request: { headers: requestHeaders } });
+function isUuid(v: string | undefined): boolean {
+  return (
+    typeof v === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  );
+}
+
+/** Write the visitor cookie, but only when it was just minted. Re-setting
+ *  it on every request would renew the expiry forever and add a Set-Cookie
+ *  header to responses a CDN would otherwise be free to cache. */
+function withVisitor(res: NextResponse, vid: string, fresh: boolean): NextResponse {
+  if (!fresh) return res;
+  res.cookies.set(VISITOR_COOKIE, vid, {
+    maxAge: VISITOR_MAX_AGE,
+    path: "/",
+    sameSite: "lax",
+    httpOnly: true, // the browser never needs to read it; our server does
+    secure: true,
+  });
+  return res;
+}
+
+function nextWithHeaders(requestHeaders: Headers, path: string, vid: string, freshVid: boolean) {
+  const res = withVisitor(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    vid,
+    freshVid
+  );
 
   // No caching for auth / sensitive paths. If a shared proxy ever cached
   // one of these responses, the next unrelated visitor could see the

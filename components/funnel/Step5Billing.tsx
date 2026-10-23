@@ -445,7 +445,11 @@ export default function Step5Billing() {
               />
             )}
 
-            <Card>
+            {/* Session recording must never capture a buyer's name, GSTIN or
+                e-mail. Clarity masks typed text by default; this marks the
+                whole block so the masking does not depend on that default
+                staying switched on in someone's dashboard. */}
+            <Card data-clarity-mask="true">
               <SectionTitle icon={ScrollText} title="Invoice details">
                 Your GST invoice is raised to these details and e-mailed to you.
               </SectionTitle>

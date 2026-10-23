@@ -35,6 +35,8 @@
  */
 
 import { sitePage } from "@/lib/site/pages";
+import { LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
+import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 
 const SITE = "https://myvpv.com";
@@ -73,6 +75,77 @@ const ORGANIZATION_LD = JSON.stringify({
     areaServed: "IN",
     availableLanguage: ["en"],
   },
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "702, Tower 3, Vipul Greens, Sector 48, Sohna Road",
+    addressLocality: "Gurugram",
+    addressRegion: "Haryana",
+    postalCode: "122018",
+    addressCountry: "IN",
+  },
+  parentOrganization: {
+    "@type": "Organization",
+    name: "The Next Design",
+    url: "https://www.thenextdesign.com",
+  },
+});
+
+/**
+ * What we sell, with the real prices, as structured data.
+ *
+ * This is the block an AI assistant reads when a manufacturer asks it
+ * "who does virtual factory tours in India and what does it cost". A
+ * recommendation it cannot price is a recommendation it rarely makes, so
+ * the offers are generated from lib/pricing.ts — the same constants the
+ * checkout charges from, which means they cannot quietly go stale.
+ */
+function serviceLd(): string {
+  const offers = SITE_PLAN_ORDER.map((id) => {
+    const p = SITE_PLANS[id];
+    const price = LAUNCH_OFFER.active
+      ? Math.round((p.regularInr * (100 - LAUNCH_OFFER.percent)) / 100)
+      : p.regularInr;
+    return {
+      "@type": "Offer",
+      name: p.name,
+      description: p.tagline,
+      price: String(price),
+      priceCurrency: "INR",
+      url: `${SITE}/plans`,
+      availability: "https://schema.org/InStock",
+      ...(LAUNCH_OFFER.active
+        ? { priceValidUntil: "2027-03-31", description: `${p.tagline} ${LAUNCH_OFFER.label}.` }
+        : {}),
+    };
+  });
+
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: "VPV - Virtual Plant Visit",
+    serviceType: "360 virtual factory tour production and hosting",
+    provider: { "@type": "Organization", name: "VPV - Virtual Plant Visit", url: `${SITE}/` },
+    areaServed: { "@type": "Country", name: "India" },
+    availableChannel: {
+      "@type": "ServiceChannel",
+      serviceUrl: `${SITE}/assessment`,
+      servicePhone: "+91-98183-72742",
+    },
+    description:
+      `A filmed 360 walkthrough of your factory that buyers anywhere can explore before they visit, ` +
+      `with process videos, information hotspots and controlled sharing. Shot on site in ${SERVICE_CITY_LIST}.`,
+    offers,
+  });
+}
+
+/** schema.org for the site itself, so search engines name it correctly. */
+const WEBSITE_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "VPV - Virtual Plant Visit",
+  url: `${SITE}/`,
+  publisher: { "@type": "Organization", name: "VPV - Virtual Plant Visit" },
+  inLanguage: "en-IN",
 });
 
 /**
@@ -226,7 +299,9 @@ export function renderSiteHtml(path: string): string {
 <meta name="twitter:title" content="${title}"/>\
 <meta name="twitter:description" content="${description}"/>\
 <meta name="twitter:image" content="${OG_IMAGE}"/>\
-${isHome ? `<script type="application/ld+json">${ORGANIZATION_LD}</script>` : ""}\
+<script type="application/ld+json">${ORGANIZATION_LD}</script>\
+${isHome ? `<script type="application/ld+json">${WEBSITE_LD}</script>` : ""}\
+${isHome || page.path === "/plans" ? `<script type="application/ld+json">${serviceLd()}</script>` : ""}\
 <link rel="preconnect" href="https://fonts.googleapis.com"/>\
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>\
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>\

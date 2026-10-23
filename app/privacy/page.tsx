@@ -341,6 +341,8 @@ const sections: LegalSection[] = [
             ["Vercel", "Hosts the website and application.", "Requests, IP addresses, technical logs."],
             ["Razorpay Software Private Limited", "Payment processing for cards, UPI, net banking and wallets.", "Billing name, e-mail, phone, amount and payment details you enter on its checkout."],
             ["Resend", "Sends transactional e-mail such as invoices and alerts.", "Recipient e-mail and the message."],
+            ["Google (Analytics)", "Counts visits to the public website and shows which pages and sources bring people here. Not used inside customer workspaces or tours.", "A random visitor number, pages viewed, approximate city, device and referring link. IP addresses are shortened before storage."],
+            ["Microsoft (Clarity)", "Shows how a public page was used — scrolling, clicks and a replay of the visit — so confusing parts can be found and fixed. Not used inside customer workspaces or tours.", "A random visitor number, pages viewed, approximate city, device, and interactions. Text typed into forms is masked before it leaves the browser."],
             ["NVIDIA (NIM) and Google (Gemini API)", "Optional AI analysis of meeting transcripts.", "Transcript text only."],
             ["BigDataCloud", "Turns location coordinates into a place name.", "Coordinates."],
             ["MyMemory (Translated)", "Optional text translation inside the tour builder.", "The text being translated."],

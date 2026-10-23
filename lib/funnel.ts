@@ -18,6 +18,7 @@
  */
 
 import { SITE_PLAN_ORDER, SITE_PLANS, type SitePlanId } from "@/lib/pricing";
+import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
 export type FunnelStage = "info" | "scope" | "security" | "plan" | "sales" | "billing" | "paid";
@@ -248,11 +249,31 @@ export function recommendPlan(s: {
  * is the only acceptable behaviour — losing a lead row is a nuisance,
  * blocking a sale is not.
  */
+/** The attribution block the lead route expects. Shaped here so the
+ *  route has one object to validate instead of nine loose fields. */
+function attributionForLead(): Record<string, string | null> | null {
+  const a = storedAttribution();
+  if (!a) return null;
+  return {
+    source: a.source ?? null,
+    medium: a.medium ?? null,
+    campaign: a.campaign ?? null,
+    term: a.term ?? null,
+    content: a.content ?? null,
+    code: a.code ?? null,
+    referrer: a.referrer ?? null,
+    landingPath: a.landingPath ?? null,
+  };
+}
+
 export async function mirrorLead(
   stage: FunnelStage,
   state: FunnelState,
   extra: Record<string, unknown> = {}
 ): Promise<string | null> {
+  // One event per step reached, so /admin/marketing can show how far a
+  // pamphlet scan actually got. Fire-and-forget; never blocks the step.
+  trackFunnelStep(stage);
   try {
     const res = await fetch("/api/funnel/lead", {
       method: "POST",
@@ -285,6 +306,11 @@ export async function mirrorLead(
         policiesAccepted: state.policiesAccepted,
         hasSalesTeam: state.hasSalesTeam,
         salesSeats: state.hasSalesTeam ? state.salesSeats : 0,
+        // Where this visitor came from, captured on their first page and
+        // kept since. Sent with every step so the rep and /admin/marketing
+        // can see which pamphlet, search or ad produced the enquiry, and
+        // so a paid order traces back to it.
+        attribution: attributionForLead(),
         ...extra,
       }),
     });

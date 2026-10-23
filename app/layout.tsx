@@ -5,6 +5,12 @@ import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
 import OfflineBootstrap from "@/components/OfflineBootstrap";
 import AccessGate from "@/components/billing/AccessGate";
+import Analytics from "@/components/analytics/Analytics";
+import CookieNotice from "@/components/analytics/CookieNotice";
+import {
+  BING_SITE_VERIFICATION,
+  GOOGLE_SITE_VERIFICATION,
+} from "@/lib/analytics/config";
 
 // Match myvpv.com — Inter across the whole product.
 const inter = Inter({
@@ -87,6 +93,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://myvpv.com/",
   },
+  // Proves we own the domain, which is what unlocks Google Search Console
+  // and Bing Webmaster Tools — the only free way to see the words people
+  // actually searched before they found us. Both are left out of the HTML
+  // entirely until the tokens are set in Vercel.
+  ...(GOOGLE_SITE_VERIFICATION || BING_SITE_VERIFICATION
+    ? {
+        verification: {
+          ...(GOOGLE_SITE_VERIFICATION ? { google: GOOGLE_SITE_VERIFICATION } : {}),
+          ...(BING_SITE_VERIFICATION
+            ? { other: { "msvalidate.01": BING_SITE_VERIFICATION } }
+            : {}),
+        },
+      }
+    : {}),
 };
 
 export default function RootLayout({
@@ -113,7 +133,12 @@ export default function RootLayout({
             Mounted here so it works everywhere — editor Preview mode,
             the tour viewer, presenter route, and public viewer links. */}
         <PolygonFullscreenViewer />
+        {/* Google Analytics, Microsoft Clarity and our own page-view
+            tracking. Writes nothing into the page until the IDs are set. */}
+        <Analytics />
         {children}
+        {/* Tells visitors what is collected and lets them refuse for real. */}
+        <CookieNotice />
       </body>
     </html>
   );

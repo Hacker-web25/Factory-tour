@@ -128,8 +128,18 @@ export function FunnelBody({ children, wide = false }: { children: ReactNode; wi
   return <div className={`mx-auto px-5 py-10 lg:py-12 ${wide ? "max-w-5xl" : "max-w-3xl"}`}>{children}</div>;
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-vpv-line bg-white p-6 sm:p-7 ${className}`}>{children}</div>;
+export function Card({
+  children,
+  className = "",
+  ...rest
+}: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
+  // `rest` exists so a card holding what a buyer types can carry
+  // data-clarity-mask and be kept out of session recordings.
+  return (
+    <div className={`rounded-2xl border border-vpv-line bg-white p-6 sm:p-7 ${className}`} {...rest}>
+      {children}
+    </div>
+  );
 }
 
 /** A section heading with its icon. The icon says what kind of question it

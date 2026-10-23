@@ -6,15 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import TopBar from "@/components/TopBar";
 import { getMyProfile, type Profile } from "@/lib/auth";
-import {
-  Building2,
-  CreditCard,
-  Users,
-  Image as ImageIcon,
-  Eye,
-  BarChart3,
-  Link as LinkIcon,
-} from "lucide-react";
+import { BarChart3, Building2, CreditCard, Eye, Image as ImageIcon, Link as LinkIcon, MapPin, Megaphone, Users } from "lucide-react";
 
 /**
  * Owner-only super-admin panel. Shows every organization on the platform
@@ -215,6 +207,18 @@ export default function AdminPanelPage() {
                 {paymentsAttention}
               </span>
             )}
+          </Link>
+          <Link
+            href="/admin/marketing"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <Megaphone size={13} /> Marketing &amp; QR codes
+          </Link>
+          <Link
+            href="/admin/cities"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <MapPin size={13} /> Demand by city
           </Link>
         </div>
 
