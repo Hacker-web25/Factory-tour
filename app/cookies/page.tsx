@@ -43,7 +43,7 @@ const sections: LegalSection[] = [
           advertisement for ourselves was worth the money.
         </P>
         <P>
-          You can refuse the measurement kind. Choose <B>Decline</B> on the
+          You can refuse the measurement kind. Choose <B>Essential only</B> on the
           notice at the bottom of the page, and Google Analytics and Microsoft
           Clarity are not loaded at all on any page you visit afterwards, and
           our own measurement stops recording your visit. Nothing about the
@@ -137,7 +137,7 @@ const sections: LegalSection[] = [
             [
               <code key="m2" className="text-[12.5px]">vpv_no_analytics</code>,
               "Cookie — your choice",
-              "Set when you press Decline. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
+              "Set when you choose Essential only. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
               "One year, or until you clear this site's data.",
             ],
             [
@@ -211,7 +211,7 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          <B>Turning measurement off.</B> Press <B>Decline</B> on the notice at
+          <B>Turning measurement off.</B> Choose <B>Essential only</B> on the notice at
           the bottom of the page. From then on Google Analytics and Microsoft
           Clarity are never loaded, and our own measurement discards anything
           from this browser. The necessary storage in the table above stays,

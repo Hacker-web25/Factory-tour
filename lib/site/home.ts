@@ -38,6 +38,7 @@ import { sitePage } from "@/lib/site/pages";
 import { LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
 import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
+import { measureScriptTag } from "@/lib/site/measure";
 
 const SITE = "https://myvpv.com";
 const JS_SRC = "/static/js/main.05545e50.js";
@@ -318,5 +319,6 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <script id="vpv-funnel-bridge-script">${FUNNEL_BRIDGE_SCRIPT}</script>\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
+${measureScriptTag()}\
 </body></html>`;
 }

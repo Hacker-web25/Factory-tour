@@ -314,3 +314,65 @@ describe("the security policy lets the analytics tags run", () => {
     assert.ok(d.includes("https://*.clarity.ms"));
   });
 });
+
+describe("the marketing pages measure visitors too", () => {
+  // The marketing pages are a prebuilt shell outside the app layout, so the
+  // React <Analytics /> and <CookieNotice /> never ran on them. For a while
+  // the home page, where every pamphlet scan lands, recorded nothing and
+  // showed no cookie notice. These tests keep that from coming back.
+  const { renderSiteHtml } = require("@/lib/site/home") as typeof import("@/lib/site/home");
+  const { measureScriptTag } = require("@/lib/site/measure") as typeof import("@/lib/site/measure");
+  const { SITE_PAGES } = require("@/lib/site/pages") as typeof import("@/lib/site/pages");
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+
+  const IDS = { ga: "G-ABCDEF1234", clarity: "abcd123456" };
+
+  it("puts the measuring script on every page of the shell", () => {
+    for (const p of SITE_PAGES) {
+      assert.ok(renderSiteHtml(p.path).includes('id="vpv-measure"'), `${p.path} has no measuring script`);
+    }
+  });
+
+  it("is valid JavaScript, so one typo cannot silently drop all measurement", () => {
+    const tag = measureScriptTag(IDS);
+    const body = tag.replace(/^<script id="vpv-measure">/, "").replace(/<\/script>$/, "");
+    assert.doesNotThrow(() => new Function(body));
+    assert.equal(body.includes("</script"), false, "would close its own tag early");
+  });
+
+  it("carries both ids, the first-party endpoint and both buttons", () => {
+    const tag = measureScriptTag(IDS);
+    for (const need of [
+      "G-ABCDEF1234",
+      "abcd123456",
+      "/api/track",
+      "Essential only",
+      "Accept all",
+      "vpv_no_analytics",
+    ]) {
+      assert.ok(tag.includes(need), `missing: ${need}`);
+    }
+  });
+
+  it("agrees with the app pages on every storage key and the opt-out cookie", () => {
+    const tag = measureScriptTag(IDS);
+    const notice = fs.readFileSync(path.join(process.cwd(), "components/analytics/CookieNotice.tsx"), "utf8");
+    const client = fs.readFileSync(path.join(process.cwd(), "lib/analytics/client.ts"), "utf8");
+    const attribution = fs.readFileSync(path.join(process.cwd(), "lib/analytics/attribution.ts"), "utf8");
+    assert.ok(notice.includes('"vpv.cookie.notice.v1"') && tag.includes("vpv.cookie.notice.v1"));
+    assert.ok(client.includes('"vpv.attr.v1"') && tag.includes("vpv.attr.v1"));
+    assert.ok(client.includes('"vpv.sid.v1"') && tag.includes("vpv.sid.v1"));
+    assert.ok(attribution.includes('"vpv_no_analytics"') && tag.includes("vpv_no_analytics"));
+  });
+
+  it("writes no id into the page when none is configured", () => {
+    const tag = measureScriptTag({ ga: "", clarity: "" });
+    assert.ok(tag.includes('{"ga":"","cl":""}'));
+  });
+
+  it("cannot be turned into a script-injection hole by a bad id", () => {
+    const tag = measureScriptTag({ ga: "</script><script>alert(1)</script>", clarity: "" });
+    assert.equal(tag.split("</script>").length, 2, "a stray id closed the tag");
+  });
+});

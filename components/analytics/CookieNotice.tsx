@@ -2,7 +2,7 @@
  * components/analytics/CookieNotice.tsx — the cookie notice.
  *
  * India's DPDP Act 2023 expects a visitor to be told what is collected and
- * given a real way to refuse. "Decline" here is not decoration: it sets a
+ * given a real way to refuse. "Essential only" is not decoration: it sets a
  * cookie that stops Google Analytics and Clarity loading on every later
  * page, and makes /api/track discard this browser's events.
  *
@@ -58,7 +58,7 @@ export default function CookieNotice() {
 
   function close(optOut: boolean) {
     try {
-      localStorage.setItem(SEEN_KEY, optOut ? "declined" : "accepted");
+      localStorage.setItem(SEEN_KEY, optOut ? "essential" : "accepted");
     } catch {
       /* fine */
     }
@@ -97,14 +97,14 @@ export default function CookieNotice() {
             onClick={() => close(true)}
             className="rounded-full border border-slate-300 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
           >
-            Decline
+            Essential only
           </button>
           <button
             type="button"
             onClick={() => close(false)}
             className="rounded-full bg-vpv-grad px-5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            Accept
+            Accept all
           </button>
         </div>
       </div>
