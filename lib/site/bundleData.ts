@@ -218,9 +218,18 @@ export function bundleTextPatches(): [string, string][] {
     ['Nr=["Kesaria","Nandan","ViR","Daffodil Engravers","AgroMach","Saa Vishnu Group","GRKC","Uttam","JFL","Param"]',
       'Nr=["Kesaria Rubber Industries","Nandan GSE","ViR","Ecoste","Saa Vishnu Group","GRKC","Miicron","JFL"]'],
     ['width:"871",height:"176"', 'width:"1400",height:"291"'],
+    // CASE STUDIES: the nudge moves OUT of the page footer (it used to sit
+    // above the final CTA) and INTO the testimonial grid, as a blue cell
+    // beside the story videos. First pair strips the old footer nudge from
+    // an already-patched bundle; second pair appends the grid cell. Both are
+    // no-ops on a pristine bundle that never had the footer nudge.
     [
-      '(0,Dt.jsxs)(At,{to:"/assessment",className:"btn-primary mt-10","data-testid":"case-studies-cta",children:["Find the Right VPV for Your Factory ",(0,Dt.jsx)(cr,{className:"h-4 w-4"})]})',
-      '(0,Dt.jsx)("div",{className:"mt-10 rounded-3xl p-8 text-center sm:p-10",style:{background:"linear-gradient(120deg,#0B3D91,#1468D8 55%,#19B8F2)"},"data-testid":"case-studies-nudge",children:(0,Dt.jsx)("p",{className:"mx-auto max-w-3xl text-2xl font-extrabold leading-snug tracking-tight text-white sm:text-3xl",children:"Don’t wait for your competitors to get ahead. Start your case study today."})}),(0,Dt.jsxs)(At,{to:"/assessment",className:"btn-primary mt-8","data-testid":"case-studies-cta",children:["Find the Right VPV for Your Factory ",(0,Dt.jsx)(cr,{className:"h-4 w-4"})]})',
+      '(0,Dt.jsx)("div",{className:"mt-10 rounded-3xl p-8 text-center sm:p-10",style:{background:"linear-gradient(120deg,#0B3D91,#1468D8 55%,#19B8F2)"},"data-testid":"case-studies-nudge",children:(0,Dt.jsx)("p",{className:"mx-auto max-w-3xl text-2xl font-extrabold leading-snug tracking-tight text-white sm:text-3xl",children:"Don’t wait for your competitors to get ahead. Start your case study today."})}),',
+      "",
+    ],
+    [
+      '(0,Dt.jsx)("div",{className:"grid gap-4 sm:grid-cols-2 lg:grid-cols-3","data-testid":"testimonial-grid",children:wr.filter(e=>!e.featured&&(n||!e.caseStudiesOnly)).map(e=>(0,Dt.jsx)(ea,{video:e,onPlay:t},e.id))})',
+      '(0,Dt.jsxs)("div",{className:"grid gap-4 sm:grid-cols-2 lg:grid-cols-3","data-testid":"testimonial-grid",children:[wr.filter(e=>!e.featured&&(n||!e.caseStudiesOnly)).map(e=>(0,Dt.jsx)(ea,{video:e,onPlay:t},e.id)),n&&(0,Dt.jsx)("div",{className:"lg:col-span-2 flex items-center justify-center rounded-2xl p-6 text-center","data-testid":"case-studies-nudge",style:{background:"linear-gradient(120deg,#0B3D91,#1468D8 55%,#19B8F2)"},children:(0,Dt.jsx)("p",{className:"text-xl font-extrabold leading-snug tracking-tight text-white sm:text-2xl",children:"Don’t wait for your competitors to get ahead. Start your case study today."})},"nudge")]})',
     ],
     // "Why VPV" in the site menu.
     ["Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/how-it-works\"", "Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/why-vpv\",label:\"Why VPV\",id:\"why-vpv\"},{to:\"/how-it-works\""],
