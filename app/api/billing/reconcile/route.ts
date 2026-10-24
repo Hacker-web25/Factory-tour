@@ -26,13 +26,17 @@ import {
   settlePayment,
   applyRefundEvent,
 } from "@/lib/server/payments";
-import { listRazorpayPayments, listRazorpayRefunds } from "@/lib/server/razorpay";
+import { fetchRazorpayRefund, listRazorpayPayments, listRazorpayRefunds } from "@/lib/server/razorpay";
 import { alertFounders, sendSupportReminder, type ReminderKind } from "@/lib/server/billingEmails";
 import { json, fail, safeEqualSecret } from "@/lib/server/billingGuard";
+import { fromPaise } from "@/lib/pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+/** A refund pending longer than this is no longer "just slow". */
+const STUCK_REFUND_DAYS = 10;
 
 const BATCH = 25;
 const SOFT_DEADLINE_MS = 240_000;
@@ -192,6 +196,48 @@ export async function GET(req: Request) {
     }
   } catch (e) {
     report.errors.push(`refund_sweep: ${(e as Error).message}`);
+  }
+
+  /* 2d — a refund that is still "pending" ---------------------------- */
+  // A refund Razorpay accepted but whose "processed" message never reached us, or one
+  // the bank is slow with. Ask Razorpay what it says now; if it is still pending after
+  // STUCK_REFUND_DAYS, tell a person, because the customer is waiting for their money.
+  try {
+    const { data: open } = await sb
+      .from("billing_refunds")
+      .select("razorpay_refund_id, razorpay_payment_id, order_id, amount_paise, created_at")
+      .eq("status", "created")
+      .eq("kind", "refund")
+      .lt("created_at", new Date(Date.now() - 6 * 3600_000).toISOString())
+      .order("created_at", { ascending: true })
+      .limit(25);
+    for (const f of open ?? []) {
+      if (!timeLeft()) break;
+      const live = await fetchRazorpayRefund(f.razorpay_refund_id as string);
+      if (!live) continue;
+      if (live.status === "processed" || live.status === "failed") {
+        await applyRefundEvent({
+          refundId: f.razorpay_refund_id as string,
+          paymentId: f.razorpay_payment_id as string,
+          amountPaise: Number(f.amount_paise),
+          status: live.status === "processed" ? "processed" : "failed",
+          kind: "refund",
+        });
+        report.sweptRefunds += 1;
+        continue;
+      }
+      const ageDays = (Date.now() - new Date(f.created_at as string).getTime()) / 86_400_000;
+      if (ageDays >= STUCK_REFUND_DAYS) {
+        await alertFounders(sb, {
+          kind: "refund_stuck",
+          severity: "critical",
+          orderId: (f.order_id as string) ?? null,
+          detail: `Refund ${f.razorpay_refund_id} of ₹${fromPaise(Number(f.amount_paise))} has been pending at Razorpay for ${Math.floor(ageDays)} days. Open it in the Razorpay dashboard (Transactions → Refunds); if it is still pending, raise it with Razorpay support quoting the refund id, and tell the customer.`,
+        });
+      }
+    }
+  } catch (e) {
+    report.errors.push(`refund_pending: ${(e as Error).message}`);
   }
 
   /* 3 — built, but a customer e-mail is missing ------------------- */

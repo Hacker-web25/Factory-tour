@@ -31,7 +31,7 @@ import {
   type RzpPayment,
 } from "@/lib/server/razorpay";
 import { fulfilOrder, sendPendingEmails, type FulfilResult } from "@/lib/server/fulfilment";
-import { alertFounders, sendRefundEmail } from "@/lib/server/billingEmails";
+import { alertFounders, loadCreditNoteDoc, sendRefundEmail } from "@/lib/server/billingEmails";
 import { fromPaise } from "@/lib/pricing";
 
 export type PaymentSource = "webhook" | "checkout_callback" | "reconcile" | "status_poll";
@@ -338,6 +338,7 @@ export async function applyRefundEvent(args: {
         creditNoteNo: r.credit_note_no ?? null,
         fullyRefunded: Boolean(r.fully_refunded),
         purpose: r.purpose ?? "",
+        doc: r.credit_note_no ? await loadCreditNoteDoc(sb, r.credit_note_no) : null,
       });
       if (ok && r.refund_row_id) {
         await sb
@@ -400,6 +401,7 @@ export async function sendPendingCreditNotes(limit = 25): Promise<number> {
           creditNoteNo: n.credit_note_no as string,
           fullyRefunded: o.status === "refunded",
           purpose: (o.purpose as string) ?? "",
+          doc: await loadCreditNoteDoc(sb, n.credit_note_no as string),
         });
       }
     } catch {

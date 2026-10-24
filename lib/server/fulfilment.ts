@@ -37,6 +37,7 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import {
   alertFounders,
   sendConfirmationEmail,
+  loadInvoiceDoc,
   sendInvoiceEmail,
   sendWelcomeEmail,
 } from "@/lib/server/billingEmails";
@@ -504,6 +505,7 @@ export async function sendPendingEmails(orderId: string): Promise<{ welcome: boo
           totalInr: total,
           taxableInr: taxable,
           gstInr: Math.round((total - taxable) * 100) / 100,
+          doc: await loadInvoiceDoc(sb, order.id),
         });
       }
     } catch {

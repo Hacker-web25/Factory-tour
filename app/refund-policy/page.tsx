@@ -295,7 +295,7 @@ const sections: LegalSection[] = [
           Razorpay — to the card, UPI ID, bank account or wallet used. After
           we approve a refund it normally appears in {POLICY.refundProcessing};
           some banks take longer to show it on a statement. We e-mail you when
-          the refund is initiated, with a reference you can give your bank.
+          the refund has been sent to your bank, with a credit note and a reference you can give your bank.
         </P>
         <P>
           Pro and Ultra orders paid by bank transfer are refunded to the

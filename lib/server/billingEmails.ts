@@ -13,8 +13,15 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailShell, esc, sendEmail } from "@/lib/server/email";
-import { COMPANY } from "@/lib/company";
-import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, inr, inr2 } from "@/lib/pricing";
+import { COMPANY, POLICY } from "@/lib/company";
+import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, fromPaise, inr, inr2 } from "@/lib/pricing";
+import {
+  creditNoteBodyHtml,
+  invoiceBodyHtml,
+  type CreditNoteDoc,
+  type InvoiceDoc,
+  type Party,
+} from "@/lib/billingDocs";
 
 const P = 'style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;"';
 const SMALL = 'style="margin:18px 0 0;font-size:13px;line-height:1.6;color:#64748b;"';
@@ -93,7 +100,17 @@ export async function sendInvoiceEmail(args: {
   totalInr: number;
   taxableInr: number;
   gstInr: number;
+  /** The full tax invoice. When present it is what the customer sees. */
+  doc?: InvoiceDoc | null;
 }): Promise<boolean> {
+  if (args.doc) {
+    return sendEmail({
+      to: args.to,
+      bcc: COMPANY.emails.support,
+      subject: `Tax invoice ${args.invoiceNo} from VPV`,
+      html: emailShell("Your VPV tax invoice", invoiceBodyHtml(args.doc, args.name, COMPANY.emails.support)),
+    });
+  }
   return sendEmail({
     to: args.to,
     bcc: COMPANY.emails.support,
@@ -192,6 +209,8 @@ export async function sendRefundEmail(args: {
   creditNoteNo: string | null;
   fullyRefunded: boolean;
   purpose: string;
+  /** The full credit note. When present it is what the customer sees. */
+  doc?: CreditNoteDoc | null;
 }): Promise<boolean> {
   const closes =
     args.fullyRefunded && args.purpose === "basic_licence"
@@ -201,6 +220,23 @@ export async function sendRefundEmail(args: {
         : args.fullyRefunded && args.purpose === "support_renewal"
           ? " The extra year of support has been taken off your account."
           : "";
+  if (args.doc) {
+    return sendEmail({
+      to: args.to,
+      bcc: COMPANY.emails.support,
+      subject: `Your VPV refund of ${inr2(args.doc.total)} has been sent`,
+      html: emailShell(
+        "Refund sent",
+        creditNoteBodyHtml(args.doc, {
+          greetingName: args.name,
+          fullyRefunded: args.fullyRefunded,
+          closes,
+          processing: POLICY.refundProcessing,
+          supportEmail: COMPANY.emails.support,
+        })
+      ),
+    });
+  }
   return sendEmail({
     to: args.to,
     bcc: COMPANY.emails.support,
@@ -259,5 +295,103 @@ export async function alertFounders(
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn("[billing] alert failed:", (e as Error)?.message);
+  }
+}
+
+/* ───────────────────── frozen documents, read back ─────────────────── */
+
+function seller(): Party {
+  return { name: COMPANY.legalName, addressLines: COMPANY.addressLines, gstin: COMPANY.gstin, state: COMPANY.state };
+}
+
+function paymentLabel(p: { method?: string | null; bank?: string | null; wallet?: string | null; card_last4?: string | null } | null): string | null {
+  if (!p?.method) return null;
+  if (p.method === "upi") return "UPI";
+  if (p.method === "card") return p.card_last4 ? `Card ending ${p.card_last4}` : "Card";
+  if (p.method === "netbanking") return p.bank ? `Netbanking (${p.bank})` : "Netbanking";
+  if (p.method === "wallet") return p.wallet ? `Wallet (${p.wallet})` : "Wallet";
+  return p.method;
+}
+
+/** The invoice as it was frozen at sale, plus how it was paid. Null if there is none. */
+export async function loadInvoiceDoc(sb: SupabaseClient, orderId: string): Promise<InvoiceDoc | null> {
+  try {
+    const { data: inv } = await sb.from("billing_invoices").select("*").eq("order_id", orderId).maybeSingle();
+    if (!inv) return null;
+    const { data: pay } = await sb
+      .from("billing_payments")
+      .select("razorpay_payment_id, method, bank, wallet, card_last4, status")
+      .eq("order_id", orderId)
+      .in("status", ["captured", "refunded", "partially_refunded"])
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return {
+      invoiceNo: inv.invoice_no as string,
+      issuedAt: inv.issued_at as string,
+      seller: seller(),
+      billTo: {
+        name: inv.bill_to_name as string,
+        email: inv.bill_to_email as string,
+        address: (inv.bill_to_address as string) ?? null,
+        gstin: (inv.bill_to_gstin as string) ?? null,
+        state: (inv.bill_to_state as string) ?? null,
+      },
+      placeOfSupply: (inv.place_of_supply as string) ?? null,
+      description: inv.description as string,
+      sac: (inv.sac_code as string) ?? "998434",
+      gstRatePct: Math.round(Number(inv.gst_rate) * 10000) / 100,
+      taxable: fromPaise(Number(inv.taxable_paise)),
+      cgst: fromPaise(Number(inv.cgst_paise)),
+      sgst: fromPaise(Number(inv.sgst_paise)),
+      igst: fromPaise(Number(inv.igst_paise)),
+      total: fromPaise(Number(inv.total_paise)),
+      paymentId: (pay?.razorpay_payment_id as string) ?? null,
+      paymentLabel: paymentLabel(pay as never),
+    };
+  } catch {
+    return null; // the plain invoice e-mail is the fallback
+  }
+}
+
+/** One credit note with the invoice it corrects. Null if it cannot be read. */
+export async function loadCreditNoteDoc(sb: SupabaseClient, creditNoteNo: string): Promise<CreditNoteDoc | null> {
+  try {
+    const { data: cn } = await sb.from("billing_credit_notes").select("*").eq("credit_note_no", creditNoteNo).maybeSingle();
+    if (!cn) return null;
+    const { data: inv } = cn.invoice_id
+      ? await sb.from("billing_invoices").select("*").eq("id", cn.invoice_id as string).maybeSingle()
+      : { data: null };
+    const { data: rf } = await sb
+      .from("billing_refunds")
+      .select("razorpay_refund_id, kind")
+      .eq("id", cn.refund_id as string)
+      .maybeSingle();
+    return {
+      creditNoteNo: cn.credit_note_no as string,
+      issuedAt: cn.issued_at as string,
+      invoiceNo: (inv?.invoice_no as string) ?? null,
+      invoiceDate: (inv?.issued_at as string) ?? null,
+      seller: seller(),
+      billTo: {
+        name: (inv?.bill_to_name as string) ?? "",
+        email: (inv?.bill_to_email as string) ?? "",
+        address: (inv?.bill_to_address as string) ?? null,
+        gstin: (inv?.bill_to_gstin as string) ?? null,
+        state: (inv?.bill_to_state as string) ?? null,
+      },
+      placeOfSupply: (inv?.place_of_supply as string) ?? null,
+      description: (inv?.description as string) ?? "VPV",
+      sac: (inv?.sac_code as string) ?? "998434",
+      taxable: fromPaise(Number(cn.taxable_paise)),
+      cgst: fromPaise(Number(cn.cgst_paise)),
+      sgst: fromPaise(Number(cn.sgst_paise)),
+      igst: fromPaise(Number(cn.igst_paise)),
+      total: fromPaise(Number(cn.total_paise)),
+      // A chargeback has no Razorpay refund id the customer could quote.
+      refundId: rf && rf.kind === "refund" ? (rf.razorpay_refund_id as string) : null,
+    };
+  } catch {
+    return null;
   }
 }

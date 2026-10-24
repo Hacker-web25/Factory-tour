@@ -272,6 +272,18 @@ export function listRazorpayRefunds(fromUnix: number, toUnix: number, maxItems =
   return listWindow<RzpRefund>("refunds", fromUnix, toUnix, maxItems);
 }
 
+/** Fetch one refund by id: what Razorpay itself says its status is right now. */
+export async function fetchRazorpayRefund(refundId: string): Promise<RzpRefund | null> {
+  if (!/^rfnd_[A-Za-z0-9]+$/.test(refundId)) return null;
+  try {
+    const res = await rzp(`/refunds/${refundId}`, { timeoutMs: 10_000 });
+    if (!res.ok) return null;
+    return (await res.json()) as RzpRefund;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch one payment — the server-side proof behind the browser callback. */
 export async function fetchRazorpayPayment(paymentId: string): Promise<RzpPayment | null> {
   if (!/^pay_[A-Za-z0-9]+$/.test(paymentId)) return null;

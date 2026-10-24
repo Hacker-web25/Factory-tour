@@ -211,6 +211,11 @@ export class FakeGateway {
         const pay = this.payments.get(m[1]);
         return pay ? json(pay) : json({ error: { description: "not found" } }, 404);
       }
+      m = p.match(/^\/v1\/refunds\/(rfnd_[A-Za-z0-9]+)$/);
+      if (m && method === "GET") {
+        const r = this.refunds.get(m[1]);
+        return r ? json(r) : json({ error: { description: "not found" } }, 404);
+      }
       m = p.match(/^\/v1\/payments\/(pay_[A-Za-z0-9]+)\/refund$/);
       if (m && method === "POST") {
         const pay = this.payments.get(m[1]);
