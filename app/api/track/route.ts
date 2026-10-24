@@ -54,6 +54,8 @@ const EVENT_NAMES = new Set([
   "coupon_applied",
   "pay_click",
   "tour_opened",
+  // Seconds the page was in front of the visitor, and how far down they read.
+  "page_time",
 ]);
 
 const UUID_RE =

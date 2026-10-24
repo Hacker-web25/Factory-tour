@@ -55,6 +55,19 @@ create table if not exists public.campaign_codes (
 comment on table public.campaign_codes is
   'Tracked links. /q/<code> logs a scan and redirects to destination with utm_* attached.';
 
+-- ─────────────────────── one code per PERSON (added Oct 2026) ───────────────────
+-- A personal QR (one per buyer, made in bulk from a pasted list) is an
+-- ordinary campaign_codes row that also says who it was made for. Only the
+-- owner can read this table. The code itself is random and carries no name,
+-- so nothing identifying is ever sent to Google Analytics or Clarity.
+-- `campaign` already holds the batch name (it becomes utm_campaign).
+alter table public.campaign_codes
+  add column if not exists person_name    text,
+  add column if not exists person_company text;
+
+create index if not exists campaign_codes_person_idx
+  on public.campaign_codes (campaign) where person_name is not null;
+
 -- ─────────────────────────── campaign_scans ────────────────────────────────
 -- One row per scan. Written server-side inside the redirect, so it counts
 -- even when the visitor blocks every script on the page.

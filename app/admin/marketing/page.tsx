@@ -146,6 +146,13 @@ export default function AdminMarketingPage() {
           they count even when someone blocks Google Analytics.
         </p>
 
+        <Link
+          href="/admin/marketing/buyers"
+          className="mt-5 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-4 py-2 text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+        >
+          Buyers: a personal QR for each person, and what each one did →
+        </Link>
+
         {/* ── Make a code ─────────────────────────────────────────── */}
         <form
           onSubmit={createCode}

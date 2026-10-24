@@ -172,13 +172,16 @@ function toGoogle(name: string, meta?: Record<string, unknown>): void {
 export function track(
   name: string,
   meta?: Record<string, unknown>,
-  opts: { beacon?: boolean } = {}
+  /** `path` is for an event about a page the visitor has already left: the
+   *  time spent on it is sent after the route has changed, when
+   *  window.location already shows the next page. */
+  opts: { beacon?: boolean; path?: string } = {}
 ): void {
   if (typeof window === "undefined" || hasOptedOut()) return;
   const attr = storedAttribution();
   const payload = JSON.stringify({
     name,
-    path: window.location.pathname + window.location.search,
+    path: opts.path ?? window.location.pathname + window.location.search,
     referrer: document.referrer || null,
     sessionId: sessionId(),
     utmSource: attr?.source ?? null,
@@ -204,6 +207,62 @@ export function track(
   } catch {
     /* never breaks the page */
   }
+}
+
+/** Round to the nearest 10, so "how far they scrolled" groups cleanly. */
+export function scrollBucket(pct: number): number {
+  if (!Number.isFinite(pct)) return 0;
+  return Math.max(0, Math.min(100, Math.round(pct / 10) * 10));
+}
+
+/**
+ * How long a visitor actually spent on one page, and how far down it they
+ * read. Counts only time the tab was in front of them (a tab left open
+ * overnight is not engagement), and is capped at 30 minutes per page.
+ *
+ * Returns a function that sends what was measured and starts over; call it
+ * when the visitor leaves the page, and it is also wired to the tab being
+ * hidden or closed, which is the moment a phone user actually leaves.
+ */
+export function watchPageTime(path: string): () => void {
+  if (typeof window === "undefined") return () => {};
+  let since: number | null = document.visibilityState === "visible" ? Date.now() : null;
+  let active = 0;
+  let deepest = 0;
+
+  const onScroll = () => {
+    const el = document.documentElement;
+    const room = el.scrollHeight - window.innerHeight;
+    const pct = room > 0 ? (window.scrollY / room) * 100 : 100;
+    if (pct > deepest) deepest = Math.min(100, pct);
+  };
+  const flush = () => {
+    if (since !== null) {
+      active += Date.now() - since;
+      since = null;
+    }
+    const seconds = Math.min(1800, Math.round(active / 1000));
+    if (seconds >= 1) {
+      track("page_time", { seconds, scroll: scrollBucket(deepest) }, { beacon: true, path });
+    }
+    active = 0;
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") flush();
+    else since = Date.now();
+  };
+
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener("pagehide", flush);
+
+  return () => {
+    flush();
+    window.removeEventListener("scroll", onScroll);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("pagehide", flush);
+  };
 }
 
 /** Convenience for the funnel: one call per step reached. */

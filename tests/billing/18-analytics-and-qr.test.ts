@@ -347,9 +347,13 @@ describe("the marketing pages measure visitors too", () => {
       "G-ABCDEF1234",
       "abcd123456",
       "/api/track",
-      "Essential only",
+      "Decline",
       "Accept all",
       "vpv_no_analytics",
+      // time on page, and tagging recordings with the buyer's code
+      "page_time",
+      "visibilitychange",
+      "identify",
     ]) {
       assert.ok(tag.includes(need), `missing: ${need}`);
     }
@@ -374,5 +378,21 @@ describe("the marketing pages measure visitors too", () => {
   it("cannot be turned into a script-injection hole by a bad id", () => {
     const tag = measureScriptTag({ ga: "</script><script>alert(1)</script>", clarity: "" });
     assert.equal(tag.split("</script>").length, 2, "a stray id closed the tag");
+  });
+});
+
+describe("the analytics tags cannot shadow their own globals", () => {
+  // A <script id="clarity"> makes window.clarity the script ELEMENT. Clarity's
+  // snippet then sees it as already defined, never installs its function, and
+  // every call to clarity(...) fails: recordings never start.
+  it("gives no script element an id that is also a global the tags use", () => {
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const src = fs.readFileSync(path.join(process.cwd(), "components/analytics/Analytics.tsx"), "utf8");
+    const ids = [...src.matchAll(/<Script\s+id="([^"]+)"/g)].map((m) => m[1]!);
+    assert.ok(ids.length >= 3, "expected the GA and Clarity script elements");
+    for (const id of ids) {
+      assert.equal(["clarity", "gtag", "dataLayer", "ga", "google_tag_manager"].includes(id), false, `id="${id}" shadows a global`);
+    }
   });
 });

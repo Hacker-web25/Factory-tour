@@ -15,6 +15,7 @@ import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, DataTable, L, Mail, P, UL } from "@/components/legal/prose";
 import { COMPANY } from "@/lib/company";
+import CookieChoice from "@/components/analytics/CookieChoice";
 
 export const metadata: Metadata = {
   title: "Cookie Policy",
@@ -43,12 +44,11 @@ const sections: LegalSection[] = [
           advertisement for ourselves was worth the money.
         </P>
         <P>
-          You can refuse the measurement kind. Choose <B>Essential only</B> on the
-          notice at the bottom of the page, and Google Analytics and Microsoft
+          You can refuse the measurement kind. Choose <B>Decline</B> on the
+          notice at the bottom of the page (or below, in Your choices), and Google Analytics and Microsoft
           Clarity are not loaded at all on any page you visit afterwards, and
           our own measurement stops recording your visit. Nothing about the
-          product stops working, and you can change your mind by clearing this
-          site&rsquo;s data in your browser.
+          product stops working, and you can change your mind at any time in Your choices below.
         </P>
       </>
     ),
@@ -137,7 +137,7 @@ const sections: LegalSection[] = [
             [
               <code key="m2" className="text-[12.5px]">vpv_no_analytics</code>,
               "Cookie — your choice",
-              "Set when you choose Essential only. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
+              "Set when you choose Decline. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
               "One year, or until you clear this site's data.",
             ],
             [
@@ -211,12 +211,13 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          <B>Turning measurement off.</B> Choose <B>Essential only</B> on the notice at
-          the bottom of the page. From then on Google Analytics and Microsoft
+          <B>Turning measurement on or off.</B> Use the buttons below, or the notice at
+          the bottom of the page. After you choose Decline, Google Analytics and Microsoft
           Clarity are never loaded, and our own measurement discards anything
           from this browser. The necessary storage in the table above stays,
           because signing in does not work without it.
         </P>
+        <CookieChoice />
         <P>
           You can clear VPV’s stored data at any time from your browser
           settings (“Clear site data”). Signing out removes the session;

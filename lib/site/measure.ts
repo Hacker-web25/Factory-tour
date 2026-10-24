@@ -58,11 +58,40 @@ if(raw){var o=JSON.parse(raw);if(o&&o.id&&now-o.at<IDLE){s.setItem(SID,JSON.stri
 var id=uuid();s.setItem(SID,JSON.stringify({id:id,at:now}));return id
 }catch(e){return null}
 }
-function send(name){
+function send(name,meta,path){
 if(out())return;
 var a=attr()||{};
+var body=JSON.stringify({name:name,path:path||location.pathname+location.search,referrer:document.referrer||null,sessionId:sid(),utmSource:a.source||null,utmMedium:a.medium||null,utmCampaign:a.campaign||null,code:a.code||null,meta:meta||null});
 try{
-fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,body:JSON.stringify({name:name,path:location.pathname+location.search,referrer:document.referrer||null,sessionId:sid(),utmSource:a.source||null,utmMedium:a.medium||null,utmCampaign:a.campaign||null,code:a.code||null,meta:null})}).catch(function(){})
+if(meta&&navigator.sendBeacon&&navigator.sendBeacon("/api/track",new Blob([body],{type:"application/json"})))return
+}catch(e){}
+try{
+fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},keepalive:true,body:body}).catch(function(){})
+}catch(e){}
+}
+var T={path:null,since:null,active:0,deep:0};
+function pct(){var d=document.documentElement,room=d.scrollHeight-window.innerHeight;if(room<=0)return 100;var p=window.scrollY/room*100;return p>100?100:p<0?0:p}
+function onScroll(){var p=pct();if(p>T.deep)T.deep=p}
+function begin(p){T.path=p;T.active=0;T.deep=0;T.since=document.visibilityState==="visible"?Date.now():null;onScroll()}
+function flush(){
+if(T.since){T.active+=Date.now()-T.since;T.since=null}
+var sec=Math.min(1800,Math.round(T.active/1000));
+T.active=0;
+if(T.path&&sec>=1&&!out()){
+var m={seconds:sec,scroll:Math.max(0,Math.min(100,Math.round(T.deep/10)*10))};
+send("page_time",m,T.path);
+try{if(gaOk&&typeof window.gtag==="function")window.gtag("event","page_time",m)}catch(e){}
+}
+}
+var tagged=null;
+function tag(){
+var a=attr();
+if(!a||!a.code||a.code===tagged||out())return;
+try{
+if(typeof window.clarity!=="function")return;
+window.clarity("identify",a.code);window.clarity("set","qr_code",a.code);
+if(gaOk&&typeof window.gtag==="function")window.gtag("set","user_properties",{qr_code:a.code});
+tagged=a.code
 }catch(e){}
 }
 var loaded=false;
@@ -86,9 +115,11 @@ var last=null;
 function view(){
 var p=location.pathname+location.search;
 if(p===last)return;
+flush();
 last=p;
 if(out())return;
 attr();
+begin(p);
 send("page_view");
 try{if(gaOk&&typeof window.gtag==="function")window.gtag("event","page_view",{page_path:p,page_location:location.href,page_title:document.title})}catch(e){}
 }
@@ -100,7 +131,7 @@ try{if(s&&s.getItem(SEEN))return}catch(e){}
 if(document.getElementById("vpv-cookie-bar")||!document.body)return;
 var b=document.createElement("div");
 b.id="vpv-cookie-bar";b.setAttribute("role","region");b.setAttribute("aria-label","Cookie notice");
-b.innerHTML='<style>#vpv-cookie-bar{position:fixed;left:0;right:0;bottom:0;z-index:2147482000;background:rgba(255,255,255,.97);border-top:1px solid #e2e8f0;box-shadow:0 -6px 24px rgba(15,23,42,.08);padding:12px 16px;font-family:inherit}#vpv-cookie-bar .in{max-width:64rem;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}#vpv-cookie-bar p{margin:0;flex:1 1 320px;font-size:13.5px;line-height:1.5;color:#334155}#vpv-cookie-bar a{color:${BRAND};font-weight:600;text-decoration:underline;text-underline-offset:2px}#vpv-cookie-bar .btns{display:flex;gap:8px;flex:none}#vpv-cookie-bar button{font:inherit;font-size:13px;font-weight:600;border-radius:9999px;padding:9px 18px;cursor:pointer}#vpv-cookie-bar .ess{background:#fff;border:1px solid #cbd5e1;color:#334155}#vpv-cookie-bar .ess:hover{background:#f8fafc}#vpv-cookie-bar .all{background:${BRAND};border:1px solid ${BRAND};color:#fff;padding:9px 22px}#vpv-cookie-bar .all:hover{opacity:.9}@media(max-width:520px){#vpv-cookie-bar .btns{width:100%}#vpv-cookie-bar button{flex:1}}</style><div class="in"><p>We use cookies to see how people find and use this site, so we can make it better. Read our <a href="/cookies">Cookie Policy</a>.</p><div class="btns"><button type="button" class="ess">Essential only</button><button type="button" class="all">Accept all</button></div></div>';
+b.innerHTML='<style>#vpv-cookie-bar{position:fixed;left:0;right:0;bottom:0;z-index:2147482000;background:rgba(255,255,255,.97);border-top:1px solid #e2e8f0;box-shadow:0 -6px 24px rgba(15,23,42,.08);padding:12px 16px;font-family:inherit}#vpv-cookie-bar .in{max-width:64rem;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}#vpv-cookie-bar p{margin:0;flex:1 1 320px;font-size:13.5px;line-height:1.5;color:#334155}#vpv-cookie-bar a{color:${BRAND};font-weight:600;text-decoration:underline;text-underline-offset:2px}#vpv-cookie-bar .btns{display:flex;gap:8px;flex:none}#vpv-cookie-bar button{font:inherit;font-size:13px;font-weight:600;border-radius:9999px;padding:9px 18px;cursor:pointer}#vpv-cookie-bar .ess{background:#fff;border:1px solid #cbd5e1;color:#334155}#vpv-cookie-bar .ess:hover{background:#f8fafc}#vpv-cookie-bar .all{background:${BRAND};border:1px solid ${BRAND};color:#fff;padding:9px 22px}#vpv-cookie-bar .all:hover{opacity:.9}@media(max-width:520px){#vpv-cookie-bar .btns{width:100%}#vpv-cookie-bar button{flex:1}}</style><div class="in"><p>We use cookies to see how people find and use this site, so we can make it better. Read our <a href="/cookies">Cookie Policy</a>.</p><div class="btns"><button type="button" class="ess">Decline</button><button type="button" class="all">Accept all</button></div></div>';
 function close(essential){
 try{var l=ls();if(l)l.setItem(SEEN,essential?"essential":"accepted")}catch(e){}
 if(b.parentNode)b.parentNode.removeChild(b);
@@ -113,6 +144,10 @@ document.body.appendChild(b);
 }
 load();
 view();
+tag();setTimeout(tag,2000);setTimeout(tag,6000);
+window.addEventListener("scroll",onScroll,{passive:true});
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")flush();else if(T.path&&T.since===null)T.since=Date.now()});
+window.addEventListener("pagehide",flush);
 ["pushState","replaceState"].forEach(function(k){var f=history[k];history[k]=function(){var r=f.apply(this,arguments);route();return r}});
 window.addEventListener("popstate",route);
 notice();

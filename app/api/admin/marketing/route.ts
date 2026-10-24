@@ -15,6 +15,7 @@
 import { authenticateRequest } from "@/lib/server/requestAuth";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { clean, fail, json, readJson } from "@/lib/server/billingGuard";
+import { isMissingColumn } from "@/lib/server/ownerGuard";
 import { isSafePath, normaliseCode } from "@/lib/analytics/attribution";
 import {
   campaignReport,
@@ -49,8 +50,23 @@ export async function GET(req: Request) {
   if ("error" in g) return g.error;
   const { sb } = g;
 
+  // Codes made for one person each live on the Buyers page; here they would
+  // bury the handful of campaign codes under hundreds of rows. Before the
+  // personal-codes migration is run the column does not exist, so ask without
+  // the filter then.
+  const CODE_COLS = "code, label, destination, source, medium, campaign, active, created_at";
+  const campaignCodes = async () => {
+    const r = await sb
+      .from("campaign_codes")
+      .select(CODE_COLS)
+      .is("person_name", null)
+      .order("created_at", { ascending: false });
+    if (!isMissingColumn(r.error)) return r;
+    return sb.from("campaign_codes").select(CODE_COLS).order("created_at", { ascending: false });
+  };
+
   const [codes, scans, leads, orders, visitors] = await Promise.all([
-    sb.from("campaign_codes").select("code, label, destination, source, medium, campaign, active, created_at").order("created_at", { ascending: false }),
+    campaignCodes(),
     sb.from("campaign_scans").select("code, visitor_id").limit(MAX_ROWS),
     sb.from("funnel_leads").select("campaign_code, utm_source, utm_medium, stage, order_id").limit(MAX_ROWS),
     sb.from("billing_orders").select("id, amount_paise, status").eq("status", "paid").limit(MAX_ROWS),
