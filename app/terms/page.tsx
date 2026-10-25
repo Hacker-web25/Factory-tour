@@ -19,6 +19,7 @@ import {
   LAUNCH_OFFER,
   MINUTES_PER_EXTRA_AREA,
   SALES_TEAM,
+  MIN_PAYABLE_INR,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   VIDEO_SHOT_NOTE,
@@ -217,8 +218,12 @@ const sections: LegalSection[] = [
           salespeople. It gives your organisation&rsquo;s administrator (usually
           the MD) the sales dashboard: each presentation&rsquo;s start time and
           location, the meetings held with each client, and each client&rsquo;s
-          stage (new, moving ahead, won or lost). Logins are paid once, per
-          salesperson, at one flat price whatever the number. Location is
+          stage (new, moving ahead, won or lost). Logins are billed{" "}
+          <B>per salesperson, per year</B>, at one flat price whatever the
+          number. The first year is paid with your order; each later year is
+          renewed together with Support &amp; Maintenance, at the price per
+          login you bought at (subject to <L href="#price-changes">Price changes</L>).
+          To change the number of logins, write to us before your renewal. Location is
           recorded only with the salesperson&rsquo;s device permission; see{" "}
           <L href="#recording-ai">Recording, location and AI features</L>.
         </P>
@@ -299,16 +304,19 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Sales Team logins</B> are {inr(SALES_TEAM.regularInr)} per
-            salesperson, one time
+            salesperson per year
             {LAUNCH_OFFER.active
-              ? `, or ${inr(SALES_TEAM.offerInr)} under the special offer for our first ${LAUNCH_OFFER.limit} customers`
+              ? `, or ${inr(SALES_TEAM.offerInr)} per salesperson per year under the special offer for our first ${LAUNCH_OFFER.limit} customers`
               : ""}
-            .
+            . They renew each year with {SUPPORT_NAME.toLowerCase()}.
           </li>
           <li>
-            <B>Cab travel</B> for our crew is {inr(CAB_TRAVEL.amountInr)} and is
-            charged with your order. See{" "}
-            <L href="#travel">Travel and logistics</L>.
+            <B>Cab travel</B> for our crew is {inr(CAB_TRAVEL.amountInr)} per
+            shoot
+            {LAUNCH_OFFER.active
+              ? `, and is free for our first ${LAUNCH_OFFER.limit} customers`
+              : ", charged with your order"}
+            . See <L href="#travel">Travel and logistics</L>.
           </li>
           <li>
             <B>Basic</B> starts at {inr(priceForScenes(SCENE_MIN))} for{" "}
@@ -336,7 +344,8 @@ const sections: LegalSection[] = [
             breakdown before you pay. Our GSTIN ({COMPANY.gstin}) appears on
             every tax invoice, so a GST-registered customer can claim input
             tax credit. For example, {EXAMPLE.plan.name} for a factory in
-            Manesar is {inr2(EXAMPLE.taxableInr)} including travel, plus{" "}
+            Manesar is {inr2(EXAMPLE.taxableInr)}
+            {EXAMPLE.lines.some((l) => l.kind === "travel" && l.amountInr === 0) ? " with cab travel free" : " including travel"}, plus{" "}
             {inr2(EXAMPLE.gstInr)} GST = <B>{inr2(EXAMPLE.totalInr)}</B> at
             checkout. Every line of your own bill is shown before you pay. If
             tax law requires you to deduct tax at source, tell us before paying
@@ -377,7 +386,7 @@ const sections: LegalSection[] = [
       <>
         <P>
           {LAUNCH_OFFER.active
-            ? `While it runs, our first ${LAUNCH_OFFER.limit} customers get the VPV plans at ${LAUNCH_OFFER.percent}% off their regular price, and Sales Team logins at ${SALES_TEAM.percentOff}% off.`
+            ? `While it runs, our first ${LAUNCH_OFFER.limit} customers get the VPV plans at ${LAUNCH_OFFER.percent}% off their regular price, Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, cab travel for the shoot free, and the first year of ${SUPPORT_NAME.toLowerCase()} free.`
             : "The special offer has ended; the VPV plans are sold at their regular price."}
         </P>
         <UL>
@@ -394,16 +403,18 @@ const sections: LegalSection[] = [
             total before you pay, never after.
           </li>
           <li>
-            <B>What it covers.</B> The plan&rsquo;s Licence Fee, Sales Team
-            logins bought with it, and the first year of{" "}
-            {SUPPORT_NAME.toLowerCase()}, which is free. It does not apply to
-            extra areas, extra process videos, extra shoot time, travel or
-            support renewals from the second year.
+            <B>What it covers.</B> The plan&rsquo;s Licence Fee; Sales Team
+            logins bought with it, at the offer price per login in the first
+            year and at each renewal after it; cab travel for the shoot, which
+            is free; and the first year of {SUPPORT_NAME.toLowerCase()}, which
+            is free. It does not apply to extra areas, extra process videos,
+            extra shoot time, or support renewals from the second year.
           </li>
           <li>
             <B>Coupon codes.</B> A coupon code we give you takes the stated
             amount off your plan, extras, shoot time and Sales Team logins, not
-            off travel or support. One code per order. A code may be limited in
+            off travel or support. A coupon always leaves at least{" "}
+            {inr(MIN_PAYABLE_INR)} plus GST to pay. One code per order. A code may be limited in
             how many times it can be used and until when, has no cash value,
             and can be withdrawn before it is used.
           </li>
@@ -476,8 +487,13 @@ const sections: LegalSection[] = [
         <P>
           Our crew travels <B>by cab</B> from our Gurugram office and returns the
           same day. We currently shoot in {SERVICE_CITY_LIST}. Cab travel is{" "}
-          <B>{inr(CAB_TRAVEL.amountInr)}</B> plus GST per shoot, shown on your
-          bill before you pay. There are no flights, train tickets, airport
+          <B>{inr(CAB_TRAVEL.amountInr)}</B> plus GST per shoot
+          {LAUNCH_OFFER.active ? (
+            <>
+              , and is <B>free for our first {LAUNCH_OFFER.limit} customers</B>
+            </>
+          ) : null}
+          . It is shown on your bill before you pay. There are no flights, train tickets, airport
           transfers or accommodation for you to book or pay for.
         </P>
         <UL>
@@ -553,7 +569,9 @@ const sections: LegalSection[] = [
           later customers it is charged with the order. After the first year,
           support continues for each further year you renew at{" "}
           {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, which
-          you can do from the Plan and billing page in your dashboard. Support
+          you can do from the Plan and billing page in your dashboard. If you
+          have Sales Team logins, each renewal also renews them for the year,
+          at the price per login you bought at, on the same invoice. Support
           is included throughout Pro and Ultra at no separate charge. The
           support period and its renewal date are shown on your order
           confirmation and tax invoice. Support &amp; Maintenance covers:
@@ -1025,7 +1043,9 @@ export default function TermsPage() {
         18% GST — you choose how many scenes, and the price per scene falls as
         you add more. {SUPPORT_NAME} is {inr(SUPPORT_MONTHLY_INR)} a month,
         billed yearly as {inr(SUPPORT_ANNUAL_INR)} plus 18% GST, with the first
-        year free for our first {LAUNCH_OFFER.limit} customers, and a Workspace
+        year free for our first {LAUNCH_OFFER.limit} customers. VPV plans include
+        the shoot; for our first {LAUNCH_OFFER.limit} customers cab travel is free and
+        Sales Team logins are {inr(SALES_TEAM.offerInr)} per salesperson a year. A Workspace
         whose support is more than {POLICY.supportGraceDays} days overdue is
         locked until it is renewed. Pro is {inr(PRO_MONTHLY_INR)} a month plus
         GST and Ultra {inr(ULTRA_MONTHLY_INR)} a month plus GST, both with

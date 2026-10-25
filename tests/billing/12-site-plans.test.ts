@@ -95,8 +95,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
   it("charges plan + travel, in rupees we can read", () => {
     // Hard numbers, so a silent edit to a plan price fails here rather than
     // in somebody's bank statement.
-    assert.equal(SITE_PLANS.confidence.priceInr, 35_000);
-    assert.equal(SITE_PLANS.authority.priceInr, 55_000);
+    // 26 Oct 2026: Confidence and Authority +₹4,000 each; Control unchanged.
+    assert.equal(SITE_PLANS.confidence.priceInr, 39_000);
+    assert.equal(SITE_PLANS.authority.priceInr, 59_000);
     assert.equal(SITE_PLANS.control.priceInr, 90_000);
 
     // Areas rise in even steps, and the price PER AREA falls as they do —
@@ -104,8 +105,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(SITE_PLANS.confidence.scenes, 4);
     assert.equal(SITE_PLANS.authority.scenes, 8);
     assert.equal(SITE_PLANS.control.scenes, 15);
-    assert.equal(sitePerArea("confidence"), 8_750);
-    assert.equal(sitePerArea("authority"), 6_875);
+    assert.equal(sitePerArea("confidence"), 9_750);
+    assert.equal(sitePerArea("authority"), 7_375);
     assert.equal(sitePerArea("control"), 6_000);
 
     // Sharing controls are Control's ONLY exclusive, and are not sold as an
@@ -121,8 +122,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(LAUNCH_OFFER.active, true);
     assert.equal(LAUNCH_OFFER.percent, 20);
     assert.equal(LAUNCH_OFFER.limit, 50);
-    assert.equal(SITE_PLANS.confidence.regularInr, 43_750);
-    assert.equal(SITE_PLANS.authority.regularInr, 68_750);
+    assert.equal(SITE_PLANS.confidence.regularInr, 48_750);
+    assert.equal(SITE_PLANS.authority.regularInr, 73_750);
     assert.equal(SITE_PLANS.control.regularInr, 112_500);
     for (const id of SITE_PLAN_ORDER) {
       const p = SITE_PLANS[id];
@@ -136,12 +137,13 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // do not shoot yet, and the order route refuses it.
     assert.equal(TRAVEL_FEES.ncr.amountInr, 4_000);
 
-    //              35,000 + 4,000
+    // Under the offer the cab is free: the plan price is the whole bill.
     assert.equal(sitePlanQuote("confidence", "ncr").amountInr, 39_000);
-    //              55,000 + 4,000
     assert.equal(sitePlanQuote("authority", "ncr").amountInr, 59_000);
-    //              90,000 + 4,000
-    assert.equal(sitePlanQuote("control", "ncr").amountInr, 94_000);
+    assert.equal(sitePlanQuote("control", "ncr").amountInr, 90_000);
+    // Once it closes: regular price + ₹4,000 cab.
+    assert.equal(sitePlanQuote("confidence", "ncr", false).amountInr, 48_750 + 4_000);
+    assert.equal(sitePlanQuote("control", "ncr", false).amountInr, 112_500 + 4_000);
   });
 
   it("keeps every upgrade path pointing UP", () => {
@@ -158,14 +160,14 @@ describe("site plans: the named packs sold by the marketing site", () => {
       confToAuth > auth.priceInr,
       `Confidence + ${auth.scenes - conf.scenes} areas = ${confToAuth}, must exceed Authority ${auth.priceInr}`
     );
-    assert.equal(confToAuth, 58_500);
+    assert.equal(confToAuth, 62_500);
 
     const authToCtrl = auth.priceInr + extraAreaCost("authority", ctrl.scenes - auth.scenes);
     assert.ok(
       authToCtrl > ctrl.priceInr,
       `Authority + ${ctrl.scenes - auth.scenes} areas = ${authToCtrl}, must exceed Control ${ctrl.priceInr}`
     );
-    assert.equal(authToCtrl, 91_500);
+    assert.equal(authToCtrl, 95_500);
   });
 
   it("makes the price per area fall as areas are added, on every plan", () => {
@@ -191,7 +193,13 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(ncr.logistics?.amountInr, 4_000);
     const cab = ncr.lines.find((l) => l.kind === "travel");
     assert.ok(cab && /cab/i.test(cab.label), "the travel line is the cab");
-    assert.equal(cab!.amountInr, 4_000);
+    // Free for the first 50, shown at its real price struck out (like support)…
+    assert.equal(cab!.amountInr, 0);
+    assert.equal(cab!.regularInr, 4_000);
+    assert.match(cab!.note ?? "", /Free for our first 50 customers/);
+    // …and charged once the offer has closed.
+    const closedCab = siteQuote("authority", { city: "Manesar", offerOpen: false }).lines.find((l) => l.kind === "travel");
+    assert.equal(closedCab!.amountInr, 4_000);
     assert.ok(!ncr.lines.some((l) => /air|flight|airport|train/i.test(`${l.label} ${l.note ?? ""}`)));
 
     // Anywhere else is "coming soon": a bill can be shown, not paid, and no

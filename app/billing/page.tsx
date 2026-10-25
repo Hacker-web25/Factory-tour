@@ -38,6 +38,7 @@ import { useRazorpayPayment } from "@/components/billing/useRazorpayPayment";
 import {
   PRO_MONTHLY_INR,
   SUPPORT_ANNUAL_INR,
+  renewalAmount,
   SUPPORT_GRACE_DAYS,
   accessStateFor,
   fromPaise,
@@ -94,6 +95,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [pane, setPane] = useState<"none" | "support" | "scenes">("none");
   const [topupTo, setTopupTo] = useState<number>(0);
+  const [renewInr, setRenewInr] = useState<number>(SUPPORT_ANNUAL_INR);
 
   const load = useCallback(async () => {
     const p = await getMyProfile();
@@ -116,6 +118,16 @@ export default function BillingPage() {
         .maybeSingle();
       if (orgRow) {
         setOrg(orgRow as OrgRow);
+        // Sales Team logins renew with support. Read on their own, so a database
+        // without these columns yet still shows the page (support alone).
+        const { data: seatRow } = await supabase
+          .from("organizations")
+          .select("sales_seats, sales_seat_inr")
+          .eq("id", p.org_id)
+          .maybeSingle();
+        const seats = Number((seatRow as { sales_seats?: number } | null)?.sales_seats ?? 0) || 0;
+        const each = Number((seatRow as { sales_seat_inr?: number } | null)?.sales_seat_inr ?? 0) || 0;
+        setRenewInr(renewalAmount(each > 0 ? seats : 0, each));
         setTopupTo(((orgRow as OrgRow).scene_quota ?? 2) + 1);
         // Arriving from a renewal reminder (or while overdue): open the
         // renewal checkout straight away — one less click to pay.
@@ -195,13 +207,13 @@ export default function BillingPage() {
           will <strong>lock on {access.locksAt?.toDateString()}</strong>
           {access.daysToLock !== null && <> ({access.daysToLock} day{access.daysToLock === 1 ? "" : "s"} from now)</>}{" "}
           if it is not renewed. Your tours and data are kept — renewing for{" "}
-          {inr(SUPPORT_ANNUAL_INR)} restores everything instantly.
+          {inr(renewInr)} restores everything instantly.
         </Banner>
       )}
       {!closed && state === "locked" && (
         <Banner tone="red" icon={<Lock size={18} />} title="Your workspace is locked">
           The support year ended and the {SUPPORT_GRACE_DAYS}-day reminder period has passed. Your tours and
-          data are safe. Renew for {inr(SUPPORT_ANNUAL_INR)} below and everything unlocks the moment
+          data are safe. Renew for {inr(renewInr)} below and everything unlocks the moment
           the payment is confirmed.
         </Banner>
       )}
@@ -286,7 +298,7 @@ export default function BillingPage() {
               onClick={() => setPane(pane === "support" ? "none" : "support")}
               className="mt-4 w-full rounded-full bg-vpv-grad py-2.5 text-[13.5px] font-semibold text-white hover:opacity-95"
             >
-              Renew for {inr(SUPPORT_ANNUAL_INR)} + GST per year
+              Renew for {inr(renewInr)} + GST per year
             </button>
           )}
           {org.plan !== "basic" && (
@@ -323,6 +335,7 @@ export default function BillingPage() {
         <Pane title="Renew technical support">
           <CheckoutFlow
             purpose="support_renewal"
+            renewalInr={renewInr}
             accessToken={token}
             onComplete={() => {
               setPane("none");

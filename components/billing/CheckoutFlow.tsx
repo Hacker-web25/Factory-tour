@@ -61,6 +61,9 @@ export default function CheckoutFlow({
   onComplete,
   title,
   subtitle,
+  /** Renewal only: support plus the workspace's yearly Sales Team logins, GST excluded.
+   *  Display only — the server prices the renewal itself. */
+  renewalInr,
 }: {
   purpose?: Purpose;
   sitePlanId?: SitePlanId;
@@ -68,6 +71,7 @@ export default function CheckoutFlow({
   prefill?: Partial<Buyer>;
   accessToken?: string | null;
   onComplete?: () => void;
+  renewalInr?: number;
   title?: string;
   subtitle?: string;
 }) {
@@ -100,7 +104,7 @@ export default function CheckoutFlow({
   const amount = quote
     ? quote.amountInr
     : purpose === "support_renewal"
-      ? SUPPORT_ANNUAL_INR
+      ? (renewalInr ?? SUPPORT_ANNUAL_INR)
       : priceForScenes(scenes);
   // What the server will send to Razorpay (base + 18% GST). We show this
   // breakdown on the final checkout screen, right before the Pay button.

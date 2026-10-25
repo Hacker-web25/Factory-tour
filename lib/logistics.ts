@@ -26,8 +26,7 @@
 export const CAB_TRAVEL = {
   label: "Cab travel",
   /** What we charge for the crew's cab, out and back, GST excluded. */
-  // TEMPORARY LIVE-PAYMENT TEST: must be 4_000. Change back and push again after the test.
-  amountInr: 1,
+  amountInr: 4_000,
   mode: "By cab from our Gurugram office, there and back the same day",
 } as const;
 

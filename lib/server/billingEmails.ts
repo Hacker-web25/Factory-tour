@@ -158,7 +158,10 @@ export async function sendSupportReminder(args: {
   kind: ReminderKind;
   supportUntil: Date | string;
   locksAt: Date | string;
+  /** The renewal price, GST excluded: support plus any yearly Sales Team logins. */
+  amountInr?: number;
 }): Promise<boolean> {
+  const renewInr = args.amountInr ?? SUPPORT_ANNUAL_INR;
   const until = dateStr(args.supportUntil);
   const locks = dateStr(args.locksAt);
   const url = `https://${args.slug}.myvpv.com/billing`;
@@ -166,7 +169,7 @@ export async function sendSupportReminder(args: {
     t30: {
       subject: "Your VPV support year ends in about a month",
       title: "Your support year ends soon",
-      body: `Your technical support and hosting for <strong>${esc(args.orgName)}</strong> runs until <strong>${esc(until)}</strong>. Renew for ${esc(inr(SUPPORT_ANNUAL_INR))} a year from your dashboard so nothing is interrupted. Renewing early never loses you a day.`,
+      body: `Your technical support and hosting for <strong>${esc(args.orgName)}</strong> runs until <strong>${esc(until)}</strong>. Renew for ${esc(inr(renewInr))} + GST a year from your dashboard so nothing is interrupted. Renewing early never loses you a day.`,
     },
     t7: {
       subject: "Your VPV support ends in a week",
@@ -196,7 +199,7 @@ export async function sendSupportReminder(args: {
     subject: c.subject,
     html: emailShell(
       c.title,
-      `<p ${P}>${c.body}</p>${button(url, `Renew for ${inr(SUPPORT_ANNUAL_INR)}`)}
+      `<p ${P}>${c.body}</p>${button(url, `Renew for ${inr(renewInr)} + GST`)}
        <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.</p>`
     ),
   });

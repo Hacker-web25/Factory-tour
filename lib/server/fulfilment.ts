@@ -48,6 +48,7 @@ import {
   SUPPORT_FREE_MONTHS,
   clampScenes,
   fromPaise,
+  seatsFromOrderNotes,
 } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
 import { RESERVED_SLUGS, slugify } from "@/lib/slugs";
@@ -279,9 +280,34 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
     `VPV Basic licence — ${scenes} scene${scenes === 1 ? "" : "s"}, including 1 year of technical support and hosting`
   );
 
+  // 3b. Sales Team logins are yearly: remember how many, and at what price,
+  // so the renewal bills them. Never fails the build: a database without the
+  // columns yet (supabase/sales_seats.sql not run) only means the renewal
+  // bills support alone, and a person is told.
+  await rememberSalesSeats(sb, row, orgId);
+
   // 4. Done. Anything after this point is notification, retried separately.
   await markProvisioned(sb, row.id, orgId);
   return { ok: true, orgId, slug: slug as string, invoiceNo };
+}
+
+async function rememberSalesSeats(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
+  const { seats, seatInr } = seatsFromOrderNotes((row as { notes?: string | null }).notes);
+  if (seats <= 0) return;
+  try {
+    const { error } = await sb
+      .from("organizations")
+      .update({ sales_seats: seats, sales_seat_inr: seatInr })
+      .eq("id", orgId);
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    await alertFounders(sb, {
+      kind: "sales_seats_not_saved",
+      severity: "warning",
+      orderId: row.id,
+      detail: `${seats} Sales Team login(s) at ₹${seatInr}/yr were paid for but could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/sales_seats.sql, then set organizations.sales_seats = ${seats}, sales_seat_inr = ${seatInr} for this workspace, so the renewal bills them.`,
+    }).catch(() => undefined);
+  }
 }
 
 /**
@@ -294,7 +320,27 @@ async function assertLoginAvailable(sb: SupabaseClient, row: OrderRow): Promise<
   if (!userId) return;
   const { data: profile, error } = await sb.from("profiles").select("id, org_id, role").eq("id", userId).maybeSingle();
   if (error) throw new Error("profile_lookup_failed");
-  if (profile?.org_id || profile?.role === "owner") throw new PermanentError("email_in_use");
+  if (!profile?.org_id && profile?.role !== "owner") return;
+  // A login this very order created earlier (a retry) is ours, whatever profile a
+  // database trigger gave it: see loginIsOurs().
+  if (await loginIsOurs(sb, userId, row.id)) return;
+  throw new PermanentError("email_in_use");
+}
+
+/**
+ * Was this login created by THIS order's own build? We stamp the order id into the
+ * login's metadata when we create it, so a retry after a crash can recognise it.
+ *
+ * It matters because Supabase projects often carry a trigger that makes a profile row
+ * the moment any login is created, and some give it the "owner" role by default. Seeing
+ * "owner" on a login we have just made ourselves is that default, not the platform owner.
+ * The real owner's login was never created by an order, so it never matches.
+ */
+async function loginIsOurs(sb: SupabaseClient, userId: string, orderId: string): Promise<boolean> {
+  const { data: au, error } = await sb.auth.admin.getUserById(userId);
+  // Cannot tell: fail the attempt (it is retried) rather than guess either way.
+  if (error || !au?.user) throw new Error("user_lookup_failed");
+  return (au.user.user_metadata as { vpv_order_id?: string } | undefined)?.vpv_order_id === orderId;
 }
 
 /**
@@ -336,6 +382,9 @@ async function ensureAdminUser(
     .eq("id", userId)
     .maybeSingle();
 
+  // Ours = created by this order (now, or by an earlier attempt that crashed).
+  const ours = weCreatedIt || (await loginIsOurs(sb, userId, row.id));
+
   // The account already belongs to a different workspace. Never move it:
   // that would break the other customer. A person resolves this.
   if (profile?.org_id && profile.org_id !== orgId) {
@@ -343,7 +392,8 @@ async function ensureAdminUser(
   }
   // Never rewrite the role of the platform owner (anyone can type their e-mail into a
   // checkout form). A person resolves this too.
-  if (profile?.role === "owner") {
+  // (An "owner" role on a login this order itself created is a trigger's default; see loginIsOurs.)
+  if (profile?.role === "owner" && !ours) {
     throw new PermanentError("email_in_use");
   }
 
@@ -361,18 +411,8 @@ async function ensureAdminUser(
     if (profileErr) throw new Error("profile_create_failed");
   }
 
-  // Remember whether this login is ours to hand a first password to. A
-  // crash right after createUser is recognised by the order id we stamped
-  // into the user's metadata.
-  let ours = weCreatedIt;
-  if (!ours) {
-    const { data: au, error: lookupErr } = await sb.auth.admin.getUserById(userId);
-    // Guessing "not ours" here would send the customer a welcome e-mail with
-    // no password. Fail the attempt instead; the retry asks again.
-    if (lookupErr || !au?.user) throw new Error("user_lookup_failed");
-    ours = (au.user.user_metadata as { vpv_order_id?: string } | undefined)?.vpv_order_id === row.id;
-  }
-
+  // `ours` (above) also decides who is given the first password. A crash right
+  // after createUser is recognised by the order id we stamped into the metadata.
   const { error: linkErr } = await sb
     .from("billing_orders")
     .update({ created_by: userId, admin_user_new: ours, updated_at: new Date().toISOString() })

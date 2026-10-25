@@ -29,7 +29,8 @@ import {
 import { fetchRazorpayRefund, listRazorpayPayments, listRazorpayRefunds } from "@/lib/server/razorpay";
 import { alertFounders, sendSupportReminder, type ReminderKind } from "@/lib/server/billingEmails";
 import { json, fail, safeEqualSecret } from "@/lib/server/billingGuard";
-import { fromPaise } from "@/lib/pricing";
+import { fromPaise, renewalAmount } from "@/lib/pricing";
+import { orgSalesSeats } from "@/lib/server/salesSeats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -282,7 +283,9 @@ export async function GET(req: Request) {
     }>) {
       let sent = false;
       try {
+        const seats = await orgSalesSeats(sb, r.org_id);
         sent = await sendSupportReminder({
+          amountInr: renewalAmount(seats.seatInr > 0 ? seats.seats : 0, seats.seatInr),
           to: r.to_email,
           orgName: r.org_name,
           slug: r.slug,

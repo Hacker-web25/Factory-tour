@@ -131,8 +131,8 @@ const sections: LegalSection[] = [
           shoot actually takes on the day.
         </li>
         <li>
-          Our crew travels by cab, and the cab charge on your bill is the whole
-          travel cost. There is nothing else for you to book or pay for.
+          Our crew travels by cab, and the cab line on your bill (free for our
+          first {LAUNCH_OFFER.limit} customers) is the whole travel cost. There is nothing else for you to book or pay for.
         </li>
         <li>
           The special offer is limited to our first {LAUNCH_OFFER.limit} customers and ends on

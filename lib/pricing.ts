@@ -465,7 +465,9 @@ export type SitePlanSpec = {
   name: string;
   tagline: string;
   /** What the buyer pays WHILE the special offer is open, GST excluded.
-   *  These are the decided prices: ₹35,000 / ₹55,000 / ₹90,000. */
+   *  These are the decided prices: ₹39,000 / ₹59,000 / ₹90,000.
+   *  (26 Oct 2026: Confidence and Authority went up by ₹4,000 each, and
+   *  cab travel became free for the first 50 customers. Control is unchanged.) */
   priceInr: number;
   /**
    * The price once the special offer closes, GST excluded. Shown struck
@@ -496,8 +498,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     id: "confidence",
     name: "VPV Confidence",
     tagline: "Prove you're a trusted manufacturer.",
-    priceInr: 35_000,
-    regularInr: 43_750,
+    priceInr: 39_000,
+    regularInr: 48_750,
     scenes: 4,
     videos: 0,
     pdfs: 0,
@@ -512,8 +514,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     id: "authority",
     name: "VPV Authority",
     tagline: "Show your systems, processes and capabilities.",
-    priceInr: 55_000,
-    regularInr: 68_750,
+    priceInr: 59_000,
+    regularInr: 73_750,
     scenes: 8,
     videos: 3,
     pdfs: 5,
@@ -726,15 +728,20 @@ export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.activ
  * dashboard — every meeting's start time and place, meetings per client,
  * and how far each deal has moved.
  *
- * ONE-TIME per salesperson, bought with the plan. One flat price per login,
- * with no volume discount. While the special offer is open it is 50% off,
- * so ₹999 per login; from the 51st customer it is the regular ₹1,998. Like
- * the plan prices, the regular price is a real future price, not a decoy.
+ * YEARLY per salesperson (since 26 Oct 2026; it used to be one-time). The
+ * first year is bought with the plan; from year 2 it renews together with
+ * support, hosting & security, at the price the customer bought at. One flat
+ * price per login, no volume discount. Our first 50 customers pay ₹199 per
+ * login per year (shown against the regular ₹999); from the 51st customer it
+ * is ₹999. Like the plan prices, the regular price is a real future price,
+ * not a decoy.
  */
 export const SALES_TEAM = {
-  regularInr: 1_998,
-  offerInr: 999,
-  percentOff: 50,
+  regularInr: 999,
+  offerInr: 199,
+  percentOff: 80,
+  /** Billed every year, not once. */
+  period: "year" as const,
   /** Slider limit. A bigger team is a conversation, not a slider. */
   maxSeats: 200,
   /** What the salary calculator starts from, per salesperson per month. */
@@ -746,9 +753,32 @@ export function clampSalesSeats(n: unknown): number {
   return Math.max(0, Math.min(SALES_TEAM.maxSeats, v));
 }
 
-/** One salesperson login, right now. */
+/** One salesperson login for a year, right now. */
 export function seatPrice(offerOpen = LAUNCH_OFFER.active): number {
   return offerOpen && LAUNCH_OFFER.active ? SALES_TEAM.offerInr : SALES_TEAM.regularInr;
+}
+
+/**
+ * What one year's renewal costs, GST excluded: support, hosting & security,
+ * plus each sales login at the price the customer bought it at.
+ */
+export function renewalAmount(seats: number, seatInr: number): number {
+  const n = clampSalesSeats(seats);
+  return SUPPORT_ANNUAL_INR + n * Math.max(0, Math.round(seatInr || 0));
+}
+
+/**
+ * The sales team bought with a plan, read back from the order's notes
+ * ("sales team 5 logins at ₹199/yr"). Orders from before logins became
+ * yearly say "sales team 5 logins" with no price: those were paid once, so
+ * they renew at nothing (seatInr 0) — the customer was promised one-time.
+ */
+export function seatsFromOrderNotes(notes: string | null | undefined): { seats: number; seatInr: number } {
+  const m = /sales team (\d+) logins?(?: at ₹([\d,]+)\/yr)?/.exec(notes ?? "");
+  if (!m) return { seats: 0, seatInr: 0 };
+  const seats = clampSalesSeats(Number(m[1]));
+  const seatInr = m[2] ? Number(m[2].replace(/,/g, "")) : 0;
+  return { seats, seatInr: Number.isFinite(seatInr) ? seatInr : 0 };
 }
 
 /**
@@ -966,6 +996,24 @@ export type SiteQuote = {
  * A coupon comes off the plan, extras, shoot time and sales team — never
  * the travel or the support year.
  */
+/** The smallest bill a coupon can leave, GST excluded (Razorpay cannot take ₹0). */
+export const MIN_PAYABLE_INR = 1;
+
+/**
+ * The cab line. Free for our first 50 customers — shown at its real price,
+ * struck out, exactly like the first year of support — and charged after.
+ */
+function travelLine(label: string, amountInr: number, offerOpen: boolean): QuoteLine {
+  const free = offerOpen && LAUNCH_OFFER.active;
+  return {
+    kind: "travel",
+    label,
+    amountInr: free ? 0 : amountInr,
+    regularInr: amountInr,
+    note: free ? `Free for our first ${LAUNCH_OFFER.limit} customers. ${CAB_TRAVEL.mode}` : CAB_TRAVEL.mode,
+  };
+}
+
 export function siteQuote(
   planId: SitePlanId,
   opts: {
@@ -1040,14 +1088,14 @@ export function siteQuote(
       kind: "extra",
       label: `Sales team — ${salesSeats} salesperson login${salesSeats === 1 ? "" : "s"}`,
       amountInr: salesSeats * SALES_TEAM.regularInr,
-      note: `One-time, ${inr(SALES_TEAM.regularInr)} per login, with the MD's sales dashboard`,
+      note: `First year. ${inr(SALES_TEAM.regularInr)} per login per year, with the MD's sales dashboard. Renews yearly with support`,
     });
     if (offerOpen) {
       lines.push({
         kind: "offer",
-        label: `${LAUNCH_OFFER.short} — ${SALES_TEAM.percentOff}% off sales team`,
+        label: `${LAUNCH_OFFER.short} — ${inr(SALES_TEAM.offerInr)} per login per year`,
         amountInr: -salesSeats * (SALES_TEAM.regularInr - SALES_TEAM.offerInr),
-        note: `For our first ${LAUNCH_OFFER.limit} customers`,
+        note: `For our first ${LAUNCH_OFFER.limit} customers, every year you renew`,
       });
     }
   }
@@ -1074,23 +1122,13 @@ export function siteQuote(
     logistics = logisticsFor(opts.city);
     available = logistics.inServiceArea;
     if (available) {
-      lines.push({
-        kind: "travel",
-        label: `${CAB_TRAVEL.label} — ${logistics.city}`,
-        amountInr: logistics.amountInr,
-        note: logistics.mode,
-      });
+      lines.push(travelLine(`${CAB_TRAVEL.label} — ${logistics.city}`, logistics.amountInr, offerOpen));
     }
   } else {
     const zone: TravelZone = isTravelZone(opts.travel) ? opts.travel : "outside";
     available = zone === "ncr";
     if (available) {
-      lines.push({
-        kind: "travel",
-        label: `${CAB_TRAVEL.label} — ${TRAVEL_FEES[zone].label}`,
-        amountInr: TRAVEL_FEES[zone].amountInr,
-        note: CAB_TRAVEL.mode,
-      });
+      lines.push(travelLine(`${CAB_TRAVEL.label} — ${TRAVEL_FEES[zone].label}`, TRAVEL_FEES[zone].amountInr, offerOpen));
     }
   }
 
@@ -1116,7 +1154,19 @@ export function siteQuote(
     });
   }
 
-  const taxableInr = lines.reduce((sum, l) => sum + l.amountInr, 0);
+  // Razorpay cannot take ₹0, and with travel and support free a 100% coupon
+  // would otherwise leave nothing to pay. A coupon therefore always leaves at
+  // least ₹1 (+ GST) on the bill: the coupon line gives the last rupee back.
+  let taxableBeforeFloor = lines.reduce((sum, l) => sum + l.amountInr, 0);
+  if (couponInr > 0 && taxableBeforeFloor < MIN_PAYABLE_INR) {
+    const giveBack = Math.min(couponInr, MIN_PAYABLE_INR - taxableBeforeFloor);
+    couponInr -= giveBack;
+    const cl = lines.find((l) => l.kind === "coupon");
+    if (cl) cl.amountInr = -couponInr;
+    taxableBeforeFloor += giveBack;
+  }
+
+  const taxableInr = taxableBeforeFloor;
   const g = withGst(taxableInr);
 
   return {
@@ -1162,7 +1212,8 @@ export function sitePlanQuote(
 } {
   const plan = SITE_PLANS[planId];
   const discount = offerSaving(planId, offerOpen);
-  const travelFee = TRAVEL_FEES[travel].amountInr;
+  // Free while the special offer is open, like the first year of support.
+  const travelFee = offerOpen && LAUNCH_OFFER.active ? 0 : TRAVEL_FEES[travel].amountInr;
   return {
     plan,
     base: plan.regularInr,
@@ -1236,6 +1287,8 @@ export function priceFor(
     /** Decided by the order route from the real count of buyers. */
     offerOpen?: boolean;
     salesSeats?: number;
+    /** Renewal only: the price per sales login the customer bought at. */
+    seatInr?: number;
     /** Looked up and checked by the order route. */
     coupon?: Coupon | null;
   } = {}
@@ -1281,9 +1334,14 @@ export function priceFor(
       if (q.totalVideos > 0) parts.push(`${q.totalVideos} process videos`);
       if (q.savingInr > 0) parts.push(LAUNCH_OFFER.short);
       parts.push(`${hoursLabel(q.shoot.totalHours)} shoot`);
-      if (q.salesSeats > 0) parts.push(`sales team ${q.salesSeats} login${q.salesSeats === 1 ? "" : "s"}`);
-      if (q.logistics) parts.push(`cab ${q.logistics.city}`);
-      else parts.push(`cab ${TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label}`);
+      // Read back by seatsFromOrderNotes() when the workspace is built, so the
+      // yearly renewal knows how many logins, and at what price, to bill.
+      if (q.salesSeats > 0) {
+        parts.push(`sales team ${q.salesSeats} login${q.salesSeats === 1 ? "" : "s"} at ${inr(seatPrice(q.offerOpen))}/yr`);
+      }
+      const travelFree = q.lines.some((l) => l.kind === "travel" && l.amountInr === 0);
+      const where = q.logistics ? q.logistics.city : TRAVEL_FEES[isTravelZone(opts.travel) ? opts.travel : "outside"].label;
+      parts.push(`cab ${where}${travelFree ? " (free)" : ""}`);
       if (q.shoot.days > 1) parts.push(`${q.shoot.days} shoot days`);
       // The coupon's code is how lib/server/coupons.ts counts its uses, so
       // it is written in a fixed shape.
@@ -1294,11 +1352,17 @@ export function priceFor(
         scenes: q.totalAreas,
       };
     }
-    case "support_renewal":
+    case "support_renewal": {
+      const seats = clampSalesSeats(opts.salesSeats ?? 0);
+      // 0 = logins bought before they were yearly: paid once, never renewed.
+      const each = seats > 0 ? Math.max(0, Math.round(opts.seatInr ?? 0)) : 0;
       return {
-        amountInr: SUPPORT_ANNUAL_INR,
-        description: `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year`,
+        amountInr: renewalAmount(seats, each),
+        description:
+          `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year` +
+          (seats > 0 && each > 0 ? `, with sales team ${seats} login${seats === 1 ? "" : "s"} at ${inr(each)}/yr` : ""),
         scenes: null,
       };
+    }
   }
 }

@@ -11,6 +11,7 @@
 import {
   EXTRA_HOUR_INR,
   LAUNCH_OFFER,
+  SALES_TEAM,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   SUPPORT_ANNUAL_INR,
@@ -84,7 +85,8 @@ built without flying them in.
 ${PLANS}
 
 Also payable with the order:
-- Travel: ${inr(CAB_TRAVEL.amountInr)} + GST, by cab, for factories in ${SERVICE_CITY_LIST}. Other cities are not served yet.
+- Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
+- Sales Team logins (optional): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with support.
 - Extra shoot time beyond the plan: ${inr(EXTRA_HOUR_INR)} an hour.
 - Support, hosting and security: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly as ${inr(SUPPORT_ANNUAL_INR)} + GST. Free for the first year for the first ${LAUNCH_OFFER.limit} customers, payable from year two.
 

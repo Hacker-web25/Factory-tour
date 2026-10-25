@@ -28,7 +28,9 @@ import {
   SectionTitle,
   SelectInput,
   TextInput,
+  useOfferState,
 } from "@/components/funnel/FunnelShell";
+import { LAUNCH_OFFER } from "@/lib/pricing";
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
 import PreparingScreen, { preparingDurationMs } from "@/components/funnel/PreparingScreen";
 import { SERVICE_AREAS, SERVICE_AREA_NOTE, findCity, isServiceCity, logisticsFor } from "@/lib/logistics";
@@ -73,6 +75,9 @@ export default function Step1Info() {
   const typedCity = cityChoice === CITY_OTHER;
   const resolvedCity = typedCity ? (s?.factoryCity ?? "") : cityChoice;
   const quote = resolvedCity.trim() ? logisticsFor(resolvedCity) : null;
+  // Travel is free while the special offer is open (the server decides for real at payment).
+  const offer = useOfferState();
+  const travelFree = offer.open && LAUNCH_OFFER.active;
 
   function validate(state: FunnelState): Errors {
     const e: Errors = {};
@@ -269,7 +274,7 @@ export default function Step1Info() {
           <Card className="mt-5">
             <SectionTitle icon={MapPin} title="Where is your factory?">
               Our crew comes to your plant by cab from Gurugram, there and back
-              the same day. The cab charge is on your bill before you pay.
+              the same day.
             </SectionTitle>
 
             <div className="mt-5">
@@ -319,12 +324,24 @@ export default function Step1Info() {
                     </span>
                     Cab travel to {quote.city}
                   </span>
-                  <span className="text-[17px] font-semibold tabular-nums text-vpv-ink">
-                    ₹{quote.amountInr.toLocaleString("en-IN")}
-                    <span className="ml-1 text-[12px] font-normal text-slate-500">+ GST</span>
-                  </span>
+                  {travelFree ? (
+                    <span className="text-right" data-testid="travel-free">
+                      <span className="mr-2 text-[13px] font-semibold tabular-nums text-slate-400 line-through">
+                        ₹{quote.amountInr.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-[17px] font-bold tracking-[-0.01em] text-[#1F8A4C]">FREE</span>
+                    </span>
+                  ) : (
+                    <span className="text-[17px] font-semibold tabular-nums text-vpv-ink">
+                      ₹{quote.amountInr.toLocaleString("en-IN")}
+                      <span className="ml-1 text-[12px] font-normal text-slate-500">+ GST</span>
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">{quote.mode}</p>
+                <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">
+                  {travelFree ? `Free for our first ${LAUNCH_OFFER.limit} customers. ` : ""}
+                  {quote.mode}
+                </p>
               </div>
             )}
             {quote && !quote.inServiceArea && quote.city.trim().length >= 3 && (

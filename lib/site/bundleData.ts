@@ -34,6 +34,19 @@ import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
 const js = (v: unknown) => JSON.stringify(v);
 
+/**
+ * The wording the bundle carried before 26 Oct 2026 (₹4,000 cab, one-time
+ * ₹999 Sales Team logins), paired with the index of the patch in
+ * bundleTextPatches() whose current text replaces it.
+ */
+const OCT26_MIGRATIONS: [string, number][] = [
+  ["Cab travel for our crew is ₹4,000 + GST, for factories in Gurugram, Manesar, Delhi, Noida, Greater Noida and Ghaziabad. We are coming to more cities soon. Shoot time beyond what your plan includes is ₹999 an hour.", 0],
+  ["\"is ₹4,000 + GST, by cab, for factories in Gurugram, Manesar, Delhi, Noida, Greater Noida and Ghaziabad. We are coming to more cities soon.\"", 2],
+  ["The ${ln.percent}% applies to the plan price, Sales Team logins are 50% off, and the first year of support, hosting & security is free. Extra areas, process videos, shoot time and cab travel are not discounted.", 13],
+  ["Your whole sales team can present the VPV. Sales Team logins, which give you a dashboard of every meeting they hold, are an optional one-time add-on: ₹999 per salesperson for our first 50 customers, ₹1,998 after that.", 16],
+  ["\"Your whole sales team can present your VPV. Optional Sales Team logins (₹999 per salesperson, one time, for our first 50 customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.\"", 17],
+];
+
 const SHARING = [
   "One-time link expiry",
   "Restrictions designed to prevent VPV links being shared with competitors",
@@ -71,10 +84,14 @@ export function bundlePlanData(): string {
 /** `un={…}` — the travel object. Kept in its old two-zone shape because the
  *  bundle's code expects it; the amounts are the real tier 1 and tier 4. */
 export function bundleTravelData(): string {
+  // Free for our first 50 customers (the bundle cannot count buyers, so it
+  // follows LAUNCH_OFFER.active, exactly as it does for the plan prices).
+  const free = LAUNCH_OFFER.active;
+  const label = free ? `Travel (free for our first ${LAUNCH_OFFER.limit} customers)` : "Travel & logistics";
   return (
-    `un={question:"Where is your factory?",label:"Travel & logistics",gstApplies:true,payableNow:true,` +
-    `options:{ncr:{label:"Delhi NCR",amount:${TRAVEL_FEES.ncr.amountInr}},` +
-    `outside:{label:"Outside Delhi NCR",amount:${TRAVEL_FEES.outside.amountInr}}}}`
+    `un={question:"Where is your factory?",label:${js(label)},gstApplies:true,payableNow:true,` +
+    `options:{ncr:{label:"Delhi NCR",amount:${free ? 0 : TRAVEL_FEES.ncr.amountInr}},` +
+    `outside:{label:"Outside Delhi NCR",amount:${free ? 0 : TRAVEL_FEES.outside.amountInr}}}}`
   );
 }
 
@@ -91,7 +108,24 @@ export function bundleCareData(): string {
 
 /** Travel, in one sentence, for the bundle's hard-coded copy. */
 function travelSentence(): string {
-  return `Cab travel for our crew is ${inr(CAB_TRAVEL.amountInr)} + GST, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
+  return `Cab travel for our crew is ${travelPrice()}, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
+}
+
+/** "free for our first 50 customers (normally ₹4,000 + GST)", or "₹4,000 + GST" once the offer ends. */
+function travelPrice(): string {
+  return LAUNCH_OFFER.active
+    ? `free for our first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST)`
+    : `${inr(CAB_TRAVEL.amountInr)} + GST`;
+}
+
+/** What the special offer gives, in one sentence, for the bundle's FAQ. */
+function offerSentence(): string {
+  return `The \${ln.percent}% applies to the plan price, Sales Team logins are ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, and cab travel and the first year of support, hosting & security are free. Extra areas, process videos and shoot time are not discounted.`;
+}
+
+/** The Sales Team add-on, in one sentence. */
+function salesSentence(): string {
+  return `Sales Team logins, which give you a dashboard of every meeting they hold, are an optional yearly add-on: ${inr(SALES_TEAM.offerInr)} per salesperson per year for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`;
 }
 
 /**
@@ -104,8 +138,8 @@ export function bundleTextPatches(): [string, string][] {
   const ctrl = SITE_PLANS.control;
   const ctrlBands = discountBands("control");
   const travelLong = `${travelSentence()} Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`;
-  const travelShort = `is ${inr(CAB_TRAVEL.amountInr)} + GST, by cab, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
-  return [
+  const travelShort = `is ${travelPrice()}, by cab, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
+  const list: [string, string][] = [
     [
       "Travel & logistics (${mn(un.options.ncr.amount)} for Delhi NCR or ${mn(un.options.outside.amount)} outside Delhi NCR, + GST) is paid with your order.",
       travelLong,
@@ -150,23 +184,23 @@ export function bundleTextPatches(): [string, string][] {
     ['q:"What is the first 100 customers offer?"', `q:${JSON.stringify(`What is the first ${LAUNCH_OFFER.limit} customers offer?`)}`],
     [
       "The ${ln.percent}% applies to the plan price only; travel & logistics and ${cn.name} are not discounted.",
-      `The \${ln.percent}% applies to the plan price, Sales Team logins are ${SALES_TEAM.percentOff}% off, and the first year of support, hosting & security is free. Extra areas, process videos, shoot time and cab travel are not discounted.`,
+      offerSentence(),
     ],
     [
-      `The \${ln.percent}% applies to the plan price, and Sales Team logins are ${SALES_TEAM.percentOff}% off. Extra areas, videos, shoot time, travel & logistics and \${cn.name} are not discounted.`,
-      `The \${ln.percent}% applies to the plan price, Sales Team logins are ${SALES_TEAM.percentOff}% off, and the first year of support, hosting & security is free. Extra areas, process videos, shoot time and cab travel are not discounted.`,
+      `The \${ln.percent}% applies to the plan price, and Sales Team logins are 50% off. Extra areas, videos, shoot time, travel & logistics and \${cn.name} are not discounted.`,
+      offerSentence(),
     ],
     // "No per-salesperson fee" stopped being true when Sales Team logins
     // arrived; and the prices are no longer placeholders.
     ['"No per-salesperson fee to use it"', '"Every salesperson can present it"'],
     [
       "Your whole sales team can use the VPV, with no per-salesperson fee. Plan prices shown are placeholders, to be confirmed.",
-      `Your whole sales team can present the VPV. Sales Team logins, which give you a dashboard of every meeting they hold, are an optional one-time add-on: ${inr(SALES_TEAM.offerInr)} per salesperson for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`,
+      `Your whole sales team can present the VPV. ${salesSentence()}`,
     ],
     [
       '"The whole sales team can use your VPV. There is no per-salesperson fee. Multiple factories are quoted separately based on scope."',
       JSON.stringify(
-        `Your whole sales team can present your VPV. Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson, one time, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`
+        `Your whole sales team can present your VPV. Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson per year, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`
       ),
     ],
     // The yearly fee is no longer "Digital Care", and travel is a cab.
@@ -233,5 +267,18 @@ export function bundleTextPatches(): [string, string][] {
     ],
     // "Why VPV" in the site menu.
     ["Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/how-it-works\"", "Un=[{to:\"/\",label:\"Home\",id:\"home\",end:!0},{to:\"/why-vpv\",label:\"Why VPV\",id:\"why-vpv\"},{to:\"/how-it-works\""],
+    // The bundle's "is your factory in Delhi NCR?" buttons quoted the cab price;
+    // with travel free they would read "₹0 + GST".
+    [
+      "yesLabel:`Yes (${mn(un.options.ncr.amount)} + GST)`,noLabel:`No (${mn(un.options.outside.amount)} + GST)`",
+      'yesLabel:"Yes",noLabel:"No"',
+    ],
   ];
+
+  // ── 26 October 2026: free cab travel for the first 50, yearly ₹199 Sales
+  // Team logins. The bundle already carries the previous wording of these
+  // sentences; each pair below carries it to the current one.
+  for (const [before, at] of OCT26_MIGRATIONS) list.push([before, list[at][1]]);
+  return list;
 }
+

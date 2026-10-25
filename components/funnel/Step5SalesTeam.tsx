@@ -7,7 +7,7 @@
  *
  *   1. THE CALCULATOR — how many salespeople, what they are paid, and what
  *      that adds up to in a year, in lakhs, in the largest type on the page.
- *      Against it, a bar showing the one-time add-on as a sliver of that
+ *      Against it, a bar showing the yearly add-on as a sliver of that
  *      salary bill. Every figure is arithmetic on the two numbers the buyer
  *      typed (salesTeamMaths in lib/pricing.ts); there is no invented
  *      "return on investment".
@@ -250,13 +250,13 @@ export default function Step5SalesTeam() {
                         {m.percentOfAnnualSalary < 0.01 ? "<0.01" : m.percentOfAnnualSalary}%
                       </p>
                       <p className="max-w-xs pb-1 text-[14px] leading-snug text-white/85">
-                        of one year&rsquo;s salary gives you full sight of every meeting your team holds. Paid once, not every year.
+                        of one year&rsquo;s salary gives you full sight of every meeting your team holds, all year.
                       </p>
                     </div>
                     <p className="mt-4 text-[13.5px] text-white/75">
                       {m.daysOfSalaryPerLogin < 1
-                        ? "Each salesperson's login costs less than one day of their salary."
-                        : `Each salesperson's login costs about ${Math.ceil(m.daysOfSalaryPerLogin)} days of their salary.`}
+                        ? "A year of each salesperson's login costs less than one day of their salary."
+                        : `A year of each salesperson's login costs about ${Math.ceil(m.daysOfSalaryPerLogin)} days of their salary.`}
                     </p>
                   </div>
                 </div>
@@ -297,7 +297,7 @@ export default function Step5SalesTeam() {
                     )}
                     {offerOpen && <p className="text-[17px] text-slate-400 line-through">{inr(SALES_TEAM.regularInr)}</p>}
                     <p className="text-[52px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink">{inr(seatPrice(offerOpen))}</p>
-                    <p className="mt-2 text-[13px] text-slate-600">per salesperson, one time, + GST</p>
+                    <p className="mt-2 text-[13px] text-slate-600">per salesperson per year, + GST</p>
                   </div>
                   <div>
                     <p className="mb-2.5 text-[13.5px] font-medium text-vpv-ink">
@@ -312,7 +312,7 @@ export default function Step5SalesTeam() {
                       <span className="text-right">
                         {offerOpen && <span className="mr-2 text-[15px] text-slate-400 line-through">{inr(m.regularAddOnCost)}</span>}
                         <span className="text-[28px] font-semibold tabular-nums text-vpv-ink">{inr(m.addOnCost)}</span>
-                        <span className="ml-1 text-[12px] text-slate-500">+ GST</span>
+                        <span className="ml-1 text-[12px] text-slate-500">+ GST a year</span>
                       </span>
                     </div>
                     {offerOpen && (

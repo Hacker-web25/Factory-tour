@@ -32,26 +32,14 @@ import {
   YesNo,
 } from "@/components/funnel/FunnelShell";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
+import PrivateLinkDemo from "@/components/funnel/PrivateLinkDemo";
 
-/**
- * The demonstration clip. PLACEHOLDER — drop the file at
- * /public/video/sharing-controls.mp4 (plus the poster frame) and this plays
- * automatically. Until then the panel below says a demonstration is coming,
- * rather than showing a broken player.
- *
- * It is muted, looped and inline because every current browser refuses to
- * autoplay a clip with sound, and a video that needs a click is a video
- * most visitors never watch.
- */
-const SECURITY_VIDEO_SRC = "/video/sharing-controls.mp4";
-const SECURITY_VIDEO_POSTER = "/img/vpv-preview.webp";
 
 export default function Step3Security() {
   const router = useRouter();
   const [s, setS] = useState<FunnelState | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     setS(loadFunnel());
@@ -119,31 +107,7 @@ export default function Step3Security() {
       <FunnelBody wide>
         {/* The demonstration, directly under the headline. */}
         <div className="overflow-hidden rounded-2xl border border-vpv-line bg-vpv-ink">
-          {videoFailed ? (
-            <div className="flex aspect-video flex-col items-center justify-center gap-3 bg-vpv-ink px-6 text-center">
-              <span className="rounded-full border border-white/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
-                Demonstration
-              </span>
-              <p className="max-w-md text-[15px] leading-relaxed text-white/80">
-                A short clip showing a shared link expiring the moment it is
-                forwarded is being added here.
-              </p>
-            </div>
-          ) : (
-            <video
-              className="aspect-video w-full bg-vpv-ink object-cover"
-              src={SECURITY_VIDEO_SRC}
-              poster={SECURITY_VIDEO_POSTER}
-              autoPlay
-              muted
-              loop
-              playsInline
-              controls
-              preload="metadata"
-              onError={() => setVideoFailed(true)}
-              aria-label="How VPV sharing restrictions and one-time link expiry work"
-            />
-          )}
+          <PrivateLinkDemo />
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">

@@ -309,7 +309,9 @@ export default function Step5Billing() {
   }
 
   const canPay = quote.available && emailOk && s.termsAccepted && !pay.busy;
-  const billLines = quote.lines.filter((l) => l.kind !== "support");
+  const billLines = quote.lines.filter((l) => l.kind !== "support" && l.kind !== "travel");
+  const travel = quote.lines.find((l) => l.kind === "travel") ?? null;
+  const travelFree = travel !== null && travel.amountInr === 0;
   const support = quote.lines.find((l) => l.kind === "support") as QuoteLine;
   const supportFree = support.amountInr === 0;
 
@@ -354,6 +356,36 @@ export default function Step5Billing() {
                   );
                 })}
               </dl>
+
+              {/* Travel: its own block, like the support year — free for the first 50. */}
+              {travel && (
+                <div
+                  className={`mt-4 rounded-2xl border p-4 sm:p-5 ${travelFree ? "border-[#BFE6CD] bg-[#F1FBF4]" : "border-vpv-line bg-vpv-canvas"}`}
+                  data-testid="bill-travel"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[16.5px] font-semibold leading-snug text-vpv-ink">{travel.label}</p>
+                      <p className="mt-0.5 text-[12.5px] text-slate-600">Our crew comes to your plant and back the same day</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {travelFree ? (
+                        <>
+                          <p className="text-[15px] font-semibold tabular-nums text-slate-400 line-through">{inr(travel.regularInr ?? 0)}</p>
+                          <p className="text-[24px] font-bold leading-none tracking-[-0.01em] text-[#1F8A4C]">FREE</p>
+                        </>
+                      ) : (
+                        <p className="text-[24px] font-bold leading-none tabular-nums text-vpv-ink">{inr(travel.amountInr)}</p>
+                      )}
+                    </div>
+                  </div>
+                  {travelFree && (
+                    <p className="mt-3 text-[12.5px] leading-relaxed text-[#1D5E37]">
+                      <strong className="font-semibold">Travel is free</strong> for our first {LAUNCH_OFFER.limit} customers.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* The support year: its own block, in big type, with a "?". */}
               <div

@@ -22,32 +22,35 @@ import { cityDemand } from "@/lib/cityDemand";
 import { makeWorld, BUYER, freshIp, type World } from "./harness/world";
 
 describe("sales team logins", () => {
-  it("are ₹1,998 each, shown at 50% off while the offer is open", () => {
-    assert.equal(SALES_TEAM.regularInr, 1_998);
-    assert.equal(SALES_TEAM.offerInr, 999);
-    assert.equal(SALES_TEAM.percentOff, 50);
-    assert.equal(SALES_TEAM.offerInr, SALES_TEAM.regularInr / 2);
-    assert.equal(seatPrice(true), 999);
-    assert.equal(seatPrice(false), 1_998);
+  it("are ₹999 per login per year, ₹199 for our first 50 customers (26 Oct 2026)", () => {
+    assert.equal(SALES_TEAM.regularInr, 999);
+    assert.equal(SALES_TEAM.offerInr, 199);
+    assert.equal(SALES_TEAM.percentOff, 80);
+    assert.equal(SALES_TEAM.period, "year");
+    assert.equal(seatPrice(true), 199);
+    assert.equal(seatPrice(false), 999);
+    // "Even 10 salespeople cost about ₹2,000 a year."
+    assert.equal(10 * seatPrice(true), 1_990);
   });
 
   it("go on the bill as their own lines, with the offer shown as a saving", () => {
     const q = siteQuote("authority", { city: "Manesar", salesSeats: 10, offerOpen: true });
     const seats = q.lines.find((l) => /sales team — 10 salesperson logins/i.test(l.label));
-    const offer = q.lines.find((l) => /50% off sales team/i.test(l.label));
-    assert.equal(seats?.amountInr, 19_980);
-    assert.equal(offer?.amountInr, -9_990);
+    const offer = q.lines.find((l) => /₹199 per login per year/i.test(l.label));
+    assert.equal(seats?.amountInr, 9_990);
+    assert.equal(offer?.amountInr, -8_000);
+    assert.match(seats?.note ?? "", /per year/);
     const without = siteQuote("authority", { city: "Manesar", offerOpen: true });
-    assert.equal(q.taxableInr - without.taxableInr, 9_990);
+    assert.equal(q.taxableInr - without.taxableInr, 1_990);
     // Logins add no shoot time.
     assert.equal(q.shoot.totalHours, without.shoot.totalHours);
   });
 
   it("are charged at the regular price once the offer has closed", () => {
     const q = siteQuote("authority", { city: "Manesar", salesSeats: 10, offerOpen: false });
-    assert.ok(!q.lines.some((l) => /off sales team/i.test(l.label)));
+    assert.ok(!q.lines.some((l) => l.kind === "offer" && /login/i.test(l.label)));
     const without = siteQuote("authority", { city: "Manesar", offerOpen: false });
-    assert.equal(q.taxableInr - without.taxableInr, 19_980);
+    assert.equal(q.taxableInr - without.taxableInr, 9_990);
   });
 
   it("are one flat price per login, whatever the number", () => {
@@ -63,9 +66,9 @@ describe("the sales-team calculator", () => {
     const m = salesTeamMaths(10, 30_000, true);
     assert.equal(m.monthlySalaryBill, 3_00_000);
     assert.equal(m.annualSalaryBill, 36_00_000);
-    assert.equal(m.addOnCost, 9_990);
-    assert.equal(m.regularAddOnCost, 19_980);
-    assert.equal(m.percentOfAnnualSalary, 0.28);
+    assert.equal(m.addOnCost, 1_990);
+    assert.equal(m.regularAddOnCost, 9_990);
+    assert.equal(m.percentOfAnnualSalary, 0.06);
     assert.ok(m.daysOfSalaryPerLogin < 1);
   });
 
@@ -146,7 +149,7 @@ describe("the order route", () => {
     assert.equal(res.status, 200, JSON.stringify(body));
     assert.equal(body.amountPaise, toPaise(siteQuote("authority", { city: "Manesar", salesSeats: 12 }).totalInr));
     const [row] = await w.q(`select notes from public.billing_orders`);
-    assert.match(row.notes, /sales team 12 logins/);
+    assert.match(row.notes, /sales team 12 logins at ₹199\/yr/);
 
     await w.reset();
     const big = await w.routes.order.POST(

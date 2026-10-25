@@ -54,6 +54,7 @@ import {
 import { syncOrderFromRazorpay } from "@/lib/server/payments";
 import { launchOfferState } from "@/lib/server/launchOffer";
 import { checkCoupon } from "@/lib/server/coupons";
+import { orgSalesSeats } from "@/lib/server/salesSeats";
 import { comingSoonTitle, logisticsFor } from "@/lib/logistics";
 import type { Coupon } from "@/lib/pricing";
 import { canonicalIndianState } from "@/lib/indianStates";
@@ -394,6 +395,9 @@ export async function POST(req: Request) {
     coupon = check.coupon;
   }
 
+  // A renewal also renews the Sales Team logins, at the price they were bought at.
+  const renewalSeats = purpose === "support_renewal" ? await orgSalesSeats(sb, orgId) : { seats: 0, seatInr: 0 };
+
   const quote = priceFor(purpose as RequestPurpose, {
     scenes: scenesWanted,
     existingScenes,
@@ -403,7 +407,8 @@ export async function POST(req: Request) {
     extraAreas,
     extraVideos,
     offerOpen: offer ? offer.open : undefined,
-    salesSeats,
+    salesSeats: purpose === "support_renewal" ? renewalSeats.seats : salesSeats,
+    seatInr: renewalSeats.seatInr,
     coupon,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");

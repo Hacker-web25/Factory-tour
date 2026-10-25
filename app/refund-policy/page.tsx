@@ -213,7 +213,7 @@ const sections: LegalSection[] = [
           travel, or software you bought from someone else.
         </li>
         <li>
-          The cab travel charge and any extra shoot time, once the
+          Any cab travel charge and extra shoot time, once the
           shoot has taken place. They pay for a visit that has already
           happened.
         </li>

@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, L, Mail, OL, P, UL } from "@/components/legal/prose";
 import { COMPANY, POLICY } from "@/lib/company";
+import { LAUNCH_OFFER } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Shipping & Delivery Policy",
@@ -28,8 +29,8 @@ const sections: LegalSection[] = [
           VPV is delivered online. We do not ship physical goods, so there are
           no shipping charges, couriers or delivery addresses. The only
           physical part of an order is our crew visiting your factory to shoot
-          it, which is charged as cab travel and shown on your bill
-          before you pay.
+          it, by cab. The cab travel is shown on your bill before you pay
+          (it is free for our first {LAUNCH_OFFER.limit} customers).
         </Callout>
       </>
     ),
