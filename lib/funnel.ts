@@ -75,7 +75,10 @@ export type FunnelState = {
   /* Step 6 — consent and verification. */
   marketingConsent: boolean;
   termsAccepted: boolean;
+  /** Legacy flag: a bare yes that never said WHICH address. Never trusted; see isEmailVerified(). */
   emailVerified: boolean;
+  /** The exact address a code was confirmed for. Verification only counts for this one. */
+  verifiedEmail: string;
   gstin: string;
 };
 
@@ -109,6 +112,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   marketingConsent: false,
   termsAccepted: false,
   emailVerified: false,
+  verifiedEmail: "",
   gstin: "",
 };
 
@@ -129,6 +133,21 @@ export function loadFunnel(): FunnelState {
        funnel is always a safe answer and the visitor just re-answers. */
     return { ...EMPTY_FUNNEL };
   }
+}
+
+/** One spelling of an address, so "Rajesh@Co.in " and "rajesh@co.in" are the same. */
+export function normaliseEmail(v: string): string {
+  return (v ?? "").trim().toLowerCase();
+}
+
+/**
+ * Has THIS address been confirmed with a code? Confirmation belongs to an
+ * address, not to the browser: a visitor who confirmed one e-mail and then
+ * typed another has confirmed nothing for the second.
+ */
+export function isEmailVerified(state: Pick<FunnelState, "email" | "verifiedEmail">): boolean {
+  const e = normaliseEmail(state.email);
+  return e !== "" && e === normaliseEmail(state.verifiedEmail);
 }
 
 /** Merge a step's answers in and hand back the whole state. */

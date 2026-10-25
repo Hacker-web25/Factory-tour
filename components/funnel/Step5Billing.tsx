@@ -66,6 +66,7 @@ import {
   loadFunnel,
   mirrorLead,
   saveFunnel,
+  isEmailVerified,
   type FunnelState,
 } from "@/lib/funnel";
 
@@ -92,9 +93,12 @@ export default function Step5Billing() {
   useEffect(() => {
     const loaded = loadFunnel();
     setS(loaded);
-    if (loaded.emailVerified) setOtp("verified");
+    if (isEmailVerified(loaded)) setOtp("verified");
     setReady(true);
   }, []);
+
+  // "Confirmed" is only true for the exact address a code was confirmed for.
+  const emailOk = otp === "verified" && s !== null && isEmailVerified(s);
 
   const quote = useMemo(
     () =>
@@ -159,7 +163,7 @@ export default function Step5Billing() {
         setOtp("sent");
         return;
       }
-      const saved = saveFunnel({ emailVerified: true });
+      const saved = saveFunnel({ emailVerified: true, verifiedEmail: s.email });
       setS(saved);
       setOtp("verified");
     } catch {
@@ -304,7 +308,7 @@ export default function Step5Billing() {
     );
   }
 
-  const canPay = quote.available && otp === "verified" && s.termsAccepted && !pay.busy;
+  const canPay = quote.available && emailOk && s.termsAccepted && !pay.busy;
   const billLines = quote.lines.filter((l) => l.kind !== "support");
   const support = quote.lines.find((l) => l.kind === "support") as QuoteLine;
   const supportFree = support.amountInr === 0;
@@ -496,7 +500,7 @@ export default function Step5Billing() {
                     <strong className="font-semibold text-vpv-ink">{s.email}</strong>.
                   </SectionTitle>
 
-                  {otp === "verified" ? (
+                  {emailOk ? (
                     <p className="mt-5 flex items-center gap-2 rounded-xl border border-vpv-line bg-vpv-tint/50 px-4 py-3 text-[14px] font-medium text-vpv-blue">
                       ✓ {s.email} is confirmed
                     </p>
@@ -665,7 +669,7 @@ export default function Step5Billing() {
                     </div>
                     {!canPay && !pay.busy && (
                       <p className="mt-3 text-center text-[12.5px] text-slate-500">
-                        {otp !== "verified"
+                        {!emailOk
                           ? "Confirm your e-mail address to continue."
                           : "Accept the Terms and the Refund Policy to continue."}
                       </p>
