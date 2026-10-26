@@ -27,3 +27,9 @@ drop policy if exists orgs_insert on public.organizations;
 create policy orgs_read   on public.organizations for select to authenticated using (true);
 create policy orgs_update on public.organizations for update to authenticated using (true) with check (true);
 create policy orgs_insert on public.organizations for insert to authenticated with check (true);
+
+
+-- Salespeople's client records: members of the workspace read and write their own.
+alter table public.clients enable row level security;
+drop policy if exists clients_all on public.clients;
+create policy clients_all on public.clients for all to authenticated using (true) with check (true);

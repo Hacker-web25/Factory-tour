@@ -26,6 +26,7 @@ import {
   LifeBuoy,
   Lock,
   Plus,
+  Users,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { INDIAN_STATES } from "@/lib/indianStates";
@@ -96,6 +97,13 @@ export default function BillingPage() {
   const [pane, setPane] = useState<"none" | "support" | "scenes">("none");
   const [topupTo, setTopupTo] = useState<number>(0);
   const [renewInr, setRenewInr] = useState<number>(SUPPORT_ANNUAL_INR);
+  // Sales Team logins: how many are paid for, at what price, until when, and how many people use them.
+  const [logins, setLogins] = useState<{
+    seats: number;
+    seatInr: number;
+    until: string | null;
+    salespeople: number;
+  }>({ seats: 0, seatInr: 0, until: null, salespeople: 0 });
 
   const load = useCallback(async () => {
     const p = await getMyProfile();
@@ -128,6 +136,24 @@ export default function BillingPage() {
         const seats = Number((seatRow as { sales_seats?: number } | null)?.sales_seats ?? 0) || 0;
         const each = Number((seatRow as { sales_seat_inr?: number } | null)?.sales_seat_inr ?? 0) || 0;
         setRenewInr(renewalAmount(each > 0 ? seats : 0, each));
+        // Their own end date and head-count. Read separately again: a database
+        // without supabase/renewal_ladder.sql just shows the logins as moving with support.
+        const { data: untilRow } = await supabase
+          .from("organizations")
+          .select("sales_seats_until")
+          .eq("id", p.org_id)
+          .maybeSingle();
+        const { count: people } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", p.org_id)
+          .eq("role", "presenter");
+        setLogins({
+          seats,
+          seatInr: each,
+          until: (untilRow as { sales_seats_until?: string | null } | null)?.sales_seats_until ?? (orgRow as OrgRow).support_until,
+          salespeople: people ?? 0,
+        });
         setTopupTo(((orgRow as OrgRow).scene_quota ?? 2) + 1);
         // Arriving from a renewal reminder (or while overdue): open the
         // renewal checkout straight away — one less click to pay.
@@ -330,12 +356,23 @@ export default function BillingPage() {
         </Card>
       </div>
 
+      {/* ── Sales Team logins: their own due date ───────────────────── */}
+      {org.plan === "basic" && logins.seats > 0 && (
+        <LoginsStrip
+          logins={logins}
+          isAdmin={isAdmin}
+          closed={closed}
+          onRenew={() => setPane("support")}
+        />
+      )}
+
       {/* ── Buy panes ───────────────────────────────────────────────── */}
       {pane === "support" && isAdmin && (
         <Pane title="Renew technical support">
           <CheckoutFlow
             purpose="support_renewal"
             renewalInr={renewInr}
+            renewal={{ seats: logins.seats, seatInr: logins.seatInr, salespeople: logins.salespeople, loginsEnd: logins.until }}
             accessToken={token}
             onComplete={() => {
               setPane("none");
@@ -434,6 +471,78 @@ export default function BillingPage() {
 }
 
 /* ───────────────────────────── pieces ────────────────────────────── */
+
+/** Where the Sales Team logins stand: how many, in use, and when they stop. */
+function LoginsStrip({
+  logins,
+  isAdmin,
+  closed,
+  onRenew,
+}: {
+  logins: { seats: number; seatInr: number; until: string | null; salespeople: number };
+  isAdmin: boolean;
+  closed: boolean;
+  onRenew: () => void;
+}) {
+  const billed = logins.seatInr > 0;
+  const end = logins.until ? new Date(logins.until) : null;
+  const now = Date.now();
+  const stopsAt = end ? new Date(end.getTime() + SUPPORT_GRACE_DAYS * 86_400_000) : null;
+  const state: "active" | "grace" | "off" | "oneoff" = !billed
+    ? "oneoff"
+    : !end || end.getTime() >= now
+      ? "active"
+      : stopsAt && stopsAt.getTime() >= now
+        ? "grace"
+        : "off";
+  const tone =
+    state === "off" ? "border-red-200 bg-red-50" : state === "grace" ? "border-amber-200 bg-amber-50" : "border-vpv-line bg-white";
+  const daysToStop = stopsAt ? Math.max(0, Math.ceil((stopsAt.getTime() - now) / 86_400_000)) : 0;
+  return (
+    <div className={`mt-5 rounded-2xl border p-5 ${tone}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[15px] font-semibold text-vpv-ink">
+          <Users size={17} className="text-vpv-blue" /> Sales Team logins
+        </div>
+        <span className="text-[13px] tabular-nums text-slate-600">
+          {logins.salespeople} of {logins.seats} in use
+        </span>
+      </div>
+      <p className="mt-2 text-[13.5px] leading-relaxed text-slate-600">
+        {state === "oneoff" && <>Your {logins.seats} login{logins.seats === 1 ? " was" : "s were"} bought as a one-time purchase. Nothing to renew.</>}
+        {state === "active" && end && (
+          <>
+            Paid until <strong className="text-vpv-ink">{end.toDateString()}</strong>. They renew with support at{" "}
+            {inr(logins.seatInr)} per login a year + GST.
+          </>
+        )}
+        {state === "grace" && stopsAt && (
+          <>
+            The logins ended on <strong className="text-vpv-ink">{end?.toDateString()}</strong>. Your salespeople are
+            switched off in <strong className="text-vpv-ink">{daysToStop} day{daysToStop === 1 ? "" : "s"}</strong> (
+            {stopsAt.toDateString()}) unless you renew. You, your tours and your data are not affected.
+          </>
+        )}
+        {state === "off" && (
+          <>
+            The logins ended on <strong className="text-vpv-ink">{end?.toDateString()}</strong> and were not renewed, so
+            your salespeople cannot sign in. Everything else works. To switch them back on, write to{" "}
+            <a className="underline" href="mailto:support@myvpv.com">support@myvpv.com</a>.
+          </>
+        )}
+      </p>
+      {isAdmin && !closed && (state === "grace" || state === "active") && billed && (
+        <button
+          type="button"
+          onClick={onRenew}
+          className="mt-3 rounded-full border border-vpv-blue/40 px-5 py-2 text-[13px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+        >
+          {state === "grace" ? "Renew logins now" : "Renew with support"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function TopupButton({
   token,

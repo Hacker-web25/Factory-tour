@@ -32,6 +32,7 @@ import {
   LAUNCH_OFFER,
   SCENE_DEFAULT,
   SUPPORT_ANNUAL_INR,
+  SUPPORT_GRACE_DAYS,
   SUPPORT_ANNUAL_INR as DIGITAL_CARE_INR,
   TRAVEL_FEES,
   inr,
@@ -45,6 +46,12 @@ import {
 import { INDIAN_STATES, canonicalIndianState } from "@/lib/indianStates";
 
 type Step = "choose" | "details";
+
+/** The day unpaid Sales Team logins stop: their end date plus the 7-day grace period. */
+function loginsStopDate(endIso: string): string {
+  const d = new Date(new Date(endIso).getTime() + SUPPORT_GRACE_DAYS * 86_400_000);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
+}
 
 
 export default function CheckoutFlow({
@@ -64,6 +71,7 @@ export default function CheckoutFlow({
   /** Renewal only: support plus the workspace's yearly Sales Team logins, GST excluded.
    *  Display only — the server prices the renewal itself. */
   renewalInr,
+  renewal,
 }: {
   purpose?: Purpose;
   sitePlanId?: SitePlanId;
@@ -72,6 +80,10 @@ export default function CheckoutFlow({
   accessToken?: string | null;
   onComplete?: () => void;
   renewalInr?: number;
+  /** Renewal only: the workspace's yearly Sales Team logins, so the customer can
+   *  renew them with support or leave them to stop. Display only — the server
+   *  prices the renewal itself. */
+  renewal?: { seats: number; seatInr: number; salespeople: number; loginsEnd: string | null };
   title?: string;
   subtitle?: string;
 }) {
@@ -95,6 +107,10 @@ export default function CheckoutFlow({
     pincode: prefill?.pincode ?? "",
   });
   const [agreed, setAgreed] = useState(false);
+  // Renewal: renew the Sales Team logins with support (the default), or support alone.
+  const loginsOnOffer = purpose === "support_renewal" && !!renewal && renewal.seats > 0 && renewal.seatInr > 0;
+  const [renewLogins, setRenewLogins] = useState(true);
+  const loginsInr = loginsOnOffer ? renewal!.seats * renewal!.seatInr : 0;
 
   const payment = useRazorpayPayment({ accessToken });
   const { phase, busy, error, notice, testMode, result, scriptReady } = payment;
@@ -110,7 +126,9 @@ export default function CheckoutFlow({
   const amount = quote
     ? quote.amountInr
     : purpose === "support_renewal"
-      ? (renewalInr ?? SUPPORT_ANNUAL_INR)
+      ? loginsOnOffer
+        ? SUPPORT_ANNUAL_INR + (renewLogins ? loginsInr : 0)
+        : (renewalInr ?? SUPPORT_ANNUAL_INR)
       : priceForScenes(scenes);
   // What the server will send to Razorpay (base + 18% GST). We show this
   // breakdown on the final checkout screen, right before the Pay button.
@@ -122,6 +140,7 @@ export default function CheckoutFlow({
       scenes: purpose === "basic_licence" ? scenes : undefined,
       sitePlanId: purpose === "site_plan" ? sitePlanId : undefined,
       travel: purpose === "site_plan" ? travel : undefined,
+      renewLogins: loginsOnOffer ? renewLogins : undefined,
       buyer,
     });
   };
@@ -364,6 +383,38 @@ export default function CheckoutFlow({
           </div>
         </div>
 
+        {loginsOnOffer && (
+          <div className="mt-6 rounded-2xl border border-vpv-line bg-white p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={renewLogins}
+                onChange={(e) => setRenewLogins(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-vpv-blue focus:ring-vpv-blue"
+              />
+              <span className="text-[13.5px] leading-relaxed text-slate-700">
+                <strong className="text-vpv-ink">
+                  Renew my {renewal!.seats} Sales Team login{renewal!.seats === 1 ? "" : "s"}
+                </strong>{" "}
+                — {inr(renewal!.seatInr)} each, {inr(loginsInr)} a year + GST.
+              </span>
+            </label>
+            {!renewLogins && (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-amber-800">
+                Without this, your salespeople ({renewal!.salespeople} signed up) stop being able to sign in
+                {renewal!.loginsEnd ? (
+                  <>
+                    {" "}
+                    on <strong>{loginsStopDate(renewal!.loginsEnd)}</strong>
+                  </>
+                ) : null}
+                . You, your tours and your data are not affected, and you can switch them back on
+                by writing to support@myvpv.com.
+              </p>
+            )}
+          </div>
+        )}
+
         <label className="mt-6 flex items-start gap-2.5 text-[13px] leading-relaxed text-slate-600">
           <input
             type="checkbox"
@@ -456,8 +507,15 @@ export default function CheckoutFlow({
             <>
               <Row
                 label={purpose === "support_renewal" ? "Annual technical support" : `Basic licence · ${scenes} scenes`}
-                value={inr(amount)}
+                value={inr(loginsOnOffer ? SUPPORT_ANNUAL_INR : amount)}
               />
+              {loginsOnOffer && (
+                <Row
+                  label={`Sales Team logins · ${renewal!.seats} × ${inr(renewal!.seatInr)}`}
+                  value={renewLogins ? inr(loginsInr) : "Not renewing"}
+                  muted={!renewLogins}
+                />
+              )}
               {purpose === "basic_licence" && (
                 <>
                   <Row label="Price per scene" value={inr(Math.round(amount / scenes))} muted />

@@ -35,6 +35,9 @@ type Access = {
   locks_at: string | null;
   days_to_lock: number | null;
   role: string | null;
+  /** Sales Team logins, which can lapse on their own. Absent until supabase/renewal_ladder.sql is run. */
+  logins_state?: "none" | "active" | "nag" | "lapsed" | null;
+  logins_until?: string | null;
 };
 
 /** Pages where the gate never shows: paying, signing in, reading policies, public tours. */
@@ -120,7 +123,11 @@ export default function AccessGate() {
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const exempt = isExempt(pathname);
-  const state = exempt || !access ? "active" : access.state;
+  // A salesperson whose company's logins lapsed: the workspace works for the
+  // owner and the customers, but THIS person is switched off.
+  const loginsOff = !!access && access.role === "presenter" && access.logins_state === "lapsed";
+  const state: "active" | "nag" | "locked" | "logins" =
+    exempt || !access ? "active" : access.state !== "active" ? access.state : loginsOff ? "logins" : "active";
 
   /* ── level 1: a pop-up on every click ─────────────────────────── */
   useEffect(() => {
@@ -164,7 +171,7 @@ export default function AccessGate() {
 
   /* ── level 2: the lock ────────────────────────────────────────── */
   useEffect(() => {
-    if (state !== "locked") return;
+    if (state !== "locked" && state !== "logins") return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const first = overlayRef.current?.querySelector<HTMLElement>("a,button");
@@ -253,6 +260,43 @@ export default function AccessGate() {
                 Please ask your organisation&apos;s admin to renew. Only an admin can make this payment.
               </p>
             )}
+            <a href="mailto:support@myvpv.com" className="text-[13.5px] font-medium text-[#1468D8] underline underline-offset-2">
+              Write to support@myvpv.com
+            </a>
+            <button type="button" onClick={signOut} className="text-[13px] text-slate-500 hover:text-slate-800">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* A SALESPERSON'S LOGIN HAS LAPSED ---------------------------------- */
+  if (state === "logins") {
+    return (
+      <div
+        ref={overlayRef}
+        data-vpv-gate
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="vpv-logins-title"
+        className="fixed inset-0 grid place-items-center overflow-y-auto bg-[rgba(8,15,28,0.94)] p-5 backdrop-blur-md"
+        style={{ zIndex: 2147483000 }}
+      >
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-50">
+            <Lock className="text-amber-600" size={26} />
+          </div>
+          <h2 id="vpv-logins-title" className="mt-5 text-[24px] font-semibold tracking-tight text-slate-900">
+            Your Sales Team login has expired
+          </h2>
+          <p className="mt-3 text-[14.5px] leading-relaxed text-slate-600">
+            Your company&apos;s Sales Team logins ended on {fmtDate(access.logins_until ?? null)} and were not renewed.
+            Please ask your organisation&apos;s admin to renew them — you will be able to sign in again the moment the
+            payment is confirmed. Nothing you have created has been deleted.
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
             <a href="mailto:support@myvpv.com" className="text-[13.5px] font-medium text-[#1468D8] underline underline-offset-2">
               Write to support@myvpv.com
             </a>

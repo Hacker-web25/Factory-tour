@@ -198,10 +198,17 @@ export default function SalesSignupPage() {
       return;
     }
     // Attach the user to the org as presenter.
-    await supabase
+    const attach = await supabase
       .from("profiles")
       .update({ org_id: res.orgId, role: "presenter" })
       .eq("id", userId);
+    if (attach.error && /sales_logins_full/.test(attach.error.message)) {
+      // The database refuses a salesperson beyond the logins the company paid for.
+      setError(
+        "All the Sales Team logins your company has paid for are in use. Please ask your admin to free one up or add more."
+      );
+      return;
+    }
 
     // Hand off to the sales dashboard on the right subdomain.
     const profile = await getMyProfile();

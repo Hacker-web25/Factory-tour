@@ -37,6 +37,25 @@ create table public.profiles (
   created_at timestamptz not null default now()
 );
 
+-- Sales Team invite codes (the real table is created outside these migrations).
+create table public.invite_codes (
+  code        text primary key,
+  org_id      uuid references public.organizations(id) on delete cascade,
+  created_by  uuid,
+  max_uses    integer,
+  used_count  integer not null default 0,
+  used_by     text[] not null default '{}',
+  expires_at  timestamptz,
+  device_limit integer not null default 1
+);
+
+create table public.clients (
+  id                uuid primary key default gen_random_uuid(),
+  presenter_user_id uuid not null,
+  org_id            uuid,
+  name              text
+);
+
 create table public.tours (
   id         uuid primary key default gen_random_uuid(),
   org_id     uuid references public.organizations(id) on delete cascade,

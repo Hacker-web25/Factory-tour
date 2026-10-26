@@ -186,57 +186,158 @@ export async function sendConfirmationEmail(args: {
   });
 }
 
-export type ReminderKind = "t30" | "t7" | "t0" | "t3" | "t6";
+/**
+ * Which reminder this is. The stage comes from the database
+ * (vpv_reminder_kind): t30 · t7 · t1 before the end date, d0 … d6 on each day
+ * of the grace period, then "locked". A leading L means it is about the Sales
+ * Team logins, which can have an end date of their own.
+ */
+export type ReminderKind = string;
+
+export type ReminderScope = "support" | "both" | "logins";
+
+export type ReminderStage =
+  | { stage: "t30" | "t7" | "t1" | "locked"; logins: boolean }
+  | { stage: "day"; day: number; logins: boolean };
+
+export function parseReminderKind(kind: string): ReminderStage | null {
+  const logins = kind.startsWith("L");
+  const k = logins ? kind.slice(1) : kind;
+  if (k === "t30" || k === "t7" || k === "t1" || k === "locked") return { stage: k, logins };
+  const m = /^d(\d{1,2})$/.exec(k);
+  if (m) return { stage: "day", day: Number(m[1]), logins };
+  // The five-stage ladder this replaced (a database that has not had
+  // supabase/renewal_ladder.sql run yet still hands these out).
+  const legacy = /^t([036])$/.exec(k);
+  if (legacy) return { stage: "day", day: Number(legacy[1]), logins };
+  return null;
+}
+
+export type ReminderMail = { subject: string; title: string; body: string; button: string };
+
+/** The words of one reminder. Pure, so every stage can be read and tested. */
+export function reminderMail(args: {
+  kind: ReminderKind;
+  scope: ReminderScope;
+  orgName: string;
+  /** When what this e-mail is about ends. */
+  dueAt: Date | string;
+  /** When it stops working if unpaid. */
+  locksAt: Date | string;
+  supportInr: number;
+  seats: number;
+  seatInr: number;
+}): ReminderMail | null {
+  const st = parseReminderKind(args.kind);
+  if (!st) return null;
+  const org = `<strong>${esc(args.orgName)}</strong>`;
+  const due = esc(dateStr(args.dueAt));
+  const locks = esc(dateStr(args.locksAt));
+  const loginsInr = Math.max(0, args.seats) * Math.max(0, args.seatInr);
+  const loginsOnly = args.scope === "logins";
+  const withLogins = args.scope === "both" && loginsInr > 0;
+  const total = loginsOnly ? loginsInr : args.supportInr + (withLogins ? loginsInr : 0);
+  const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
+  const salespeople = n(args.seats, "Sales Team login", "Sales Team logins");
+
+  const what = loginsOnly ? salespeople : withLogins ? "support, hosting and Sales Team logins" : "technical support and hosting";
+  const lines = loginsOnly
+    ? `${salespeople}: ${esc(inr(loginsInr))} + GST a year`
+    : withLogins
+      ? `Support, hosting &amp; security: ${esc(inr(args.supportInr))} · ${esc(salespeople)}: ${esc(inr(loginsInr))} — ${esc(inr(total))} + GST a year`
+      : `${esc(inr(args.supportInr))} + GST a year`;
+
+  const consequence = loginsOnly
+    ? `On <strong>${locks}</strong> your salespeople are switched off. You, your tours and your data keep working, and renewing switches them back on.`
+    : withLogins
+      ? `On <strong>${locks}</strong> the workspace locks — your dashboard and the tours you have shared stop opening. You can also renew support alone; then only your salespeople are switched off.`
+      : `On <strong>${locks}</strong> the workspace locks — your dashboard and the tours you have shared stop opening. Your data is kept, and renewing unlocks everything at once.`;
+
+  const label = `Renew for ${inr(total)} + GST`;
+  const left = (day: number) => Math.max(1, SUPPORT_GRACE_DAYS - day);
+
+  switch (st.stage) {
+    case "t30":
+      return {
+        subject: loginsOnly ? "Your VPV Sales Team logins renew in about a month" : "Your VPV renewal is due in about a month",
+        title: "Renewal coming up",
+        body: `Your ${esc(what)} for ${org} runs until <strong>${due}</strong>. Renewing is ${lines}. Renewing early never loses you a day.`,
+        button: label,
+      };
+    case "t7":
+      return {
+        subject: loginsOnly ? "Your VPV Sales Team logins renew in a week" : "Your VPV renewal is due in a week",
+        title: "One week left",
+        body: `Your ${esc(what)} for ${org} ends on <strong>${due}</strong>. Renewing is ${lines}. After that date you get a reminder every day for ${SUPPORT_GRACE_DAYS} days. ${consequence}`,
+        button: label,
+      };
+    case "t1":
+      return {
+        subject: loginsOnly ? "Your VPV Sales Team logins end tomorrow" : "Your VPV renewal is due tomorrow",
+        title: "Due tomorrow",
+        body: `Your ${esc(what)} for ${org} ends <strong>tomorrow, ${due}</strong>. Renewing is ${lines}. ${consequence}`,
+        button: label,
+      };
+    case "day": {
+      const d = left(st.day);
+      return {
+        subject: loginsOnly
+          ? `Your VPV Sales Team logins stop in ${n(d, "day", "days")} — please renew`
+          : `Your VPV workspace locks in ${n(d, "day", "days")} — please renew`,
+        title: d === 1 ? "Last day to renew" : `${n(d, "day", "days")} left`,
+        body: `Your ${esc(what)} for ${org} ended on <strong>${due}</strong>. ${consequence} Renewing is ${lines}.`,
+        button: label,
+      };
+    }
+    case "locked":
+      return {
+        subject: loginsOnly ? "Your VPV Sales Team logins have been switched off" : "Your VPV workspace is locked",
+        title: loginsOnly ? "Salespeople switched off" : "Your workspace is locked",
+        body: loginsOnly
+          ? `The ${esc(salespeople)} for ${org} ended on <strong>${due}</strong> and were not renewed, so your salespeople can no longer sign in. You, your tours and your data are unaffected. Renew for ${lines} and they work again immediately.`
+          : `${org} was not renewed by <strong>${esc(dateStr(args.locksAt))}</strong> and is now locked: your dashboard and the tours you have shared are unavailable. <strong>Your tours and data are kept.</strong> Renew for ${lines} and everything unlocks the moment the payment is confirmed.`,
+        button: label,
+      };
+  }
+}
 
 export async function sendSupportReminder(args: {
   to: string;
   orgName: string;
   slug: string;
   kind: ReminderKind;
+  scope?: ReminderScope;
+  /** When what this e-mail is about ends (the support year, or the logins' own end date). */
   supportUntil: Date | string;
   locksAt: Date | string;
-  /** The renewal price, GST excluded: support plus any yearly Sales Team logins. */
+  /** Legacy single price: support plus yearly logins, GST excluded. Used when the parts below are not given. */
   amountInr?: number;
+  supportInr?: number;
+  seats?: number;
+  seatInr?: number;
 }): Promise<boolean> {
-  const renewInr = args.amountInr ?? SUPPORT_ANNUAL_INR;
-  const until = dateStr(args.supportUntil);
-  const locks = dateStr(args.locksAt);
-  const url = `https://${args.slug}.myvpv.com/billing`;
-  const copy: Record<ReminderKind, { subject: string; title: string; body: string }> = {
-    t30: {
-      subject: "Your VPV support year ends in about a month",
-      title: "Your support year ends soon",
-      body: `Your technical support and hosting for <strong>${esc(args.orgName)}</strong> runs until <strong>${esc(until)}</strong>. Renew for ${esc(inr(renewInr))} + GST a year from your dashboard so nothing is interrupted. Renewing early never loses you a day.`,
-    },
-    t7: {
-      subject: "Your VPV support ends in a week",
-      title: "One week left",
-      body: `Your support and hosting for <strong>${esc(args.orgName)}</strong> ends on <strong>${esc(until)}</strong>. After that date a renewal reminder appears on every click, and ${SUPPORT_GRACE_DAYS} days later the workspace locks until it is renewed.`,
-    },
-    t0: {
-      subject: "Your VPV support year has ended — please renew",
-      title: "Your support year has ended",
-      body: `Support and hosting for <strong>${esc(args.orgName)}</strong> ended on <strong>${esc(until)}</strong>. Renewal reminders now appear as you use VPV, and <strong>the workspace locks on ${esc(locks)}</strong> if it is not renewed. Your tours and data are kept — renewing unlocks everything instantly.`,
-    },
-    t3: {
-      subject: "Your VPV workspace locks in a few days",
-      title: "Your workspace locks soon",
-      body: `<strong>${esc(args.orgName)}</strong> will lock on <strong>${esc(locks)}</strong>. While it is locked, your dashboard and the tours you have shared with customers stop working. Renew now to keep everything live.`,
-    },
-    t6: {
-      subject: "Final notice — your VPV workspace locks tomorrow",
-      title: "Final notice",
-      body: `<strong>${esc(args.orgName)}</strong> locks on <strong>${esc(locks)}</strong>. Customers opening your shared tours will see them as unavailable until you renew. Renewing takes a minute and unlocks everything immediately.`,
-    },
-  };
-  const c = copy[args.kind];
+  const seats = args.seats ?? 0;
+  const seatInr = args.seatInr ?? 0;
+  const supportInr = args.supportInr ?? (args.amountInr !== undefined ? args.amountInr - seats * seatInr : SUPPORT_ANNUAL_INR);
+  const mail = reminderMail({
+    kind: args.kind,
+    scope: args.scope ?? "support",
+    orgName: args.orgName,
+    dueAt: args.supportUntil,
+    locksAt: args.locksAt,
+    supportInr,
+    seats,
+    seatInr,
+  });
+  if (!mail) return false;
+  const url = `https://${args.slug}.myvpv.com/billing?renew=1`;
   return sendEmail({
     to: args.to,
     bcc: COMPANY.emails.support,
-    subject: c.subject,
+    subject: mail.subject,
     html: emailShell(
-      c.title,
-      `<p ${P}>${c.body}</p>${button(url, `Renew for ${inr(renewInr)} + GST`)}
+      mail.title,
+      `<p ${P}>${mail.body}</p>${button(url, mail.button)}
        <p ${SMALL}>Questions? Write to <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>.</p>`
     ),
   });

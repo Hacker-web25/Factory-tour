@@ -68,6 +68,17 @@ export async function redeemInviteCode(
     // Idempotent — already redeemed by this user.
     return { orgId: row.org_id, deviceLimit };
   }
+  // A workspace can only have as many salespeople as it has paid logins for.
+  // Asked BEFORE the code is used up, so a full workspace does not burn it.
+  // (A database without supabase/renewal_ladder.sql answers with an error
+  // here; that means "no limit yet", not "no".)
+  const room = await supabase.rpc("invite_code_has_room", { p_code: clean });
+  if (!room.error && room.data === false) {
+    return {
+      error:
+        "All the Sales Team logins your company has paid for are in use. Please ask your admin to free one up or add more.",
+    };
+  }
   // Mark the code consumed by this user + bump the counter.
   await supabase
     .from("invite_codes")

@@ -38,7 +38,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
-import { fromPaise, inr } from "@/lib/pricing";
+import { SUPPORT_ANNUAL_INR, fromPaise, inr } from "@/lib/pricing";
 import { usageTitle } from "@/lib/purchaseUsage";
 
 type StuckOrder = {
@@ -165,11 +165,29 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "�
 
 type SetupCheck = { mode: "test" | "live" | "unconfigured"; problems: string[]; warnings: string[] };
 
+type Renewal = {
+  org_id: string;
+  org_name: string;
+  slug: string;
+  billing_email: string | null;
+  support_until: string | null;
+  days_to_support: number | null;
+  support_stage: "closed" | "none" | "locked" | "grace" | "due_1" | "due_7" | "due_30" | "ok";
+  logins_until: string | null;
+  logins_stage: "none" | "active" | "nag" | "lapsed" | null;
+  sales_seats: number;
+  sales_seat_inr: number | null;
+  salespeople: number;
+  last_reminder: string | null;
+  last_reminder_at: string | null;
+};
+
 export default function AdminPaymentsPage() {
   const router = useRouter();
   const [me, setMe] = useState<Profile | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [setup, setSetup] = useState<SetupCheck | null>(null);
   const [setupError, setSetupError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -217,6 +235,9 @@ export default function AdminPaymentsPage() {
     // rest of this page must still work, so a failure here is silent.
     const { data: ov } = await supabase.rpc("admin_payments_overview");
     setOverview((ov as Overview | null) ?? null);
+    // Added October 2026 as well (supabase/renewal_ladder.sql); silent if missing.
+    const { data: rn } = await supabase.rpc("admin_renewals_overview");
+    setRenewals(Array.isArray(rn) ? (rn as Renewal[]) : []);
 
     const { data, error } = await supabase.rpc("admin_billing_health");
     if (error || !data) {
@@ -620,7 +641,9 @@ export default function AdminPaymentsPage() {
               </Section>
             )}
 
-            {/* ── refunds ───────────────────────────────────────── */}
+            {/* ── renewals: who is about to lapse, and who has ────── */}
+            {renewals.length > 0 && <RenewalsSection rows={renewals} />}
+
             {/* ── who is set up, and what they do with it ─────────── */}
             {overview && overview.customers.length > 0 && <CustomersSection o={overview} />}
 
@@ -878,6 +901,132 @@ function MoneyStrip({ o }: { o: Overview }) {
  * and it is the most valuable thing on this page: it is the only place
  * that says, in customers' own words, what they bought VPV FOR.
  */
+const STAGE_LABEL: Record<Renewal["support_stage"], { text: string; tone: "red" | "amber" | "blue" | "green" | "grey" }> = {
+  locked: { text: "Locked", tone: "red" },
+  grace: { text: "In 7-day grace", tone: "amber" },
+  due_1: { text: "Due within a day", tone: "amber" },
+  due_7: { text: "Due within a week", tone: "blue" },
+  due_30: { text: "Due within a month", tone: "blue" },
+  ok: { text: "Paid up", tone: "green" },
+  closed: { text: "Closed", tone: "grey" },
+  none: { text: "No date", tone: "grey" },
+};
+
+function Chip({ tone, children }: { tone: "red" | "amber" | "blue" | "green" | "grey"; children: React.ReactNode }) {
+  const c =
+    tone === "red"
+      ? "bg-red-50 text-red-700 ring-red-200"
+      : tone === "amber"
+        ? "bg-amber-50 text-amber-800 ring-amber-200"
+        : tone === "blue"
+          ? "bg-sky-50 text-sky-800 ring-sky-200"
+          : tone === "green"
+            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+            : "bg-slate-50 text-slate-600 ring-slate-200";
+  return <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ring-1 ${c}`}>{children}</span>;
+}
+
+function reminderLabel(kind: string | null): string {
+  if (!kind) return "none yet";
+  const logins = kind.startsWith("L");
+  const k = logins ? kind.slice(1) : kind;
+  const names: Record<string, string> = { t30: "30 days before", t7: "1 week before", t1: "1 day before", locked: "locked notice" };
+  const d = /^d(\d+)$/.exec(k);
+  const text = names[k] ?? (d ? `day ${Number(d[1]) + 1} of grace` : k);
+  return logins ? `logins · ${text}` : text;
+}
+
+function RenewalsSection({ rows }: { rows: Renewal[] }) {
+  const order: Renewal["support_stage"][] = ["locked", "grace", "due_1", "due_7", "due_30"];
+  const act = rows
+    .filter((r) => order.includes(r.support_stage) || r.logins_stage === "nag" || r.logins_stage === "lapsed")
+    .sort((a, b) => {
+      const ia = order.indexOf(a.support_stage);
+      const ib = order.indexOf(b.support_stage);
+      return (ia < 0 ? 9 : ia) - (ib < 0 ? 9 : ib) || (a.days_to_support ?? 0) - (b.days_to_support ?? 0);
+    });
+  const count = (st: Renewal["support_stage"]) => rows.filter((r) => r.support_stage === st).length;
+  const calm = rows.length - act.length;
+  const over = rows.filter((r) => r.sales_seats > 0 && r.salespeople > r.sales_seats);
+  const tone = count("locked") > 0 ? "red" : count("grace") > 0 || act.length > 0 ? "amber" : "plain";
+  return (
+    <Section
+      title="Renewals"
+      tone={tone}
+      hint={`${count("locked")} locked · ${count("grace")} in the 7-day grace period · ${count("due_1")} due within a day · ${count("due_7")} within a week · ${count("due_30")} within a month. Customers are e-mailed 30 days, 1 week and 1 day before, then every day until the lock; you are alerted when one goes overdue and again when it locks.`}
+    >
+      {act.length === 0 ? (
+        <div className="rounded-2xl border border-vpv-line bg-white px-4 py-8 text-center text-[13.5px] text-slate-500">
+          Nothing is due in the next 30 days. {calm} {calm === 1 ? "workspace is" : "workspaces are"} paid up.
+        </div>
+      ) : (
+        <Table head={["Customer", "Support & hosting", "Sales Team logins", "Last reminder", "To renew"]}>
+          {act.map((r) => {
+            const st = STAGE_LABEL[r.support_stage];
+            const billed = (r.sales_seat_inr ?? 0) > 0 ? r.sales_seats * (r.sales_seat_inr ?? 0) : 0;
+            const days = r.days_to_support;
+            return (
+              <tr key={r.org_id} className="border-b border-vpv-line last:border-0 align-top">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-vpv-ink">{r.org_name}</div>
+                  <div className="text-[12.5px] text-vpv-muted">{r.billing_email ?? "no e-mail on file"}</div>
+                  <a href={`https://${r.slug}.myvpv.com`} target="_blank" rel="noreferrer" className="text-[12px] text-vpv-blue underline underline-offset-2">
+                    {r.slug}.myvpv.com
+                  </a>
+                </td>
+                <td className="px-4 py-3">
+                  <Chip tone={st.tone}>{st.text}</Chip>
+                  <div className="mt-1 text-[12.5px] text-vpv-muted">
+                    {r.support_until ? `${when(r.support_until).split(",")[0]}` : "—"}
+                    {days !== null && days >= 0 && ` · ${days} day${days === 1 ? "" : "s"} left`}
+                    {days !== null && days < 0 && ` · ${-days} day${days === -1 ? "" : "s"} ago`}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  {r.sales_seats > 0 ? (
+                    <>
+                      <Chip tone={r.logins_stage === "lapsed" ? "red" : r.logins_stage === "nag" ? "amber" : r.logins_stage === "active" ? "green" : "grey"}>
+                        {r.logins_stage === "lapsed"
+                          ? "Switched off"
+                          : r.logins_stage === "nag"
+                            ? "In grace"
+                            : r.logins_stage === "active"
+                              ? "Paid"
+                              : "One-time"}
+                      </Chip>
+                      <div className="mt-1 text-[12.5px] text-vpv-muted">
+                        {r.salespeople} of {r.sales_seats} in use
+                        {r.logins_until && r.logins_stage !== "none" && ` · to ${when(r.logins_until).split(",")[0]}`}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-[12.5px] text-vpv-muted">{r.salespeople > 0 ? `${r.salespeople} added, none bought` : "None"}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-[12.5px] text-vpv-muted">
+                  {reminderLabel(r.last_reminder)}
+                  {r.last_reminder_at && <div>{when(r.last_reminder_at)}</div>}
+                </td>
+                <td className="px-4 py-3 tabular-nums">
+                  {inr(SUPPORT_ANNUAL_INR + billed)}
+                  <div className="text-[12px] text-vpv-muted">+ GST</div>
+                </td>
+              </tr>
+            );
+          })}
+        </Table>
+      )}
+      {over.length > 0 && (
+        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800">
+          More salespeople than logins paid for:{" "}
+          {over.map((r) => `${r.org_name} (${r.salespeople} of ${r.sales_seats})`).join(", ")}.
+        </p>
+      )}
+      {calm > 0 && act.length > 0 && <p className="mt-2 text-[12px] text-vpv-muted">{calm} more are paid up for over a month.</p>}
+    </Section>
+  );
+}
+
 function CustomersSection({ o }: { o: Overview }) {
   return (
     <Section

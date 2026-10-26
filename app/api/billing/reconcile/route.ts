@@ -27,9 +27,9 @@ import {
   applyRefundEvent,
 } from "@/lib/server/payments";
 import { fetchRazorpayRefund, listRazorpayPayments, listRazorpayRefunds } from "@/lib/server/razorpay";
-import { alertFounders, sendSupportReminder, type ReminderKind } from "@/lib/server/billingEmails";
+import { alertFounders, parseReminderKind, sendSupportReminder, type ReminderKind, type ReminderScope } from "@/lib/server/billingEmails";
 import { json, fail, safeEqualSecret } from "@/lib/server/billingGuard";
-import { fromPaise, renewalAmount } from "@/lib/pricing";
+import { SUPPORT_ANNUAL_INR, fromPaise } from "@/lib/pricing";
 import { orgSalesSeats } from "@/lib/server/salesSeats";
 
 export const runtime = "nodejs";
@@ -41,6 +41,37 @@ const STUCK_REFUND_DAYS = 10;
 
 const BATCH = 25;
 const SOFT_DEADLINE_MS = 240_000;
+
+/**
+ * The customer has been e-mailed; now tell US, while there is still time to
+ * pick up the phone. The first day of the grace period is a warning, the day a
+ * workspace locks (or its salespeople are switched off) is critical. One alert
+ * per workspace, so two customers never hide each other.
+ */
+async function alertOnRenewalStage(
+  sb: NonNullable<ReturnType<typeof supabaseAdmin>>,
+  r: { org_name: string; slug: string; kind: string; support_until: string; due_at?: string; locks_at: string }
+): Promise<void> {
+  const st = parseReminderKind(r.kind);
+  if (!st) return;
+  const what = st.logins ? "Sales Team logins" : "support & hosting";
+  const ended = (r.due_at ?? r.support_until).slice(0, 10);
+  if (st.stage === "locked") {
+    await alertFounders(sb, {
+      kind: `${st.logins ? "logins_switched_off" : "workspace_locked"}:${r.slug}`,
+      severity: "critical",
+      detail: st.logins
+        ? `${r.org_name} (${r.slug}) did not renew its Sales Team logins (ended ${ended}). Its salespeople are now switched off; the owner and the tours still work.`
+        : `${r.org_name} (${r.slug}) did not renew support & hosting (ended ${ended}) and is now LOCKED: its dashboard and shared tours are unavailable. Their data is kept. Call them.`,
+    });
+  } else if (st.stage === "day" && st.day === 0) {
+    await alertFounders(sb, {
+      kind: `renewal_overdue:${r.slug}`,
+      severity: "warning",
+      detail: `${r.org_name} (${r.slug}) has not renewed ${what} (ended ${ended}). It locks on ${r.locks_at.slice(0, 10)} unless it pays. A call now is worth more than the daily e-mails.`,
+    });
+  }
+}
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -280,17 +311,23 @@ export async function GET(req: Request) {
       support_until: string;
       to_email: string;
       locks_at: string;
+      scope?: ReminderScope;
+      due_at?: string;
     }>) {
       let sent = false;
       try {
         const seats = await orgSalesSeats(sb, r.org_id);
+        const billed = seats.seatInr > 0 ? seats.seats : 0;
         sent = await sendSupportReminder({
-          amountInr: renewalAmount(seats.seatInr > 0 ? seats.seats : 0, seats.seatInr),
+          supportInr: SUPPORT_ANNUAL_INR,
+          seats: billed,
+          seatInr: seats.seatInr,
+          scope: r.scope ?? "support",
           to: r.to_email,
           orgName: r.org_name,
           slug: r.slug,
           kind: r.kind,
-          supportUntil: r.support_until,
+          supportUntil: r.due_at ?? r.support_until,
           locksAt: r.locks_at,
         });
       } catch {
@@ -298,13 +335,14 @@ export async function GET(req: Request) {
       }
       if (sent) {
         report.reminders += 1;
+        await alertOnRenewalStage(sb, r).catch(() => undefined);
       } else {
         // Give the claim back so tomorrow's run tries again.
         report.reminderFailures += 1;
         await sb
           .rpc("billing_unclaim_support_reminder", {
             p_org: r.org_id,
-            p_support_until: r.support_until,
+            p_support_until: r.due_at ?? r.support_until,
             p_kind: r.kind,
           })
           .then(() => undefined, () => undefined);

@@ -301,6 +301,8 @@ export function useRazorpayPayment(
       salesSeats?: number;
       /** The address the customer chose for their workspace. */
       workspaceSlug?: string;
+      /** Renewal only: false = renew support alone and let the Sales Team logins stop. */
+      renewLogins?: boolean;
       /** A coupon code the buyer entered. The server checks it. */
       coupon?: string;
       buyer?: Partial<Buyer>;
@@ -336,6 +338,7 @@ export function useRazorpayPayment(
               extraVideos: args.extraVideos,
               salesSeats: args.salesSeats,
               workspaceSlug: args.workspaceSlug,
+              renewLogins: args.renewLogins,
               coupon: args.coupon,
               buyer: args.buyer ?? {},
             }),

@@ -424,23 +424,27 @@ describe("support lapse ladder and the lock", () => {
     it("each stage sends its own message, once, and nothing is sent outside the window", async () => {
       await remindable("t30-co", at(25 * DAY));
       await remindable("t7-co", at(5 * DAY));
-      await remindable("t0-co", at(-1 * DAY));
-      await remindable("t3-co", at(-4 * DAY));
-      await remindable("t6-co", at(-6.5 * DAY));
-      await remindable("far-co", at(40 * DAY));
+      await remindable("t1-co", at(0.5 * DAY));
+      await remindable("d0-co", at(-0.5 * DAY));
+      await remindable("d3-co", at(-3.5 * DAY));
+      await remindable("d6-co", at(-6.5 * DAY));
       await remindable("locked-co", at(-8 * DAY));
+      await remindable("far-co", at(40 * DAY));
+      await remindable("old-co", at(-12 * DAY));
       await remindable("pro-co", at(-1 * DAY), { plan: "pro" });
       await remindable("gone-co", at(-1 * DAY), { planStatus: "cancelled" });
 
       const first = await w.reconcile();
       assert.equal(first.status, 200, JSON.stringify(first.body));
-      assert.equal(first.body.reminders, 5, JSON.stringify(first.body));
+      assert.equal(first.body.reminders, 7, JSON.stringify(first.body));
       assert.match(mailsFor("t30-co")[0].subject, /about a month/i);
       assert.match(mailsFor("t7-co")[0].subject, /in a week/i);
-      assert.match(mailsFor("t0-co")[0].subject, /has ended/i);
-      assert.match(mailsFor("t3-co")[0].subject, /locks in a few days/i);
-      assert.match(mailsFor("t6-co")[0].subject, /final notice/i);
-      for (const quiet of ["far-co", "locked-co", "pro-co", "gone-co"]) assert.equal(mailsFor(quiet).length, 0, quiet);
+      assert.match(mailsFor("t1-co")[0].subject, /due tomorrow/i);
+      assert.match(mailsFor("d0-co")[0].subject, /locks in 7 days/i);
+      assert.match(mailsFor("d3-co")[0].subject, /locks in 4 days/i);
+      assert.match(mailsFor("d6-co")[0].subject, /locks in 1 day\b/i);
+      assert.match(mailsFor("locked-co")[0].subject, /is locked/i);
+      for (const quiet of ["far-co", "old-co", "pro-co", "gone-co"]) assert.equal(mailsFor(quiet).length, 0, quiet);
 
       const second = await w.reconcile();
       assert.equal(second.body.reminders, 0, "the same stage is never sent twice");

@@ -661,11 +661,13 @@ const sections: LegalSection[] = [
           have already paid for.
         </P>
         <P>
-          <B>Renewal.</B> We e-mail you about 30 days and 7 days before your
-          support year ends, and on the day it ends. If the Support Fee is not
-          paid by then, you have {POLICY.supportGraceDays} days in which the
-          Workspace keeps working but shows a renewal reminder whenever you
-          use it, and we e-mail you again on about day 3 and day 6.
+          <B>Renewal.</B> We e-mail you 30 days, 1 week and 1 day before your
+          support year ends. If the Support Fee is not paid by then, you have{" "}
+          {POLICY.supportGraceDays} days in which the Workspace keeps working
+          but shows a renewal reminder whenever you use it, and we e-mail you{" "}
+          <B>every day</B> of those {POLICY.supportGraceDays} days, then once
+          more when the Workspace locks. The reminders go to the billing
+          e-mail on your account and to our team, so that we can also call you.
         </P>
         <P>
           <B>If the Support Fee stays unpaid.</B> {POLICY.supportGraceDays}{" "}
@@ -677,6 +679,18 @@ const sections: LegalSection[] = [
           left it. While a Workspace is locked we keep your Content safe, and we
           will not delete it for an unpaid Support Fee without at least{" "}
           {POLICY.deletionNoticeDays} days’ written notice.
+        </P>
+        <P>
+          <B>Sales Team logins have their own renewal date.</B> When you renew
+          you choose whether to renew your Sales Team logins as well; they are
+          the default, and the price is shown before you pay. If you renew
+          support but not the logins, the logins end on their own date, we
+          e-mail you about them in the same way, and{" "}
+          {POLICY.supportGraceDays} days later your salespeople can no longer
+          sign in. Your own login, your tours and your Content are not
+          affected, nothing created by your salespeople is deleted, and
+          renewing switches their logins back on. A Workspace can have no more
+          salespeople signed in than the number of logins paid for.
         </P>
       </>
     ),

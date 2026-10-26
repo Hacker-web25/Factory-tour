@@ -342,6 +342,9 @@ export async function POST(req: Request) {
   let extraAreas = 0;
   let extraVideos = 0;
   let salesSeats = 0;
+  // A renewal pays for the Sales Team logins unless the customer says not to.
+  // Support alone is a real choice: the logins then stop on their own date.
+  const renewLogins = body.renewLogins !== false;
 
   if (purpose === "site_plan") {
     // The browser names a plan, a city and how many extras it wants. Not one
@@ -426,7 +429,7 @@ export async function POST(req: Request) {
     extraAreas,
     extraVideos,
     offerOpen: offer ? offer.open : undefined,
-    salesSeats: purpose === "support_renewal" ? renewalSeats.seats : salesSeats,
+    salesSeats: purpose === "support_renewal" ? (renewLogins ? renewalSeats.seats : 0) : salesSeats,
     seatInr: renewalSeats.seatInr,
     coupon,
   });
@@ -514,6 +517,21 @@ export async function POST(req: Request) {
       // eslint-disable-next-line no-console
       console.warn("[billing] workspace address not claimed (run supabase/workspace_address.sql):", claimErr.message);
     }
+  }
+
+  // Which dues this renewal pays: support alone, or support and the Sales Team
+  // logins. Best-effort for the usual reason (supabase/renewal_ladder.sql may
+  // not be run yet); without the column a renewal counts as paying for both,
+  // which is also what it charges for in that case.
+  if (purpose === "support_renewal" && renewalSeats.seats > 0 && renewalSeats.seatInr > 0) {
+    await sb
+      .from("billing_orders")
+      .update({ renews_logins: renewLogins })
+      .eq("id", order.id)
+      .then(
+        () => undefined,
+        () => undefined
+      );
   }
 
   // The plant address in its parts, for the crew and for /admin. Written

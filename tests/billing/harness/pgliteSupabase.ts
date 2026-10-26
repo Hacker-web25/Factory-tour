@@ -424,6 +424,7 @@ export async function createTestDb(repoRoot: string): Promise<TestDb> {
     "supabase/invoice_lines.sql",
     "supabase/workspace_address.sql",
     "supabase/payments_overview.sql",
+    "supabase/renewal_ladder.sql",
   ];
   for (const f of files) {
     try {
