@@ -41,7 +41,7 @@ import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.a103c5cc.js";
+const JS_SRC = "/static/js/main.4ac0aeea.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -239,6 +239,13 @@ const HOME_CSS = `[data-testid="hero-experience"]{position:relative;width:100%;h
 [data-testid="hero-ctas"]{grid-column:1;grid-row:2;align-self:start;flex-direction:row;flex-wrap:wrap;align-items:center}\
 [data-testid="hero-experience"]{grid-column:2;grid-row:1/span 2;height:clamp(520px,76vh,680px)}}\
 @media (max-width:639px){.vpv-tagline{font-size:8px;letter-spacing:.2em;white-space:nowrap}}\
+.vpv-gold-tag,.vpv-gold-line{font-weight:800;background:linear-gradient(100deg,#9A6A00 0%,#D9A21B 28%,#FFD95A 50%,#D9A21B 72%,#9A6A00 100%);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:vpvGold 4.5s linear infinite;filter:drop-shadow(0 0 5px rgba(240,190,60,.35))}\
+.vpv-gold-tag{font-size:1.28rem;line-height:1.3;letter-spacing:.003em}\
+.vpv-gold-line{font-size:1.1rem;line-height:1.35}\
+li:has(>.vpv-gold-line)>svg{color:#D9A21B;width:1.15rem;height:1.15rem;margin-top:.2rem}\
+div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFFBEA 0%,#fff 38%)!important;box-shadow:0 18px 44px -18px rgba(217,162,27,.55)!important}\
+@keyframes vpvGold{0%{background-position:0% center}100%{background-position:220% center}}\
+@media (prefers-reduced-motion:reduce){.vpv-gold-tag,.vpv-gold-line{animation:none}}\
 #vpv-focus{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,14,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:vpvFocusIn .35s ease-out both}\
 #vpv-focus .vf-card{position:relative;width:min(100%,calc((100vh - 170px) * 16 / 9),1100px)}\
 #vpv-focus .vf-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 30px 90px rgba(0,0,0,.5)}\

@@ -251,6 +251,16 @@ export function bundleTextPatches(): [string, string][] {
     ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
     ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
     ['"grid gap-4 md:grid-cols-3","data-testid":"plan-comparison"', '"grid gap-4 md:grid-cols-2","data-testid":"plan-comparison"'],
+    // Enterprise's three Mr. Nitin Gupta lines shine: golden, larger. The
+    // card is one component, so these key off the plan id and the text.
+    [
+      'className:"mt-1 text-sm text-slate-600",children:t.tagline}',
+      'className:"mt-1 text-sm text-slate-600"+("enterprise"===t.id?" vpv-gold-tag":""),children:t.tagline}',
+    ],
+    [
+      'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),e]}',
+      'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:e})]}',
+    ],
     // The first Enterprise sync used a grid class the site's CSS does not ship.
     ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2"'],
     ['"grid gap-4 md:grid-cols-2 xl:grid-cols-4"', '"grid gap-4 md:grid-cols-2"'],

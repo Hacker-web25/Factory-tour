@@ -8,7 +8,7 @@
  * regular price. Nobody has to remember to switch the offer off.
  *
  * What counts as a customer: a billing_orders row that is PAID, stored as a
- * basic_licence, whose description names one of the three site plans. Site
+ * basic_licence, whose description names one of the site plans. Site
  * plans are stored as basic_licence on purpose (see lib/pricing.ts), so the
  * description is the only thing that tells them apart from a scene-ladder
  * licence. Refunded orders are not customers and do not use up a place.
@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LAUNCH_OFFER, launchOfferOpen } from "@/lib/pricing";
 
-const SITE_PLAN_NOTE = /^VPV (Confidence|Authority|Control) /;
+const SITE_PLAN_NOTE = /^VPV (Confidence|Authority|Control|Enterprise) /;
 
 export type OfferState = {
   open: boolean;
