@@ -1,0 +1,1272 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { supabase, publicUrl } from "@/lib/supabase";
+import type { Tour } from "@/lib/types";
+import OfflineControls from "@/components/sales/OfflineControls";
+import AssignTourModal from "@/components/dashboard/AssignTourModal";
+import DuplicateTourModal from "@/components/dashboard/DuplicateTourModal";
+import { countPendingStops } from "@/lib/recordingStops";
+import VpvLogo from "@/components/dashboard/VpvLogo";
+import { LegalLinks } from "@/components/legal/SiteFooter";
+import AddTeamMemberModal from "@/components/dashboard/AddTeamMemberModal";
+import NotificationsBell from "@/components/dashboard/NotificationsBell";
+import { UpgradeCounter } from "@/components/billing/UpgradeChrome";
+import { startPresence } from "@/lib/presence";
+import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
+import { timeGreeting } from "@/lib/greeting";
+import {
+  getMyProfile,
+  signOut,
+  type Profile,
+  type Organization,
+} from "@/lib/auth";
+import {
+  Box,
+  Users,
+  Eye,
+  BarChart3,
+  Bell,
+  MapPin,
+  Clock,
+  MoreVertical,
+  ArrowRight,
+  ChevronRight,
+  ChevronDown,
+  ChevronLeft,
+  Factory,
+  LogOut,
+  UserPlus,
+  X,
+  Plus,
+  Check,
+  Crown,
+  Mic,
+  CreditCard,
+  Copy,
+  Pencil,
+  ShieldCheck,
+} from "lucide-react";
+
+/**
+ * /client — org_admin dashboard with fixed sidebar + KPI cards +
+ * horizontal tour carousel + team table.
+ */
+
+type TourCard = Tour & {
+  cover_path: string | null;
+  scene_count: number;
+  view_count: number;
+  avg_time_sec: number;
+};
+
+type Kpis = {
+  totalTours: number;
+  totalViews: number;
+  avgTourTimeSec: number;
+  toursDelta: number;
+  viewsDeltaPct: number;
+  avgTimeDeltaPct: number;
+  viewsSpark: number[];
+  timeSpark: number[];
+  toursSpark: number[];
+};
+
+type TeamRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  presentations: number;
+  totalMinutes: number;
+  avgMinutes: number;
+};
+
+export default function ClientDashboardPage() {
+  const router = useRouter();
+  const [me, setMe] = useState<Profile | null>(null);
+  const [org, setOrg] = useState<Organization | null>(null);
+  const [recordingMode, setRecordingMode] = useState<"auto" | "manual">("auto");
+  const [pendingStops, setPendingStops] = useState(0);
+  const [tours, setTours] = useState<TourCard[]>([]);
+  const [team, setTeam] = useState<TeamRow[]>([]);
+  const [kpis, setKpis] = useState<Kpis>({
+    totalTours: 0,
+    totalViews: 0,
+    avgTourTimeSec: 0,
+    toursDelta: 0,
+    viewsDeltaPct: 0,
+    avgTimeDeltaPct: 0,
+    viewsSpark: [],
+    timeSpark: [],
+    toursSpark: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [assignTour, setAssignTour] = useState<TourCard | null>(null);
+  const [duplicateTour, setDuplicateTour] = useState<TourCard | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const loadDashboard = useCallback(async (p: Profile) => {
+      if (p.org_id) {
+        const { data: o } = await supabase
+          .from("organizations")
+          .select("*")
+          .eq("id", p.org_id)
+          .maybeSingle();
+        if (o) {
+          setOrg(o as Organization);
+          const row = o as { recording_mode?: string | null; auto_record?: boolean };
+          const mode: "auto" | "manual" =
+            row.recording_mode === "manual"
+              ? "manual"
+              : row.recording_mode === "auto"
+                ? "auto"
+                : row.auto_record === false
+                  ? "manual"
+                  : "auto";
+          setRecordingMode(mode);
+        }
+        // How many recording stops still need the MD's decision.
+        countPendingStops(p.org_id)
+          .then(setPendingStops)
+          .catch(() => {});
+      }
+
+      // Tours
+      const q = supabase
+        .from("tours")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      const { data: rows } =
+        p.role === "owner"
+          ? await q
+          : p.org_id
+            ? await q.eq("org_id", p.org_id)
+            : { data: [] as Tour[] };
+
+      const tourList: TourCard[] = [];
+      for (const t of (rows ?? []) as Tour[]) {
+        const { data: scenes } = await supabase
+          .from("scenes")
+          .select("id, image_path")
+          .eq("tour_id", t.id)
+          .order("order_index");
+        const cover = t.thumbnail_path ?? scenes?.[0]?.image_path ?? null;
+        tourList.push({
+          ...t,
+          cover_path: cover,
+          scene_count: scenes?.length ?? 0,
+          view_count: 0,
+          avg_time_sec: 0,
+        });
+      }
+
+      // Analytics — last 30d for KPIs + per-tour rollup
+      const tourIds = tourList.map((t) => t.id);
+      if (tourIds.length > 0) {
+        const thirtyDaysAgo = new Date(
+          Date.now() - 30 * 24 * 60 * 60 * 1000
+        ).toISOString();
+        const sixtyDaysAgo = new Date(
+          Date.now() - 60 * 24 * 60 * 60 * 1000
+        ).toISOString();
+
+        const [{ data: recent }, { data: prior }] = await Promise.all([
+          supabase
+            .from("tour_events")
+            .select("*")
+            .in("tour_id", tourIds)
+            .gte("created_at", thirtyDaysAgo),
+          supabase
+            .from("tour_events")
+            .select("tour_id, session_id, viewer_fingerprint, created_at, presenter_user_id, event_type")
+            .in("tour_id", tourIds)
+            .gte("created_at", sixtyDaysAgo)
+            .lt("created_at", thirtyDaysAgo),
+        ]);
+        const events = (recent ?? []) as any[];
+        const priorEvents = (prior ?? []) as any[];
+
+        // Group ALL events by session_id (one browser tab = one real
+        // viewing session). Precise + click-proof: 1000 clicks inside a
+        // meeting still count as ONE view, and duration is measured from
+        // the session's first to last event.
+        type Sess = { tid: string | null; first: number; last: number };
+        const sess = new Map<string, Sess>();
+        for (const e of events) {
+          const sid = e.session_id as string | null;
+          if (!sid) continue;
+          const ts = new Date(e.created_at).getTime();
+          let s = sess.get(sid);
+          if (!s) {
+            s = { tid: e.tour_id ?? null, first: ts, last: ts };
+            sess.set(sid, s);
+          }
+          if (!s.tid && e.tour_id) s.tid = e.tour_id;
+          if (ts < s.first) s.first = ts;
+          if (ts > s.last) s.last = ts;
+        }
+
+        const viewsByTour = new Map<string, number>();
+        const timesByTour = new Map<string, number[]>();
+        for (const t of tourList) {
+          viewsByTour.set(t.id, 0);
+          timesByTour.set(t.id, []);
+        }
+        const allDurations: number[] = [];
+        for (const s of sess.values()) {
+          if (!s.tid) continue;
+          viewsByTour.set(s.tid, (viewsByTour.get(s.tid) ?? 0) + 1);
+          const dur = Math.round((s.last - s.first) / 1000);
+          if (dur > 0) {
+            timesByTour.get(s.tid)?.push(dur);
+            allDurations.push(dur);
+          }
+        }
+        for (const t of tourList) {
+          t.view_count = viewsByTour.get(t.id) ?? 0;
+          const arr = timesByTour.get(t.id) ?? [];
+          t.avg_time_sec = arr.length
+            ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length)
+            : 0;
+        }
+
+        // Global KPIs — Total Views = number of viewing sessions (opens),
+        // not raw scene navigations.
+        const totalViews = Array.from(viewsByTour.values()).reduce(
+          (a, b) => a + b,
+          0
+        );
+        const avgTourTimeSec = allDurations.length
+          ? Math.round(allDurations.reduce((a, b) => a + b, 0) / allDurations.length)
+          : 0;
+
+        // Prior window (deltas) — same session_id logic.
+        const priorSess = new Map<string, { first: number; last: number }>();
+        for (const e of priorEvents) {
+          const sid = e.session_id as string | null;
+          if (!sid) continue;
+          const ts = new Date(e.created_at).getTime();
+          let s = priorSess.get(sid);
+          if (!s) {
+            s = { first: ts, last: ts };
+            priorSess.set(sid, s);
+          }
+          if (ts < s.first) s.first = ts;
+          if (ts > s.last) s.last = ts;
+        }
+        const priorViews = priorSess.size;
+        const priorDurations: number[] = [];
+        for (const s of priorSess.values()) {
+          const d = Math.round((s.last - s.first) / 1000);
+          if (d > 0) priorDurations.push(d);
+        }
+        const priorAvg = priorDurations.length
+          ? Math.round(priorDurations.reduce((a, b) => a + b, 0) / priorDurations.length)
+          : 0;
+
+        // Sparklines — count sessions (opens) per day.
+        const viewsSpark = bucketByDay(
+          events,
+          14,
+          (e) => e.event_type === "session_start"
+        );
+        const toursSpark = new Array(14).fill(tourList.length);
+        const timeSpark = bucketByDayValues(events, 14, () => avgTourTimeSec);
+
+        setKpis({
+          totalTours: tourList.length,
+          totalViews,
+          avgTourTimeSec,
+          toursDelta: 2,
+          viewsDeltaPct:
+            priorViews > 0
+              ? Math.round(((totalViews - priorViews) / priorViews) * 100)
+              : 0,
+          avgTimeDeltaPct:
+            priorAvg > 0
+              ? Math.round(((avgTourTimeSec - priorAvg) / priorAvg) * 100)
+              : 0,
+          viewsSpark,
+          timeSpark,
+          toursSpark,
+        });
+      }
+      setTours(tourList);
+
+      // Team members
+      if (p.org_id) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email, role")
+          .eq("org_id", p.org_id);
+        // Sales team only — the admin (owner of the dashboard) is never a
+        // "team member" and their own activity is never counted here.
+        const presenters = (profs ?? []).filter(
+          (x: any) => x.role === "presenter"
+        );
+        const presenterIdSet = new Set(presenters.map((x: any) => x.id));
+        const byPresenterCount = new Map<string, number>();
+        const byPresenterTimes = new Map<string, number[]>();
+        if (presenters.length > 0 && tourIds.length > 0) {
+          const thirtyDaysAgo = new Date(
+            Date.now() - 30 * 24 * 60 * 60 * 1000
+          ).toISOString();
+          const { data: ev } = await supabase
+            .from("tour_events")
+            .select("presenter_user_id, session_id, created_at")
+            .in("tour_id", tourIds)
+            .gte("created_at", thirtyDaysAgo);
+          // Group by (presenter, session_id) — a "presentation" = one real
+          // session, click-proof.
+          const byPres = new Map<
+            string,
+            Map<string, { first: number; last: number }>
+          >();
+          for (const e of (ev ?? []) as any[]) {
+            const pid = e.presenter_user_id as string | null;
+            const sid = e.session_id as string | null;
+            if (!pid || !sid || !presenterIdSet.has(pid)) continue;
+            const ts = new Date(e.created_at).getTime();
+            let bySess = byPres.get(pid);
+            if (!bySess) {
+              bySess = new Map();
+              byPres.set(pid, bySess);
+            }
+            const cur = bySess.get(sid);
+            if (!cur) bySess.set(sid, { first: ts, last: ts });
+            else {
+              if (ts < cur.first) cur.first = ts;
+              if (ts > cur.last) cur.last = ts;
+            }
+          }
+          for (const [pid, bySess] of byPres) {
+            const durs: number[] = [];
+            for (const s of bySess.values()) {
+              durs.push(Math.round((s.last - s.first) / 1000));
+            }
+            byPresenterCount.set(pid, bySess.size);
+            byPresenterTimes.set(pid, durs);
+          }
+        }
+        const teamList: TeamRow[] = presenters.map((x: any) => {
+          const durs = byPresenterTimes.get(x.id) ?? [];
+          const totalSec = durs.reduce((a, b) => a + b, 0);
+          const avgSec = durs.length ? totalSec / durs.length : 0;
+          return {
+            id: x.id,
+            name: x.full_name || x.email.split("@")[0],
+            email: x.email,
+            role: "Presenter",
+            presentations: byPresenterCount.get(x.id) ?? 0,
+            totalMinutes: Math.round(totalSec / 60),
+            avgMinutes: Math.round(avgSec / 60),
+          };
+        });
+        teamList.sort((a, b) => b.presentations - a.presentations);
+        setTeam(teamList);
+      }
+  }, []);
+
+  // Initial auth + first load.
+  useEffect(() => {
+    (async () => {
+      const p = await getMyProfile();
+      if (!p) {
+        router.replace("/login?next=/client");
+        return;
+      }
+      if (p.role === "presenter") {
+        router.replace("/presenter");
+        return;
+      }
+      setMe(p);
+      // Presence heartbeat — keeps the analytics status dots green.
+      startPresence();
+      await loadDashboard(p);
+      setLoading(false);
+    })();
+  }, [router, loadDashboard]);
+
+  // Live refresh — re-pull stats every 20s AND instantly when a new
+  // tour_event lands (a presenter opening / interacting), so the dashboard
+  // updates without a manual reload.
+  useEffect(() => {
+    if (!me) return;
+    const iv = window.setInterval(() => {
+      loadDashboard(me);
+    }, 20000);
+    const ch = supabase
+      .channel(`client-live-${me.org_id ?? "x"}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "tour_events" },
+        () => loadDashboard(me)
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(iv);
+      supabase.removeChannel(ch);
+    };
+  }, [me, loadDashboard]);
+
+  async function onSignOut() {
+    await signOut();
+    router.push("/login");
+  }
+
+  async function setMode(next: "auto" | "manual") {
+    if (!me?.org_id || next === recordingMode) return;
+    const prev = recordingMode;
+    setRecordingMode(next);
+    const { error } = await supabase
+      .from("organizations")
+      .update({ recording_mode: next, auto_record: next === "auto" })
+      .eq("id", me.org_id);
+    if (error) {
+      setRecordingMode(prev);
+      alert("Couldn't update the recording setting. Please try again.");
+    }
+  }
+
+  const greeting = useMemo(() => timeGreeting(), []);
+  const firstName = (me?.full_name || me?.email || "there").split(/[\s@]/)[0];
+
+  function scrollCarousel(dir: "left" | "right") {
+    const el = carouselRef.current;
+    if (!el) return;
+    const step = 380;
+    el.scrollBy({ left: dir === "left" ? -step : step, behavior: "smooth" });
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-vpv-canvas text-vpv-muted text-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-4 h-4 rounded-full border-2 border-vpv-line border-t-vpv-blue animate-spin" />
+          Loading your dashboard…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <OrgThemeProvider orgId={me?.org_id ?? null}>
+    <div
+      className="min-h-screen bg-vpv-canvas text-vpv-ink flex"
+      style={{
+        // Soft brand sheen — same radial cyan/blue wash as myvpv.com's hero.
+        backgroundImage:
+          "radial-gradient(60% 55% at 85% 0%, rgba(25,184,242,0.10), rgba(0,0,0,0) 60%), radial-gradient(45% 45% at 5% 5%, rgba(20,104,216,0.08), rgba(0,0,0,0) 55%)",
+        backgroundAttachment: "fixed",
+      }}
+    >
+      {/* Offline mode cockpit — same UI as sales presenters get.
+          Org admins can pre-download tours before a client visit or
+          before travelling to a spot with bad wifi. */}
+      <OfflineControls
+        tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+      />
+      {/* SIDEBAR */}
+      <Sidebar
+        me={me}
+        onSignOut={onSignOut}
+        userMenuOpen={userMenuOpen}
+        setUserMenuOpen={setUserMenuOpen}
+      />
+
+      {/* MAIN */}
+      <main className="flex-1 min-w-0 ml-[240px]">
+        {/* Top bar */}
+        <div className="px-10 pt-8 pb-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-[28px] font-semibold tracking-tight text-vpv-ink">
+              {greeting} {firstName}{" "}
+              <span className="inline-block hover:animate-wiggle">👋</span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            {me?.org_id && (
+              <NotificationsBell orgId={me.org_id} currentUserId={me.id} />
+            )}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((v) => !v)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-full bg-white hover:bg-vpv-tint border border-vpv-line transition-colors"
+              >
+                <div className="w-9 h-9 rounded-full bg-vpv-grad grid place-items-center text-[13px] font-semibold text-white">
+                  {firstName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="text-left mr-1">
+                  <div className="text-[13px] font-medium leading-tight text-vpv-ink">
+                    {firstName}
+                  </div>
+                  <div className="text-[10px] text-vpv-muted leading-tight">
+                    Admin
+                  </div>
+                </div>
+                <ChevronDown size={14} className="text-vpv-muted" />
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-xl border border-vpv-line bg-white shadow-[0_12px_40px_-12px_rgba(11,61,145,0.25)] overflow-hidden z-10">
+                  <div className="px-3 py-2.5 border-b border-vpv-line">
+                    <div className="text-[12px] font-medium truncate text-vpv-ink">
+                      {me?.full_name || me?.email}
+                    </div>
+                    <div className="text-[10px] text-vpv-muted truncate">
+                      {me?.email}
+                    </div>
+                  </div>
+                  <button
+                    onClick={onSignOut}
+                    className="w-full text-left px-3 py-2 text-[12px] text-vpv-muted hover:bg-vpv-tint hover:text-vpv-blue flex items-center gap-2"
+                  >
+                    <LogOut size={12} /> Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="px-10 grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <KpiCard
+            label="Total tours"
+            value={kpis.totalTours}
+            deltaLabel={`↑ ${kpis.toursDelta} this month`}
+            iconBg="bg-vpv-blue/10"
+            iconRing="text-vpv-blue"
+            icon={<Box size={20} />}
+            spark={kpis.toursSpark}
+            sparkColor="#1468D8"
+          />
+          <KpiCard
+            label="Total views"
+            value={kpis.totalViews}
+            deltaLabel={`↑ ${Math.abs(kpis.viewsDeltaPct)}% this month`}
+            iconBg="bg-vpv-cyan/10"
+            iconRing="text-vpv-cyan"
+            icon={<Eye size={20} />}
+            spark={kpis.viewsSpark}
+            sparkColor="#19B8F2"
+          />
+          <KpiCard
+            label="Avg tour time"
+            value={formatDuration(kpis.avgTourTimeSec)}
+            valueIsString
+            deltaLabel={`↑ ${Math.abs(kpis.avgTimeDeltaPct)}% this month`}
+            iconBg="bg-vpv-navy/10"
+            iconRing="text-vpv-navy"
+            icon={<Clock size={20} />}
+            spark={kpis.timeSpark}
+            sparkColor="#0B3D91"
+          />
+        </div>
+
+        {/* Tours carousel */}
+        <div className="px-10 mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[20px] font-semibold text-vpv-ink">Your Virtual Factories</h2>
+            <Link
+              href="/dashboard"
+              className="text-[12px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
+            >
+              View all tours <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="relative">
+            <div
+              ref={carouselRef}
+              className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 pr-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {tours.length === 0 ? (
+                <div className="w-full border border-dashed border-vpv-line rounded-2xl p-14 text-center bg-white">
+                  <Box size={22} className="mx-auto text-vpv-blue/40 mb-3" />
+                  <div className="text-[14px] text-vpv-ink mb-1">
+                    No tours yet.
+                  </div>
+                  <p className="text-[12px] text-vpv-muted">
+                    Your account manager will attach tours to your organization
+                    soon.
+                  </p>
+                </div>
+              ) : (
+                tours.map((t) => (
+                  <TourCarouselCard
+                    key={t.id}
+                    tour={t}
+                    onAssign={() => me?.org_id && setAssignTour(t)}
+                    onDuplicate={() => me?.org_id && setDuplicateTour(t)}
+                    orgSlug={(org as unknown as { slug?: string } | null)?.slug ?? ""}
+                  />
+                ))
+              )}
+            </div>
+            {tours.length > 3 && (
+              <>
+                <button
+                  onClick={() => scrollCarousel("left")}
+                  className="absolute -left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => scrollCarousel("right")}
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white hover:bg-vpv-tint shadow-[0_6px_20px_-8px_rgba(11,61,145,0.4)] grid place-items-center border border-vpv-line text-vpv-navy"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Auto-record presentations — org-wide voice capture toggle. */}
+        {me?.org_id && (
+          <div className="px-10 pb-6">
+            <div className="rounded-2xl bg-white border border-vpv-line p-5 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
+                  <Mic size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-semibold text-vpv-ink">
+                    Meeting recording
+                  </div>
+                  <div className="text-[12px] text-vpv-muted mt-0.5 leading-snug">
+                    Decide how recording starts when a sales rep opens a
+                    presenter session. Informing participants that the
+                    meeting is recorded is the sales rep's responsibility —
+                    see our{" "}
+                    <a
+                      href="/terms#recording-ai"
+                      target="_blank"
+                      rel="noopener"
+                      className="underline underline-offset-2 text-vpv-blue"
+                    >
+                      Terms
+                    </a>
+                    .
+                  </div>
+                </div>
+              </div>
+              <div
+                role="radiogroup"
+                aria-label="Recording mode"
+                className="mt-4 grid sm:grid-cols-2 gap-2.5"
+              >
+                {([
+                  {
+                    value: "auto" as const,
+                    title: "Automatic",
+                    sub: "Recording starts automatically when the meeting begins. Recommended.",
+                  },
+                  {
+                    value: "manual" as const,
+                    title: "Manual",
+                    sub: "The sales rep sees a popup at the start of the meeting and chooses whether to record. If they skip, you get no transcript, score or insights for that meeting.",
+                  },
+                ]).map((o) => {
+                  const selected = recordingMode === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setMode(o.value)}
+                      className={`text-left rounded-xl border p-4 transition-all ${
+                        selected
+                          ? "border-vpv-blue bg-vpv-tint/60 ring-1 ring-vpv-blue"
+                          : "border-vpv-line hover:border-vpv-blue/40 hover:bg-vpv-canvas/60"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div
+                          className={`text-[13.5px] font-semibold ${
+                            selected ? "text-vpv-navy" : "text-vpv-ink"
+                          }`}
+                        >
+                          {o.title}
+                        </div>
+                        <div
+                          aria-hidden
+                          className={`w-4 h-4 rounded-full border-2 ${
+                            selected ? "border-vpv-blue" : "border-slate-300"
+                          } grid place-items-center`}
+                        >
+                          {selected && (
+                            <span className="w-2 h-2 rounded-full bg-vpv-blue" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-1.5 text-[11.5px] leading-snug text-vpv-muted">
+                        {o.sub}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <Link
+                href={`/${(org as unknown as { slug?: string } | null)?.slug ?? ""}/owner/recording-activity`}
+                className="mt-4 flex items-center gap-2 rounded-xl border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint px-4 py-3 transition-colors"
+              >
+                <ShieldCheck size={15} className="text-vpv-navy shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium text-vpv-ink">
+                    Recording activity
+                  </div>
+                  <div className="text-[11.5px] text-vpv-muted leading-snug">
+                    See when a rep stopped a recording mid-meeting, hear
+                    why, and mark it OK or not OK.
+                  </div>
+                </div>
+                {pendingStops > 0 && (
+                  <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-semibold grid place-items-center">
+                    {pendingStops}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-vpv-muted shrink-0" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        <div className="px-10 pb-12">
+          <div className="rounded-2xl bg-white border border-vpv-line shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-16px_rgba(11,61,145,0.18)] overflow-hidden">
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users size={14} className="text-vpv-muted" />
+                <h2 className="text-[16px] font-semibold text-vpv-ink">Your Team</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setInviteOpen(true)}
+                  className="text-[12px] text-white bg-vpv-grad hover:opacity-90 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 font-medium shadow-[0_8px_24px_-8px_rgba(20,104,216,0.55)]"
+                >
+                  <UserPlus size={12} /> Invite
+                </button>
+                <Link
+                  href="/team"
+                  className="text-[12px] text-vpv-blue hover:text-vpv-navy font-medium flex items-center gap-1"
+                >
+                  View all team <ArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-[0.12em] text-vpv-muted border-t border-b border-vpv-line bg-vpv-canvas/60">
+                  <th className="text-left px-5 py-2.5 font-medium">
+                    Team member
+                  </th>
+                  <th className="text-left px-5 py-2.5 font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      <Box size={10} /> Presentations
+                    </span>
+                  </th>
+                  <th className="text-left px-5 py-2.5 font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={10} /> Total hours
+                    </span>
+                  </th>
+                  <th className="text-left px-5 py-2.5 font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={10} /> Average time
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {team.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-5 py-8 text-center text-[13px] text-vpv-muted"
+                    >
+                      No team members yet.{" "}
+                      <button
+                        onClick={() => setInviteOpen(true)}
+                        className="text-vpv-blue hover:text-vpv-navy underline"
+                      >
+                        Invite one
+                      </button>{" "}
+                      to get started.
+                    </td>
+                  </tr>
+                ) : (
+                  team.map((r, idx) => (
+                    <tr
+                      key={r.id}
+                      className="border-b border-vpv-line last:border-0 hover:bg-vpv-tint/40"
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-lg grid place-items-center text-[12px] font-semibold text-white ${avatarColor(idx)}`}
+                          >
+                            {r.name.slice(0, 1).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-[13px] font-medium text-vpv-ink">
+                              {r.name}
+                            </div>
+                            <div className="text-[11px] text-vpv-muted">
+                              {r.role}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
+                        {r.presentations}
+                      </td>
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
+                        {formatHM(r.totalMinutes)}
+                      </td>
+                      <td className="px-5 py-3 tabular-nums text-vpv-ink">
+                        {r.avgMinutes}m {padSec(r.totalMinutes % 60)}s
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      {/* Invite modal — bulk code with device limit + add-by-email. */}
+      {inviteOpen && (
+        <AddTeamMemberModal
+          orgId={me?.org_id ?? null}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
+
+      {assignTour && me?.org_id && (
+        <AssignTourModal
+          tourId={assignTour.id}
+          tourTitle={assignTour.title}
+          orgId={me.org_id}
+          currentUserId={me.id}
+          onClose={() => setAssignTour(null)}
+        />
+      )}
+
+      {duplicateTour && me?.org_id && (
+        <DuplicateTourModal
+          sourceTourId={duplicateTour.id}
+          sourceTitle={duplicateTour.title}
+          onClose={() => setDuplicateTour(null)}
+          onCreated={async (_newId: string) => {
+            setDuplicateTour(null);
+            // Reload the dashboard so the new tour appears.
+            if (me) await loadDashboard(me);
+          }}
+        />
+      )}
+
+      <style jsx global>{`
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(-12deg); }
+          75% { transform: rotate(12deg); }
+        }
+        .hover\\:animate-wiggle:hover {
+          animation: wiggle 0.5s ease-in-out;
+        }
+      `}</style>
+    </div>
+    </OrgThemeProvider>
+  );
+}
+
+/* ------------------------------- Sidebar ------------------------------- */
+function Sidebar({
+  me,
+  onSignOut,
+  userMenuOpen,
+  setUserMenuOpen,
+}: {
+  me: Profile | null;
+  onSignOut: () => void;
+  userMenuOpen: boolean;
+  setUserMenuOpen: (v: boolean) => void;
+}) {
+  return (
+    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
+      {/* Logo */}
+      <div className="px-6 pt-7 pb-8">
+        <VpvLogo />
+      </div>
+
+      {/* Nav */}
+      <nav className="px-3 space-y-0.5">
+        <NavItem
+          href={me?.org_id ? `/o/${me.org_id}/owner` : "/client"}
+          icon={<Box size={16} />}
+          label="All Tours"
+          active
+        />
+        <NavItem
+          href="/team"
+          icon={<Users size={16} />}
+          label="Team"
+        />
+        <NavItem href="/visitors" icon={<Eye size={16} />} label="Visitors" />
+        <NavItem
+          href="/team/analytics"
+          icon={<BarChart3 size={16} />}
+          label="Analytics"
+        />
+        <NavItem
+          href="/billing"
+          icon={<CreditCard size={16} />}
+          label="Plan & billing"
+        />
+      </nav>
+
+      {/* Tier-aware upgrade counter. Hidden on ULTRA; BASIC pitches
+          PRO; PRO pitches ULTRA. Pricing + copy live in
+          lib/planAccess.ts + components/billing/UpgradeChrome.tsx. */}
+      <div className="px-3 mt-6">
+        <UpgradeCounter orgId={me?.org_id ?? null} />
+      </div>
+
+      {/* User card removed — top-right already shows the profile pill,
+          keeping the sidebar focused on nav + upsell. */}
+
+      {/* Policy links — always one click away, opens in a new tab so
+          nobody loses their place in the dashboard. */}
+      <div className="mt-auto px-4 pb-5 pt-4">
+        <LegalLinks compact align="left" />
+      </div>
+    </aside>
+  );
+}
+
+function NavItem({
+  href,
+  icon,
+  label,
+  active,
+  disabled,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  if (disabled) {
+    return (
+      <div
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-vpv-muted/50 cursor-not-allowed"
+        title="Coming soon"
+      >
+        <span className="text-vpv-muted/50">{icon}</span>
+        {label}
+      </div>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-all ${
+        active
+          ? "bg-vpv-tint text-vpv-navy font-medium shadow-[inset_0_0_0_1px_rgba(20,104,216,0.25)]"
+          : "text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/50"
+      }`}
+    >
+      <span className={active ? "text-vpv-blue" : "text-vpv-muted"}>{icon}</span>
+      {label}
+    </Link>
+  );
+}
+
+/* The old hard-coded `LimitedOffer` card lived here. It's been
+   replaced by <UpgradeCounter orgId=…/> from
+   components/billing/UpgradeChrome.tsx — tier-aware (BASIC → PRO,
+   PRO → ULTRA, ULTRA hidden), reads the plan from the org row, and
+   is used by both the owner dashboard and the sales dashboard. */
+
+/* -------------------------------- KPI Card -------------------------------- */
+function KpiCard({
+  label,
+  value,
+  valueIsString,
+  deltaLabel,
+  iconBg,
+  iconRing,
+  icon,
+  spark,
+  sparkColor,
+}: {
+  label: string;
+  value: number | string;
+  valueIsString?: boolean;
+  deltaLabel: string;
+  iconBg: string;
+  iconRing: string;
+  icon: React.ReactNode;
+  spark: number[];
+  sparkColor: string;
+}) {
+  const [n, setN] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (valueIsString) return;
+    const target = value as number;
+    const start = performance.now();
+    const dur = 900;
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setN(Math.round(target * eased));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [value, valueIsString]);
+
+  return (
+    <div className="rounded-2xl bg-white border border-vpv-line p-5 relative overflow-hidden shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.22)] hover:shadow-[0_1px_2px_rgba(11,61,145,0.06),0_16px_36px_-16px_rgba(11,61,145,0.28)] transition-shadow">
+      <div className="flex items-start gap-4 mb-4">
+        <div
+          className={`w-12 h-12 rounded-xl ${iconBg} grid place-items-center ${iconRing}`}
+        >
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-vpv-muted font-medium mb-1">
+            {label}
+          </div>
+          <div className="text-[30px] font-semibold tracking-tight tabular-nums leading-none text-vpv-ink">
+            {valueIsString ? (value as string) : n.toLocaleString()}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-end justify-between">
+        <div className="text-[11px] text-emerald-600 font-medium">
+          {deltaLabel}
+        </div>
+        {spark.length > 1 && (
+          <Sparkline
+            data={spark}
+            color={sparkColor}
+            width={120}
+            height={40}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Sparkline({
+  data,
+  color,
+  width,
+  height,
+}: {
+  data: number[];
+  color: string;
+  width: number;
+  height: number;
+}) {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = Math.max(1, max - min);
+  const step = width / (data.length - 1);
+  const points = data
+    .map((v, i) => `${(i * step).toFixed(1)},${(height - ((v - min) / range) * height).toFixed(1)}`)
+    .join(" ");
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className="overflow-visible"
+    >
+      <defs>
+        <linearGradient id={`spark-${color}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill={`url(#spark-${color})`} />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/* --------------------------- Tour Carousel Card --------------------------- */
+function TourCarouselCard({
+  tour,
+  onAssign,
+  onDuplicate,
+  orgSlug,
+}: {
+  tour: TourCard;
+  onAssign?: () => void;
+  onDuplicate?: () => void;
+  orgSlug: string;
+}) {
+  return (
+    <div className="snap-start shrink-0 w-[360px] rounded-2xl bg-white border border-vpv-line overflow-hidden hover:border-vpv-blue/40 hover:shadow-[0_16px_40px_-18px_rgba(11,61,145,0.3)] transition-all group">
+      <div className="aspect-[16/10] bg-vpv-tint relative overflow-hidden">
+        {tour.cover_path ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={publicUrl(tour.cover_path) ?? ""}
+            alt={tour.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full grid place-items-center text-vpv-muted/60 text-xs">
+            no cover
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/25" />
+        {tour.published && (
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 border border-emerald-500/40 text-[10px] font-semibold text-emerald-600 backdrop-blur-md">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
+          </span>
+        )}
+        <button className="absolute top-3 right-3 w-7 h-7 rounded-md bg-white/85 hover:bg-white grid place-items-center backdrop-blur-md border border-vpv-line">
+          <MoreVertical size={14} className="text-vpv-muted" />
+        </button>
+      </div>
+      <div className="p-4">
+        <div className="text-[15px] font-semibold mb-1 truncate text-vpv-ink">
+          {tour.title}
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-vpv-muted mb-3">
+          <MapPin size={11} /> {org_location_placeholder()}
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-[11px] text-vpv-muted">
+            <span className="flex items-center gap-1">
+              <Eye size={11} /> {tour.view_count} Views
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock size={11} /> {formatDuration(tour.avg_time_sec)} Avg. time
+            </span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <Link
+            href={`/tour/${tour.id}?preview=1`}
+            className="py-2 rounded-full bg-vpv-grad text-white text-[12px] font-medium hover:opacity-90 flex items-center justify-center gap-1.5 transition-all shadow-[0_8px_20px_-10px_rgba(20,104,216,0.6)]"
+          >
+            Open <ArrowRight size={12} />
+          </Link>
+          <button
+            onClick={onAssign}
+            className="py-2 rounded-full bg-white border border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
+          >
+            <Users size={12} /> Assign
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Link
+            href={`/${orgSlug}/owner/tours/${tour.id}/text-edit`}
+            className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
+            title="Edit the wording — titles, scene names, hotspot text"
+          >
+            <Pencil size={12} /> Edit text
+          </Link>
+          <button
+            onClick={onDuplicate}
+            className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
+            title="Make a copy for a specific client — pick the scenes to include"
+          >
+            <Copy size={12} /> Duplicate
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------- Helpers ------------------------------- */
+function bucketByDay(
+  events: any[],
+  buckets: number,
+  filter: (e: any) => boolean
+): number[] {
+  const out = new Array(buckets).fill(0);
+  const now = Date.now();
+  const bucketMs = 86400000;
+  for (const e of events) {
+    if (!filter(e)) continue;
+    const t = new Date(e.created_at).getTime();
+    const ago = Math.floor((now - t) / bucketMs);
+    if (ago >= 0 && ago < buckets) out[buckets - 1 - ago]++;
+  }
+  return out;
+}
+function bucketByDayValues(
+  events: any[],
+  buckets: number,
+  valuer: (e: any) => number
+): number[] {
+  const out = new Array(buckets).fill(0);
+  const now = Date.now();
+  const bucketMs = 86400000;
+  const counts = new Array(buckets).fill(0);
+  for (const e of events) {
+    const t = new Date(e.created_at).getTime();
+    const ago = Math.floor((now - t) / bucketMs);
+    if (ago >= 0 && ago < buckets) {
+      out[buckets - 1 - ago] += valuer(e);
+      counts[buckets - 1 - ago]++;
+    }
+  }
+  return out.map((s, i) => (counts[i] ? Math.round(s / counts[i]) : 0));
+}
+function formatDuration(sec: number): string {
+  if (!sec) return "0m 0s";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}m ${padSec(s)}s`;
+}
+function padSec(s: number): string {
+  return String(s).padStart(2, "0");
+}
+function formatHM(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+function avatarColor(idx: number): string {
+  const c = [
+    "bg-gradient-to-br from-blue-500 to-cyan-400 text-black",
+    "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white",
+    "bg-gradient-to-br from-pink-500 to-rose-500 text-white",
+    "bg-gradient-to-br from-emerald-500 to-teal-400 text-black",
+    "bg-gradient-to-br from-amber-500 to-orange-500 text-black",
+  ];
+  return c[idx % c.length];
+}
+function org_location_placeholder(): string {
+  // Real location will come from tour or org profile later.
+  const opts = ["Mumbai, India", "Pune, India", "Bangalore, India"];
+  return opts[Math.floor(Math.random() * opts.length)];
+}

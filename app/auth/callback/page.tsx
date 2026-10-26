@@ -1,0 +1,121 @@
+"use client";
+
+// Next 14 App Router requires useSearchParams() consumers to live inside
+// a Suspense boundary at prerender time. We wrap the real page in one.
+export const dynamic = "force-dynamic";
+
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ensureProfile, getSession, getMyProfile } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { slugForOrgId } from "@/lib/orgSlug";
+import { goToDashboard } from "@/lib/authRedirect";
+import { safeNext, isTenantPath } from "@/lib/safeNext";
+
+export default function OAuthCallbackPageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen grid place-items-center bg-black text-white p-6">
+          <div className="text-sm text-neutral-400">Signing you in…</div>
+        </div>
+      }
+    >
+      <OAuthCallbackPage />
+    </Suspense>
+  );
+}
+
+/**
+ * OAuth callback landing page.
+ *
+ * Supabase's JS client auto-exchanges the `?code=` in the URL for a
+ * session as soon as this page mounts (detectSessionInUrl is on by
+ * default). We wait for that to settle, ensure a profile row exists
+ * (creates one on first Google login), then honour ?next= or send
+ * the user to /.
+ */
+function OAuthCallbackPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const nextRaw = safeNext(params.get("next"), "/");
+  const orgName = params.get("org") || "";
+  const [message, setMessage] = useState("Signing you in…");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Give supabase-js a moment to swap ?code= for a session.
+      // Poll for up to 5 seconds — usually resolves in <100ms.
+      const start = Date.now();
+      let session = await getSession();
+      while (!session && Date.now() - start < 5000) {
+        await new Promise((r) => setTimeout(r, 100));
+        session = await getSession();
+      }
+      if (cancelled) return;
+      if (!session) {
+        setMessage("Sign-in did not complete. Try again.");
+        return;
+      }
+
+      // Only ensure profile if the caller passed an orgName (legacy
+      // OAuth signup flow). The new flow doesn't pass one — we let
+      // /setup handle role + org.
+      if (orgName) {
+        await ensureProfile({ orgName });
+      }
+      if (cancelled) return;
+
+      // Refetch the profile (may have been created by the trigger or
+      // ensureProfile above).
+      const profile = await getMyProfile();
+
+      // Route intelligently:
+      //   • Super-owner (you) → always /dashboard (cross-org editor)
+      //   • Explicit ?next=/setup or any other path → honour it
+      //   • No profile OR no role+org yet → send to /setup
+      //   • Has org → /{slug}/{owner|sales}
+      if (profile?.role === "owner") {
+        router.replace("/dashboard");
+        return;
+      }
+      if (nextRaw && nextRaw !== "/" && !isTenantPath(nextRaw)) {
+        router.replace(nextRaw);
+        return;
+      }
+      if (!profile || !profile.org_id) {
+        router.replace("/setup");
+        return;
+      }
+      const slug = await slugForOrgId(profile.org_id);
+      if (!slug) {
+        router.replace("/setup");
+        return;
+      }
+      const role = profile.role === "presenter" ? "sales" : "owner";
+      await goToDashboard(slug, role);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally only run once; supabase manages its own listener.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Also subscribe to auth state — belt-and-braces in case the polling
+  // above misses a fast token exchange on some browsers.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      // No-op — the effect above will pick up the new session on its
+      // next poll iteration. Unsubscribe on unmount.
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  return (
+    <div className="min-h-screen grid place-items-center bg-black text-white p-6">
+      <div className="text-sm text-neutral-400">{message}</div>
+    </div>
+  );
+}
