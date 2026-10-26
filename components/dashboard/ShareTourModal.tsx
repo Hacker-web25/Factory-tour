@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createViewerLink, type ShareLink } from "@/lib/shareLinks";
 import BrandedQRCode from "./BrandedQRCode";
+import { requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import {
   Link2,
   QrCode,
@@ -83,6 +84,11 @@ export default function ShareTourModal({
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // What this plan includes: sharing controls are VPV Control and Enterprise.
+  const ent = useEntitlements();
+  const controls = ent.can("sharing_controls");
+  const qrOk = ent.ready && !ent.hidden("qr_codes");
+
   // Options
   const [kind, setKind] = useState<Kind>("link");
   const [presetIdx, setPresetIdx] = useState<number>(0); // Unlimited
@@ -142,7 +148,7 @@ export default function ShareTourModal({
   const generate = async () => {
     // Guard: password enabled but blank — treat as user error, don't
     // silently create an unprotected link.
-    if (passwordOn && !password.trim()) {
+    if (controls && passwordOn && !password.trim()) {
       alert("Enter a password (or turn off password protection).");
       return;
     }
@@ -151,10 +157,10 @@ export default function ShareTourModal({
       const created = await createViewerLink({
         tourId,
         label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}${passwordOn ? " · locked" : ""}${deviceLimitOn ? ` · ${deviceLimit} dev` : ""}`,
-        expiresAt,
-        viewLimit: oneTime ? 1 : null,
-        password: passwordOn ? password.trim() : undefined,
-        deviceLimit: deviceLimitOn ? deviceLimit : undefined,
+        expiresAt: controls ? expiresAt : null,
+        viewLimit: controls && oneTime ? 1 : null,
+        password: controls && passwordOn ? password.trim() : undefined,
+        deviceLimit: controls && deviceLimitOn ? deviceLimit : undefined,
         sharedToEmail: sharedToEmail.trim() || undefined,
         sharedToPhone: sharedToPhone.trim() || undefined,
       });
@@ -249,13 +255,13 @@ export default function ShareTourModal({
                   title="Share link"
                   sub="Send a URL"
                 />
-                <KindTile
+                {qrOk && <KindTile
                   active={kind === "qr"}
                   onClick={() => setKind("qr")}
                   icon={<QrCode style={{ width: 20, height: 20 }} />}
                   title="QR code"
                   sub="Scan on any phone"
-                />
+                />}
               </div>
 
               {/* Recipient contact — email / WhatsApp. Optional but
@@ -316,6 +322,8 @@ export default function ShareTourModal({
                 </div>
               </div>
 
+              {controls ? (
+                <>
               {/* Time preset chips */}
               <div style={{ marginBottom: 14 }}>
                 <label className="vpv-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -576,6 +584,11 @@ export default function ShareTourModal({
                 )}
               </div>
 
+                </>
+              ) : (
+                <LockedSharingControls />
+              )}
+
               {/* Screen-capture protection notice — always ON, no toggle. */}
               <div
                 style={{
@@ -835,3 +848,36 @@ function KindTile({
   );
 }
 
+/** What a plan without sharing controls sees in their place: one quiet row that opens the upgrade pop-up. */
+function LockedSharingControls() {
+  return (
+    <button
+      type="button"
+      onClick={() => requestUpgrade("sharing_controls")}
+      style={{
+        display: "flex",
+        width: "100%",
+        alignItems: "center",
+        gap: 10,
+        padding: 12,
+        marginBottom: 14,
+        textAlign: "left",
+        background: "#f8fafc",
+        border: "1px dashed #cbd5e1",
+        borderRadius: 14,
+        cursor: "pointer",
+      }}
+    >
+      <Lock style={{ width: 16, height: 16, color: "#64748b", flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>
+        <span style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>
+          Expiry, one-time links, passwords and device limits
+        </span>
+        <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+          Stop links being forwarded to competitors. Part of VPV Control.
+        </span>
+      </span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1468D8", whiteSpace: "nowrap" }}>Upgrade</span>
+    </button>
+  );
+}

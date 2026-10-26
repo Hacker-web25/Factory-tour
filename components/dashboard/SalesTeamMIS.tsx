@@ -24,6 +24,7 @@
  * browser Back button and shared links work.
  */
 
+import { ROLLOUT } from "@/lib/entitlements";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, publicUrl } from "@/lib/supabase";
 import {
@@ -347,7 +348,7 @@ export default function SalesTeamMIS({ orgId }: { orgId: string }) {
         </>
       )}
 
-      {aiRow && overview && (
+      {aiRow && overview && ROLLOUT.ai_meeting_analysis.tier !== "hidden" && (
         <AiAnalysisDrawer
           row={aiRow}
           thumbnail={aiRow.tourId ? rowExtras?.thumbnails.get(aiRow.tourId) ?? null : null}

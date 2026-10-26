@@ -1,5 +1,6 @@
 "use client";
 
+import { useEntitlements } from "@/lib/useEntitlements";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -108,6 +109,9 @@ export default function ClientDashboardPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignTour, setAssignTour] = useState<TourCard | null>(null);
   const [duplicateTour, setDuplicateTour] = useState<TourCard | null>(null);
+  // Not released yet (lib/entitlements.ts).
+  const ent = useEntitlements();
+  const show = (k: Parameters<typeof ent.hidden>[0]) => ent.ready && !ent.hidden(k);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const loadDashboard = useCallback(async (p: Profile) => {
@@ -468,9 +472,11 @@ export default function ClientDashboardPage() {
       {/* Offline mode cockpit — same UI as sales presenters get.
           Org admins can pre-download tours before a client visit or
           before travelling to a spot with bad wifi. */}
-      <OfflineControls
-        tours={tours.map((t) => ({ id: t.id, title: t.title }))}
-      />
+      {show("offline_mode") && (
+        <OfflineControls
+          tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+        />
+      )}
       {/* SIDEBAR */}
       <Sidebar
         me={me}
@@ -601,7 +607,7 @@ export default function ClientDashboardPage() {
                     key={t.id}
                     tour={t}
                     onAssign={() => me?.org_id && setAssignTour(t)}
-                    onDuplicate={() => me?.org_id && setDuplicateTour(t)}
+                    onDuplicate={show("tour_duplicate") ? () => me?.org_id && setDuplicateTour(t) : undefined}
                     orgSlug={(org as unknown as { slug?: string } | null)?.slug ?? ""}
                   />
                 ))
@@ -627,7 +633,7 @@ export default function ClientDashboardPage() {
         </div>
 
         {/* Auto-record presentations — org-wide voice capture toggle. */}
-        {me?.org_id && (
+        {me?.org_id && show("meeting_recording") && (
           <div className="px-10 pb-6">
             <div className="rounded-2xl bg-white border border-vpv-line p-5 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
               <div className="flex items-start gap-4">
@@ -898,6 +904,8 @@ function Sidebar({
   userMenuOpen: boolean;
   setUserMenuOpen: (v: boolean) => void;
 }) {
+  const ent = useEntitlements();
+  const visitorsOk = ent.ready && !ent.hidden("visitor_analytics");
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
       {/* Logo */}
@@ -918,7 +926,7 @@ function Sidebar({
           icon={<Users size={16} />}
           label="Team"
         />
-        <NavItem href="/visitors" icon={<Eye size={16} />} label="Visitors" />
+        {visitorsOk && <NavItem href="/visitors" icon={<Eye size={16} />} label="Visitors" />}
         <NavItem
           href="/team/analytics"
           icon={<BarChart3 size={16} />}
@@ -1184,7 +1192,7 @@ function TourCarouselCard({
             <Users size={12} /> Assign
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-2">
+        <div className={`grid ${onDuplicate ? "grid-cols-2" : "grid-cols-1"} gap-2 mt-2`}>
           <Link
             href={`/${orgSlug}/owner/tours/${tour.id}/text-edit`}
             className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
@@ -1192,6 +1200,7 @@ function TourCarouselCard({
           >
             <Pencil size={12} /> Edit text
           </Link>
+{onDuplicate && (
           <button
             onClick={onDuplicate}
             className="py-2 rounded-full bg-white border border-dashed border-vpv-line hover:border-vpv-blue/50 hover:bg-vpv-tint text-[12px] font-medium text-vpv-navy flex items-center justify-center gap-1.5 transition-all"
@@ -1199,6 +1208,7 @@ function TourCarouselCard({
           >
             <Copy size={12} /> Duplicate
           </button>
+          )}
         </div>
       </div>
     </div>

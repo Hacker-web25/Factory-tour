@@ -12,6 +12,7 @@
  * Every entry is laid out THUMBNAIL · TITLE · AI ANALYSIS, then details.
  */
 
+import { ROLLOUT } from "@/lib/entitlements";
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -232,6 +233,8 @@ export function AiButton({
     (size === "sm" ? "px-2 py-0.5 text-[10.5px]" : "px-2.5 py-1 text-[11px]") +
     " whitespace-nowrap flex-shrink-0";
   const recorded = !!row.audioPath || row.hasTranscript;
+  // AI meeting analysis is not released yet (lib/entitlements.ts).
+  if (ROLLOUT.ai_meeting_analysis.tier === "hidden") return null;
 
   if (plan !== "ultra") {
     return (

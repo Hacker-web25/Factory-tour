@@ -8,6 +8,7 @@
  * screen. Access is gated to org_admin; everyone else is bounced.
  */
 
+import SalesTeamLock from "@/components/billing/SalesTeamLock";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getMyProfile, type Profile } from "@/lib/auth";
@@ -62,7 +63,10 @@ export default function TeamAnalyticsPage() {
           Back to dashboard
         </Link>
       </div>
-      <SalesTeamMIS orgId={me.org_id} />
+      <div className="relative">
+        <SalesTeamLock />
+        <SalesTeamMIS orgId={me.org_id} />
+      </div>
     </div>
   );
 }

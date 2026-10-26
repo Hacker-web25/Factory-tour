@@ -170,14 +170,20 @@ export async function sendInvoiceEmail(args: {
 
 export async function sendConfirmationEmail(args: {
   to: string;
-  kind: "support_renewal" | "scene_topup";
+  kind: "support_renewal" | "scene_topup" | "plan_upgrade" | "seat_topup";
   slug: string | null;
   detail: string;
 }): Promise<boolean> {
-  const title = args.kind === "support_renewal" ? "Support renewed" : "Scenes added";
+  const words = {
+    support_renewal: { title: "Support renewed", subject: "Your VPV support is renewed" },
+    scene_topup: { title: "Scenes added", subject: "Your extra VPV scenes are live" },
+    plan_upgrade: { title: "Plan upgraded", subject: "Your VPV plan is upgraded" },
+    seat_topup: { title: "Logins added", subject: "Your extra Sales Team logins are ready" },
+  }[args.kind];
+  const title = words.title;
   return sendEmail({
     to: args.to,
-    subject: args.kind === "support_renewal" ? "Your VPV support is renewed" : "Your extra VPV scenes are live",
+    subject: words.subject,
     html: emailShell(
       title,
       `<p ${P}>${esc(args.detail)}</p>

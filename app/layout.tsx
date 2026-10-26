@@ -5,6 +5,8 @@ import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
 import OfflineBootstrap from "@/components/OfflineBootstrap";
 import AccessGate from "@/components/billing/AccessGate";
+import UpgradePrompt from "@/components/billing/UpgradePrompt";
+import HiddenPageGuard from "@/components/billing/HiddenPageGuard";
 import Analytics from "@/components/analytics/Analytics";
 import CookieNotice from "@/components/analytics/CookieNotice";
 import {
@@ -125,6 +127,8 @@ export default function RootLayout({
             after the support year ends, then a lock until renewed. Decided
             by the database; renders nothing for anyone in good standing. */}
         <AccessGate />
+        <UpgradePrompt />
+        <HiddenPageGuard />
         {/* Registers the service worker so tours the presenter has
             "prepared for offline" run from cache when the network is
             gone. Also flushes any queued analytics writes on reconnect. */}

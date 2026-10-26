@@ -1,5 +1,6 @@
 "use client";
 
+import { requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import { useEffect, useState } from "react";
 import type { Tour } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
@@ -128,6 +129,10 @@ function PublicShare({
 }) {
   const [oneTimeUrl, setOneTimeUrl] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  // One-time links are a sharing control (VPV Control and Enterprise); QR codes are not released yet.
+  const ent = useEntitlements();
+  const controls = ent.can("sharing_controls");
+  const qrOk = ent.ready && !ent.hidden("qr_codes");
   const [sessionMinutes, setSessionMinutes] = useState<number | null>(null);
 
   async function generateOneTime(sessionMin: number | null) {
@@ -161,11 +166,11 @@ function PublicShare({
     }
   }
 
-  // Generate once on modal open.
+  // Generate once on modal open (only where one-time links are included).
   useEffect(() => {
-    generateOneTime(null);
+    if (controls) generateOneTime(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour.id]);
+  }, [tour.id, controls]);
 
   // Whenever the user changes the session length, re-mint so the new token
   // carries the chosen session_minutes.
@@ -182,6 +187,7 @@ function PublicShare({
         value={permanentUrl}
       />
 
+      {controls ? (
       <div>
         <div className="flex items-center justify-between mb-1">
           <div className="text-xs uppercase text-neutral-400">
@@ -235,7 +241,18 @@ function PublicShare({
           </div>
         )}
       </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => requestUpgrade("sharing_controls")}
+          className="w-full rounded border border-dashed border-border px-3 py-2.5 text-left text-xs text-neutral-400 hover:text-white"
+        >
+          One-time links that stop working after one visit are part of VPV Control.{" "}
+          <span className="text-cyan-400">Upgrade</span>
+        </button>
+      )}
 
+      {qrOk && (
       <div>
         <div className="text-xs uppercase text-neutral-400 mb-2">QR code</div>
         <div className="flex items-start gap-4">
@@ -257,6 +274,7 @@ function PublicShare({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

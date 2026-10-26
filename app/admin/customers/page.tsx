@@ -65,6 +65,19 @@ export default function AdminCustomersPage() {
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [sitePlans, setSitePlans] = useState<Record<string, string | null>>({});
+  async function setSitePlan(orgId: string, plan: string | null) {
+    const before = sitePlans[orgId] ?? null;
+    if (plan === before) return;
+    if (!window.confirm(`Change this customer's plan to ${plan ?? "not recorded"}? Their features change at once.`)) return;
+    setSitePlans((m) => ({ ...m, [orgId]: plan }));
+    const { error } = await supabase.from("organizations").update({ site_plan: plan }).eq("id", orgId);
+    if (error) {
+      setSitePlans((m) => ({ ...m, [orgId]: before }));
+      alert(`Could not change the plan: ${error.message}`);
+    }
+  }
+
   const load = useCallback(async () => {
     const p = await getMyProfile();
     if (!p) {
@@ -78,6 +91,11 @@ export default function AdminCustomersPage() {
     }
     const { data, error } = await supabase.rpc("admin_customer_overview");
     if (!error && data) setRows(data as Customer[]);
+    // Which of the four plans each one bought (supabase/plan_features.sql).
+    const { data: sp } = await supabase.from("organizations").select("id, site_plan");
+    if (Array.isArray(sp)) {
+      setSitePlans(Object.fromEntries((sp as { id: string; site_plan: string | null }[]).map((r) => [r.id, r.site_plan])));
+    }
     setLoading(false);
   }, [router]);
 
@@ -217,6 +235,20 @@ export default function AdminCustomersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <PlanChip plan={c.plan} />
+                    {c.plan === "basic" && c.org_id in sitePlans && (
+                      <select
+                        aria-label="VPV plan"
+                        value={sitePlans[c.org_id] ?? ""}
+                        onChange={(e) => void setSitePlan(c.org_id, e.target.value || null)}
+                        className="mt-1 block rounded-lg border border-vpv-line bg-white px-2 py-1 text-[12px]"
+                      >
+                        <option value="">Not recorded (Confidence)</option>
+                        <option value="confidence">Confidence</option>
+                        <option value="authority">Authority</option>
+                        <option value="control">Control</option>
+                        <option value="enterprise">Enterprise</option>
+                      </select>
+                    )}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-slate-600">
                     {c.scene_quota ?? "Unlimited"}

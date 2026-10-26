@@ -56,6 +56,21 @@ create table public.clients (
   name              text
 );
 
+create table public.share_links (
+  id              uuid primary key default gen_random_uuid(),
+  tour_id         uuid not null,
+  token           text not null,
+  kind            text not null default 'viewer',
+  password_hash   text,
+  require_email   boolean not null default false,
+  expires_at      timestamptz,
+  view_limit      integer,
+  device_limit    integer,
+  session_minutes integer,
+  used            boolean not null default false,
+  revoked_at      timestamptz
+);
+
 create table public.tours (
   id         uuid primary key default gen_random_uuid(),
   org_id     uuid references public.organizations(id) on delete cascade,

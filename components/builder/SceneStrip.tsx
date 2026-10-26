@@ -46,8 +46,8 @@ export default function SceneStrip({
         <div className="bg-chrome border-t border-border px-3 py-1.5 text-[11px] text-neutral-300 flex items-center gap-2">
           <Crown size={12} className="text-amber-300 shrink-0" />
           <span className="truncate">
-            Scenes past #{basicSceneCap} are hidden from customers on your
-            Basic plan. Upgrade to Pro so they can see every room.
+            Scenes past #{basicSceneCap} are hidden from customers: your plan
+            includes {basicSceneCap} areas. Add areas or upgrade from Plan and billing.
           </span>
         </div>
       )}
@@ -152,9 +152,9 @@ export default function SceneStrip({
                   {hiddenFromBasic && (
                     <div
                       className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-amber-300/95 text-black text-[8.5px] font-bold uppercase tracking-wider shadow"
-                      title="Only Pro and Ultra customers see this scene when you share the tour."
+                      title="Beyond your plan's areas: customers do not see this scene yet."
                     >
-                      <Crown size={8} /> Pro
+                      <Crown size={8} /> Extra
                     </div>
                   )}
                   <button

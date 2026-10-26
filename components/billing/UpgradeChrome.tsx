@@ -28,7 +28,8 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { priceForScenes } from "@/lib/pricing";
+import { SITE_PLANS, inr, priceForScenes, upgradeQuote, type SitePlanId } from "@/lib/pricing";
+import { useEntitlements } from "@/lib/useEntitlements";
 import {
   BASIC_SCENE_CAP,
   PLAN_LABEL,
@@ -448,7 +449,9 @@ export function usePresentGate(orgId: string | null | undefined) {
       totalScenes: number | null;
     }
   ) {
-    if (plan === "basic") {
+    // The four plans have no "Present" pop-up: a customer pays for a plan,
+    // not for being reminded of one. Kept wired so it can return if wanted.
+    if (PRESENT_POPUP_ENABLED && plan === "basic") {
       setPending({
         run: open,
         ctx: {
@@ -485,67 +488,50 @@ export function usePresentGate(orgId: string | null | undefined) {
   return { element, openWithGate, plan };
 }
 
-/* ---------- Sidebar counter (BASIC + PRO only; ULTRA hides) ------------ */
+/* ---------- Sidebar card: the next plan up (Confidence, Authority only) --- */
 
+const PRESENT_POPUP_ENABLED = false;
+
+/**
+ * A quiet card in the sidebar suggesting the NEXT plan up — Confidence sees
+ * Authority, Authority sees Control. Control, Enterprise and the old monthly
+ * plans see nothing; salespeople see nothing (they cannot buy).
+ */
 export function UpgradeCounter({
-  orgId,
+  orgId: _orgId,
 }: {
   orgId: string | null | undefined;
 }) {
-  const { plan, loading } = useOrgPlan(orgId);
-
-  // Still loading, or on ULTRA — don't render anything. Gate on
-  // loading too, so there's no render-flash-then-hide.
-  if (loading || !plan || plan === "ultra") return null;
-
-  const target = upsellTarget(plan);
-  if (!target) return null;
-
-  return <OfferCard currentPlan={plan} target={target} />;
+  const ent = useEntitlements();
+  if (!ent.ready || !ent.next) return null;
+  if (ent.facts.role !== "org_admin") return null;
+  return <NextPlanCard from={ent.plan} to={ent.next} />;
 }
 
-function OfferCard({
-  currentPlan,
-  target,
-}: {
-  currentPlan: Plan;
-  target: Plan;
-}) {
-  const targetPrice = PLAN_PRICE_INR[target];
-
+function NextPlanCard({ from, to }: { from: SitePlanId; to: SitePlanId }) {
+  const q = upgradeQuote(from, to);
+  const plan = SITE_PLANS[to];
   return (
     <div className="rounded-2xl border border-vpv-line bg-gradient-to-b from-white to-vpv-tint p-4 text-center shadow-[0_10px_30px_-16px_rgba(11,61,145,0.25)]">
-      <div className="text-[9px] uppercase tracking-[0.15em] text-vpv-blue font-semibold flex items-center justify-center gap-1 mb-1">
+      <div className="mb-1 flex items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-vpv-blue">
         <Crown size={11} /> Room to grow
       </div>
-      <div className="text-[15px] font-bold text-vpv-navy mb-1">
-        Upgrade to {PLAN_LABEL[target]}
-      </div>
-      <div className="text-[11px] text-vpv-muted mb-3 leading-snug">
-        {target === "pro"
-          ? "Every scene visible to customers, smoother presentations, analytics on every meeting."
-          : "AI meeting coaching, team-wide MIS and auto-record."}
-      </div>
-      <div className="text-[26px] font-extrabold text-vpv-blue leading-none">
-        {formatInr(targetPrice)}
-      </div>
-      <div className="text-[10.5px] text-vpv-muted mb-3">
-        {PLAN_PRICE_SUFFIX[target]} · unlimited scenes
-      </div>
-      <div className="border-t border-vpv-line pt-3 mb-3 text-[10.5px] leading-relaxed text-vpv-muted">
-        {target === "pro"
-          ? "No scene limit — every room you build is a room your customer walks through."
-          : "Adds AI meeting review on top of everything in Pro."}
-      </div>
+      <div className="mb-1 text-[15px] font-bold text-vpv-navy">{plan.name}</div>
+      <ul className="mb-3 space-y-1 text-left text-[11px] leading-snug text-vpv-muted">
+        {q.addAreas > 0 && <li>+{q.addAreas} areas</li>}
+        {plan.videos > 0 && <li>{plan.videos} process videos</li>}
+        {plan.pdfs > 0 && <li>{plan.pdfs} PDF reports</li>}
+        {plan.sharingControls && <li>One-time links and sharing restrictions</li>}
+      </ul>
+      <div className="text-[22px] font-extrabold leading-none text-vpv-blue">{inr(q.amountInr)}</div>
+      <div className="mb-3 text-[10.5px] text-vpv-muted">the difference, + GST</div>
       <a
-        href={UPGRADE_CTA_URL}
-        className="w-full py-2.5 rounded-full bg-vpv-grad hover:opacity-90 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-[0_10px_28px_-8px_rgba(20,104,216,0.6)]"
+        href={`/billing/upgrade?to=${to}`}
+        className="flex w-full items-center justify-center gap-1.5 rounded-full bg-vpv-grad py-2.5 text-[12px] font-semibold text-white hover:opacity-90"
       >
-        UPGRADE NOW <ArrowRight size={12} />
+        See the upgrade <ArrowRight size={12} />
       </a>
-      <div className="text-[9.5px] text-vpv-muted/80 mt-2">
-        You're on {PLAN_LABEL[currentPlan]}
-      </div>
+      <div className="mt-2 text-[9.5px] text-vpv-muted/80">You&apos;re on {SITE_PLANS[from].name}</div>
     </div>
   );
 }

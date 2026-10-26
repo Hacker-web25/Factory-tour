@@ -1,5 +1,7 @@
 "use client";
 
+import { useEntitlements } from "@/lib/useEntitlements";
+import { ROLLOUT } from "@/lib/entitlements";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, publicUrl, publicUrlIn } from "@/lib/supabase";
@@ -539,7 +541,10 @@ function TourPlayerInner({
         clientId,
       }).catch(() => {});
 
-      // 2) Voice — decide between Auto and Manual modes.
+      // 2) Voice — decide between Auto and Manual modes. Meeting recording
+      //    is not released yet (lib/entitlements.ts), so nothing is recorded
+      //    until it is rolled out.
+      if (ROLLOUT.meeting_recording.tier === "hidden") return;
       if (!orgId || !isRecordingSupported()) return;
       const { data: org } = await supabase
         .from("organizations")
@@ -620,6 +625,12 @@ function TourPlayerInner({
   const [autoPlaying, setAutoPlaying] = useState(
     autoplay || (tour.auto_tour_enabled ?? false)
   );
+  // Not released yet (lib/entitlements.ts): auto-play, background audio and
+  // subtitles stay off for visitors until they are rolled out.
+  const ent = useEntitlements();
+  const autoTourOk = ent.ready && !ent.hidden("auto_tour");
+  const audioOk = ent.ready && !ent.hidden("audio_narration");
+  const subsOk = ent.ready && !ent.hidden("subtitles_translations");
 
   const active = useMemo(
     () => scenes.find((s) => s.id === activeSceneId) ?? null,
@@ -705,7 +716,7 @@ function TourPlayerInner({
     !!infoModal || !!videoModal || !!pdfModal;
 
   useAutoTour({
-    playing: autoPlaying && scenes.length > 1,
+    playing: autoTourOk && autoPlaying && scenes.length > 1,
     paused: autoTourPaused,
     tour,
     scenes,
@@ -730,9 +741,11 @@ function TourPlayerInner({
   // across scene switches.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isTourLevel = !!tour.ambient_audio_url;
-  const ambientUrl = isTourLevel
-    ? tour.ambient_audio_url
-    : active?.ambient_audio_url ?? null;
+  const ambientUrl = !audioOk
+    ? null
+    : isTourLevel
+      ? tour.ambient_audio_url
+      : active?.ambient_audio_url ?? null;
   const ambientVolume = isTourLevel
     ? tour.ambient_audio_volume ?? 0.5
     : active?.ambient_audio_volume ?? 0.5;
@@ -1273,7 +1286,7 @@ function TourPlayerInner({
           (ambient audio, audio hotspot, video hotspot) is currently
           firing time-update events. Hidden when the presenter mutes
           audio via the speaker button below. */}
-      {!audioMuted && (
+      {!audioMuted && subsOk && (
         <SubtitleOverlay
           settings={
             (tour as unknown as { subtitle_settings?: any }).subtitle_settings
@@ -1503,7 +1516,7 @@ function TourPlayerInner({
         <ViewerPill
           onResetZoom={() => zoomResetRef.current?.()}
           autoTour={
-            scenes.length > 1
+            scenes.length > 1 && autoTourOk
               ? {
                   playing: autoPlaying,
                   onToggle: () => setAutoPlaying((v) => !v),
@@ -1512,8 +1525,8 @@ function TourPlayerInner({
           }
           audio={
             ambientUrl ||
-            (tour as unknown as { subtitle_settings?: any })
-              .subtitle_settings
+            (subsOk && (tour as unknown as { subtitle_settings?: any })
+              .subtitle_settings)
               ? {
                   muted: audioMuted,
                   onToggle: () => setAudioMuted((v) => !v),

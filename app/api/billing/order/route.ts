@@ -82,6 +82,8 @@ import {
   clampExtraAreas,
   clampExtraVideos,
   clampSalesSeats,
+  monthsUntil,
+  seatPrice,
   PLACEHOLDER_PRICES,
   priceFor,
   storedPurpose,
@@ -89,7 +91,9 @@ import {
   toPaise,
   type PurchasePurpose,
   type RequestPurpose,
+  type SitePlanId,
 } from "@/lib/pricing";
+import { effectivePlan, isUpgrade } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -345,6 +349,8 @@ export async function POST(req: Request) {
   // A renewal pays for the Sales Team logins unless the customer says not to.
   // Support alone is a real choice: the logins then stop on their own date.
   const renewLogins = body.renewLogins !== false;
+  let fromPlan: SitePlanId | undefined;
+  let toPlan: SitePlanId | undefined;
 
   if (purpose === "site_plan") {
     // The browser names a plan, a city and how many extras it wants. Not one
@@ -392,6 +398,17 @@ export async function POST(req: Request) {
       return fail(400, "invalid_scenes", "Choose a total higher than the scenes you have now (up to 20).");
     }
     scenesWanted = target;
+  } else if (purpose === "plan_upgrade") {
+    // Up to Authority or Control only; Enterprise is a conversation.
+    fromPlan = effectivePlan({ plan: String(org?.plan ?? ""), site_plan: await orgSitePlan(sb, orgId) });
+    const want = body.upgradeTo;
+    if (!isSitePlanId(want) || !isUpgrade(fromPlan, want)) {
+      return fail(400, "invalid_upgrade", "Please choose a plan above the one you have.");
+    }
+    toPlan = want;
+  } else if (purpose === "seat_topup") {
+    salesSeats = clampSalesSeats(body.salesSeats);
+    if (salesSeats < 1) return fail(400, "invalid_seats", "Please choose how many logins to add.");
   } else if (purpose === "support_renewal") {
     const until = org?.support_until ? new Date(String(org.support_until)).getTime() : null;
     if (until && until > Date.now() + SUPPORT_RENEW_WINDOW_DAYS * 86_400_000) {
@@ -406,7 +423,8 @@ export async function POST(req: Request) {
   // The special offer is "for our first 50 customers", so whether it still
   // applies is decided HERE, from the real count of paid site-plan orders —
   // never from anything the browser says.
-  const offer = purpose === "site_plan" ? await launchOfferState(sb) : null;
+  const offer =
+    purpose === "site_plan" || purpose === "plan_upgrade" || purpose === "seat_topup" ? await launchOfferState(sb) : null;
 
   // A coupon, if the buyer entered one. Checked here against the database —
   // the browser's own preview of the discount is never used.
@@ -420,6 +438,16 @@ export async function POST(req: Request) {
   // A renewal also renews the Sales Team logins, at the price they were bought at.
   const renewalSeats = purpose === "support_renewal" ? await orgSalesSeats(sb, orgId) : { seats: 0, seatInr: 0 };
 
+  // Extra logins: at the price the workspace already pays per login (or
+  // today's price if it has none), for the months until the logins renew.
+  let topupSeatInr = 0;
+  let topupMonths = 12;
+  if (purpose === "seat_topup") {
+    const have = await orgSalesSeats(sb, orgId);
+    topupSeatInr = have.seatInr > 0 ? have.seatInr : seatPrice(offer ? offer.open : undefined);
+    topupMonths = monthsUntil(await orgLoginsEnd(sb, orgId, org?.support_until as string | null | undefined));
+  }
+
   const quote = priceFor(purpose as RequestPurpose, {
     scenes: scenesWanted,
     existingScenes,
@@ -430,7 +458,10 @@ export async function POST(req: Request) {
     extraVideos,
     offerOpen: offer ? offer.open : undefined,
     salesSeats: purpose === "support_renewal" ? (renewLogins ? renewalSeats.seats : 0) : salesSeats,
-    seatInr: renewalSeats.seatInr,
+    seatInr: purpose === "seat_topup" ? topupSeatInr : renewalSeats.seatInr,
+    fromPlan,
+    toPlan,
+    monthsLeft: topupMonths,
     coupon,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
@@ -478,7 +509,7 @@ export async function POST(req: Request) {
       createdBy,
       ip,
       description: quote.description,
-      quotaBefore: stored === "scene_topup" ? existingScenes : null,
+      quotaBefore: stored === "scene_topup" || stored === "plan_upgrade" ? existingScenes : null,
     });
     order = got.order;
     reused = got.reused;
@@ -516,6 +547,24 @@ export async function POST(req: Request) {
       }
       // eslint-disable-next-line no-console
       console.warn("[billing] workspace address not claimed (run supabase/workspace_address.sql):", claimErr.message);
+    }
+  }
+
+  // What an upgrade or a login top-up is FOR. Not best-effort: fulfilment
+  // cannot deliver without it, so a failure here stops before any payment.
+  if (purpose === "plan_upgrade" || purpose === "seat_topup") {
+    const { error: whatErr } = await sb
+      .from("billing_orders")
+      .update(
+        purpose === "plan_upgrade"
+          ? { upgrade_to: toPlan }
+          : { seats_added: salesSeats, seat_inr: topupSeatInr }
+      )
+      .eq("id", order.id);
+    if (whatErr) {
+      // eslint-disable-next-line no-console
+      console.error("[billing] upgrade details not saved (run supabase/plan_features.sql):", whatErr.message);
+      return fail(503, "upgrade_unavailable", "Upgrades are being set up. Please try again shortly or write to support@myvpv.com.");
     }
   }
 
@@ -809,4 +858,20 @@ async function ensureRazorpayOrder(
     .maybeSingle();
   if (cur?.razorpay_order_id) return cur.razorpay_order_id as string;
   throw new Error("order_link_failed");
+}
+
+/** The plan a workspace bought, read on its own so an older database (no column yet) still works. */
+async function orgSitePlan(sb: SupabaseClient, orgId: string | null): Promise<string | null> {
+  if (!orgId) return null;
+  const { data, error } = await sb.from("organizations").select("site_plan").eq("id", orgId).maybeSingle();
+  if (error || !data) return null;
+  return ((data as { site_plan?: string | null }).site_plan ?? null) as string | null;
+}
+
+/** When the workspace's Sales Team logins renew: their own date, else the support date. */
+async function orgLoginsEnd(sb: SupabaseClient, orgId: string | null, supportUntil: string | null | undefined): Promise<string | null> {
+  if (!orgId) return supportUntil ?? null;
+  const { data, error } = await sb.from("organizations").select("sales_seats_until").eq("id", orgId).maybeSingle();
+  const own = !error && data ? ((data as { sales_seats_until?: string | null }).sales_seats_until ?? null) : null;
+  return own ?? supportUntil ?? null;
 }

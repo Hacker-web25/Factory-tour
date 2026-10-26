@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * named pack — a Basic licence at a flat price — so the server prices it
  * as a plan and records it as a basic_licence. See lib/pricing.ts.
  */
-export type Purpose = "basic_licence" | "support_renewal" | "scene_topup" | "site_plan";
+export type Purpose = "basic_licence" | "support_renewal" | "scene_topup" | "site_plan" | "plan_upgrade" | "seat_topup";
 
 export type SitePlanId = "confidence" | "authority" | "control" | "enterprise";
 export type TravelZone = "ncr" | "outside";
@@ -303,6 +303,8 @@ export function useRazorpayPayment(
       workspaceSlug?: string;
       /** Renewal only: false = renew support alone and let the Sales Team logins stop. */
       renewLogins?: boolean;
+      /** plan_upgrade: the plan being bought. */
+      upgradeTo?: SitePlanId;
       /** A coupon code the buyer entered. The server checks it. */
       coupon?: string;
       buyer?: Partial<Buyer>;
@@ -339,6 +341,7 @@ export function useRazorpayPayment(
               salesSeats: args.salesSeats,
               workspaceSlug: args.workspaceSlug,
               renewLogins: args.renewLogins,
+              upgradeTo: args.upgradeTo,
               coupon: args.coupon,
               buyer: args.buyer ?? {},
             }),

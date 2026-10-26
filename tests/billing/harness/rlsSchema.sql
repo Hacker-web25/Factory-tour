@@ -33,3 +33,7 @@ create policy orgs_insert on public.organizations for insert to authenticated wi
 alter table public.clients enable row level security;
 drop policy if exists clients_all on public.clients;
 create policy clients_all on public.clients for all to authenticated using (true) with check (true);
+
+alter table public.share_links enable row level security;
+drop policy if exists share_links_all on public.share_links;
+create policy share_links_all on public.share_links for all to authenticated using (true) with check (true);

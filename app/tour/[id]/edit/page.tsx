@@ -15,6 +15,7 @@ import RightPanel from "@/components/builder/RightPanel";
 import SceneStrip from "@/components/builder/SceneStrip";
 import ShareModal from "@/components/builder/ShareModal";
 import { useOrgPlan } from "@/lib/planAccess";
+import { useEntitlements } from "@/lib/useEntitlements";
 import { DashboardThemeButton } from "@/components/dashboard/DashboardThemeSettings";
 import {
   X,
@@ -175,6 +176,9 @@ export default function TourEditPage() {
   const { plan: orgPlan, sceneCap: orgSceneCap } = useOrgPlan(
     tour?.org_id ?? null
   );
+  // Features not released yet are left out of the editor for customers.
+  const ent = useEntitlements();
+  const show = (k: Parameters<typeof ent.hidden>[0]) => ent.ready && !ent.hidden(k);
   // All hotspots for the tour (across scenes). Filtered per active scene below.
   const [allHotspots, setAllHotspots] = useState<Hotspot[]>([]);
   const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(
@@ -1874,6 +1878,7 @@ export default function TourEditPage() {
         >
           <Eye size={11} /> Open
         </button>
+        {show("tour_import_export") && (
         <button
           onClick={handleBackup}
           disabled={backingUp}
@@ -1883,9 +1888,10 @@ export default function TourEditPage() {
           <Download size={11} />
           {backingUp ? "Packaging…" : "Backup"}
         </button>
+        )}
         {/* Live collab avatars — appears only when other editors are
             on this tour. Green dot marks the ones on the same scene. */}
-        {currentUserId && (
+        {currentUserId && show("live_coediting") && (
           <CollabAvatars
             tourId={tourId}
             currentUserId={currentUserId}
@@ -1998,7 +2004,7 @@ export default function TourEditPage() {
           {/* Menu builder launcher — only on FLAT scenes in edit mode.
               One click opens the wizard to bulk-place nav hotspots for
               every other scene in a grid. */}
-          {!previewMode && activeScene?.is_flat && scenes.length > 1 && (
+          {!previewMode && activeScene?.is_flat && scenes.length > 1 && show("menu_builder") && (
             <button
               onClick={() => setMenuBuilderOpen(true)}
               className="absolute bottom-4 left-4 z-30 bg-accent text-black hover:bg-accentHover font-semibold text-[12px] px-3 py-2 rounded-full flex items-center gap-1.5 shadow-panel"
@@ -2449,7 +2455,7 @@ export default function TourEditPage() {
 
       {/* Preview-mode language picker + live subtitles so authors can
           test the multilingual experience without leaving the editor. */}
-      {previewMode && (
+      {previewMode && show("subtitles_translations") && (
         <>
           <LanguagePicker position="top-right" />
           <SubtitleOverlay

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEntitlements } from "@/lib/useEntitlements";
+import SalesTeamLock from "@/components/billing/SalesTeamLock";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -68,6 +70,9 @@ export default function TeamPage() {
   const [me, setMe] = useState<Profile | null>(null);
   const [orgName, setOrgName] = useState<string>("");
   const [orgSlug, setOrgSlug] = useState<string>("");
+  // Not released yet (lib/entitlements.ts).
+  const ent = useEntitlements();
+  const show = (k: Parameters<typeof ent.hidden>[0]) => ent.ready && !ent.hidden(k);
   const [recordingMode, setRecordingMode] = useState<"auto" | "manual">("auto");
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pending, setPending] = useState<PendingInvite[]>([]);
@@ -373,10 +378,7 @@ export default function TeamPage() {
             <Users size={16} className="text-vpv-blue" />
             Team
           </div>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-vpv-muted/50 cursor-not-allowed">
-            <Eye size={16} className="text-vpv-muted/50" />
-            Visitors
-          </div>
+
           <Link
             href="/team/analytics"
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] text-vpv-muted hover:text-vpv-navy hover:bg-vpv-tint/50"
@@ -400,7 +402,8 @@ export default function TeamPage() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 min-w-0 ml-[240px]">
+      <main className="relative flex-1 min-w-0 ml-[240px]">
+        <SalesTeamLock />
         {/* Top bar */}
         <div className="px-10 pt-8 pb-6 flex items-start justify-between">
           <div>
@@ -411,6 +414,17 @@ export default function TeamPage() {
               Manage presenters — see their activity, revoke access, generate
               invite codes.
             </p>
+            {ent.ready && (ent.facts.sales_seats ?? 0) > 0 && (
+              <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-3 py-1 text-[12.5px] text-vpv-ink">
+                <strong className="tabular-nums">{members.length}</strong> of{" "}
+                <strong className="tabular-nums">{ent.facts.sales_seats}</strong> Sales Team logins in use
+                {me?.role === "org_admin" && (
+                  <Link href="/billing/upgrade#logins" className="font-semibold text-vpv-blue hover:underline">
+                    Add logins
+                  </Link>
+                )}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {me?.org_id && (
@@ -484,7 +498,8 @@ export default function TeamPage() {
         </div>
 
         {/* Recording mode setting */}
-        <div className="px-10 mb-8">
+        {show("meeting_recording") && (
+<div className="px-10 mb-8">
           <div className="rounded-2xl bg-white border border-vpv-line p-5 shadow-[0_1px_2px_rgba(11,61,145,0.04),0_10px_30px_-18px_rgba(11,61,145,0.18)]">
             <div className="flex items-start gap-4">
               <div className="w-11 h-11 rounded-xl bg-vpv-navy/10 text-vpv-navy grid place-items-center shrink-0">
@@ -565,6 +580,7 @@ export default function TeamPage() {
             </div>
           </div>
         </div>
+)}
 
         {/* Members table */}
         <div className="px-10 mb-8">

@@ -1,5 +1,6 @@
 "use client";
 
+import { requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -353,6 +354,9 @@ function NewViewerLinkModal({
   const [requireEmail, setRequireEmail] = useState(false);
   const [expiresDays, setExpiresDays] = useState<number | "">("");
   const [viewLimit, setViewLimit] = useState<number | "">("");
+  // Passwords, e-mail gates, expiry and view limits are sharing controls: VPV Control and Enterprise.
+  const ent = useEntitlements();
+  const controls = ent.can("sharing_controls");
   return (
     <div
       onClick={onCancel}
@@ -382,6 +386,8 @@ function NewViewerLinkModal({
               className="field w-full"
             />
           </div>
+          {controls ? (
+            <>
           <div>
             <div className="eyebrow mb-1">Password (optional)</div>
             <input
@@ -438,6 +444,16 @@ function NewViewerLinkModal({
               />
             </div>
           </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => requestUpgrade("sharing_controls")}
+              className="w-full rounded border border-dashed border-border px-3 py-2.5 text-left text-xs text-neutral-400 hover:text-white"
+            >
+              Passwords, expiry and view limits are part of VPV Control. <span className="text-accent">Upgrade</span>
+            </button>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 mt-5">
@@ -449,13 +465,11 @@ function NewViewerLinkModal({
           </button>
           <button
             onClick={() =>
-              onCreate({
-                label,
-                password,
-                requireEmail,
-                expiresDays,
-                viewLimit,
-              })
+              onCreate(
+                controls
+                  ? { label, password, requireEmail, expiresDays, viewLimit }
+                  : { label, password: "", requireEmail: false, expiresDays: "", viewLimit: "" }
+              )
             }
             className="bg-accent hover:bg-accentHover text-black text-xs font-medium px-3 py-1.5 rounded"
           >

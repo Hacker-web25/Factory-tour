@@ -1394,10 +1394,16 @@ export function invoiceLinesFromQuote(q: SiteQuote): InvoiceLine[] {
  * reversal. Adding a value here means changing all of those, so a new
  * way to SELL something is added as a RequestPurpose below instead.
  */
-export type PurchasePurpose = "basic_licence" | "support_renewal" | "scene_topup";
+export type PurchasePurpose = "basic_licence" | "support_renewal" | "scene_topup" | "plan_upgrade" | "seat_topup";
 
 export function isPurchasePurpose(v: unknown): v is PurchasePurpose {
-  return v === "basic_licence" || v === "support_renewal" || v === "scene_topup";
+  return (
+    v === "basic_licence" ||
+    v === "support_renewal" ||
+    v === "scene_topup" ||
+    v === "plan_upgrade" ||
+    v === "seat_topup"
+  );
 }
 
 /**
@@ -1413,6 +1419,40 @@ export function isPurchasePurpose(v: unknown): v is PurchasePurpose {
  * the money code, and no change to the database.
  */
 export type RequestPurpose = PurchasePurpose | "site_plan";
+
+/** What moving up a plan costs: the difference between the two plans at today's prices. */
+export function upgradeQuote(
+  from: SitePlanId,
+  to: SitePlanId,
+  offerOpen = LAUNCH_OFFER.active
+): { amountInr: number; addAreas: number; addVideos: number; addPdfs: number } {
+  const a = SITE_PLANS[from];
+  const b = SITE_PLANS[to];
+  return {
+    amountInr: Math.max(0, planPrice(to, offerOpen) - planPrice(from, offerOpen)),
+    addAreas: Math.max(0, b.scenes - a.scenes),
+    addVideos: Math.max(0, b.videos - a.videos),
+    addPdfs: Math.max(0, b.pdfs - a.pdfs),
+  };
+}
+
+export function clampMonths(m: unknown): number {
+  const v = typeof m === "number" && Number.isFinite(m) ? Math.ceil(m) : 12;
+  return Math.max(1, Math.min(12, v));
+}
+
+/** Whole months from now until `end`, rounded up; 12 when there is no future end date. */
+export function monthsUntil(end: Date | string | null | undefined, now = new Date()): number {
+  if (!end) return 12;
+  const t = new Date(end).getTime();
+  if (!Number.isFinite(t) || t <= now.getTime()) return 12;
+  return clampMonths((t - now.getTime()) / (30.4375 * 86_400_000));
+}
+
+/** Extra logins bought mid-year pay only for the months until the logins renew. */
+export function seatTopupAmount(seats: number, eachPerYear: number, months: number): number {
+  return Math.round((Math.max(0, seats) * Math.max(0, eachPerYear) * clampMonths(months)) / 12);
+}
 
 export function isRequestPurpose(v: unknown): v is RequestPurpose {
   return isPurchasePurpose(v) || v === "site_plan";
@@ -1450,9 +1490,67 @@ export function priceFor(
     seatInr?: number;
     /** Looked up and checked by the order route. */
     coupon?: Coupon | null;
+    /** plan_upgrade: the plan the workspace has, and the one it is buying. */
+    fromPlan?: SitePlanId;
+    toPlan?: SitePlanId;
+    /** seat_topup: whole months left until the logins' renewal date (1–12). */
+    monthsLeft?: number;
   } = {}
 ): { amountInr: number; description: string; scenes: number | null; lines: InvoiceLine[] } {
   switch (purpose) {
+    case "plan_upgrade": {
+      const from: SitePlanId = isSitePlanId(opts.fromPlan) ? opts.fromPlan : "confidence";
+      const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "control";
+      const q = upgradeQuote(from, to, opts.offerOpen);
+      const have = Math.max(0, Math.round(opts.existingScenes ?? 0));
+      return {
+        amountInr: q.amountInr,
+        description: `Upgrade ${SITE_PLANS[from].name} → ${SITE_PLANS[to].name}${q.addAreas > 0 ? ` (+${q.addAreas} areas)` : ""}`,
+        scenes: have + q.addAreas,
+        lines: [
+          {
+            title: `Upgrade to ${SITE_PLANS[to].name}`,
+            detail:
+              `From ${SITE_PLANS[from].name}: the price difference at today's prices. ` +
+              [
+                q.addAreas > 0 ? `${q.addAreas} more areas` : "",
+                q.addVideos > 0 ? `${q.addVideos} more process videos` : "",
+                q.addPdfs > 0 ? `${q.addPdfs} more PDF reports` : "",
+                SITE_PLANS[to].sharingControls && !SITE_PLANS[from].sharingControls ? "one-time links and sharing restrictions" : "",
+              ]
+                .filter(Boolean)
+                .join(", ") +
+              ".",
+            qty: 1,
+            unitInr: q.amountInr,
+            amountInr: q.amountInr,
+          },
+        ],
+      };
+    }
+    case "seat_topup": {
+      const seats = Math.max(1, clampSalesSeats(opts.salesSeats ?? 1));
+      const each = Math.max(0, Math.round(opts.seatInr ?? seatPrice(opts.offerOpen)));
+      const months = clampMonths(opts.monthsLeft);
+      const amount = seatTopupAmount(seats, each, months);
+      return {
+        amountInr: amount,
+        description: `Sales Team logins — ${seats} more at ${inr(each)}/yr, ${months} month${months === 1 ? "" : "s"}`,
+        scenes: null,
+        lines: [
+          {
+            title: `Sales Team logins — ${seats} more salesperson login${seats === 1 ? "" : "s"}`,
+            detail:
+              months === 12
+                ? `For one year, at ${inr(each)} per login a year.`
+                : `For the ${months} month${months === 1 ? "" : "s"} until your logins renew, at ${inr(each)} per login a year.`,
+            qty: seats,
+            unitInr: Math.round((amount / seats) * 100) / 100,
+            amountInr: amount,
+          },
+        ],
+      };
+    }
     case "basic_licence": {
       const n = clampScenes(opts.scenes ?? SCENE_DEFAULT);
       return {

@@ -1,5 +1,6 @@
 "use client";
 
+import { countOrgMedia, reportLimit, requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import { useEffect, useRef, useState } from "react";
 import type {
   Hotspot,
@@ -120,6 +121,12 @@ export default function RightPanel({
   // when switching between Preview and Edit and the panel crashes / glitches.
   const [tab, setTab] = useState<Tab>("photo");
   const [saving, setSaving] = useState(false);
+  // Features not released yet stay out of the editor for customers (our own
+  // team, the platform owner, still sees them).
+  const ent = useEntitlements();
+  const showLang = ent.ready && !ent.hidden("subtitles_translations");
+  const showAudio = ent.ready && !ent.hidden("audio_narration");
+  const showAutoTour = ent.ready && !ent.hidden("auto_tour");
 
   // auto-switch to addon tab when a hotspot is selected
   useEffect(() => {
@@ -159,15 +166,19 @@ export default function RightPanel({
         <TabBtn active={tab === "addon"} onClick={() => setTab("addon")}>
           Add
         </TabBtn>
-        <TabBtn active={tab === "lang"} onClick={() => setTab("lang")}>
-          🌐 Lang
-        </TabBtn>
+        {showLang && (
+          <TabBtn active={tab === "lang"} onClick={() => setTab("lang")}>
+            🌐 Lang
+          </TabBtn>
+        )}
         <TabBtn active={tab === "edit"} onClick={() => setTab("edit")}>
           Edit
         </TabBtn>
-        <TabBtn active={tab === "audio"} onClick={() => setTab("audio")}>
-          Audio
-        </TabBtn>
+        {showAudio && (
+          <TabBtn active={tab === "audio"} onClick={() => setTab("audio")}>
+            Audio
+          </TabBtn>
+        )}
         {selectedHotspot && (
           <TabBtn
             active={tab === "hotspot"}
@@ -176,7 +187,7 @@ export default function RightPanel({
             Spot
           </TabBtn>
         )}
-        {tour.auto_tour_enabled && (
+        {tour.auto_tour_enabled && showAutoTour && (
           <TabBtn
             active={tab === "autotour"}
             onClick={() => setTab("autotour")}
@@ -217,7 +228,7 @@ export default function RightPanel({
             onPatchTour={onPatchTour}
           />
         )}
-        {tab === "lang" && scene && (
+        {tab === "lang" && showLang && scene && (
           <LangTab
             tour={tour}
             scene={scene}
@@ -233,7 +244,7 @@ export default function RightPanel({
             onApplyToAll={onApplyAdjustmentsToAll}
           />
         )}
-        {tab === "audio" && (
+        {tab === "audio" && showAudio && (
           <AudioTab
             tour={tour}
             scene={scene}
@@ -257,7 +268,7 @@ export default function RightPanel({
             onTest={() => onTestAction(selectedHotspot)}
           />
         )}
-        {tab === "autotour" && tour.auto_tour_enabled && (
+        {tab === "autotour" && showAutoTour && tour.auto_tour_enabled && (
           <AutoTourTab
             tour={tour}
             scenes={scenes}
@@ -565,6 +576,8 @@ function AddonsTab({
   onPatchTour: (fields: Partial<Tour>) => Promise<void>;
 }) {
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const ent = useEntitlements();
+  const audioOk = ent.ready && !ent.hidden("audio_narration");
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-2">
@@ -632,7 +645,7 @@ function AddonsTab({
             })
           }
         />
-        <AddonBtn
+        {audioOk && <AddonBtn
           icon={<Mic size={16} />}
           label="Audio"
           onClick={() =>
@@ -642,7 +655,7 @@ function AddonsTab({
               icon_key: "mic",
             })
           }
-        />
+        />}
       </div>
 
       {imagePickerOpen && (
@@ -2634,6 +2647,32 @@ function AddonTab({
   onTest: () => void;
 }) {
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  // Process videos and PDF reports are counted against the plan.
+  const ent = useEntitlements();
+  const videoAccess = ent.access("process_videos");
+  const pdfAccess = ent.access("pdf_reports");
+  const audioActionOk = (ent.ready && !ent.hidden("audio_narration")) || hotspot.action === "audio_popup";
+  async function chooseAction(next: HotspotAction) {
+    const media =
+      next === "video_popup" ? ("process_videos" as const) : next === "pdf_popup" ? ("pdf_reports" as const) : null;
+    if (media && hotspot.action !== next) {
+      const acc = media === "process_videos" ? videoAccess : pdfAccess;
+      if (acc.state !== "open") {
+        requestUpgrade(media);
+        return;
+      }
+      const max = media === "process_videos" ? ent.limits.videos : ent.limits.pdfs;
+      if (Number.isFinite(max)) {
+        const used = await countOrgMedia(ent.orgId);
+        const n = media === "process_videos" ? used.videos : used.pdfs;
+        if (n >= max) {
+          reportLimit(media, n, max);
+          return;
+        }
+      }
+    }
+    onChange({ ...hotspot, action: next });
+  }
   // Whether the classic Premium Skin picker is expanded. Collapsed by
   // default — the Premium Neon tiles are the primary control now, and
   // authors reveal the older options only if they want them.
@@ -3622,18 +3661,20 @@ function AddonTab({
       <Section title="Action">
         <select
           value={hotspot.action}
-          onChange={(e) =>
-            onChange({ ...hotspot, action: e.target.value as HotspotAction })
-          }
+          onChange={(e) => void chooseAction(e.target.value as HotspotAction)}
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm"
         >
           <option value="none">No action</option>
           <option value="nav">Navigate to another scene</option>
           <option value="info_popup">Open info popup</option>
           <option value="image_popup">Show image</option>
-          <option value="video_popup">Open video (YouTube / upload)</option>
-          <option value="audio_popup">Play audio / voice note</option>
-          <option value="pdf_popup">Open document (PDF)</option>
+          <option value="video_popup">
+            Open process video{videoAccess.state === "locked" ? " · VPV Authority" : ""}
+          </option>
+          {audioActionOk && <option value="audio_popup">Play audio / voice note</option>}
+          <option value="pdf_popup">
+            Open PDF report{pdfAccess.state === "locked" ? " · VPV Authority" : ""}
+          </option>
           <option value="url">Open URL</option>
         </select>
         <div className="text-[11px] text-neutral-500 mt-1">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEntitlements } from "@/lib/useEntitlements";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -81,6 +82,9 @@ export default function SalesDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Two-tab navigation: My Tours (default) and Clients pipeline.
   const [activeTab, setActiveTab] = useState<"tours" | "clients" | "visitors">("tours");
+  // Not released yet: offline presenting, voice samples, visitor analytics.
+  const ent = useEntitlements();
+  const show = (k: Parameters<typeof ent.hidden>[0]) => ent.ready && !ent.hidden(k);
   // Modal state for the "who is this for?" prompt when Present is clicked.
   const [presentingTour, setPresentingTour] = useState<TourCard | null>(null);
   // Plan gate — on BASIC orgs, interposes the upgrade pop-up between
@@ -349,9 +353,11 @@ export default function SalesDashboardPage() {
       {/* Offline mode cockpit — floating status pill + prep modal +
           top banner when the network drops. Presenters can pre-download
           every tour they need before heading into a factory with poor wifi. */}
-      <OfflineControls
-        tours={tours.map((t) => ({ id: t.id, title: t.title }))}
-      />
+      {show("offline_mode") && (
+        <OfflineControls
+          tours={tours.map((t) => ({ id: t.id, title: t.title }))}
+        />
+      )}
       {/* Sidebar */}
       <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-vpv-line flex flex-col">
         <div className="px-6 pt-7 pb-8">
@@ -380,6 +386,7 @@ export default function SalesDashboardPage() {
             <UsersIcon size={16} className={activeTab === "clients" ? "text-vpv-blue" : ""} />
             Clients
           </button>
+          {show("visitor_analytics") && (
           <button
             onClick={() => setActiveTab("visitors")}
             className={`vpv-tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] transition-colors ${activeTab === "visitors" ? "is-active " : ""}${
@@ -391,6 +398,7 @@ export default function SalesDashboardPage() {
             <ShareIcon size={16} className={activeTab === "visitors" ? "text-vpv-blue" : ""} />
             Visitors
           </button>
+          )}
         </nav>
 
         {/* Tier-aware upgrade counter. Rendered for BASIC + PRO, hidden
@@ -464,7 +472,7 @@ export default function SalesDashboardPage() {
           </div>
         </div>
 
-        {activeTab === "visitors" ? (
+        {activeTab === "visitors" && show("visitor_analytics") ? (
           <div key="visitors" className="px-10 mb-8 vpv-tab-pane">
             {me?.id && (
               <VisitorsTab
@@ -671,7 +679,7 @@ export default function SalesDashboardPage() {
         {presentGate.element}
       </main>
     </div>
-    {voicePromptOpen && me && (
+    {voicePromptOpen && me && show("voice_samples") && (
       <VoiceSamplePrompt
         profileId={me.id}
         repName={me.full_name || me.email.split("@")[0]}

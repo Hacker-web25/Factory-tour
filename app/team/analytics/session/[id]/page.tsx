@@ -9,6 +9,7 @@
  * clicking it always leads to real content.
  */
 
+import { ROLLOUT } from "@/lib/entitlements";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -93,12 +94,14 @@ export default function SessionAnalysisPage() {
     })();
   }, [id, router]);
 
+  // Meeting recording, transcripts and their analysis are not released yet.
+  const recOk = ROLLOUT.meeting_recording.tier !== "hidden";
   const analysis: PresentationAnalysis | null = useMemo(() => {
-    if (!ps?.transcript || !ps.duration_sec) return null;
+    if (!recOk || !ps?.transcript || !ps.duration_sec) return null;
     return analyzeTranscript(ps.transcript, ps.duration_sec);
-  }, [ps?.transcript, ps?.duration_sec]);
+  }, [recOk, ps?.transcript, ps?.duration_sec]);
 
-  const audio = ps ? recordingUrl(ps.audio_path) : null;
+  const audio = ps && recOk ? recordingUrl(ps.audio_path) : null;
 
   if (loading || !me) {
     return (
@@ -410,7 +413,7 @@ export default function SessionAnalysisPage() {
             )}
 
             {/* Transcript */}
-            {ps.transcript && (
+            {recOk && ps.transcript && (
               <Card className="mt-5">
                 <SectionHeader
                   icon={<MessageSquare size={12} />}

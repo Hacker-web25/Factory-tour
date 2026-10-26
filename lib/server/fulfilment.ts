@@ -56,7 +56,7 @@ import { RESERVED_SLUGS, slugProblem, slugify, workspaceSlug } from "@/lib/slugs
 export type OrderRow = {
   id: string;
   razorpay_order_id: string | null;
-  purpose: "basic_licence" | "support_renewal" | "scene_topup";
+  purpose: "basic_licence" | "support_renewal" | "scene_topup" | "plan_upgrade" | "seat_topup";
   scenes: number | null;
   amount_paise: number;
   taxable_paise: number | null;
@@ -197,6 +197,12 @@ export async function fulfilOrder(orderId: string): Promise<FulfilResult> {
       case "support_renewal":
         result = await fulfilSupportRenewal(sb, row);
         break;
+      case "plan_upgrade":
+        result = await fulfilPlanUpgrade(sb, row);
+        break;
+      case "seat_topup":
+        result = await fulfilSeatTopup(sb, row);
+        break;
       default:
         throw new PermanentError("unknown_purpose");
     }
@@ -301,10 +307,29 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
   // columns yet (supabase/sales_seats.sql not run) only means the renewal
   // bills support alone, and a person is told.
   await rememberSalesSeats(sb, row, orgId);
+  // Which of the four plans this was: it decides the workspace's features.
+  await rememberSitePlan(sb, row, orgId);
 
   // 4. Done. Anything after this point is notification, retried separately.
   await markProvisioned(sb, row.id, orgId);
   return { ok: true, orgId, slug: slug as string, invoiceNo };
+}
+
+async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
+  const m = /^VPV (Confidence|Authority|Control|Enterprise) /.exec((row as { notes?: string | null }).notes ?? "");
+  if (!m) return;
+  const plan = m[1].toLowerCase();
+  try {
+    const { error } = await sb.from("organizations").update({ site_plan: plan }).eq("id", orgId).is("site_plan", null);
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    await alertFounders(sb, {
+      kind: "site_plan_not_saved",
+      severity: "warning",
+      orderId: row.id,
+      detail: `${row.buyer_company} bought ${m[1]} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plan_features.sql; it fills the plan in from the order.`,
+    });
+  }
 }
 
 async function rememberSalesSeats(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
@@ -466,6 +491,41 @@ async function fulfilSceneTopup(sb: SupabaseClient, row: OrderRow): Promise<Fulf
   return { ok: true, orgId: row.org_id, slug: (org?.slug as string) ?? undefined, invoiceNo };
 }
 
+/* ---- Plan upgrade: the new plan's features and areas, at once -------- */
+
+async function fulfilPlanUpgrade(sb: SupabaseClient, row: OrderRow): Promise<FulfilResult> {
+  if (!row.org_id) throw new PermanentError("upgrade_without_org");
+  let out: { site_plan?: string };
+  try {
+    out = await rpc<{ site_plan?: string }>(sb, "billing_apply_plan_upgrade", { p_order: row.id });
+  } catch (e) {
+    if (/upgrade_target_missing/.test((e as Error).message)) throw new PermanentError("upgrade_target_missing");
+    throw e;
+  }
+  const plan = String(out.site_plan ?? "");
+  const name = plan ? `VPV ${plan.charAt(0).toUpperCase()}${plan.slice(1)}` : "the new plan";
+  const invoiceNo = await issueInvoice(sb, row.id, `Upgrade to ${name}`);
+  await markProvisioned(sb, row.id, row.org_id);
+  return { ok: true, orgId: row.org_id, slug: await slugOf(sb, row.org_id), invoiceNo };
+}
+
+/* ---- More Sales Team logins ------------------------------------------ */
+
+async function fulfilSeatTopup(sb: SupabaseClient, row: OrderRow): Promise<FulfilResult> {
+  if (!row.org_id) throw new PermanentError("topup_without_org");
+  let out: { sales_seats?: number };
+  try {
+    out = await rpc<{ sales_seats?: number }>(sb, "billing_apply_seat_topup", { p_order: row.id });
+  } catch (e) {
+    if (/seats_missing/.test((e as Error).message)) throw new PermanentError("seats_missing");
+    throw e;
+  }
+  const n = Number(out.sales_seats ?? 0);
+  const invoiceNo = await issueInvoice(sb, row.id, `Sales Team logins — now ${n} in total`);
+  await markProvisioned(sb, row.id, row.org_id);
+  return { ok: true, orgId: row.org_id, slug: await slugOf(sb, row.org_id), invoiceNo };
+}
+
 /* ---- Support renewal ----------------------------------------------- */
 
 async function fulfilSupportRenewal(sb: SupabaseClient, row: OrderRow): Promise<FulfilResult> {
@@ -607,6 +667,24 @@ async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<bo
       kind: "support_renewal",
       slug,
       detail: `Your technical support and hosting is active until ${new Date(org?.support_until as string).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}. Nothing changes in your workspace — you simply stay covered for another year.`,
+    });
+  }
+  if (order.purpose === "plan_upgrade" || order.purpose === "seat_topup") {
+    const { data: more } = await sb
+      .from("organizations")
+      .select("site_plan, sales_seats")
+      .eq("id", order.org_id)
+      .maybeSingle();
+    const m = (more ?? {}) as { site_plan?: string | null; sales_seats?: number | null };
+    const planName = m.site_plan ? `VPV ${m.site_plan.charAt(0).toUpperCase()}${m.site_plan.slice(1)}` : "your new plan";
+    return sendConfirmationEmail({
+      to: order.buyer_email,
+      kind: order.purpose,
+      slug,
+      detail:
+        order.purpose === "plan_upgrade"
+          ? `Your workspace is now on ${planName}, with ${org?.scene_quota ?? "more"} areas. The new features are open in your dashboard now. We will call you to book the shoot for the extra areas.`
+          : `Your workspace now has ${m.sales_seats ?? "more"} Sales Team logins. Share an invite code from your Team page and your new salespeople can sign in straight away.`,
     });
   }
   if (order.purpose === "scene_topup") {

@@ -29,6 +29,8 @@ import {
   Users,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useEntitlements } from "@/lib/useEntitlements";
+import { upgradeOptions } from "@/lib/entitlements";
 import { INDIAN_STATES } from "@/lib/indianStates";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
@@ -37,7 +39,7 @@ import CheckoutFlow from "@/components/billing/CheckoutFlow";
 import SceneCalculator from "@/components/billing/SceneCalculator";
 import { useRazorpayPayment } from "@/components/billing/useRazorpayPayment";
 import {
-  PRO_MONTHLY_INR,
+  SITE_PLANS,
   SUPPORT_ANNUAL_INR,
   renewalAmount,
   SUPPORT_GRACE_DAYS,
@@ -248,43 +250,7 @@ export default function BillingPage() {
         {/* Plan */}
         <Card>
           <CardHead icon={<Crown size={17} />} title="Your plan" />
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-[28px] font-semibold capitalize tracking-tight text-vpv-ink">
-              {org.plan}
-            </span>
-            {org.plan === "basic" && (
-              <span className="text-[13px] text-slate-500">one-time licence</span>
-            )}
-            {org.plan !== "basic" && (
-              <span className="text-[13px] text-slate-500">monthly</span>
-            )}
-          </div>
-          <p className="mt-3 text-[13.5px] leading-relaxed text-slate-600">
-            {org.plan === "basic" ? (
-              <>
-                Your customers can see{" "}
-                <strong className="text-vpv-ink">
-                  the first {quota ?? 2} scene{(quota ?? 2) === 1 ? "" : "s"}
-                </strong>{" "}
-                of each tour. Your team sees every scene in the editor.
-              </>
-            ) : (
-              <>
-                Unlimited scenes. Every scene you build is visible to your
-                customers.
-              </>
-            )}
-          </p>
-          {org.plan === "basic" && (
-            <div className="mt-4 rounded-xl bg-vpv-tint/60 px-4 py-3 text-[12.5px] leading-relaxed text-vpv-navy">
-              Going beyond {quota ?? 2} rooms often? Pro is {inr(PRO_MONTHLY_INR)} a
-              month for unlimited scenes —{" "}
-              <Link href="/contact" className="underline underline-offset-2">
-                talk to us
-              </Link>
-              .
-            </div>
-          )}
+          <PlanSummary isAdmin={isAdmin} quota={quota} />
         </Card>
 
         {/* Support */}
@@ -472,6 +438,42 @@ export default function BillingPage() {
 
 /* ───────────────────────────── pieces ────────────────────────────── */
 
+/** Which of the four plans this is, what it includes, and the way up. */
+function PlanSummary({ isAdmin, quota }: { isAdmin: boolean; quota: number | null }) {
+  const ent = useEntitlements();
+  if (!ent.ready) return <div className="mt-4 h-24 animate-pulse rounded-xl bg-vpv-tint/50" />;
+  const legacy = ent.facts.plan === "pro" || ent.facts.plan === "ultra";
+  const plan = SITE_PLANS[ent.plan];
+  const ups = upgradeOptions(ent.facts);
+  return (
+    <>
+      <div className="mt-4 text-[24px] font-semibold tracking-tight text-vpv-ink">
+        {legacy ? `${ent.facts.plan === "pro" ? "Pro" : "Ultra"} (monthly)` : plan.name}
+      </div>
+      <ul className="mt-3 space-y-1.5 text-[13.5px] text-slate-600">
+        <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {quota ?? plan.scenes} areas in your tours</li>
+        {!legacy && plan.videos > 0 && (
+          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.videos} process videos</li>
+        )}
+        {!legacy && plan.pdfs > 0 && (
+          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.pdfs} PDF reports</li>
+        )}
+        {(legacy || plan.sharingControls) && (
+          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> One-time links and sharing restrictions</li>
+        )}
+      </ul>
+      {isAdmin && ups.length > 0 && (
+        <Link
+          href={`/billing/upgrade?to=${ups[0]}`}
+          className="mt-4 block w-full rounded-full border border-vpv-blue/40 py-2.5 text-center text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+        >
+          Upgrade to {SITE_PLANS[ups[0]].name}
+        </Link>
+      )}
+    </>
+  );
+}
+
 /** Where the Sales Team logins stand: how many, in use, and when they stop. */
 function LoginsStrip({
   logins,
@@ -539,6 +541,14 @@ function LoginsStrip({
         >
           {state === "grace" ? "Renew logins now" : "Renew with support"}
         </button>
+      )}
+      {isAdmin && !closed && state !== "off" && (
+        <Link
+          href="/billing/upgrade#logins"
+          className="ml-3 mt-3 inline-block rounded-full px-3 py-2 text-[13px] font-semibold text-vpv-blue underline-offset-2 hover:underline"
+        >
+          Add more logins
+        </Link>
       )}
     </div>
   );

@@ -205,6 +205,20 @@ const sections: LegalSection[] = [
           })}
         </UL>
         <P>
+          <B>What your plan includes, and upgrading.</B> Your Workspace gives
+          you the features listed above for the plan you bought, together with
+          a password-protected dashboard, your own VPV address and your
+          branding; Sales Team logins add the sales features described below.
+          We may add new features over time and will tell you when we do. You
+          can move up to a higher plan from your dashboard at any time by
+          paying the difference between the two plans at the prices shown on
+          that day, plus GST. The higher plan&rsquo;s features open as soon as
+          the payment is confirmed, and we agree a date with you to shoot any
+          extra AOAs it includes. {SITE_PLANS.enterprise.name} is arranged by
+          speaking with us. Extra Sales Team logins bought during the year are
+          charged for the whole months left until your logins renew.
+        </P>
+        <P>
           An AOA is one area of your factory a Viewer can explore in 360°, and
           becomes one Scene in your Workspace. One-time link expiry and sharing
           restrictions are part of {SITE_PLANS.control.name} and{" "}
