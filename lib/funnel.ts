@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { SITE_PLAN_ORDER, SITE_PLANS, type SitePlanId } from "@/lib/pricing";
+import { SITE_PLAN_ORDER, SITE_PLANS, planForPlot, type PlotBand, type SitePlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -42,6 +42,8 @@ export type FunnelState = {
   industryExcluded: string[];
   factoryCity: string;
   factoryState: string;
+  /** How big the plant is. Empty until they say; "Not sure" is allowed. */
+  plotBand: PlotBand | "";
 
   /* Step 2 — the scope they want. Areas and processes are picked from the
      catalogue in lib/factoryAreas.ts; the counts follow from the picks. */
@@ -99,6 +101,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   industryExcluded: [],
   factoryCity: "",
   factoryState: "",
+  plotBand: "",
   selectedAreas: [],
   customAreas: [],
   selectedProcesses: [],
@@ -196,14 +199,21 @@ export type Recommendation = {
 /**
  * The lowest plan that covers everything the visitor asked for.
  *
- * Two rules, in order:
+ * Three things must all be covered, and the answer is the cheapest plan
+ * that covers every one of them:
  *
- *   1. If they said they want to stop the link reaching a competitor, it is
- *      CONTROL. One-time link expiry and share restrictions exist on no
+ *   1. THE PLANT. A plant of 1,000+ sq yards (gaj) is VPV Enterprise; 601 to
+ *      1,000 is Control at least; 201 to 600 is Authority at least. A buyer
+ *      who does not say ("not sure") is not held to a size.
+ *   2. THE LINK. If they said they want to stop the link reaching a
+ *      competitor, the plan must have sharing controls: Control or
+ *      Enterprise. One-time link expiry and share restrictions exist on no
  *      other plan and cannot be bought as an add-on, so no amount of extra
  *      areas on a cheaper plan gets them what they just said they need.
- *   2. Otherwise the cheapest plan whose areas, videos and PDFs all cover
- *      the ask. If none does, Control plus the shortfall as add-ons.
+ *   3. THE SCOPE. Its areas, videos and PDFs must cover what they picked.
+ *
+ * If no plan covers the scope on its own, it is the plan their plant and
+ * link need, with the shortfall added as extras.
  *
  * Deliberately the LOWEST qualifying plan, not the dearest: a buyer who
  * later finds they were sold more than they needed does not renew, and the
@@ -214,54 +224,64 @@ export function recommendPlan(s: {
   videoCount?: number | null;
   pdfCount?: number | null;
   wantsSharingControls?: boolean | null;
+  plotBand?: PlotBand | "" | null;
 }): Recommendation {
   const aoa = Math.max(0, s.aoaCount ?? 0);
   const videos = Math.max(0, s.videoCount ?? 0);
   const pdfs = Math.max(0, s.pdfCount ?? 0);
   const reasons: string[] = [];
 
-  if (s.wantsSharingControls === true) {
-    const plan = SITE_PLANS.control;
-    reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Control only."
-    );
-    const extraAreas = Math.max(0, aoa - plan.scenes);
-    const extraVideos = Math.max(0, videos - plan.videos);
-    if (aoa > 0) reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose.`);
-    return {
-      plan: "control",
-      reasons,
-      extraAreas,
-      extraVideos,
-      needsExtras: extraAreas > 0 || extraVideos > 0,
-    };
-  }
+  const floorId = planForPlot(s.plotBand || null);
+  const floor = floorId ? SITE_PLAN_ORDER.indexOf(floorId) : 0;
+  const wantsLink = s.wantsSharingControls === true;
 
-  const fit = SITE_PLAN_ORDER.find((id) => {
+  // Enterprise is for a big PLANT, never a way round the limits of a smaller
+  // plan: it is offered only when the plant is 1,000+ sq yards, and then it
+  // is the only plan that fits.
+  const allowed = SITE_PLAN_ORDER.filter(
+    (id, i) =>
+      i >= floor &&
+      (floorId === "enterprise" ? id === "enterprise" : id !== "enterprise") &&
+      (!wantsLink || SITE_PLANS[id].sharingControls)
+  );
+  const covers = (id: SitePlanId) => {
     const p = SITE_PLANS[id];
     return p.scenes >= aoa && p.videos >= videos && p.pdfs >= pdfs;
-  });
+  };
 
-  if (fit) {
-    const p = SITE_PLANS[fit];
+  const fit = allowed.find(covers);
+  // Nothing covers the scope outright: the largest plan the plant and the
+  // link allow, with the shortfall added as extras.
+  const chosen: SitePlanId = fit ?? allowed[allowed.length - 1];
+  const p = SITE_PLANS[chosen];
+
+  if (floorId && floorId !== "confidence") {
+    reasons.push(`${p.plot.label} — which matches the plant size you gave.`);
+  }
+  if (wantsLink) {
     reasons.push(
-      `Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with ${p.scenes} included.`
+      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Control and VPV Enterprise."
     );
-    if (videos > 0) reasons.push(`Includes ${p.videos} process videos — you asked for ${videos}.`);
-    if (pdfs > 0) reasons.push(`Includes ${p.pdfs} PDF reports — you asked for ${pdfs}.`);
-    return { plan: fit, reasons, extraAreas: 0, extraVideos: 0, needsExtras: false };
   }
 
-  // Beyond every plan. Control plus the shortfall, which is also what the
-  // site has always said: "Beyond plan limits: priced on request."
-  const p = SITE_PLANS.control;
+  if (fit) {
+    if (aoa > 0) reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with ${p.scenes} included.`);
+    if (videos > 0) reasons.push(`Includes ${p.videos} process videos — you asked for ${videos}.`);
+    if (pdfs > 0) reasons.push(`Includes ${p.pdfs} PDF reports — you asked for ${pdfs}.`);
+    return { plan: chosen, reasons, extraAreas: 0, extraVideos: 0, needsExtras: false };
+  }
+
   const extraAreas = Math.max(0, aoa - p.scenes);
   const extraVideos = Math.max(0, videos - p.videos);
-  reasons.push(`What you picked goes beyond every plan, so this is ${p.name}, our largest, with the rest added on.`);
+  if (!wantsLink && !floorId) {
+    reasons.push(`What you picked goes beyond every plan, so this is ${p.name}, our largest standard plan, with the rest added on.`);
+  } else if (aoa > 0) {
+    reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with the rest added on top of the ${p.scenes} included.`);
+  }
   if (extraAreas > 0) reasons.push(`${extraAreas} extra area${extraAreas === 1 ? "" : "s"} on top of the ${p.scenes} included.`);
   if (extraVideos > 0) reasons.push(`${extraVideos} extra process video${extraVideos === 1 ? "" : "s"} on top of the ${p.videos} included.`);
   if (pdfs > p.pdfs) reasons.push(`${p.pdfs} PDF reports are included; you can add more from your dashboard.`);
-  return { plan: "control", reasons, extraAreas, extraVideos, needsExtras: true };
+  return { plan: chosen, reasons, extraAreas, extraVideos, needsExtras: true };
 }
 
 /* ───────────────────────── Server mirror ─────────────────────────── */
@@ -316,6 +336,7 @@ export async function mirrorLead(
         industryExcluded: state.industryExcluded,
         factoryCity: state.factoryCity,
         factoryState: state.factoryState,
+        plotBand: state.plotBand,
         aoaCount: state.aoaCount,
         selectedAreas: state.selectedAreas,
         customAreas: state.customAreas,

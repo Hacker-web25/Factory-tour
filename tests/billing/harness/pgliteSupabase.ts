@@ -417,6 +417,7 @@ export async function createTestDb(repoRoot: string): Promise<TestDb> {
     "tests/billing/harness/rlsSchema.sql",
     "supabase/coupons.sql",
     "supabase/funnel.sql",
+    "supabase/enterprise_plan.sql",
     "supabase/analytics.sql",
     "supabase/sales_seats.sql",
     "supabase/purchase_usage.sql",

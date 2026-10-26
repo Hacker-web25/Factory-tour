@@ -38,12 +38,13 @@ import {
   QrCode,
   Rocket,
   ShieldCheck,
+  Star,
   Truck,
   type LucideIcon,
 } from "lucide-react";
 import GoldTick from "@/components/funnel/GoldTick";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
-import { SITE_PLANS } from "@/lib/pricing";
+import { ENTERPRISE_PERSONAL, SITE_PLANS } from "@/lib/pricing";
 import { COMPANY, POLICY } from "@/lib/company";
 import { OTHER_MAX, USAGE_OPTIONS, type UsageId } from "@/lib/purchaseUsage";
 
@@ -306,6 +307,7 @@ export default function PaymentWelcome() {
                 slug={slug}
                 review={server === "review"}
                 stillSettingUp={server === "processing"}
+                enterprise={funnel?.chosenPlan === "enterprise"}
               />
             )}
           </div>
@@ -521,6 +523,7 @@ function NextSteps({
   slug,
   review,
   stillSettingUp,
+  enterprise,
 }: {
   email: string;
   phone: string;
@@ -528,6 +531,7 @@ function NextSteps({
   slug: string | null;
   review: boolean;
   stillSettingUp: boolean;
+  enterprise: boolean;
 }) {
   const steps: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
     {
@@ -554,10 +558,21 @@ function NextSteps({
         </>
       ),
     },
+    ...(enterprise
+      ? [
+          {
+            icon: Star,
+            title: `Your private session with ${ENTERPRISE_PERSONAL.person}`,
+            body: `Before the shoot, you sit down one-to-one with ${ENTERPRISE_PERSONAL.person} to shape how your plant is presented. We will agree the time with you when we call.`,
+          },
+        ]
+      : []),
     {
       icon: Camera,
       title: "Shoot day",
-      body: "Our crew captures your plant in a single visit.",
+      body: enterprise
+        ? `${ENTERPRISE_PERSONAL.person} leads the shoot of your plant himself, in a single visit.`
+        : "Our crew captures your plant in a single visit.",
     },
     {
       icon: Rocket,
