@@ -321,6 +321,19 @@ const sections: LegalSection[] = [
         </li>
         <li>To detect abuse and protect other customers.</li>
         <li>To fix defects and improve the Service, using aggregated or de-identified data where possible.</li>
+        <li>
+          To understand how VPV is actually used, so we build the right
+          things next. After you pay we ask one question &mdash; how you
+          plan to use your Virtual Plant Visit &mdash; and we look at
+          simple activity in your Workspace, such as how many tours you
+          have built and when you last used it. Your answer and that
+          activity are read by our own team only. We never sell them, we
+          do not use them to advertise to you, and we do not look inside
+          your tours, your client notes or your recordings for this.
+          Answering the question is required to finish setting up, because
+          it is how we decide what to improve; everything else here is
+          counted automatically.
+        </li>
         <li>To comply with law and respond to lawful requests.</li>
       </UL>
     ),

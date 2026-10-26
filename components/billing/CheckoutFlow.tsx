@@ -87,6 +87,12 @@ export default function CheckoutFlow({
     gstin: prefill?.gstin ?? "",
     address: prefill?.address ?? "",
     state: prefill?.state ?? "",
+    // This flow (the logged-in dashboard purchases) asks for one address
+    // box rather than the funnel's four fields; the parts stay empty and
+    // the invoice uses `address` exactly as it always has.
+    addressLine: prefill?.addressLine ?? "",
+    city: prefill?.city ?? "",
+    pincode: prefill?.pincode ?? "",
   });
   const [agreed, setAgreed] = useState(false);
 

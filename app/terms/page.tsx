@@ -216,6 +216,21 @@ const sections: LegalSection[] = [
           screenshots or recording their screen.
         </P>
         <P>
+          <B>Your Workspace address.</B> You choose the address your
+          Workspace lives at — <code className="text-[13px]">yourcompany.myvpv.com</code> —
+          when you pay, and we show you whether it is free before we take
+          any money. It is one name, in small letters, and it has to be
+          unused: addresses are given out first come, first served, and
+          choosing one does not give you any trademark or other right in
+          the name. We may refuse or change an address that is a name VPV
+          itself uses, that impersonates somebody else, or that we are
+          required to withdraw; if we ever have to change yours, we will
+          tell you first and keep the old address working for at least 30
+          days so the links you have already given to buyers still open.
+          You may ask us to change it; because your buyers may already
+          have the old one, we will agree a date with you.
+        </P>
+        <P>
           <B>{SITE_PLANS.enterprise.name}: personal attention.</B>{" "}
           {SITE_PLANS.enterprise.name} includes (a) one private discussion
           with {ENTERPRISE_PERSONAL.person} before your shoot, to plan how

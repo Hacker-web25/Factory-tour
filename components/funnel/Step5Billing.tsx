@@ -26,10 +26,10 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Clock, CreditCard, Lock, Mail, Receipt, ScrollText, ShieldCheck, Tag, X } from "lucide-react";
+import { Check, Clock, CreditCard, Globe, Loader2, Lock, Mail, Receipt, ScrollText, ShieldCheck, Tag, X } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -48,6 +48,7 @@ import {
 import { useRazorpayPayment } from "@/components/billing/useRazorpayPayment";
 import { INDIAN_STATES } from "@/lib/indianStates";
 import { validGstin } from "@/lib/gstin";
+import { SLUG_MAX_WORDS, slugProblem, workspaceHost, workspaceSlug } from "@/lib/slugs";
 import {
   LAUNCH_OFFER,
   SUPPORT_ANNUAL_INR,
@@ -80,6 +81,10 @@ export default function Step5Billing() {
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [gstinError, setGstinError] = useState<string | null>(null);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [pincodeError, setPincodeError] = useState<string | null>(null);
+  /** Set by the address card: null until it has an answer for this name. */
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>({ state: "idle", slug: "" });
   const router = useRouter();
   // The moment money is taken, go to the welcome page. It confirms the
   // payment with our server itself, so the buyer never sits on the bill
@@ -107,7 +112,9 @@ export default function Step5Billing() {
       router.replace(`/assessment/welcome?order=${encodeURIComponent(loaded.paidOrderId)}`);
       return;
     }
-    setS(loaded);
+    // Propose the address from the company name they gave on step 1, so
+    // the common case is "yes, that's right" rather than a blank box.
+    setS({ ...loaded, workspaceSlug: loaded.workspaceSlug || workspaceSlug(loaded.company) });
     if (isEmailVerified(loaded)) setOtp("verified");
     setReady(true);
   }, [router]);
@@ -237,6 +244,30 @@ export default function Step5Billing() {
       return;
     }
     setGstinError(null);
+
+    // The address goes on a tax invoice and into a crew's route for the
+    // day — both are hard to fix after the money has moved.
+    if (s.addressLine.trim().length < 6) {
+      setAddressError("Please give the building and street, so our crew can find you.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setAddressError(null);
+    if (!/^[1-9][0-9]{5}$/.test(s.pincode.trim())) {
+      setPincodeError("Please give the 6-digit PIN code.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    setPincodeError(null);
+
+    // The workspace address is permanent once buyers have it, so it is
+    // settled here rather than guessed afterwards.
+    const slugIssue = slugProblem(s.workspaceSlug);
+    if (slugIssue || slugStatus.state === "taken" || slugStatus.state === "bad") {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
     const saved = saveFunnel({ termsAccepted: true });
     void mirrorLead("billing", saved, { termsAccepted: true });
     void pay.start({
@@ -247,6 +278,7 @@ export default function Step5Billing() {
       extraVideos: s.extraVideos,
       salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
       coupon: coupon?.code,
+      workspaceSlug: s.workspaceSlug,
       buyer: {
         name: s.name,
         email: s.email,
@@ -254,6 +286,9 @@ export default function Step5Billing() {
         company: s.company,
         gstin: s.gstin,
         state: s.factoryState,
+        addressLine: s.addressLine,
+        city: s.factoryCity,
+        pincode: s.pincode,
       },
     });
   }
@@ -323,7 +358,16 @@ export default function Step5Billing() {
     );
   }
 
-  const canPay = quote.available && emailOk && s.termsAccepted && !pay.busy;
+  const slugReady = slugStatus.state === "free" || slugStatus.state === "idle";
+  const canPay =
+    quote.available &&
+    emailOk &&
+    s.termsAccepted &&
+    !pay.busy &&
+    slugReady &&
+    !slugProblem(s.workspaceSlug) &&
+    s.addressLine.trim().length >= 6 &&
+    /^[1-9][0-9]{5}$/.test(s.pincode.trim());
   const billLines = quote.lines.filter((l) => l.kind !== "support" && l.kind !== "travel");
   const travel = quote.lines.find((l) => l.kind === "travel") ?? null;
   const travelFree = travel !== null && travel.amountInr === 0;
@@ -545,7 +589,51 @@ export default function Step5Billing() {
                   </SelectInput>
                 </Field>
               </div>
+
+              {/* One address, asked once, doing two jobs: a tax invoice is
+                  not valid without it, and our crew has to find the gate. */}
+              <div className="mt-6 border-t border-vpv-line pt-5">
+                <p className="text-[14px] font-semibold text-vpv-ink">Plant address</p>
+                <p className="mt-0.5 text-[13px] text-vpv-muted">
+                  Printed on your invoice, and where our crew comes on shoot day.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Field label="Building and street" error={addressError ?? undefined}>
+                      <TextInput
+                        value={s.addressLine}
+                        onChange={(e) => setS({ ...s, addressLine: e.target.value })}
+                        placeholder="Plot 14, Sector 7, Industrial Area"
+                        maxLength={120}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="City">
+                    <TextInput
+                      value={s.factoryCity}
+                      onChange={(e) => setS({ ...s, factoryCity: e.target.value })}
+                      maxLength={60}
+                    />
+                  </Field>
+                  <Field label="PIN code" error={pincodeError ?? undefined}>
+                    <TextInput
+                      value={s.pincode}
+                      onChange={(e) => setS({ ...s, pincode: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) })}
+                      placeholder="122018"
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                  </Field>
+                </div>
+              </div>
             </Card>
+
+            <WorkspaceAddressCard
+              company={s.company}
+              slug={s.workspaceSlug}
+              onChange={(next) => setS({ ...s, workspaceSlug: next })}
+              onStatus={setSlugStatus}
+            />
 
             {quote.available && (
               <>
@@ -726,7 +814,13 @@ export default function Step5Billing() {
                       <p className="mt-3 text-center text-[12.5px] text-slate-500">
                         {!emailOk
                           ? "Confirm your e-mail address to continue."
-                          : "Accept the Terms and the Refund Policy to continue."}
+                          : s.addressLine.trim().length < 6 || !/^[1-9][0-9]{5}$/.test(s.pincode.trim())
+                            ? "Add your plant address and PIN code — they go on your invoice."
+                            : slugProblem(s.workspaceSlug) || slugStatus.state === "taken" || slugStatus.state === "bad"
+                              ? "Choose a VPV address that is free before you pay."
+                              : slugStatus.state === "checking"
+                                ? "Checking your VPV address…"
+                                : "Accept the Terms and the Refund Policy to continue."}
                       </p>
                     )}
                     <ul className="mt-5 grid gap-2 text-[12.5px] text-slate-600">
@@ -752,5 +846,158 @@ export default function Step5Billing() {
         </div>
       </FunnelBody>
     </>
+  );
+}
+
+/* ───────────────────── the address their VPV lives at ───────────────────── */
+
+export type SlugStatus = {
+  state: "idle" | "checking" | "free" | "taken" | "bad";
+  slug: string;
+  problem?: string | null;
+};
+
+/**
+ * Where their VPV will live, chosen before they pay.
+ *
+ * This used to be decided for the customer at fulfilment time, and when
+ * the plain name was already taken the code quietly appended a random
+ * number — which is how the company "LiveTest" ended up handing buyers
+ * livetest-407.myvpv.com. An address a customer prints on a business
+ * card should never be a surprise, so: propose it from their company
+ * name, show it exactly as a buyer will type it, say at once whether it
+ * is free, and refuse to take money until it is.
+ */
+function WorkspaceAddressCard({
+  company,
+  slug,
+  onChange,
+  onStatus,
+}: {
+  company: string;
+  slug: string;
+  onChange: (slug: string) => void;
+  onStatus: (s: SlugStatus) => void;
+}) {
+  const [status, setStatus] = useState<SlugStatus>({ state: "idle", slug });
+  const [touched, setTouched] = useState(false);
+
+  const publish = useCallback(
+    (next: SlugStatus) => {
+      setStatus(next);
+      onStatus(next);
+    },
+    [onStatus]
+  );
+
+  useEffect(() => {
+    const problem = slugProblem(slug);
+    if (problem) {
+      publish({ state: "bad", slug, problem });
+      return;
+    }
+    publish({ state: "checking", slug });
+    // Wait for a pause in typing: one request per name, not per keystroke.
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/funnel/workspace?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
+        const body = (await res.json()) as { available?: boolean; problem?: string | null };
+        if (!res.ok) {
+          // Cannot tell. Do not block the sale on our own hiccup — the
+          // server checks again, for real, when the order is opened.
+          publish({ state: "idle", slug });
+          return;
+        }
+        publish(
+          body.available
+            ? { state: "free", slug }
+            : { state: "taken", slug, problem: body.problem ?? "That address is taken." }
+        );
+      } catch {
+        publish({ state: "idle", slug });
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [slug, publish]);
+
+  const host = workspaceHost(slug || "your-company");
+  const tone =
+    status.state === "free"
+      ? "text-emerald-700"
+      : status.state === "taken" || status.state === "bad"
+        ? "text-red-700"
+        : "text-vpv-muted";
+
+  return (
+    <Card>
+      <SectionTitle icon={Globe} title="Your VPV address">
+        This is the link your buyers open. It is printed on your invoice and cannot be changed afterwards
+        without telling everyone you have already given it to.
+      </SectionTitle>
+
+      <div className="mt-5">
+        <Field
+          label="Company name for your address"
+          hint={`Up to ${SLUG_MAX_WORDS} words. Short is better — buyers type this.`}
+          error={touched && (status.state === "bad" || status.state === "taken") ? status.problem ?? undefined : undefined}
+        >
+          <TextInput
+            value={slug}
+            onChange={(e) => {
+              setTouched(true);
+              // Accept what a person would naturally type — "Acme Steel"
+              // — and show them the address it becomes.
+              onChange(workspaceSlug(e.target.value));
+            }}
+            placeholder="acme-steel"
+            maxLength={40}
+            autoCapitalize="none"
+            spellCheck={false}
+          />
+        </Field>
+
+        {/* The live preview: the point of the whole card. */}
+        <div className="mt-3 rounded-xl border border-vpv-line bg-vpv-tint/40 px-4 py-3">
+          <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-vpv-muted">Your buyers will open</p>
+          <p className="mt-1 break-all text-[17px] font-semibold tracking-[-0.01em] text-vpv-ink">
+            {host}
+          </p>
+          <p className={`mt-1.5 flex items-center gap-1.5 text-[13px] ${tone}`}>
+            {status.state === "checking" && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+            {status.state === "free" && <Check className="h-3.5 w-3.5" aria-hidden />}
+            {status.state === "checking"
+              ? "Checking whether it is free…"
+              : status.state === "free"
+                ? "This address is free — it is yours when you pay."
+                : status.state === "taken" || status.state === "bad"
+                  ? status.problem
+                  : "We will confirm this address when you pay."}
+          </p>
+        </div>
+
+        {/* It is legal, it is free — it is just a mouthful. Said once,
+            before they pay, while changing it still costs nothing. */}
+        {slug.length >= 20 && status.state !== "bad" && (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-amber-900">
+            That is {slug.length} characters. Your buyers will type it on a phone — something shorter, like{" "}
+            <strong className="font-semibold">{workspaceHost(slug.split("-").slice(0, 2).join("-"))}</strong>, is easier to
+            pass on. You can keep this one if you prefer it.
+          </p>
+        )}
+
+        {company && workspaceSlug(company) !== slug && (
+          <button
+            type="button"
+            onClick={() => {
+              setTouched(true);
+              onChange(workspaceSlug(company));
+            }}
+            className="mt-3 text-[13px] font-semibold text-vpv-blue underline underline-offset-2"
+          >
+            Use {workspaceHost(workspaceSlug(company))} instead
+          </button>
+        )}
+      </div>
+    </Card>
   );
 }

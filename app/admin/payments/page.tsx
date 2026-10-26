@@ -39,6 +39,7 @@ import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
 import { fromPaise, inr } from "@/lib/pricing";
+import { usageTitle } from "@/lib/purchaseUsage";
 
 type StuckOrder = {
   id: string;
@@ -86,6 +87,51 @@ type RefundRow = {
   status: string;
   created_at: string;
 };
+type FailedPayment = {
+  id: string;
+  company: string;
+  email: string;
+  amount_paise: number;
+  created_at: string;
+  razorpay_order_id: string | null;
+  livemode: boolean;
+};
+type CustomerRow = {
+  order_id: string;
+  company: string;
+  email: string;
+  phone: string | null;
+  slug: string | null;
+  city: string;
+  amount_paise: number;
+  paid_at: string | null;
+  livemode: boolean;
+  areas: number | null;
+  support_until: string | null;
+  tours: number;
+  uses: string[] | null;
+  usage_note: string | null;
+};
+/** Everything the shop looks like right now, in one round trip. */
+type Overview = {
+  fy: string;
+  money: { live_orders: number; live_paise: number; month_orders: number; month_paise: number; test_orders: number };
+  counts: {
+    paid_not_setup: number;
+    needs_review: number;
+    failed: number;
+    customers: number;
+    abandoned: number;
+    open_alerts: number;
+    failed_webhooks: number;
+    renewals_60d: number;
+    usage_unanswered: number;
+  };
+  failed_payments: FailedPayment[];
+  customers: CustomerRow[];
+  invoices: { fy: string; count: number; highest: number };
+};
+
 type Health = {
   stuck_orders: StuckOrder[];
   flagged_orders: FlaggedOrder[];
@@ -123,6 +169,7 @@ export default function AdminPaymentsPage() {
   const router = useRouter();
   const [me, setMe] = useState<Profile | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [overview, setOverview] = useState<Overview | null>(null);
   const [setup, setSetup] = useState<SetupCheck | null>(null);
   const [setupError, setSetupError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,6 +213,11 @@ export default function AdminPaymentsPage() {
         setSetupError(true);
       }
     })();
+    // Added October 2026. An older database has not got it yet, and the
+    // rest of this page must still work, so a failure here is silent.
+    const { data: ov } = await supabase.rpc("admin_payments_overview");
+    setOverview((ov as Overview | null) ?? null);
+
     const { data, error } = await supabase.rpc("admin_billing_health");
     if (error || !data) {
       setLoadError("Could not load payment health. Is billing_hardening.sql applied in Supabase?");
@@ -369,18 +421,65 @@ export default function AdminPaymentsPage() {
 
         {health && (
           <>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Money first. Everything below is a queue; this is the
+                reason the queues matter. */}
+            {overview && <MoneyStrip o={overview} />}
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Stat label="Paid, not set up" value={counts.stuck} tone={counts.stuck ? "red" : "plain"} />
               <Stat label="Need your review" value={counts.review} tone={counts.review ? "amber" : "plain"} />
-              <Stat label="Open alerts" value={counts.alerts} tone={counts.alerts ? "amber" : "plain"} />
-              <Stat label="Failed webhooks" value={counts.events} tone={counts.events ? "amber" : "plain"} />
+              <Stat
+                label="Payments that failed"
+                value={overview?.counts.failed ?? 0}
+                tone={(overview?.counts.failed ?? 0) >= 3 ? "red" : (overview?.counts.failed ?? 0) ? "amber" : "plain"}
+              />
+              <Stat label="Customers set up" value={overview?.counts.customers ?? 0} />
             </div>
+
+            {overview && (
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Stat label="Checkouts abandoned (30 days)" value={overview.counts.abandoned} tone={overview.counts.abandoned ? "amber" : "plain"} />
+                <Stat label="Renewals due in 60 days" value={overview.counts.renewals_60d} />
+                <Stat label="Open alerts" value={counts.alerts} tone={counts.alerts ? "amber" : "plain"} />
+                <Stat label="Failed webhooks" value={counts.events} tone={counts.events ? "amber" : "plain"} />
+              </div>
+            )}
 
             {allClear && (
               <div className="mt-6 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13.5px] text-emerald-800">
                 <CheckCircle2 size={16} className="shrink-0" />
                 All clear. Every payment received has been turned into a working customer.
               </div>
+            )}
+
+            {/* ── payments that did not go through ───────────────── */}
+            {overview && overview.counts.failed > 0 && (
+              <Section
+                title="Payments that failed"
+                tone={overview.counts.failed >= 3 ? "red" : "amber"}
+                hint={
+                  overview.counts.failed >= 3
+                    ? "Three or more in 30 days. One declined card is normal; several in a row usually means something is wrong with the checkout — check the Razorpay dashboard."
+                    : "The customer's payment did not complete. Nothing was charged. Worth a call if it was a real buyer."
+                }
+              >
+                <Table head={["Customer", "Amount", "When", "Razorpay order"]}>
+                  {overview.failed_payments.map((f) => (
+                    <tr key={f.id} className="border-b border-vpv-line last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-vpv-ink">
+                          {f.company}
+                          <ModeChip live={f.livemode} />
+                        </div>
+                        <div className="text-[12.5px] text-vpv-muted">{f.email}</div>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums">{money(f.amount_paise)}</td>
+                      <td className="px-4 py-3 text-[12.5px] text-vpv-muted">{when(f.created_at)}</td>
+                      <td className="px-4 py-3 font-mono text-[12px] text-vpv-muted">{f.razorpay_order_id ?? "never reached Razorpay"}</td>
+                    </tr>
+                  ))}
+                </Table>
+              </Section>
             )}
 
             {/* ── paid but not set up ───────────────────────────── */}
@@ -522,6 +621,9 @@ export default function AdminPaymentsPage() {
             )}
 
             {/* ── refunds ───────────────────────────────────────── */}
+            {/* ── who is set up, and what they do with it ─────────── */}
+            {overview && overview.customers.length > 0 && <CustomersSection o={overview} />}
+
             <Section title="Recent refunds and chargebacks">
               {health.recent_refunds.length === 0 ? (
                 <div className="rounded-2xl border border-vpv-line bg-white px-4 py-8 text-center text-[13.5px] text-slate-500">
@@ -723,5 +825,111 @@ function InvoiceExport() {
         </a>
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────── the money, and the customers ───────────────────────── */
+
+/**
+ * What actually came in. It sits above the queues because a page that
+ * opens on "4 things are broken" tells you nothing about whether the
+ * business is working.
+ */
+function MoneyStrip({ o }: { o: Overview }) {
+  const avg = o.money.live_orders > 0 ? o.money.live_paise / o.money.live_orders : 0;
+  return (
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-emerald-700">This month</p>
+        <p className="mt-1 text-[26px] font-semibold tabular-nums tracking-[-0.02em] text-emerald-900">{money(o.money.month_paise)}</p>
+        <p className="mt-0.5 text-[12.5px] text-emerald-800">
+          {o.money.month_orders} {o.money.month_orders === 1 ? "payment" : "payments"}
+        </p>
+      </div>
+      <div className="rounded-xl border border-vpv-line bg-white px-4 py-3.5">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-vpv-muted">All time (live)</p>
+        <p className="mt-1 text-[26px] font-semibold tabular-nums tracking-[-0.02em] text-vpv-ink">{money(o.money.live_paise)}</p>
+        <p className="mt-0.5 text-[12.5px] text-vpv-muted">
+          {o.money.live_orders} paid · {o.money.test_orders} test
+        </p>
+      </div>
+      <div className="rounded-xl border border-vpv-line bg-white px-4 py-3.5">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-vpv-muted">Average order</p>
+        <p className="mt-1 text-[26px] font-semibold tabular-nums tracking-[-0.02em] text-vpv-ink">{money(avg)}</p>
+        <p className="mt-0.5 text-[12.5px] text-vpv-muted">Including GST and travel</p>
+      </div>
+      <div className="rounded-xl border border-vpv-line bg-white px-4 py-3.5">
+        <p className="text-[11.5px] font-semibold uppercase tracking-[0.1em] text-vpv-muted">Invoices {o.invoices.fy}</p>
+        <p className="mt-1 text-[26px] font-semibold tabular-nums tracking-[-0.02em] text-vpv-ink">{o.invoices.count}</p>
+        <p className="mt-0.5 text-[12.5px] text-vpv-muted">
+          {o.invoices.highest > o.invoices.count
+            ? `Highest number ${o.invoices.highest} — ${o.invoices.highest - o.invoices.count} missing`
+            : "Numbering complete"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Everyone who is set up, and what they have done since.
+ *
+ * The purchase intent comes from the one question asked after payment,
+ * and it is the most valuable thing on this page: it is the only place
+ * that says, in customers' own words, what they bought VPV FOR.
+ */
+function CustomersSection({ o }: { o: Overview }) {
+  return (
+    <Section
+      title="Set up — and how they use it"
+      hint={`${o.counts.customers} ${o.counts.customers === 1 ? "customer" : "customers"} live. “Plans to” is what they told us after paying; ${o.counts.usage_unanswered} have not answered yet.`}
+    >
+      <Table head={["Customer", "Address", "Paid", "Built", "Plans to use it for", "Support until"]}>
+        {o.customers.map((c) => (
+          <tr key={c.order_id} className="border-b border-vpv-line last:border-0 align-top">
+            <td className="px-4 py-3">
+              <div className="font-medium text-vpv-ink">
+                {c.company}
+                <ModeChip live={c.livemode} />
+              </div>
+              <div className="text-[12.5px] text-vpv-muted">{c.email}</div>
+              {c.phone && <div className="text-[12.5px] text-vpv-muted">{c.phone}</div>}
+            </td>
+            <td className="px-4 py-3">
+              {c.slug ? (
+                <a
+                  href={`https://${c.slug}.myvpv.com`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[12.5px] font-medium text-vpv-blue underline underline-offset-2"
+                >
+                  {c.slug}.myvpv.com
+                </a>
+              ) : (
+                <span className="text-[12.5px] text-vpv-muted">—</span>
+              )}
+              {c.city && <div className="text-[12.5px] text-vpv-muted">{c.city}</div>}
+            </td>
+            <td className="px-4 py-3 tabular-nums">{money(c.amount_paise)}</td>
+            <td className="px-4 py-3 text-[12.5px] text-vpv-muted">
+              {c.areas ?? "—"} areas
+              <br />
+              {c.tours} {c.tours === 1 ? "tour" : "tours"}
+            </td>
+            <td className="px-4 py-3 text-[12.5px]">
+              {c.uses && c.uses.length > 0 ? (
+                <>
+                  <span className="text-vpv-ink">{c.uses.map(usageTitle).join(", ")}</span>
+                  {c.usage_note && <div className="mt-0.5 italic text-vpv-muted">&ldquo;{c.usage_note}&rdquo;</div>}
+                </>
+              ) : (
+                <span className="text-vpv-muted">Not answered yet</span>
+              )}
+            </td>
+            <td className="px-4 py-3 text-[12.5px] text-vpv-muted">{c.support_until ? when(c.support_until).split(",")[0] : "—"}</td>
+          </tr>
+        ))}
+      </Table>
+    </Section>
   );
 }

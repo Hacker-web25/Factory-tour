@@ -139,6 +139,13 @@ export async function settlePayment(
     }
 
     case "failed":
+      // One declined card is an ordinary Tuesday and must never e-mail
+      // anybody. Several in an hour is a different thing: the checkout,
+      // the gateway account or the key is broken, and every minute after
+      // that is a lost sale. So the ALERT is on the pattern, not the event.
+      await alertOnFailureBurst(sb, orderId ?? null, payment);
+      return { outcome: rec.outcome, orderId, retriable: false };
+
     case "not_captured":
     case "already_refunded":
     case "order_not_found":
@@ -453,3 +460,52 @@ export async function publicOrderStatus(sb: SupabaseClient, orderId: string): Pr
 }
 
 export { sendPendingEmails };
+
+/**
+ * Shout when payments start failing in a run, not when one does.
+ *
+ * Three failures in an hour, with nothing captured in between, is the
+ * shape of a broken checkout rather than three unlucky buyers. The alert
+ * itself is de-duplicated by alertFounders(), so a bad hour produces one
+ * e-mail rather than one per customer.
+ *
+ * Never throws: a payment that failed has already failed, and failing to
+ * complain about it must not also break the webhook.
+ */
+const FAILURE_BURST = 3;
+
+async function alertOnFailureBurst(
+  sb: SupabaseClient,
+  orderId: string | null,
+  payment: { error_code?: string | null; error_description?: string | null }
+): Promise<void> {
+  try {
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: failures } = await sb
+      .from("billing_payments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "failed")
+      .gte("created_at", since);
+    if ((failures ?? 0) < FAILURE_BURST) return;
+
+    const { count: captured } = await sb
+      .from("billing_payments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "captured")
+      .gte("created_at", since);
+    // Money is still getting through, so the checkout is not down.
+    if ((captured ?? 0) > 0) return;
+
+    await alertFounders(sb, {
+      kind: "payment_failures",
+      severity: "critical",
+      orderId,
+      detail:
+        `${failures} payments failed in the last hour and none succeeded. ` +
+        `The last one said: ${payment.error_code ?? "no code"} — ${payment.error_description ?? "no description"}. ` +
+        `Check the Razorpay dashboard and that the live keys are still valid.`,
+    });
+  } catch {
+    /* an alert that cannot be raised must not break the webhook */
+  }
+}

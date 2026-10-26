@@ -59,6 +59,7 @@ import { comingSoonTitle, logisticsFor } from "@/lib/logistics";
 import type { Coupon } from "@/lib/pricing";
 import { canonicalIndianState } from "@/lib/indianStates";
 import { stateFromGstin } from "@/lib/gstin";
+import { slugProblem, workspaceSlug } from "@/lib/slugs";
 import {
   billingRateLimit,
   clean,
@@ -242,6 +243,24 @@ export async function POST(req: Request) {
     address: clean(src.address, 400),
     state: clean(src.state, 60),
   };
+  // The funnel asks for the address in parts, because a crew has to find
+  // the gate and a tax invoice has to carry a real address. Composed into
+  // one string here, ONCE, so what the invoice prints is frozen with the
+  // order and cannot drift from the parts afterwards.
+  const parts = {
+    line: clean(src.addressLine, 160),
+    city: clean(src.city, 80),
+    pincode: clean(src.pincode, 10),
+  };
+  if (parts.pincode && !/^[1-9][0-9]{5}$/.test(parts.pincode)) {
+    return fail(400, "bad_pincode", "That PIN code does not look right.");
+  }
+  if (!typed.address && parts.line) {
+    typed.address = [parts.line, parts.city, [typed.state, parts.pincode].filter(Boolean).join(" ")]
+      .filter(Boolean)
+      .join(", ")
+      .slice(0, 400);
+  }
   const placeholder = (v: string) => v === "" || v === "—" || v === "-";
 
   const buyer: Buyer = org
@@ -429,6 +448,18 @@ export async function POST(req: Request) {
     });
   }
 
+  // ── The workspace address, checked before anything is created ──────
+  //
+  // Refused rather than tidied up. The browser showed the customer the
+  // exact address they are buying; if what arrives is not already in
+  // that form it did not come from that screen, and quietly storing a
+  // DIFFERENT address from the one they read is the very fault this
+  // feature exists to fix.
+  const wantSlug = typeof body.workspaceSlug === "string" ? body.workspaceSlug.trim().toLowerCase() : "";
+  if (wantSlug && (slugProblem(wantSlug) || workspaceSlug(wantSlug) !== wantSlug)) {
+    return fail(400, "bad_workspace", slugProblem(wantSlug) ?? "Please choose a different VPV address.");
+  }
+
   /* ── Find the open order, or open one ────────────────────────────── */
 
   let order: OrderRowLite;
@@ -454,6 +485,53 @@ export async function POST(req: Request) {
       return fail(409, "order_in_flight", "Your payment is already being opened. Please wait a moment and try again.");
     }
     return fail(500, "order_failed", "We could not start the payment.");
+  }
+
+  // ── The workspace address ──────────────────────────────────────────
+  //
+  // Claimed here, before the customer reaches Razorpay, so two people
+  // cannot pay for the same address. Written as its own UPDATE rather
+  // than part of the insert for one reason: a database that has not had
+  // supabase/workspace_address.sql run yet must still be able to take
+  // money. Without the column the claim simply does not happen and
+  // fulfilment picks a name the old way.
+  if (wantSlug) {
+    const { data: taken } = await sb.from("organizations").select("id").eq("slug", wantSlug).maybeSingle();
+    if (taken) {
+      return fail(409, "workspace_taken", "That VPV address has just been taken. Please choose another.");
+    }
+    const { error: claimErr } = await sb
+      .from("billing_orders")
+      .update({ requested_slug: wantSlug })
+      .eq("id", order.id);
+    if (claimErr) {
+      // 23505 is the unique index: somebody else is checking out with
+      // this very name. Anything else means the migration has not been
+      // run — not worth failing a sale over.
+      if (claimErr.code === "23505") {
+        return fail(409, "workspace_taken", "Someone is checking out with that VPV address. Please choose another.");
+      }
+      // eslint-disable-next-line no-console
+      console.warn("[billing] workspace address not claimed (run supabase/workspace_address.sql):", claimErr.message);
+    }
+  }
+
+  // The plant address in its parts, for the crew and for /admin. Written
+  // whether or not an address was chosen above, and best-effort for the
+  // same reason: never fail a sale over a column that is not there yet.
+  if (!reused && (parts.line || parts.city || parts.pincode)) {
+    await sb
+      .from("billing_orders")
+      .update({
+        buyer_address_line: parts.line || null,
+        buyer_city: parts.city || null,
+        buyer_pincode: parts.pincode || null,
+      })
+      .eq("id", order.id)
+      .then(
+        () => undefined,
+        () => undefined
+      );
   }
 
   // The rows the tax invoice will print, frozen from the very quote this

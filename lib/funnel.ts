@@ -42,6 +42,15 @@ export type FunnelState = {
   industryExcluded: string[];
   factoryCity: string;
   factoryState: string;
+  /** Street / building — the plant, and what the invoice prints. */
+  addressLine: string;
+  pincode: string;
+  /**
+   * The address their VPV will live at: <slug>.myvpv.com. Proposed from
+   * the company name, then confirmed (or changed) by the customer on the
+   * billing step — never generated behind their back.
+   */
+  workspaceSlug: string;
   /** How big the plant is. Empty until they say; "Not sure" is allowed. */
   plotBand: PlotBand | "";
 
@@ -101,6 +110,9 @@ export const EMPTY_FUNNEL: FunnelState = {
   industryExcluded: [],
   factoryCity: "",
   factoryState: "",
+  addressLine: "",
+  pincode: "",
+  workspaceSlug: "",
   plotBand: "",
   selectedAreas: [],
   customAreas: [],
@@ -336,6 +348,7 @@ export async function mirrorLead(
         industryExcluded: state.industryExcluded,
         factoryCity: state.factoryCity,
         factoryState: state.factoryState,
+        pincode: state.pincode,
         plotBand: state.plotBand,
         aoaCount: state.aoaCount,
         selectedAreas: state.selectedAreas,

@@ -49,6 +49,11 @@ export type Buyer = {
   gstin: string;
   address: string;
   state: string;
+  /* The plant address, asked once and used twice: it is printed on the
+     tax invoice, and it is where the shoot crew drives. */
+  addressLine: string;
+  city: string;
+  pincode: string;
 };
 
 declare global {
@@ -294,6 +299,8 @@ export function useRazorpayPayment(
       extraVideos?: number;
       /** Sales-team logins bought with a site plan. */
       salesSeats?: number;
+      /** The address the customer chose for their workspace. */
+      workspaceSlug?: string;
       /** A coupon code the buyer entered. The server checks it. */
       coupon?: string;
       buyer?: Partial<Buyer>;
@@ -328,6 +335,7 @@ export function useRazorpayPayment(
               extraAreas: args.extraAreas,
               extraVideos: args.extraVideos,
               salesSeats: args.salesSeats,
+              workspaceSlug: args.workspaceSlug,
               coupon: args.coupon,
               buyer: args.buyer ?? {},
             }),

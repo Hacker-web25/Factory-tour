@@ -51,7 +51,7 @@ import {
   seatsFromOrderNotes,
 } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
-import { RESERVED_SLUGS, slugify } from "@/lib/slugs";
+import { RESERVED_SLUGS, slugProblem, slugify, workspaceSlug } from "@/lib/slugs";
 
 export type OrderRow = {
   id: string;
@@ -81,6 +81,8 @@ export type OrderRow = {
   revoked_at?: string | null;
   /** What was bought, in words — written by priceFor(). */
   notes?: string | null;
+  /** The workspace address the customer chose at checkout. */
+  requested_slug?: string | null;
 };
 
 export type FulfilResult = {
@@ -120,12 +122,24 @@ function unusablePassword(): string {
   return crypto.randomBytes(32).toString("base64url");
 }
 
-function slugCandidates(company: string): string[] {
+/**
+ * The addresses to try for a new workspace, best first.
+ *
+ * The customer's own choice, made at checkout and already checked for
+ * availability there, comes first and will almost always win. The
+ * numbered fallbacks exist only for the races and the old orders: a
+ * workspace MUST get some address, and refusing to build one for a
+ * customer who has already paid would be far worse than an address with
+ * a number in it. Before October 2026 the first candidate was all there
+ * was, which is how the company "LiveTest" was handed livetest-407.
+ */
+function slugCandidates(company: string, chosen?: string | null): string[] {
+  const want = chosen ? workspaceSlug(chosen) : "";
   const base = slugify(company);
-  const out = [base];
+  const out = [...(want && !slugProblem(want) ? [want] : []), base];
   for (let i = 0; i < 6; i++) out.push(`${base}-${crypto.randomInt(100, 999)}`);
   out.push(`${base}-${crypto.randomBytes(3).toString("hex")}`);
-  return out.filter((c) => !RESERVED_SLUGS.has(c));
+  return out.filter((c, i, a) => a.indexOf(c) === i).filter((c) => !RESERVED_SLUGS.has(c));
 }
 
 type Rpc<T> = { data: T | null; error: { message: string; code?: string } | null };
@@ -250,7 +264,7 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
     // half-made, orphan workspace behind.
     await assertLoginAvailable(sb, row);
     let lastErr: unknown = null;
-    for (const candidate of slugCandidates(row.buyer_company)) {
+    for (const candidate of slugCandidates(row.buyer_company, row.requested_slug)) {
       const { data: taken } = await sb.from("organizations").select("id").eq("slug", candidate).maybeSingle();
       if (taken) continue;
       try {
