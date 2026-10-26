@@ -148,7 +148,20 @@ function loadCheckoutScript(): Promise<boolean> {
 
 /* ───────────────────────────── the hook ──────────────────────────── */
 
-export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
+export function useRazorpayPayment(
+  opts: {
+    accessToken?: string | null;
+    /**
+     * Called once, the moment we know money was taken for this order
+     * (Razorpay's success callback, a slow method that finished after the
+     * window closed, an order already paid, or a reload mid-wait). The
+     * funnel uses it to move the buyer straight to the welcome page instead
+     * of leaving them looking at the bill. Verification carries on in the
+     * background; the welcome page polls the server for itself.
+     */
+    onPaid?: (orderId: string) => void;
+  } = {}
+) {
   const [phase, setPhase] = useState<PayPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -161,6 +174,18 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
   const alive = useRef(true);
   const token = useRef<string | null | undefined>(opts.accessToken);
   token.current = opts.accessToken;
+  const onPaidRef = useRef(opts.onPaid);
+  onPaidRef.current = opts.onPaid;
+  const announced = useRef<string | null>(null);
+  const announcePaid = useCallback((orderId: string) => {
+    if (announced.current === orderId) return;
+    announced.current = orderId;
+    try {
+      onPaidRef.current?.(orderId);
+    } catch {
+      /* a navigation hiccup must never break verification */
+    }
+  }, []);
 
   useEffect(() => {
     alive.current = true;
@@ -243,6 +268,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
         if (!alive.current) return;
         const s = ok && data.ok ? (data.status as string) : "unknown";
         if (s === "processing" || s === "ready") {
+          announcePaid(pending.orderId);
           await waitForOrder(pending.orderId, pending.purpose);
           return;
         }
@@ -253,7 +279,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
       }
       lock.current = false;
     })();
-  }, [waitForOrder]);
+  }, [waitForOrder, announcePaid]);
 
   const start = useCallback(
     async (args: {
@@ -314,6 +340,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
             // Paid a moment ago (other tab / earlier attempt). Don't charge again — wait for setup.
             remember(data.orderId, args.purpose);
             setNotice("This order was already paid. We are finishing the set-up now.");
+            announcePaid(data.orderId);
             await waitForOrder(data.orderId, args.purpose);
             return;
           }
@@ -366,6 +393,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
                   );
                   if (sOk && sData.ok && (sData.status === "processing" || sData.status === "ready")) {
                     paid.current = true;
+                    announcePaid(orderId);
                     await waitForOrder(orderId, args.purpose);
                     return;
                   }
@@ -380,21 +408,26 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
           handler: async (response: Record<string, string>) => {
             paid.current = true;
             if (alive.current) setPhase("verifying");
+            // Confirm first (it settles the payment on our side straight away),
+            // but move the buyer on without waiting for it.
+            const confirming = fetchJson(
+              "/api/billing/confirm",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+                keepalive: true,
+              },
+              45_000
+            );
+            announcePaid(orderId);
             try {
-              const confirmed = await fetchJson(
-                "/api/billing/confirm",
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    orderId,
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                  }),
-                },
-                45_000
-              );
+              const confirmed = await confirming;
               if (confirmed.ok && confirmed.data.status === "ready") {
                 return finish({
                   outcome: "ready",
@@ -427,7 +460,7 @@ export function useRazorpayPayment(opts: { accessToken?: string | null } = {}) {
         release();
       }
     },
-    [finish, waitForOrder]
+    [finish, waitForOrder, announcePaid]
   );
 
   return {

@@ -41,6 +41,10 @@ function ident(name: string): string {
 function toParam(v: unknown): unknown {
   if (v === undefined) return null;
   if (v instanceof Date) return v.toISOString();
+  // A list of strings is a Postgres text[] (as PostgREST sends it), not JSON.
+  if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
+    return "{" + v.map((x) => '"' + String(x).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"').join(",") + "}";
+  }
   if (v !== null && typeof v === "object") return JSON.stringify(v);
   return v;
 }
@@ -415,6 +419,7 @@ export async function createTestDb(repoRoot: string): Promise<TestDb> {
     "supabase/funnel.sql",
     "supabase/analytics.sql",
     "supabase/sales_seats.sql",
+    "supabase/purchase_usage.sql",
   ];
   for (const f of files) {
     try {

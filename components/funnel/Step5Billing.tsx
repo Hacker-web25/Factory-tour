@@ -28,6 +28,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, Clock, CreditCard, Lock, Mail, Receipt, ScrollText, ShieldCheck, Tag, X } from "lucide-react";
 import {
   BackLink,
@@ -79,7 +80,16 @@ export default function Step5Billing() {
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [gstinError, setGstinError] = useState<string | null>(null);
-  const pay = useRazorpayPayment();
+  const router = useRouter();
+  // The moment money is taken, go to the welcome page. It confirms the
+  // payment with our server itself, so the buyer never sits on the bill
+  // wondering whether it worked.
+  const pay = useRazorpayPayment({
+    onPaid: (orderId) => {
+      saveFunnel({ paidOrderId: orderId });
+      router.replace(`/assessment/welcome?order=${encodeURIComponent(orderId)}`);
+    },
+  });
   const paidMirrored = useRef(false);
   const offer = useOfferState();
   const [offerClosedNotice, setOfferClosedNotice] = useState(false);
@@ -92,10 +102,15 @@ export default function Step5Billing() {
 
   useEffect(() => {
     const loaded = loadFunnel();
+    // Already paid from this browser: never show a pay button again.
+    if (loaded.paidOrderId) {
+      router.replace(`/assessment/welcome?order=${encodeURIComponent(loaded.paidOrderId)}`);
+      return;
+    }
     setS(loaded);
     if (isEmailVerified(loaded)) setOtp("verified");
     setReady(true);
-  }, []);
+  }, [router]);
 
   // "Confirmed" is only true for the exact address a code was confirmed for.
   const emailOk = otp === "verified" && s !== null && isEmailVerified(s);

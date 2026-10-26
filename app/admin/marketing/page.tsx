@@ -152,6 +152,12 @@ export default function AdminMarketingPage() {
         >
           Buyers: a personal QR for each person, and what each one did →
         </Link>
+        <Link
+          href="/admin/marketing/usage"
+          className="mt-5 ml-2 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-4 py-2 text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+        >
+          How customers will use VPV →
+        </Link>
 
         {/* ── Make a code ─────────────────────────────────────────── */}
         <form

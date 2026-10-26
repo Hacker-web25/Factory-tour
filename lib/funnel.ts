@@ -80,6 +80,11 @@ export type FunnelState = {
   /** The exact address a code was confirmed for. Verification only counts for this one. */
   verifiedEmail: string;
   gstin: string;
+
+  /** Set the moment Razorpay reports a payment, so returning to the bill
+   *  sends the buyer to the welcome page instead of inviting a second
+   *  payment. Empty until then. */
+  paidOrderId: string;
 };
 
 export const EMPTY_FUNNEL: FunnelState = {
@@ -114,6 +119,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   emailVerified: false,
   verifiedEmail: "",
   gstin: "",
+  paidOrderId: "",
 };
 
 const KEY = "vpv.funnel.v1";
