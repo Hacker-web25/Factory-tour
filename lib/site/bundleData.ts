@@ -54,16 +54,30 @@ const SHARING = [
 ];
 const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Customer branding"];
 
+/**
+ * The feature list for one plan card. EVERY plan gets the same rows in the
+ * same order, so "Custom domain" sits at the same height on all four cards.
+ * A feature a plan does not have is still listed, with a leading "~": the
+ * card draws it invisible, keeping the row's height so the rows below line
+ * up, and drops it altogether on a phone, where the cards stack.
+ */
 function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const p = SITE_PLANS[id];
-  const out: string[] = [];
-  if (id === "enterprise") out.push(ENTERPRISE_PERSONAL.discussion.short, ENTERPRISE_PERSONAL.shoot.short);
-  out.push(p.plot.label, `${p.scenes} AOAs`, `${hoursLabel(p.shootHours)} of shoot time`, "Information icons");
-  if (p.videos > 0) out.push(`${p.videos} process videos`);
-  if (p.pdfs > 0) out.push(`${p.pdfs} PDF reports`);
-  if (p.sharingControls) out.push(...SHARING);
-  out.push(...BASE_SECURITY);
-  return out;
+  const row = (has: boolean, text: string) => (has ? text : `~${text}`);
+  const ent = id === "enterprise";
+  return [
+    row(ent, ENTERPRISE_PERSONAL.discussion.short),
+    row(ent, ENTERPRISE_PERSONAL.shoot.short),
+    p.plot.label,
+    `${p.scenes} AOAs`,
+    `${hoursLabel(p.shootHours)} of shoot time`,
+    "Information icons",
+    row(p.videos > 0, `${p.videos > 0 ? p.videos : 0} process videos`),
+    row(p.pdfs > 0, `${p.pdfs > 0 ? p.pdfs : 0} PDF reports`),
+    row(p.sharingControls, SHARING[0]),
+    row(p.sharingControls, SHARING[1]),
+    ...BASE_SECURITY,
+  ];
 }
 
 /** `ln={…},sn=[…]` — the offer and the four plans, as the bundle names them. */
@@ -248,8 +262,8 @@ export function bundleTextPatches(): [string, string][] {
     // October 2026: a fourth plan (Enterprise). The three plan grids and the
     // plan-difference FAQ were written for three.
     ['title:"Confidence, Authority or Control"', 'title:"Confidence, Authority, Control or Enterprise"'],
-    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
-    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
     ['"grid gap-4 md:grid-cols-3","data-testid":"plan-comparison"', '"grid gap-4 md:grid-cols-2","data-testid":"plan-comparison"'],
     // Enterprise's three Mr. Nitin Gupta lines shine: golden, larger. The
     // card is one component, so these key off the plan id and the text.
@@ -259,10 +273,18 @@ export function bundleTextPatches(): [string, string][] {
     ],
     [
       'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),e]}',
+      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
+    ],
+    // The first Enterprise gold pass wrapped the text in a span; carry it on.
+    [
       'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:e})]}',
+      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
     ],
     // The first Enterprise sync used a grid class the site's CSS does not ship.
-    ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2"'],
+    ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid"'],
+    // Four cards in a row, rows aligned (see the CSS in lib/site/home.ts).
+    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
     ['"grid gap-4 md:grid-cols-2 xl:grid-cols-4"', '"grid gap-4 md:grid-cols-2"'],
     ['q:"What is the difference between Confidence, Authority and Control?"', 'q:"What is the difference between Confidence, Authority, Control and Enterprise?"'],
     ['${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} See the plans page', '${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page'],
