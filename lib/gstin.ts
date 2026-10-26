@@ -81,3 +81,15 @@ export function stateFromGstin(value: string): string | null {
   if (!validGstin(value)) return null;
   return GSTIN_STATE_BY_CODE[value.trim().toUpperCase().slice(0, 2)] ?? null;
 }
+
+/**
+ * The PAN inside a (valid) GSTIN — characters 3 to 12.
+ *
+ * Read rather than configured on purpose: a tax invoice shows both, and
+ * a PAN typed into a settings file can drift away from the GSTIN beside
+ * it. Taking it from the GSTIN means the two can never disagree.
+ */
+export function panFromGstin(value: string): string | null {
+  if (!validGstin(value)) return null;
+  return value.trim().toUpperCase().slice(2, 12);
+}

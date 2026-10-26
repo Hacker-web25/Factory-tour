@@ -1302,6 +1302,86 @@ export function sitePlanQuote(
   };
 }
 
+/* ═══════════════════ What the invoice itemises ════════════════════ */
+
+/**
+ * One printed row of a tax invoice.
+ *
+ * This is NOT the same thing as a QuoteLine. A quote is a running total
+ * on a screen; an invoice is a document that has to be readable by a
+ * stranger — the buyer's accountant — years later. So a row may carry no
+ * money at all ("On-site capture … Included"): it is there to say what
+ * the money bought.
+ *
+ * A discount is a row with a NEGATIVE amount rather than a smaller plan
+ * price. Under GST a discount is only excluded from the taxable value
+ * when the invoice itself shows it, so the special offer and any coupon
+ * must stay visible here.
+ */
+export type InvoiceLine = {
+  title: string;
+  /** The small grey second line under the title. */
+  detail?: string | null;
+  /** Null hides the quantity column for this row. */
+  qty?: number | null;
+  /** Null prints "Included" — a row that is part of the plan price. */
+  unitInr?: number | null;
+  /** Null prints an em dash: nothing is charged on this row. */
+  amountInr: number | null;
+};
+
+/** What one plan covers, in one sentence, for the invoice's first row. */
+export function planInclusionSentence(q: SiteQuote): string {
+  const bits = [`360° factory walkthrough`, `${q.totalAreas} Active Operational Areas`];
+  if (q.totalVideos > 0) bits.push(`${q.totalVideos} process videos`);
+  if (q.plan.pdfs > 0) bits.push(`${q.plan.pdfs} PDF reports`);
+  bits.push("information icons", "custom domain", "password-protected dashboard and branding");
+  if (q.plan.sharingControls) bits.push("one-time link expiry and sharing restrictions");
+  return `${bits.join(", ")}.`;
+}
+
+/**
+ * Turn a site-plan quote into the rows a buyer sees on the invoice.
+ *
+ * The money must still add up to the same taxable value, so every quote
+ * line becomes a row. The two "Included" rows carry no amount and are
+ * there to answer the question an invoice for a one-line "VPV Authority"
+ * always provokes: what exactly did we pay for?
+ */
+export function invoiceLinesFromQuote(q: SiteQuote): InvoiceLine[] {
+  const out: InvoiceLine[] = [];
+  for (const l of q.lines) {
+    if (l.kind === "plan") {
+      out.push({ title: q.plan.name, detail: planInclusionSentence(q), qty: 1, unitInr: l.amountInr, amountInr: l.amountInr });
+      out.push({
+        title: "On-site capture",
+        detail: `Our crew shoots your plant — ${hoursLabel(q.shoot.totalHours)} on site${q.shoot.days > 1 ? ` over ${q.shoot.days} days` : ", in a single visit"}.`,
+        qty: 1,
+        unitInr: null,
+        amountInr: null,
+      });
+      out.push({
+        title: "Project setup & delivery",
+        detail: "Editing, colour grading, workspace setup and handover training.",
+        qty: 1,
+        unitInr: null,
+        amountInr: null,
+      });
+      continue;
+    }
+    const qty =
+      l.kind === "extra" && /^(\d+) extra/.exec(l.label) ? Number(/^(\d+) extra/.exec(l.label)![1]) : 1;
+    out.push({
+      title: l.label,
+      detail: l.note ?? null,
+      qty,
+      unitInr: qty > 1 ? Math.round((l.amountInr / qty) * 100) / 100 : l.amountInr,
+      amountInr: l.amountInr,
+    });
+  }
+  return out;
+}
+
 /* ═══════════════════════ What we charge for ═══════════════════════ */
 
 /**
@@ -1371,7 +1451,7 @@ export function priceFor(
     /** Looked up and checked by the order route. */
     coupon?: Coupon | null;
   } = {}
-): { amountInr: number; description: string; scenes: number | null } {
+): { amountInr: number; description: string; scenes: number | null; lines: InvoiceLine[] } {
   switch (purpose) {
     case "basic_licence": {
       const n = clampScenes(opts.scenes ?? SCENE_DEFAULT);
@@ -1379,6 +1459,15 @@ export function priceFor(
         amountInr: priceForScenes(n),
         description: `VPV Basic licence — ${n} scene${n === 1 ? "" : "s"} (includes 1 year support and hosting)`,
         scenes: n,
+        lines: [
+          {
+            title: "VPV Basic licence",
+            detail: `${n} scene${n === 1 ? "" : "s"}, including the first year of ${SUPPORT_NAME.toLowerCase()}.`,
+            qty: n,
+            unitInr: Math.round((priceForScenes(n) / n) * 100) / 100,
+            amountInr: priceForScenes(n),
+          },
+        ],
       };
     }
     case "scene_topup": {
@@ -1390,6 +1479,18 @@ export function priceFor(
         amountInr: Math.max(0, priceForScenes(capped) - priceForScenes(have)),
         description: `VPV scene top-up — ${added} more scene${added === 1 ? "" : "s"} (${have} → ${capped})`,
         scenes: capped,
+        lines: [
+          {
+            title: `${added} extra scene${added === 1 ? "" : "s"}`,
+            detail: `Your workspace goes from ${have} to ${capped} scenes.`,
+            qty: added,
+            unitInr:
+              added > 0
+                ? Math.round(((priceForScenes(capped) - priceForScenes(have)) / added) * 100) / 100
+                : null,
+            amountInr: Math.max(0, priceForScenes(capped) - priceForScenes(have)),
+          },
+        ],
       };
     }
     case "site_plan": {
@@ -1429,6 +1530,7 @@ export function priceFor(
         amountInr: q.taxableInr,
         description: `${parts.join(", ")} (includes year 1 of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
         scenes: q.totalAreas,
+        lines: invoiceLinesFromQuote(q),
       };
     }
     case "support_renewal": {
@@ -1441,6 +1543,26 @@ export function priceFor(
           `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year` +
           (seats > 0 && each > 0 ? `, with sales team ${seats} login${seats === 1 ? "" : "s"} at ${inr(each)}/yr` : ""),
         scenes: null,
+        lines: [
+          {
+            title: SUPPORT_NAME,
+            detail: "One more year of hosting, security, backups, updates and technical support.",
+            qty: 1,
+            unitInr: SUPPORT_ANNUAL_INR,
+            amountInr: SUPPORT_ANNUAL_INR,
+          },
+          ...(seats > 0 && each > 0
+            ? [
+                {
+                  title: `Sales Team logins — ${seats} salesperson login${seats === 1 ? "" : "s"}`,
+                  detail: "Renewed for one year, with the MD's sales dashboard.",
+                  qty: seats,
+                  unitInr: each,
+                  amountInr: seats * each,
+                },
+              ]
+            : []),
+        ],
       };
     }
   }

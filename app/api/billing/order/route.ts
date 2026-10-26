@@ -456,6 +456,23 @@ export async function POST(req: Request) {
     return fail(500, "order_failed", "We could not start the payment.");
   }
 
+  // The rows the tax invoice will print, frozen from the very quote this
+  // order is charged from. Written separately and best-effort on purpose:
+  // a database that has not had supabase/invoice_lines.sql run yet must
+  // still be able to take money, and an invoice without them simply falls
+  // back to its one-line description.
+  if (!reused && quote.lines.length > 0) {
+    await sb
+      .from("billing_orders")
+      .update({ line_items: quote.lines })
+      .eq("id", order.id)
+      .is("line_items", null)
+      .then(
+        () => undefined,
+        () => undefined
+      );
+  }
+
   // An organisation set up by hand (admin "create customer") may have no billing
   // state yet. The first time they pay and tell us, remember it so the next
   // purchase does not have to ask. Best effort: the invoice already carries the

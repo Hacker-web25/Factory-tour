@@ -15,7 +15,7 @@
  */
 
 import { esc } from "@/lib/server/email";
-import { inr2 } from "@/lib/pricing";
+import { inr2, type InvoiceLine } from "@/lib/pricing";
 
 export type Party = {
   name: string;
@@ -42,7 +42,104 @@ export type InvoiceDoc = {
   paymentId: string | null;
   /** "UPI", "Card ending 4242", "Netbanking (HDFC Bank)" … */
   paymentLabel: string | null;
+
+  /* ── Only the printed invoice needs these; the e-mail body ignores
+     them, and an invoice issued before they existed simply has none. ── */
+
+  /** Our own order reference, short enough to quote on the phone. */
+  orderNo?: string | null;
+  orderedAt?: Date | string | null;
+  paidAt?: Date | string | null;
+  /** The itemised rows. Empty falls back to one row from `description`. */
+  lines?: InvoiceLine[];
+  /** The buyer's phone, when we have it. */
+  billToPhone?: string | null;
 };
+
+/* ───────────────────────── amount in words ────────────────────────── */
+
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+/** 0–99 in words. */
+function twoDigits(n: number): string {
+  if (n < 20) return ONES[n];
+  const t = TENS[Math.floor(n / 10)];
+  const o = ONES[n % 10];
+  return o ? `${t} ${o}` : t;
+}
+
+/** 0–999 in words. */
+function threeDigits(n: number): string {
+  const h = Math.floor(n / 100);
+  const rest = n % 100;
+  const head = h ? `${ONES[h]} Hundred` : "";
+  const tail = rest ? twoDigits(rest) : "";
+  return head && tail ? `${head} ${tail}` : head || tail;
+}
+
+/**
+ * A rupee amount in words, Indian style — crore, lakh, thousand — as a
+ * tax invoice must carry it. 3,53,999 reads "Rupees Three Lakh Fifty
+ * Three Thousand Nine Hundred Ninety Nine Only".
+ *
+ * Paise are included only when there are any, because "and Zero Paise"
+ * on every invoice reads like a machine wrote it.
+ */
+export function amountInWords(amount: number): string {
+  const neg = amount < 0;
+  const abs = Math.abs(amount);
+  const rupees = Math.floor(Math.round(abs * 100) / 100);
+  const paise = Math.round(abs * 100) % 100;
+
+  const say = (n: number): string => {
+    if (n === 0) return "Zero";
+    const crore = Math.floor(n / 10_000_000);
+    const lakh = Math.floor((n % 10_000_000) / 100_000);
+    const thousand = Math.floor((n % 100_000) / 1_000);
+    const rest = n % 1_000;
+    const parts: string[] = [];
+    if (crore) parts.push(`${say(crore)} Crore`);
+    if (lakh) parts.push(`${threeDigits(lakh)} Lakh`);
+    if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
+    if (rest) parts.push(threeDigits(rest));
+    return parts.join(" ");
+  };
+
+  const head = `Rupees ${say(rupees)}`;
+  const tail = paise > 0 ? ` and ${twoDigits(paise)} Paise` : "";
+  return `${neg ? "Minus " : ""}${head}${tail} Only`;
+}
+
+/**
+ * Which numbers in a "VPV/2026-27/0001" series are missing.
+ *
+ * A gap is not automatically wrong — a number is allocated before the
+ * invoice row is written, so a crash in between leaves one unused — but
+ * it is the sort of thing an auditor asks about, and it is far easier to
+ * explain in the same month than a year later.
+ */
+export function missingNumbers(invoiceNos: string[]): number[] {
+  const seen = new Set<number>();
+  for (const no of invoiceNos) {
+    const m = /\/(\d+)$/.exec(no);
+    if (m) seen.add(Number(m[1]));
+  }
+  if (seen.size === 0) return [];
+  const highest = Math.max(...seen);
+  const out: number[] = [];
+  for (let i = 1; i <= highest; i += 1) if (!seen.has(i)) out.push(i);
+  return out;
+}
+
+/** The rows to print, falling back to one row for an older invoice. */
+export function invoiceLines(d: InvoiceDoc): InvoiceLine[] {
+  if (d.lines && d.lines.length > 0) return d.lines;
+  return [{ title: d.description, detail: null, qty: 1, unitInr: d.taxable, amountInr: d.taxable }];
+}
 
 export type CreditNoteDoc = {
   creditNoteNo: string;
@@ -118,12 +215,36 @@ function testBanner(no: string): string {
     : "";
 }
 
-/** The body of the invoice e-mail, from "Hello" to the footer note. */
-export function invoiceBodyHtml(d: InvoiceDoc, greetingName: string, supportEmail: string): string {
+/**
+ * The body of the invoice e-mail.
+ *
+ * When the PDF is attached this is a covering note, not the invoice: the
+ * figures are repeated so the customer can check them at a glance on a
+ * phone, and the attachment is what they forward to their accountant.
+ * When the PDF could not be built the same body still carries everything
+ * a tax invoice must show, so nobody is left without one.
+ */
+export function invoiceBodyHtml(
+  d: InvoiceDoc,
+  greetingName: string,
+  supportEmail: string,
+  attached = false
+): string {
   const P = 'style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#334155;"';
   const SMALL = 'style="margin:14px 0 0;font-size:12.5px;line-height:1.6;color:#64748b;"';
+  const note = attached
+    ? `<p ${P}>Your tax invoice <strong>${esc(d.invoiceNo)}</strong> is attached to this e-mail as a PDF.
+         Please keep it for your records, and forward it to whoever handles your accounts.</p>`
+    : "";
+  const credit = d.billTo.gstin
+    ? `<p ${SMALL}>This invoice shows your GSTIN <strong>${esc(d.billTo.gstin)}</strong>, the place of supply and our SAC,
+         so your business can claim the ${esc(String(d.gstRatePct))}% GST shown above as input tax credit once we file our return for this month.</p>`
+    : `<p ${SMALL}>No GSTIN was recorded for this order, so the GST on it cannot be claimed back.
+         If your business is GST-registered, reply to this e-mail with your GSTIN and we will reissue the invoice.</p>`;
+
   return `${testBanner(d.invoiceNo)}
-    <p ${P}>Hello ${esc(greetingName)}, thank you for your payment. This is your tax invoice. Please keep it for your records.</p>
+    <p ${P}>Hello ${esc(greetingName)}, thank you for your payment.</p>
+    ${note}
     ${box(
       line("Tax invoice no.", `<strong style="color:#0C1017;">${esc(d.invoiceNo)}</strong>`) +
         line("Invoice date", esc(dateStr(d.issuedAt))) +
@@ -139,9 +260,10 @@ export function invoiceBodyHtml(d: InvoiceDoc, greetingName: string, supportEmai
         taxLines(d, d.gstRatePct) +
         line("Total paid", `<strong style="font-size:16px;color:#0C1017;">${esc(inr2(d.total))}</strong>`, { last: true })
     )}
-    <p ${SMALL}>This is a computer-generated invoice and needs no signature. To save it as a PDF, use your
-      e-mail program&rsquo;s Print option and choose &ldquo;Save as PDF&rdquo;.
-      Need the bill-to details or GSTIN corrected? Reply to this e-mail quoting the invoice number, or write to <a href="mailto:${esc(supportEmail)}" style="color:#1468D8;">${esc(supportEmail)}</a>.</p>`;
+    ${credit}
+    <p ${SMALL}>Need the bill-to details or GSTIN corrected? Reply to this e-mail quoting the invoice number, or write to
+      <a href="mailto:${esc(supportEmail)}" style="color:#1468D8;">${esc(supportEmail)}</a>. We correct an invoice with a
+      credit note and a fresh one, so please tell us before your accountant files the month.</p>`;
 }
 
 /** The body of the refund e-mail: what was refunded, the credit note, and where the money is. */

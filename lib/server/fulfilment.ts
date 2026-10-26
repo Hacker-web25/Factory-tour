@@ -79,6 +79,8 @@ export type OrderRow = {
   fulfilment_attempts: number;
   livemode: boolean;
   revoked_at?: string | null;
+  /** What was bought, in words — written by priceFor(). */
+  notes?: string | null;
 };
 
 export type FulfilResult = {
@@ -566,6 +568,17 @@ async function finishEmail(sb: SupabaseClient, orderId: string, which: "welcome"
   await sb.rpc("billing_finish_email", { p_order: orderId, p_which: which, p_sent: ok });
 }
 
+/**
+ * Did this order buy one of the named plans from the marketing site —
+ * the ones where our crew comes and shoots — rather than the self-serve
+ * scene licence? Site plans are stored as basic_licence like everything
+ * else, so the description is the only thing that tells them apart.
+ * Mirrors SITE_PLAN_NOTE in lib/server/launchOffer.ts.
+ */
+function isSitePlanOrder(notes: string | null | undefined): boolean {
+  return /^VPV (Confidence|Authority|Control|Enterprise) /.test(notes ?? "");
+}
+
 async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<boolean> {
   const { data: org } = await sb
     .from("organizations")
@@ -614,5 +627,6 @@ async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<bo
     scenes: (org?.scene_quota as number) ?? order.scenes ?? 0,
     supportUntil: (org?.support_until as string) ?? new Date().toISOString(),
     tempPassword,
+    crewShoots: isSitePlanOrder(order.notes),
   });
 }

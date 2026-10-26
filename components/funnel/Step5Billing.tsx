@@ -511,9 +511,17 @@ export default function Step5Billing() {
                 <Field label="Contact name">
                   <TextInput value={s.name} onChange={(e) => setS({ ...s, name: e.target.value })} />
                 </Field>
+                {/* The GSTIN has to be right BEFORE the money moves: an
+                    invoice cannot simply be edited afterwards — it takes a
+                    credit note and a fresh invoice, and only before the
+                    month is filed. So this says plainly what is at stake. */}
                 <Field
                   label="GSTIN"
-                  hint="Optional. Lets you claim GST credit."
+                  hint={
+                    s.gstin && !gstinError
+                      ? `Your business can claim the ${inr(quote.gstInr)} GST back.`
+                      : `Optional — but with it your business can claim the ${inr(quote.gstInr)} GST back.`
+                  }
                   error={gstinError ?? undefined}
                 >
                   <TextInput

@@ -22,6 +22,14 @@ export function esc(v: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
+/** A file to send with the message — today, only the invoice PDF. */
+export type EmailAttachment = {
+  /** What the recipient's e-mail program will call it when they save it. */
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+};
+
 export async function sendEmail(args: {
   to: string;
   subject: string;
@@ -31,6 +39,10 @@ export async function sendEmail(args: {
   text?: string;
   replyTo?: string;
   bcc?: string;
+  /** Resend takes attachments base64-encoded in the JSON body. The whole
+   *  message, encoded, has to stay under about 40 MB; an invoice is tens
+   *  of kilobytes, so there is nothing to guard against here. */
+  attachments?: EmailAttachment[];
 }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
@@ -54,6 +66,15 @@ export async function sendEmail(args: {
         subject: args.subject,
         html: args.html,
         ...(args.text ? { text: args.text } : {}),
+        ...(args.attachments && args.attachments.length > 0
+          ? {
+              attachments: args.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString("base64"),
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) {

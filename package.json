@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:billing": "NODE_ENV=test tsx --test tests/billing/*.test.ts",
-    "sync:site": "tsx scripts/sync-site-bundle.ts"
+    "sync:site": "tsx scripts/sync-site-bundle.ts",
+    "build:invoice-assets": "tsx scripts/embed-invoice-assets.ts"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
@@ -16,6 +17,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "lucide-react": "^0.454.0",
     "next": "14.2.15",
+    "pdfkit": "^0.17.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-qr-code": "^2.0.15",
@@ -24,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.7",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/three": "^0.169.0",

@@ -12,9 +12,9 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailShell, esc, sendEmail } from "@/lib/server/email";
+import { emailShell, esc, sendEmail, type EmailAttachment } from "@/lib/server/email";
 import { COMPANY, POLICY } from "@/lib/company";
-import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, fromPaise, inr, inr2 } from "@/lib/pricing";
+import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, fromPaise, inr, inr2, type InvoiceLine } from "@/lib/pricing";
 import {
   creditNoteBodyHtml,
   invoiceBodyHtml,
@@ -56,6 +56,14 @@ export async function sendWelcomeEmail(args: {
   scenes: number;
   supportUntil: Date | string;
   tempPassword: string | null;
+  /**
+   * True when our crew shoots the plant (every plan sold from the
+   * website). It changes what the customer is told to do next, and
+   * getting it wrong is not cosmetic: a plan customer told to "upload
+   * your 360° photographs" thinks they have bought software and that
+   * the shoot they paid for is not coming.
+   */
+  crewShoots?: boolean;
 }): Promise<boolean> {
   const workspace = `https://${args.slug}.myvpv.com`;
   const credentials = args.tempPassword
@@ -64,8 +72,19 @@ export async function sendWelcomeEmail(args: {
           row("Your e-mail", esc(args.to)) +
           row("First password", esc(args.tempPassword), true, true)
       )}
-       <p ${SMALL}>Please change this password the first time you sign in.</p>`
+       <p ${SMALL}>Please change this password the first time you sign in — your dashboard is in
+         <strong>Settings &rsaquo; Password</strong>. If you forget it, &ldquo;Forgot password&rdquo; on the sign-in
+         page will send you a fresh link.</p>`
     : `<p ${P}>Sign in at <a href="${esc(workspace)}" style="color:#1468D8;font-weight:600;">${esc(args.slug)}.myvpv.com</a> with your existing VPV password.</p>`;
+
+  const steps = args.crewShoots
+    ? `<li>Sign in with the password above and change it.</li>
+       <li>Look out for our call: we agree a shoot date for your plant with you.</li>
+       <li>On the day, our crew films your plant in a single visit — you carry on working.</li>
+       <li>Your VPV appears in this workspace, ready to show to buyers.</li>`
+    : `<li>Sign in and change your password.</li>
+       <li>Upload your 360° photographs and build your first tour.</li>
+       <li>Add your sales team, and present to a customer.</li>`;
 
   // No BCC here, ever: this message carries the customer's first password, and a
   // copy in a shared inbox would make that inbox a store of customer passwords.
@@ -76,15 +95,12 @@ export async function sendWelcomeEmail(args: {
     html: emailShell(
       "Welcome to VPV",
       `<p ${P}>Hello ${esc(args.name)}, your workspace for <strong>${esc(args.company)}</strong> is live.
-         You bought <strong>${args.scenes} scene${args.scenes === 1 ? "" : "s"}</strong>, and your technical
-         support and hosting are included free until <strong>${esc(dateStr(args.supportUntil))}</strong>.</p>
+         It is set up for <strong>${args.scenes} area${args.scenes === 1 ? "" : "s"}</strong> of your plant, and your
+         support, hosting and security are included free until <strong>${esc(dateStr(args.supportUntil))}</strong>.</p>
        ${credentials}
-       <p ${P} >What to do first:</p>
-       <ol style="margin:0 0 18px;padding-left:20px;font-size:14px;line-height:1.8;color:#334155;">
-         <li>Sign in and change your password.</li>
-         <li>Upload your 360° photographs and build your first tour.</li>
-         <li>Add your sales team, and present to a customer.</li>
-       </ol>
+       <p ${P}>What happens next:</p>
+       <ol style="margin:0 0 18px;padding-left:20px;font-size:14px;line-height:1.8;color:#334155;">${steps}</ol>
+       <p ${SMALL}>Your tax invoice is in a separate e-mail, with a PDF you can pass to your accounts team.</p>
        <p ${SMALL}>Stuck anywhere? Write to
          <a href="mailto:${esc(COMPANY.emails.support)}" style="color:#1468D8;">${esc(COMPANY.emails.support)}</a>
          and a person will reply.</p>`
@@ -104,11 +120,32 @@ export async function sendInvoiceEmail(args: {
   doc?: InvoiceDoc | null;
 }): Promise<boolean> {
   if (args.doc) {
+    // The PDF is the invoice; the message body is a covering note. If the
+    // PDF cannot be built we still send the note, because a customer who
+    // has paid must get something — and the figures are in the body too.
+    let attachments: EmailAttachment[] | undefined;
+    try {
+      const { renderInvoicePdf, invoiceFileName } = await import("@/lib/server/invoicePdf");
+      attachments = [
+        {
+          filename: invoiceFileName(args.invoiceNo),
+          content: await renderInvoicePdf(args.doc),
+          contentType: "application/pdf",
+        },
+      ];
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[billing] invoice PDF failed, sending the e-mail without it:", (e as Error)?.message);
+    }
     return sendEmail({
       to: args.to,
       bcc: COMPANY.emails.support,
       subject: `Tax invoice ${args.invoiceNo} from VPV`,
-      html: emailShell("Your VPV tax invoice", invoiceBodyHtml(args.doc, args.name, COMPANY.emails.support)),
+      html: emailShell(
+        "Your VPV tax invoice",
+        invoiceBodyHtml(args.doc, args.name, COMPANY.emails.support, Boolean(attachments))
+      ),
+      attachments,
     });
   }
   return sendEmail({
@@ -323,11 +360,19 @@ export async function loadInvoiceDoc(sb: SupabaseClient, orderId: string): Promi
     if (!inv) return null;
     const { data: pay } = await sb
       .from("billing_payments")
-      .select("razorpay_payment_id, method, bank, wallet, card_last4, status")
+      .select("razorpay_payment_id, method, bank, wallet, card_last4, status, created_at")
       .eq("order_id", orderId)
       .in("status", ["captured", "refunded", "partially_refunded"])
       .order("created_at", { ascending: true })
       .limit(1)
+      .maybeSingle();
+    // The printed invoice itemises what the order was; the e-mail body does
+    // not need it. A database without supabase/invoice_lines.sql, or an
+    // order taken before it, returns nothing here and prints one row.
+    const { data: ord } = await sb
+      .from("billing_orders")
+      .select("created_at, buyer_phone, line_items")
+      .eq("id", orderId)
       .maybeSingle();
     return {
       invoiceNo: inv.invoice_no as string,
@@ -351,10 +396,27 @@ export async function loadInvoiceDoc(sb: SupabaseClient, orderId: string): Promi
       total: fromPaise(Number(inv.total_paise)),
       paymentId: (pay?.razorpay_payment_id as string) ?? null,
       paymentLabel: paymentLabel(pay as never),
+      orderNo: orderReference(orderId),
+      orderedAt: (ord?.created_at as string) ?? null,
+      paidAt: (pay?.created_at as string) ?? (inv.issued_at as string) ?? null,
+      billToPhone: (ord?.buyer_phone as string) ?? null,
+      lines: Array.isArray(ord?.line_items) ? (ord!.line_items as InvoiceLine[]) : [],
     };
   } catch {
     return null; // the plain invoice e-mail is the fallback
   }
+}
+
+/**
+ * A short order reference a customer can quote on the phone.
+ *
+ * Derived from the order's own id rather than counted in a second
+ * sequence: a sequence is one more thing that can skip, collide or get
+ * out of step with the invoice numbers, and this needs to be unique and
+ * readable, not consecutive.
+ */
+export function orderReference(orderId: string): string {
+  return `VPV-ORD-${orderId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
 /** One credit note with the invoice it corrects. Null if it cannot be read. */

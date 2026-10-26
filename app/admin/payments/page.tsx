@@ -298,6 +298,10 @@ export default function AdminPaymentsPage() {
           Whether every payment became a working customer — and what needs you.
         </p>
 
+        {/* One file a month is what keeps VPV's invoices and the rest of the
+            company's books from counting the same sale twice. */}
+        <InvoiceExport />
+
         {loadError && (
           <div className="mt-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13.5px] text-red-800">
             <AlertTriangle size={16} className="mt-0.5 shrink-0" />
@@ -658,4 +662,66 @@ function SeverityChip({ s }: { s: OpenAlert["severity"] }) {
     info: "bg-slate-100 text-slate-600 ring-slate-200",
   }[s];
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11.5px] font-semibold capitalize ring-1 ${map}`}>{s}</span>;
+}
+
+/**
+ * The accountant's monthly file, and a way to read back any one invoice.
+ *
+ * It lives here rather than in a settings page because this is where
+ * someone already comes to ask "did that payment work?" — and the answer
+ * to "can my customer claim the GST?" is the same document.
+ */
+function InvoiceExport() {
+  const thisFy = (() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    // India's financial year starts in April.
+    const start = now.getMonth() >= 3 ? y : y - 1;
+    return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+  })();
+  const [fy, setFy] = useState(thisFy);
+  const [order, setOrder] = useState("");
+
+  return (
+    <div className="mt-5 rounded-xl border border-vpv-line bg-white px-4 py-3.5">
+      <p className="text-[13.5px] font-semibold text-vpv-ink">Invoices</p>
+      <p className="mt-0.5 text-[12.5px] text-vpv-muted">
+        Give your accountant the year&rsquo;s file so VPV sales are entered once, and no invoice number goes missing.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          value={fy}
+          onChange={(e) => setFy(e.target.value.trim())}
+          placeholder="2026-27"
+          className="w-28 rounded-lg border border-vpv-line px-2.5 py-1.5 text-[13px]"
+          aria-label="Financial year"
+        />
+        <a
+          href={`/api/admin/invoice?export=${encodeURIComponent(fy)}`}
+          className="rounded-lg bg-vpv-ink px-3 py-1.5 text-[12.5px] font-semibold text-white"
+        >
+          Download CSV
+        </a>
+        <span className="mx-1 text-vpv-line">|</span>
+        <input
+          value={order}
+          onChange={(e) => setOrder(e.target.value.trim())}
+          placeholder="order id"
+          className="w-72 rounded-lg border border-vpv-line px-2.5 py-1.5 font-mono text-[12px]"
+          aria-label="Order id"
+        />
+        <a
+          href={order ? `/api/admin/invoice?order=${encodeURIComponent(order)}` : undefined}
+          target="_blank"
+          rel="noreferrer"
+          aria-disabled={!order}
+          className={`rounded-lg px-3 py-1.5 text-[12.5px] font-semibold ring-1 ${
+            order ? "text-vpv-ink ring-vpv-line" : "pointer-events-none text-vpv-muted ring-vpv-line opacity-50"
+          }`}
+        >
+          Open invoice PDF
+        </a>
+      </div>
+    </div>
+  );
 }
