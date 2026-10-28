@@ -32,31 +32,26 @@ import {
 import {
   geoFrom,
   recordEvent,
+  setVisitorDevice,
   touchVisitor,
   visitorIdFrom,
 } from "@/lib/server/analytics";
+import { EVENT_NAME_SET } from "@/lib/analytics/signals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 4 * 1024;
 
-/** Events we are willing to store. An allowlist rather than free text, so
- *  a bored visitor cannot fill the table with invented event names. */
-const EVENT_NAMES = new Set([
-  "page_view",
-  "funnel_step",
-  "cta_click",
-  "outbound_click",
-  "scroll_depth",
-  "video_play",
-  "plan_selected",
-  "coupon_applied",
-  "pay_click",
-  "tour_opened",
-  // Seconds the page was in front of the visitor, and how far down they read.
-  "page_time",
-]);
+/** Events we are willing to store: an allowlist rather than free text, so a
+ *  bored visitor cannot fill the table with invented event names.
+ *
+ *  The list itself lives in lib/analytics/signals.ts, because three files in
+ *  three different languages have to agree on it — this route, the app's
+ *  tracker (lib/analytics/client.ts) and the marketing site's plain-JS one
+ *  (lib/site/measure.ts). When they drifted, an event fired for weeks and
+ *  was silently discarded here. */
+const EVENT_NAMES = EVENT_NAME_SET;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -126,6 +121,9 @@ export async function POST(req: Request) {
       },
       geo
     );
+    // Only on a page view, and only while it is still blank: the device they
+    // arrived on is a first-touch fact, like the source.
+    await setVisitorDevice(sb, visitorId, req.headers.get("user-agent"));
   }
 
   await recordEvent(

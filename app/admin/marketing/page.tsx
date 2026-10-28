@@ -147,8 +147,14 @@ export default function AdminMarketingPage() {
         </p>
 
         <Link
+          href="/admin/marketing/folders"
+          className="mt-5 inline-flex items-center gap-2 rounded-full bg-vpv-blue px-4 py-2 text-[13.5px] font-semibold text-white hover:opacity-90"
+        >
+          Campaigns: every person on each QR list, and their journey →
+        </Link>
+        <Link
           href="/admin/marketing/buyers"
-          className="mt-5 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-4 py-2 text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+          className="mt-5 ml-2 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-4 py-2 text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
         >
           Buyers: a personal QR for each person, and what each one did →
         </Link>

@@ -269,3 +269,252 @@ export function watchPageTime(path: string): () => void {
 export function trackFunnelStep(step: string, meta?: Record<string, unknown>): void {
   track("funnel_step", { step, ...(meta ?? {}) });
 }
+
+/* ───────────────────────────── micro-signals ────────────────────────────── */
+
+/**
+ * Everything below answers "why did they stop?". page_view and page_time
+ * say WHERE somebody went; these say what they pressed, what they skipped,
+ * what they asked, and where they hesitated.
+ *
+ * This is the half that matters most for the money, because the six-page
+ * assessment (/assessment/…) is rendered by the Next.js app, not by the
+ * marketing bundle. lib/site/measure.ts does the same job in plain
+ * browser JS for the bundle's pages; the two must stay in step, and a test
+ * checks that neither one fires an event the server would discard.
+ *
+ * Read off the DOM by tag, text and href — never by class name. Class names
+ * change on every build of either side, and a signal keyed to one would
+ * break silently and not be missed for a month.
+ */
+
+/** Three clicks inside a second within 40px: jabbing at something dead. */
+const RAGE_WINDOW_MS = 1000;
+const RAGE_RADIUS_PX = 40;
+const RAGE_CLICKS = 3;
+/** Headings watched per page. A cap, so one long page cannot exhaust the
+ *  per-visitor rate limit on /api/track and lose the rest of the journey. */
+const MAX_SECTIONS = 14;
+
+const PLAN_WORDS = /\b(confidence|authority|control|enterprise)\b/i;
+
+function textOf(el: Element | null, max = 80): string {
+  try {
+    const t = ((el as HTMLElement | null)?.innerText || el?.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return t.slice(0, max);
+  } catch {
+    return "";
+  }
+}
+
+/** The clickable thing the visitor actually meant to press, or null. */
+function interactiveAncestor(start: EventTarget | null): Element | null {
+  let el = start instanceof Element ? start : null;
+  for (let i = 0; el && i < 6; i++) {
+    const tag = el.tagName;
+    if (
+      tag === "A" || tag === "BUTTON" || tag === "INPUT" || tag === "SELECT" ||
+      tag === "TEXTAREA" || tag === "LABEL" || tag === "SUMMARY"
+    ) {
+      return el;
+    }
+    const role = el.getAttribute("role");
+    if (role === "button" || role === "link" || el.hasAttribute("tabindex")) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function nearestPlan(el: Element | null): string | null {
+  let cur = el;
+  for (let i = 0; cur && i < 4; i++) {
+    const m = PLAN_WORDS.exec(textOf(cur, 400));
+    if (m) return m[1]!.toLowerCase();
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+function fieldNameOf(el: Element): string {
+  const h = el as HTMLInputElement;
+  return (
+    h.getAttribute("name") ||
+    h.getAttribute("id") ||
+    h.getAttribute("aria-label") ||
+    h.getAttribute("placeholder") ||
+    h.type ||
+    "field"
+  ).slice(0, 60);
+}
+
+/**
+ * Watch one page for the signals above. Returns a teardown function; call
+ * it on route change, which is also when a half-filled form counts as
+ * abandoned.
+ *
+ * Every signal fires at most once per page.
+ */
+export function watchSignals(path: string): () => void {
+  if (typeof window === "undefined" || hasOptedOut() || isFramed()) return () => {};
+
+  const sent = new Set<string>();
+  const once = (k: string): boolean => {
+    if (sent.has(k)) return false;
+    sent.add(k);
+    return true;
+  };
+
+  let field: string | null = null;
+  let submitted = false;
+  let rageAt = 0;
+  let rageX = 0;
+  let rageY = 0;
+  let rageN = 0;
+
+  const onClick = (e: MouseEvent) => {
+    try {
+      const now = Date.now();
+      if (
+        now - rageAt < RAGE_WINDOW_MS &&
+        Math.abs(e.clientX - rageX) < RAGE_RADIUS_PX &&
+        Math.abs(e.clientY - rageY) < RAGE_RADIUS_PX
+      ) {
+        rageN += 1;
+      } else {
+        rageN = 1;
+      }
+      rageAt = now;
+      rageX = e.clientX;
+      rageY = e.clientY;
+      if (rageN === RAGE_CLICKS && once("rage")) {
+        track("rage_click", { label: textOf(e.target as Element, 60), path });
+      }
+
+      const el = interactiveAncestor(e.target);
+      if (!el) {
+        // A click on nothing clickable. One per page: the first is
+        // informative, the rest is somebody scrolling by tapping.
+        if (once("dead")) track("dead_click", { label: textOf(e.target as Element, 60), path });
+        return;
+      }
+
+      const label = textOf(el, 80);
+      const href = el.getAttribute("href") ?? "";
+
+      if (/^tel:/i.test(href)) return track("tel_click", { label });
+      if (/^mailto:/i.test(href)) return track("email_click", { label });
+      if (/wa\.me|whatsapp/i.test(href)) return track("whatsapp_click", { label });
+      if (/^https?:/i.test(href) && !href.includes(window.location.hostname)) {
+        return track("outbound_click", { label, href: href.slice(0, 200) });
+      }
+      // A question, however it is marked up: a <summary>, an accordion
+      // header, or a heading ending in a question mark. These are the
+      // objections to answer on the call.
+      if ((el.tagName === "SUMMARY" || /\?\s*$/.test(label)) && label.length > 8) {
+        if (once(`faq:${label}`)) track("faq_open", { question: label });
+        return;
+      }
+      const plan = nearestPlan(el);
+      if (plan && /plan|choose|select|start|buy|get|continue/i.test(`${label} ${href}`)) {
+        return track("plan_selected", { plan, label });
+      }
+      if (/^(pay|pay now|proceed to pay|make payment)/i.test(label)) {
+        return track("pay_click", { label });
+      }
+      if (label) track("cta_click", { label, path });
+    } catch {
+      /* a signal is never a reason to break a click */
+    }
+  };
+
+  const onScroll = () => {
+    try {
+      const el = document.documentElement;
+      const room = el.scrollHeight - window.innerHeight;
+      const depth = room > 0 ? (window.scrollY / room) * 100 : 100;
+      for (const m of [25, 50, 75, 100]) {
+        if (depth >= m && once(`d${m}`)) track("scroll_depth", { depth: m, path });
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onFocusIn = (e: Event) => {
+    const t = e.target as Element | null;
+    if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) field = fieldNameOf(t);
+  };
+  const onSubmit = () => {
+    submitted = true;
+  };
+  // Pointer leaving through the top of the window is the reach for the
+  // close button or the address bar. Desktop only, which is why it is one
+  // signal among several rather than the only one.
+  const onMouseOut = (e: MouseEvent) => {
+    if (!e.relatedTarget && e.clientY <= 0 && once("exit")) track("exit_intent", { path });
+  };
+  const onCopy = () => {
+    if (once("copy")) track("copy_text", { path });
+  };
+  const onPrint = () => {
+    if (once("print")) track("print_page", { path });
+  };
+
+  // Which sections of a long page they actually reached. Headings, because
+  // they survive a rebuild.
+  let io: IntersectionObserver | null = null;
+  try {
+    if (typeof IntersectionObserver === "function") {
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const en of entries) {
+            if (!en.isIntersecting) continue;
+            const t = textOf(en.target, 60);
+            if (t && once(`s:${t}`)) track("section_view", { section: t, path });
+            io?.unobserve(en.target);
+          }
+        },
+        { threshold: 0.55 }
+      );
+      const heads = document.querySelectorAll("h1,h2,h3");
+      for (let i = 0; i < heads.length && i < MAX_SECTIONS; i++) io.observe(heads[i]!);
+    }
+  } catch {
+    io = null;
+  }
+
+  document.addEventListener("click", onClick, true);
+  document.addEventListener("focusin", onFocusIn, true);
+  document.addEventListener("submit", onSubmit, true);
+  document.addEventListener("mouseout", onMouseOut);
+  document.addEventListener("copy", onCopy);
+  window.addEventListener("beforeprint", onPrint);
+  window.addEventListener("scroll", onScroll, { passive: true });
+
+  /** A form left half-filled. We send only the NAME of the field they were
+   *  on when they gave up — never what they typed. */
+  const abandon = () => {
+    if (field && !submitted) {
+      track("form_abandon", { field, path }, { beacon: true, path });
+    }
+    field = null;
+  };
+  window.addEventListener("pagehide", abandon);
+
+  onScroll();
+
+  return () => {
+    abandon();
+    io?.disconnect();
+    document.removeEventListener("click", onClick, true);
+    document.removeEventListener("focusin", onFocusIn, true);
+    document.removeEventListener("submit", onSubmit, true);
+    document.removeEventListener("mouseout", onMouseOut);
+    document.removeEventListener("copy", onCopy);
+    window.removeEventListener("beforeprint", onPrint);
+    window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("pagehide", abandon);
+  };
+}

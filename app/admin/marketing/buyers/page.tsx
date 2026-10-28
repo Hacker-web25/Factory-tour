@@ -71,6 +71,11 @@ export default function BuyersPage() {
   const [showForm, setShowForm] = useState(false);
   const [text, setText] = useState("");
   const [campaign, setCampaign] = useState("");
+  // Which print run this batch belongs to. Filing it under one is what makes
+  // the folder report possible: the run owns how many pieces were printed,
+  // and every rate there is measured against that number.
+  const [folderSlug, setFolderSlug] = useState("");
+  const [folders, setFolders] = useState<{ slug: string; name: string }[]>([]);
   const [prefix, setPrefix] = useState("");
   const [destination, setDestination] = useState("/");
   const [busy, setBusy] = useState(false);
@@ -101,6 +106,15 @@ export default function BuyersPage() {
           return;
         }
         setBatches(d.batches ?? []);
+        try {
+          const fr = await fetch("/api/admin/marketing/folders", {
+            headers: { Authorization: `Bearer ${await token()}` },
+          });
+          const fd = (await fr.json()) as { folders?: { slug: string; name: string }[] };
+          setFolders(fd.folders ?? []);
+        } catch {
+          /* the picker simply stays empty */
+        }
         setRows(d.rows ?? []);
         setSummary(d.summary ?? null);
         setError(null);
@@ -168,7 +182,7 @@ export default function BuyersPage() {
       const res = await fetch("/api/admin/marketing/people", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ text, campaign, prefix, destination }),
+        body: JSON.stringify({ text, campaign, prefix, destination, folderSlug }),
       });
       const d = (await res.json()) as {
         ok?: boolean;
@@ -263,15 +277,45 @@ export default function BuyersPage() {
               </label>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <label className="block">
-                  <span className="text-[12.5px] font-medium text-slate-600">Name this batch</span>
-                  <input
-                    value={campaign}
-                    onChange={(e) => setCampaign(e.target.value)}
-                    placeholder="Gurugram, Oct 26"
-                    required
+                  <span className="text-[12.5px] font-medium text-slate-600">Print run</span>
+                  <select
+                    value={folderSlug}
+                    onChange={(e) => setFolderSlug(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-vpv-line bg-white px-3 py-2 text-[14px] outline-none focus:border-vpv-blue"
-                  />
+                  >
+                    <option value="">— name the batch myself —</option>
+                    {folders.map((f) => (
+                      <option key={f.slug} value={f.slug}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[11.5px] text-slate-500">
+                    {folderSlug ? (
+                      <>Filed under this run, so its scan rate counts these pieces.</>
+                    ) : (
+                      <>
+                        No run?{" "}
+                        <Link href="/admin/marketing/folders" className="text-vpv-blue underline">
+                          Create one
+                        </Link>{" "}
+                        — without it there is no printed count to measure against.
+                      </>
+                    )}
+                  </span>
                 </label>
+                {!folderSlug && (
+                  <label className="block">
+                    <span className="text-[12.5px] font-medium text-slate-600">Name this batch</span>
+                    <input
+                      value={campaign}
+                      onChange={(e) => setCampaign(e.target.value)}
+                      placeholder="Gurugram, Oct 26"
+                      required
+                      className="mt-1 w-full rounded-xl border border-vpv-line bg-white px-3 py-2 text-[14px] outline-none focus:border-vpv-blue"
+                    />
+                  </label>
+                )}
                 <label className="block">
                   <span className="text-[12.5px] font-medium text-slate-600">Code starts with (optional)</span>
                   <input

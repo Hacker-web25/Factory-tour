@@ -115,12 +115,15 @@ var last=null;
 function view(){
 var p=location.pathname+location.search;
 if(p===last)return;
+abandon();
 flush();
+SENT={};SUBMITTED=false;
 last=p;
 if(out())return;
 attr();
 begin(p);
 send("page_view");
+sections();
 try{if(gaOk&&typeof window.gtag==="function")window.gtag("event","page_view",{page_path:p,page_location:location.href,page_title:document.title})}catch(e){}
 }
 function route(){setTimeout(view,120)}
@@ -142,12 +145,131 @@ b.querySelector(".all").addEventListener("click",function(){close(false)});
 window.addEventListener("storage",function(e){if(e.key===SEEN&&e.newValue&&b.parentNode)b.parentNode.removeChild(b)});
 document.body.appendChild(b);
 }
+/* ── micro-signals ─────────────────────────────────────────────────────────
+   Everything below answers "why did they stop?". The page-view and
+   page-time pair above says WHERE somebody went; these say what they
+   pressed, what they skipped, what they asked and where they hesitated.
+
+   All of it is read off the DOM by tag name, text and href — never by a
+   class name. The marketing pages are a prebuilt React bundle whose class
+   names change on every build, so anything keyed to them would break
+   silently at the next sync and we would not find out for a month.
+
+   Every signal is sent at most once per page, and sections are capped, so a
+   long page cannot exhaust the per-visitor rate limit on /api/track. */
+var SENT={};
+function once(k){if(SENT[k])return false;SENT[k]=1;return true}
+function txt(el,n){try{var t=((el&&(el.innerText||el.textContent))||"").replace(/\s+/g," ").trim();return t.slice(0,n||80)}catch(e){return ""}}
+var PLANS=/\b(confidence|authority|control|enterprise)\b/i;
+function nearestPlan(el){
+var i=0;
+while(el&&i++<4){var m=PLANS.exec(txt(el,400));if(m)return m[1].toLowerCase();el=el.parentElement}
+return null
+}
+function interactive(el){
+var i=0;
+while(el&&i++<6){
+var tag=el.tagName;
+if(tag==="A"||tag==="BUTTON"||tag==="INPUT"||tag==="SELECT"||tag==="TEXTAREA"||tag==="LABEL"||tag==="SUMMARY")return el;
+try{if(el.getAttribute&&(el.getAttribute("role")==="button"||el.getAttribute("role")==="link"||el.getAttribute("tabindex")!==null))return el}catch(e){}
+el=el.parentElement
+}
+return null
+}
+/* Three clicks inside a second and within 40px: they are jabbing at
+   something that is not responding. */
+var R={t:0,x:0,y:0,n:0};
+function rage(e){
+var now=Date.now();
+if(now-R.t<1000&&Math.abs(e.clientX-R.x)<40&&Math.abs(e.clientY-R.y)<40)R.n++;else R.n=1;
+R.t=now;R.x=e.clientX;R.y=e.clientY;
+if(R.n===3&&once("rage"+location.pathname))send("rage_click",{label:txt(e.target,60),path:location.pathname})
+}
+function onClick(e){
+if(out())return;
+try{
+rage(e);
+var el=interactive(e.target);
+if(!el){
+/* A click on nothing clickable. One per page: the first is informative,
+   the rest is somebody scrolling by tapping. */
+if(once("dead"+location.pathname))send("dead_click",{label:txt(e.target,60),path:location.pathname});
+return
+}
+var label=txt(el,80);
+var href="";
+try{href=el.getAttribute("href")||""}catch(x){}
+if(/^tel:/i.test(href)){send("tel_click",{label:label});return}
+if(/^mailto:/i.test(href)){send("email_click",{label:label});return}
+if(/wa\.me|whatsapp/i.test(href)){send("whatsapp_click",{label:label});return}
+if(/^https?:/i.test(href)&&href.indexOf(location.hostname)<0){send("outbound_click",{label:label,href:href.slice(0,200)});return}
+/* A question, however the bundle marks it up: an accordion header, a
+   <summary>, or a heading that ends in a question mark. These are the
+   objections to answer on the call. */
+if((el.tagName==="SUMMARY"||/\?\s*$/.test(label))&&label.length>8){
+if(once("faq:"+label))send("faq_open",{question:label});
+return
+}
+var plan=nearestPlan(el);
+if(plan&&/plan|choose|select|start|buy|get|continue/i.test(label+" "+href)){send("plan_selected",{plan:plan,label:label});return}
+if(/^(pay|pay now|proceed to pay|make payment)/i.test(label)){send("pay_click",{label:label});return}
+if(label)send("cta_click",{label:label,path:location.pathname})
+}catch(x){}
+}
+/* Scroll milestones. "Reached the price and kept reading" is a different
+   person from "left before the price". */
+function depth(){
+var p=pct(),i,m=[25,50,75,100];
+for(i=0;i<m.length;i++){if(p>=m[i]&&once("d"+m[i]+location.pathname))send("scroll_depth",{depth:m[i],path:location.pathname})}
+}
+/* Which sections of a long page they actually reached. Headings, because
+   they survive a rebuild; capped at 14 so the rate limit is never the
+   reason a journey goes missing. */
+var IO=null;
+function sections(){
+try{
+if(IO){IO.disconnect();IO=null}
+if(!window.IntersectionObserver)return;
+var hs=document.querySelectorAll("h1,h2,h3"),n=0,i;
+IO=new IntersectionObserver(function(es){
+for(var j=0;j<es.length;j++){
+var en=es[j];
+if(!en.isIntersecting)continue;
+var t=txt(en.target,60);
+if(t&&once("s:"+location.pathname+":"+t))send("section_view",{section:t,path:location.pathname});
+try{IO.unobserve(en.target)}catch(x){}
+}
+},{threshold:0.55});
+for(i=0;i<hs.length&&n<14;i++){IO.observe(hs[i]);n++}
+}catch(e){}
+}
+/* The form. We never send what was typed — only the name of the field they
+   were on when they gave up, which is the one to make easier. */
+var FIELD=null,SUBMITTED=false;
+function fieldName(t){
+try{return (t.getAttribute("name")||t.getAttribute("id")||t.getAttribute("aria-label")||t.getAttribute("placeholder")||t.type||"field").slice(0,60)}catch(e){return "field"}
+}
+function abandon(){
+if(FIELD&&!SUBMITTED&&!out()){send("form_abandon",{field:FIELD},T.path);}
+FIELD=null
+}
+
 load();
 view();
 tag();setTimeout(tag,2000);setTimeout(tag,6000);
 window.addEventListener("scroll",onScroll,{passive:true});
+window.addEventListener("scroll",depth,{passive:true});
+document.addEventListener("click",onClick,true);
+document.addEventListener("focusin",function(e){var t=e.target;if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))FIELD=fieldName(t)},true);
+document.addEventListener("submit",function(){SUBMITTED=true},true);
+/* Pointer leaving through the top of the window is the reach for the close
+   button or the address bar. Desktop only, which is why it is one signal
+   among several rather than the only one. */
+document.addEventListener("mouseout",function(e){try{if(!e.relatedTarget&&e.clientY<=0&&once("exit"+location.pathname))send("exit_intent",{path:location.pathname})}catch(x){}});
+document.addEventListener("copy",function(){if(once("copy"+location.pathname))send("copy_text",{path:location.pathname})});
+window.addEventListener("beforeprint",function(){if(once("print"+location.pathname))send("print_page",{path:location.pathname})});
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")flush();else if(T.path&&T.since===null)T.since=Date.now()});
-window.addEventListener("pagehide",flush);
+window.addEventListener("pagehide",function(){abandon();flush()});
 ["pushState","replaceState"].forEach(function(k){var f=history[k];history[k]=function(){var r=f.apply(this,arguments);route();return r}});
 window.addEventListener("popstate",route);
 notice();

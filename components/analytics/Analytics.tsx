@@ -34,6 +34,7 @@ import {
   storedAttribution,
   track,
   watchPageTime,
+  watchSignals,
 } from "@/lib/analytics/client";
 
 /**
@@ -84,6 +85,25 @@ function PageTime() {
     if (isFramed() || hasOptedOut()) return;
     const path = pathname + (search?.toString() ? `?${search}` : "");
     return watchPageTime(path);
+  }, [pathname, search]);
+
+  return null;
+}
+
+/**
+ * What they pressed, skipped, asked and hesitated over. Mounted alongside
+ * PageTime because it has the same lifetime: one page, torn down on the
+ * route change, which is also the moment a half-filled form counts as
+ * abandoned. See watchSignals in lib/analytics/client.ts.
+ */
+function Signals() {
+  const pathname = usePathname();
+  const search = useSearchParams();
+
+  useEffect(() => {
+    if (isFramed() || hasOptedOut()) return;
+    const path = pathname + (search?.toString() ? `?${search}` : "");
+    return watchSignals(path);
   }, [pathname, search]);
 
   return null;
@@ -165,6 +185,7 @@ gtag('config','${GA_MEASUREMENT_ID}',{send_page_view:false,anonymize_ip:true});`
       <Suspense fallback={null}>
         <PageViews />
         <PageTime />
+        <Signals />
       </Suspense>
     </>
   );

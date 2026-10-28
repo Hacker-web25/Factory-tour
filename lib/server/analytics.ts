@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VISITOR_HEADER, type Attribution } from "@/lib/analytics/attribution";
+import { parseUserAgent } from "@/lib/analytics/userAgent";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -119,6 +120,31 @@ export async function recordScan(
   },
   geo: Geo
 ): Promise<void> {
+  // Device, OS and browser are read off the user agent here rather than
+  // asked of the page: the scan is logged inside the redirect, before any
+  // script of ours has run, and a visitor who blocks scripts still has a
+  // user agent. See lib/analytics/userAgent.ts for why it stays this small.
+  const ua = parseUserAgent(row.userAgent);
+  try {
+    // One statement, so `is_repeat` cannot be decided wrongly when two taps
+    // arrive together. Falls back to a plain insert on a database that has
+    // not had supabase/campaign_folders.sql yet.
+    const { error } = await sb.rpc("vpv_record_scan", {
+      p_code: row.code,
+      p_visitor: row.visitorId,
+      p_referrer: row.referrer,
+      p_user_agent: row.userAgent,
+      p_ip: row.ip,
+      p_country: geo.country,
+      p_city: geo.city,
+      p_device: ua.device,
+      p_os: ua.os,
+      p_browser: ua.browser,
+    });
+    if (!error) return;
+  } catch {
+    /* fall through to the insert below */
+  }
   try {
     await sb.from("campaign_scans").insert({
       code: row.code,
@@ -131,5 +157,30 @@ export async function recordScan(
     });
   } catch {
     /* best effort */
+  }
+}
+
+/**
+ * Remember what kind of device a visitor first used. Written once and never
+ * changed, like the rest of the first-touch columns: the device they scanned
+ * the pamphlet on is the fact worth keeping, not the one they happened to
+ * use last.
+ */
+export async function setVisitorDevice(
+  sb: SupabaseClient,
+  visitorId: string,
+  userAgent: string | null
+): Promise<void> {
+  const ua = parseUserAgent(userAgent);
+  if (!ua.device && !ua.os && !ua.browser) return;
+  try {
+    await sb.rpc("vpv_set_visitor_device", {
+      p_visitor: visitorId,
+      p_device: ua.device,
+      p_os: ua.os,
+      p_browser: ua.browser,
+    });
+  } catch {
+    /* analytics must never break the page */
   }
 }
