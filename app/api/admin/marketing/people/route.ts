@@ -5,7 +5,15 @@
  * Paste a list (one person per line: "Name, Company") and get back a random
  * code and a link for each. Feed the links to the QR tool that makes the
  * personal QR images; when a buyer scans theirs, /admin/marketing/buyers
- * shows what they did.
+ * and the folder page show what they did.
+ *
+ * Send `folderSlug` to file the batch under a print run, which is what makes
+ * the folder report possible: the folder owns how many were printed, and
+ * every rate in the report is measured against that number.
+ *
+ * Each code also gets a `print_seq` — its position in the batch — so a code
+ * can be found again on the physical stack of paper ("run GGN-OCT26, piece
+ * 137") without searching 220 cards by eye.
  *
  * The whole batch is created or none of it is: a half-made batch would leave
  * some printed QRs pointing at nothing.
@@ -21,6 +29,7 @@ import {
   peopleCsv,
   personLabel,
 } from "@/lib/personCodes";
+import type { FolderRow } from "@/lib/campaignFolders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,16 +52,36 @@ export async function POST(req: Request) {
     return fail(400, "no_people", "Paste at least one name, one person per line.");
   }
 
-  const campaign = clean(b.campaign, 120);
+  // A batch belongs to a print run when one is named. The folder's own name
+  // and destination then win, so the two can never drift apart.
+  let folder: FolderRow | null = null;
+  const folderSlugWanted = clean(b.folderSlug, 60);
+  if (folderSlugWanted) {
+    const f = await sb
+      .from("campaign_folders")
+      .select("id, slug, name, city, state, channel, destination, printed_count, distributed_at, notes, active, created_at")
+      .eq("slug", folderSlugWanted)
+      .maybeSingle();
+    if (f.error) {
+      if (isMissingColumn(f.error) || /campaign_folders/.test(f.error.message)) {
+        return fail(409, "migration_needed", "Run supabase/campaign_folders.sql in the Supabase SQL editor.");
+      }
+      return fail(500, "read_failed", f.error.message);
+    }
+    folder = (f.data as FolderRow | null) ?? null;
+    if (!folder) return fail(404, "no_folder", "No print run by that name.");
+  }
+
+  const campaign = folder?.name ?? clean(b.campaign, 120);
   if (!campaign) {
     return fail(400, "bad_campaign", "Name this batch, for example “Gurugram, Oct 26”.");
   }
-  const destination = clean(b.destination, 300) || "/";
+  const destination = folder?.destination ?? (clean(b.destination, 300) || "/");
   if (!isSafePath(destination)) {
     return fail(400, "bad_destination", "The destination must be a path on myvpv.com, like /plans.");
   }
   const prefix = cleanPrefix(b.prefix);
-  const source = clean(b.source, 60) || "pamphlet";
+  const source = clean(b.source, 60) || folder?.channel || "pamphlet";
   const medium = clean(b.medium, 60) || "qr";
 
   // Every code already in use, so a new one can never collide. Codes are
@@ -69,6 +98,20 @@ export async function POST(req: Request) {
     return fail(500, "no_codes", "Could not find enough unused codes; try a different prefix.");
   }
 
+  // Numbering continues from what the run already holds, so a second batch
+  // into the same folder does not restart at 1 and collide on the stack.
+  let seqFrom = 0;
+  if (folder) {
+    const last = await sb
+      .from("campaign_codes")
+      .select("print_seq")
+      .eq("folder_id", folder.id)
+      .order("print_seq", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    seqFrom = Number((last.data as { print_seq: number | null } | null)?.print_seq ?? 0) || 0;
+  }
+
   const rows = people.map((p, i) => ({
     code: codes[i]!,
     label: personLabel(p),
@@ -78,6 +121,7 @@ export async function POST(req: Request) {
     campaign,
     person_name: p.name,
     person_company: p.company,
+    ...(folder ? { folder_id: folder.id, print_seq: seqFrom + i + 1 } : {}),
   }));
 
   const inserted: string[] = [];
@@ -110,6 +154,7 @@ export async function POST(req: Request) {
     count: out.length,
     overflow,
     campaign,
+    folder: folder ? { slug: folder.slug, name: folder.name } : null,
     rows: out,
     csv: peopleCsv(out),
   });

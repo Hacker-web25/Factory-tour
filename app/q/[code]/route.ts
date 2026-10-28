@@ -30,6 +30,7 @@ import { isSafePath, normaliseCode } from "@/lib/analytics/attribution";
 import {
   geoFrom,
   recordScan,
+  setVisitorDevice,
   touchVisitor,
   visitorIdFrom,
 } from "@/lib/server/analytics";
@@ -142,6 +143,13 @@ export async function GET(req: Request, { params }: { params: { code: string } }
         )
       : Promise.resolve(),
   ]);
+
+  // After touchVisitor, never before: this fills blanks on a row that call
+  // has just created. Awaited like the rest — the redirect is already built
+  // and a scan we cannot attribute to a device is a scan half recorded.
+  if (visitorId) {
+    await setVisitorDevice(sb, visitorId, headers.get("user-agent"));
+  }
 
   return send(dest);
 }
