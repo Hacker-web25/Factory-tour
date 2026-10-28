@@ -44,7 +44,7 @@ import {
   type TourEvent,
 } from "@/lib/salesAnalytics";
 import {
-  recordingUrl,
+  useRecordingUrl,
   type PresentationSession,
 } from "@/lib/presentationSession";
 import {
@@ -811,7 +811,7 @@ function PresentationInsights({
   ps: PresentationSession | null;
 }) {
   const hasLocation = ps && (ps.place || (ps.lat != null && ps.lng != null));
-  const audio = ps ? recordingUrl(ps.audio_path) : null;
+  const audio = useRecordingUrl(ps?.audio_path);
   const topics = ps?.topics ?? [];
   const transcript = ps?.transcript ?? "";
   // "AI Analysis" button only shows when a deep report is actually

@@ -65,6 +65,7 @@ create policy "recordings upload" on storage.objects for insert to public with c
 create policy "tours read"        on storage.objects for select to public using (bucket_id = 'tours');
 create policy "tours upload"      on storage.objects for insert to public with check (bucket_id = 'tours');
 update storage.buckets set file_size_limit = null where id in ('panoramas', 'recordings', 'tours');
+update storage.buckets set public = true where id = 'recordings';
 
 -- the audit log function as it was
 grant execute on function public.log_security_event(text, uuid, text, jsonb, text, text)

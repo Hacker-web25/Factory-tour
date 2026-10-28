@@ -24,7 +24,8 @@ import TourPlayer from "@/components/viewer/TourPlayer";
 import ScreenCaptureShield from "@/components/viewer/ScreenCaptureShield";
 import OrgThemeProvider from "@/components/dashboard/OrgThemeProvider";
 import {
-  checkPassword,
+  checkPasswordDetailed,
+  linkHasPassword,
   getViewerEmail,
   getViewerFingerprint,
   loadByToken,
@@ -34,7 +35,13 @@ import {
   type ShareLink,
 } from "@/lib/shareLinks";
 import { setAttribution } from "@/lib/analytics";
+import { recallGrant } from "@/lib/viewContext";
 import { Lock, Mail, ShieldAlert, Loader2 } from "lucide-react";
+
+/** A password proof from earlier in this tab (set by checkPasswordDetailed). */
+function hasStoredGrant(token: string): boolean {
+  return recallGrant(`link:${token}`) !== null;
+}
 
 export default function ViewerPage() {
   const params = useParams();
@@ -76,16 +83,22 @@ export default function ViewerPage() {
         return;
       }
       setLink(res.link);
-      if (!res.link.password_hash) setPasswordOk(true);
+      // A password already entered in this tab (kept as a proof, never the password) skips the prompt.
+      if (!linkHasPassword(res.link) || hasStoredGrant(token)) setPasswordOk(true);
       if (!res.link.require_email || getViewerEmail()) setEmailOk(true);
       setLoading(false);
-      // Pull org_id off the tour so we can theme the gates too.
-      const { data: t } = await supabase
-        .from("tours")
-        .select("org_id")
-        .eq("id", res.link.tour_id)
-        .maybeSingle();
-      if (!cancelled) setOrgId((t as { org_id: string | null } | null)?.org_id ?? null);
+      // Org id (to theme the gates) comes with the link lookup. A database without Phase 3a does not
+      // send it, so ask for the tour's org the old way.
+      if (res.orgId !== undefined) {
+        if (!cancelled) setOrgId(res.orgId);
+      } else {
+        const { data: t } = await supabase
+          .from("tours")
+          .select("org_id")
+          .eq("id", res.link.tour_id)
+          .maybeSingle();
+        if (!cancelled) setOrgId((t as { org_id: string | null } | null)?.org_id ?? null);
+      }
     })();
     return () => {
       cancelled = true;
@@ -297,10 +310,14 @@ function PasswordGate({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const ok = await checkPassword(link, password);
+    const result = await checkPasswordDetailed(link, password);
     setBusy(false);
-    if (!ok) {
-      setError("Wrong password.");
+    if (result !== "ok") {
+      setError(
+        result === "locked"
+          ? "Too many wrong attempts. Please wait a few minutes and try again."
+          : "Wrong password."
+      );
       return;
     }
     onPass();

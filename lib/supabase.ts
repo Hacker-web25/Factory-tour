@@ -1,9 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
+import { viewHeaders } from "@/lib/viewContext";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+const REST_PREFIX = `${url}/rest/v1/`;
+
+/** Adds the viewer's tour / share-link headers (lib/viewContext.ts) to database calls so the
+ *  database can show an unlisted or link-only tour to exactly the person who holds the link. */
+const fetchWithViewContext: typeof fetch = (input, init) => {
+  const target =
+    typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+  if (!target.startsWith(REST_PREFIX)) return fetch(input, init);
+  const extra = viewHeaders();
+  if (Object.keys(extra).length === 0) return fetch(input, init);
+  const headers = new Headers(init?.headers);
+  for (const [name, value] of Object.entries(extra)) headers.set(name, value);
+  return fetch(input, { ...init, headers });
+};
+
 export const supabase = createClient(url, key, {
+  global: { fetch: fetchWithViewContext },
   auth: {
     // Persist the session in localStorage so the user stays signed in
     // across reloads, tab closes, and browser restarts.

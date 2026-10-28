@@ -7,6 +7,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
+import { clearViewContext, setViewContext } from "@/lib/viewContext";
 
 export default function EmbedPageWrapper() {
   return (
@@ -25,6 +26,10 @@ function EmbedPage() {
 
   useEffect(() => {
     (async () => {
+      // Name the tour being embedded so the database will show it if it is unlisted (a password-protected
+      // unlisted tour stays hidden: an embed has no password prompt).
+      clearViewContext();
+      setViewContext({ tourId: id });
       const { data: t } = await supabase
         .from("tours")
         .select("*")

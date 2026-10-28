@@ -37,8 +37,9 @@
 --   • share_links and tour_events stay publicly READable for now: the viewer looks a
 --     link up by token with the public key, and the password / e-mail / expiry gates
 --     are enforced in the browser.  Writes to both are closed here.
---   • The `recordings` bucket is still a public bucket (files are fetched by URL);
---     only listing and uploads are closed.  Making it private needs signed URLs.
+--   • The `recordings` bucket is PRIVATE from this file on (meeting audio is not a feature of any
+--     plan).  Playback uses short-lived signed URLs (lib/presentationSession.ts), and a signed-in
+--     person can only fetch the audio of a meeting they are allowed to see.
 --
 -- ROLLBACK: security_phase2b_rollback.sql
 -- ============================================================================
@@ -309,12 +310,30 @@ create policy vpv_tours_bucket_update on storage.objects for update to authentic
   using (bucket_id = 'tours' and public.vpv_is_staff())
   with check (bucket_id = 'tours' and public.vpv_is_staff());
 
--- Recordings are made by sales people (any signed-in member of a workspace) and
--- heard by their own workspace; the platform owner sees all.
+-- Recordings are named "<session_id>.<ext>".  A file is readable / writable only if the caller
+-- can see that meeting (presentation_sessions has its own row-level security, which applies inside
+-- this sub-select), so one workspace can never list or fetch another workspace's audio.
+-- The platform owner sees all.
+update storage.buckets set public = false where id = 'recordings';
+
 create policy vpv_recordings_select on storage.objects for select to authenticated
-  using (bucket_id = 'recordings' and (public.is_platform_owner() or public.vpv_my_org() is not null));
+  using (
+    bucket_id = 'recordings'
+    and (
+      public.is_platform_owner()
+      or exists (select 1 from public.presentation_sessions ps
+                  where ps.session_id = split_part(storage.objects.name, '.', 1))
+    )
+  );
 create policy vpv_recordings_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'recordings' and (public.is_platform_owner() or public.vpv_my_org() is not null));
+  with check (
+    bucket_id = 'recordings'
+    and (
+      public.is_platform_owner()
+      or exists (select 1 from public.presentation_sessions ps
+                  where ps.session_id = split_part(storage.objects.name, '.', 1))
+    )
+  );
 
 -- Size caps (the largest file in use today is 48 MB).
 update storage.buckets set file_size_limit = 209715200 where id in ('panoramas', 'recordings');

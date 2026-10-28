@@ -8,6 +8,7 @@
  * failed geolocation or upload never breaks the tour for the presenter.
  */
 
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type PresentationSession = {
@@ -175,11 +176,35 @@ export async function savePresentationRecording(args: {
     .then(() => {});
 }
 
-/** Public URL for a stored recording. */
-export function recordingUrl(audioPath: string | null): string | null {
+/** Short-lived link to a stored recording. The "recordings" bucket is private (meeting audio is
+ *  not a feature of any plan), so a file can only be played with a signed URL, and the database
+ *  hands one out only to someone who may see that meeting. */
+export async function recordingSignedUrl(
+  audioPath: string | null | undefined,
+  expiresInSec = 3600
+): Promise<string | null> {
   if (!audioPath) return null;
-  const { data } = supabase.storage.from("recordings").getPublicUrl(audioPath);
-  return data.publicUrl ?? null;
+  const { data, error } = await supabase.storage
+    .from("recordings")
+    .createSignedUrl(audioPath, expiresInSec);
+  return error ? null : (data?.signedUrl ?? null);
+}
+
+/** React hook around recordingSignedUrl: null until the link is ready (or if there is none). */
+export function useRecordingUrl(audioPath: string | null | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setUrl(null);
+    if (!audioPath) return;
+    recordingSignedUrl(audioPath).then((u) => {
+      if (alive) setUrl(u);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [audioPath]);
+  return url;
 }
 
 /* --------------------------- Topic detection ---------------------------- */

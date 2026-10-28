@@ -1099,9 +1099,8 @@ function ringBg(score: number): string {
   return "bg-rose-500";
 }
 
-/** Signed URL when the bucket is private, public URL otherwise. */
+/** The bucket is private: signed URL only (no public-URL fallback). */
 async function recordingSrc(path: string): Promise<string | null> {
   const signed = await supabase.storage.from("recordings").createSignedUrl(path, 3600);
-  if (signed.data?.signedUrl) return signed.data.signedUrl;
-  return supabase.storage.from("recordings").getPublicUrl(path).data.publicUrl ?? null;
+  return signed.data?.signedUrl ?? null;
 }

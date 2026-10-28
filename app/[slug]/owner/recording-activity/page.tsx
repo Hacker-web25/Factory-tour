@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import { orgBySlug } from "@/lib/orgSlug";
-import { recordingUrl } from "@/lib/presentationSession";
+import { useRecordingUrl } from "@/lib/presentationSession";
 import {
   listRecordingStops,
   setMdReview,
@@ -220,7 +220,7 @@ function StopCard({
   onNote: (v: string) => void;
   onReview: (d: MdReview) => void;
 }) {
-  const audio = recordingUrl(row.audio_path);
+  const audio = useRecordingUrl(row.audio_path);
   // Start the player a few seconds BEFORE the stop so the MD hears the
   // lead-in, not just the silence after.
   const seekTo = Math.max(0, (row.stop_offset_sec ?? 0) - 10);
