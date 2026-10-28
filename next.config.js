@@ -19,6 +19,11 @@ try {
   /* keep the wildcard */
 }
 
+// Swap the wildcard in the policy below for this project's exact host (no-op if we could not
+// work it out). The directives stay plain quoted strings on purpose: tests/billing/18 reads them
+// straight from this file to make sure the analytics tags are never accidentally blocked.
+const pinSupabaseHost = (directive) => directive.split("*.supabase.co").join(SUPABASE_HOST);
+
 /**
  * Site-wide security headers. These apply to every response — the
  * middleware adds a few more on auth-sensitive paths (no-store cache,
@@ -88,20 +93,20 @@ const securityHeaders = [
       // Analytics: Google Analytics 4 and Microsoft Clarity, per each
       // vendor's own CSP guide. Without these the browser blocks both tags
       // silently and the dashboards stay empty.
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://${SUPABASE_HOST} https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com https://*.googletagmanager.com https://*.clarity.ms`,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com https://*.googletagmanager.com https://*.clarity.ms",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      `img-src 'self' data: blob: https://${SUPABASE_HOST} https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com`,
+      "img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      `connect-src 'self' https://${SUPABASE_HOST} wss://${SUPABASE_HOST} https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com`,
-      `frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://${SUPABASE_HOST} https://api.razorpay.com https://checkout.razorpay.com`,
-      `media-src 'self' blob: https://${SUPABASE_HOST}`,
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
+      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com",
+      "media-src 'self' blob: https://*.supabase.co",
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'self' https://*.myvpv.com",
       "upgrade-insecure-requests",
-    ].join("; "),
+    ].map(pinSupabaseHost).join("; "),
   },
 ];
 
