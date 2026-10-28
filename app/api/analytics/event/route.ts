@@ -19,8 +19,42 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { getClientIp } from "@/lib/getClientIp";
+import { readJson } from "@/lib/server/billingGuard";
 
 export const runtime = "nodejs";
+
+/** A real event is a few hundred bytes; anything bigger is not from our viewer. */
+const MAX_BODY_BYTES = 4 * 1024;
+
+/**
+ * Best-effort flood brake, per server instance and per visitor address.
+ * Deliberately in memory (not a database call): this route fires on every
+ * hotspot hover, and a limiter that cost a query per event would be a bigger
+ * load than the flood it guards against. It stops one script hammering one
+ * instance; the project-wide cap belongs in a Vercel firewall rate-limit rule
+ * on /api/analytics/event. Generous enough for a whole factory sharing one
+ * office IP.
+ */
+const WINDOW_MS = 60_000;
+const MAX_PER_WINDOW = 600;
+const MAX_TRACKED = 5_000;
+const hits = new Map<string, { n: number; resetAt: number }>();
+
+function overLimit(ip: string): boolean {
+  const now = Date.now();
+  if (hits.size > MAX_TRACKED) {
+    for (const [k, v] of hits) if (v.resetAt <= now) hits.delete(k);
+    if (hits.size > MAX_TRACKED) hits.clear();
+  }
+  const cur = hits.get(ip);
+  if (!cur || cur.resetAt <= now) {
+    hits.set(ip, { n: 1, resetAt: now + WINDOW_MS });
+    return false;
+  }
+  cur.n += 1;
+  return cur.n > MAX_PER_WINDOW;
+}
 
 type Body = {
   tour_id?: string;
@@ -67,12 +101,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, stored: false });
   }
 
-  let body: Body;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
+  if (overLimit(getClientIp(req.headers))) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      { status: 429, headers: { "Retry-After": "60" } }
+    );
   }
+
+  // sendBeacon posts text/plain, so the type is not checked — the size cap and
+  // the strict field validation below are what keep this endpoint small.
+  const parsed = await readJson(req, MAX_BODY_BYTES);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false, error: parsed.error }, { status: parsed.status });
+  }
+  const body = parsed.body as Body;
 
   if (!isUuid(body.tour_id)) {
     return NextResponse.json({ ok: false, error: "bad_tour" }, { status: 400 });

@@ -169,6 +169,9 @@ function UploadPage() {
     items.length > 0 && items.every((i) => i.status === "done");
   const queuedCount = items.filter((i) => i.status === "queued").length;
 
+  // Show nothing until the role check above has passed, so a non-admin never sees the upload UI.
+  if (!roleChecked) return null;
+
   return (
     <div className="min-h-screen">
       <TopBar />

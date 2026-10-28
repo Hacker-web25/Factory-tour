@@ -39,7 +39,6 @@ function OAuthCallbackPage() {
   const router = useRouter();
   const params = useSearchParams();
   const nextRaw = safeNext(params.get("next"), "/");
-  const orgName = params.get("org") || "";
   const [message, setMessage] = useState("Signing you in…");
 
   useEffect(() => {
@@ -59,16 +58,13 @@ function OAuthCallbackPage() {
         return;
       }
 
-      // Only ensure profile if the caller passed an orgName (legacy
-      // OAuth signup flow). The new flow doesn't pass one — we let
-      // /setup handle role + org.
-      if (orgName) {
-        await ensureProfile({ orgName });
-      }
+      // Make sure a (role-less, org-less) profile row exists. Role and
+      // workspace are never chosen here — /setup handles joining by invite
+      // code, and paid workspaces are built server-side.
+      await ensureProfile();
       if (cancelled) return;
 
-      // Refetch the profile (may have been created by the trigger or
-      // ensureProfile above).
+      // Refetch the profile (created by the sign-up trigger or just above).
       const profile = await getMyProfile();
 
       // Route intelligently:

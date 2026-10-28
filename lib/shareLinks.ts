@@ -130,6 +130,20 @@ export async function createViewerLink(opts: {
  *  Reads tour_events (viewer_fingerprint per share_link_id) — no extra
  *  table needed. */
 export async function distinctDeviceCount(linkId: string): Promise<number> {
+  // One question, one number: the database answers without handing the
+  // browser every viewer's fingerprint / e-mail / city.
+  const rpc = await supabase.rpc("share_link_device_status", {
+    p_link: linkId,
+    p_fp: "",
+  });
+  if (!rpc.error) {
+    const row = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as
+      | { seen: number | string }
+      | null
+      | undefined;
+    return Number(row?.seen ?? 0);
+  }
+  // Database without supabase/security_phase2a_additive.sql yet.
   const { data } = await supabase
     .from("tour_events")
     .select("viewer_fingerprint")
@@ -253,23 +267,37 @@ export async function loadByToken(
   // fingerprint always passes (same device revisiting).
   if (link.device_limit != null && link.device_limit > 0) {
     const myFp = getViewerFingerprint();
-    const seen = await distinctDeviceCount(link.id);
-    if (seen >= link.device_limit) {
-      // Check whether MY fingerprint was one of the ones already seen.
+    let seen: number;
+    let isMine: boolean;
+    const rpc = await supabase.rpc("share_link_device_status", {
+      p_link: link.id,
+      p_fp: myFp,
+    });
+    if (!rpc.error) {
+      const row = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as
+        | { seen: number | string; mine: boolean }
+        | null
+        | undefined;
+      seen = Number(row?.seen ?? 0);
+      isMine = Boolean(row?.mine);
+    } else {
+      // Database without supabase/security_phase2a_additive.sql yet.
+      seen = await distinctDeviceCount(link.id);
       const { data: mine } = await supabase
         .from("tour_events")
         .select("id")
         .eq("share_link_id", link.id)
         .eq("viewer_fingerprint", myFp)
         .limit(1);
-      if (!mine || mine.length === 0) {
-        return {
-          link,
-          blocked: `This link is limited to ${link.device_limit} ${
-            link.device_limit === 1 ? "device" : "devices"
-          } and that limit has been reached.`,
-        };
-      }
+      isMine = !!mine && mine.length > 0;
+    }
+    if (seen >= link.device_limit && !isMine) {
+      return {
+        link,
+        blocked: `This link is limited to ${link.device_limit} ${
+          link.device_limit === 1 ? "device" : "devices"
+        } and that limit has been reached.`,
+      };
     }
   }
   return { link };
@@ -415,15 +443,23 @@ export async function loadLinkAnalytics(
 /** Record a successful open — bumps view_count, sets last_opened_at,
  *  and writes a tour_event so the device counter picks this up. */
 export function recordLinkOpen(link: ShareLink) {
-  // last_opened_at + view_count via RPC (falls back to direct update).
+  // Counted by the database (only while the link is still valid). The direct
+  // UPDATE below is the fallback for a database that does not have
+  // increment_share_link_view yet; once the lockdown is applied it is refused,
+  // which is the point — a browser must not write to share_links.
   supabase
-    .from("share_links")
-    .update({
-      last_opened_at: new Date().toISOString(),
-      view_count: (link.view_count ?? 0) + 1,
-    })
-    .eq("id", link.id)
-    .then(() => {});
+    .rpc("increment_share_link_view", { p_id: link.id })
+    .then(({ error }) => {
+      if (!error) return;
+      supabase
+        .from("share_links")
+        .update({
+          last_opened_at: new Date().toISOString(),
+          view_count: (link.view_count ?? 0) + 1,
+        })
+        .eq("id", link.id)
+        .then(() => {});
+    });
 }
 
 /** Check password against stored hash. Returns true if match or no
