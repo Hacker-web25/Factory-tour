@@ -1,12 +1,18 @@
 /**
  * Server-side audit log writer.
  *
+ * SERVER ONLY (imported by API routes). It writes with the service role so the
+ * database function can be closed to the public key — otherwise anyone holding
+ * the browser's anon key could flood the audit table with forged events. It
+ * falls back to the anon client only when the service key is not configured.
+ *
  * Fire-and-forget. If the RPC errors (missing migration, DB down),
  * the error is logged but the caller is never thrown at — audit
  * failures must never block the real work.
  */
 
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 
 export type AuditEvent =
   | "login.success"
@@ -35,7 +41,8 @@ export async function logSecurityEvent(args: {
   userAgent?: string | null;
 }): Promise<void> {
   try {
-    await supabase.rpc("log_security_event", {
+    const client = supabaseAdmin() ?? supabase;
+    await client.rpc("log_security_event", {
       p_event: args.event,
       p_org_id: args.orgId ?? null,
       p_subject: args.subject ?? null,

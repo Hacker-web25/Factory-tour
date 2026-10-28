@@ -162,7 +162,12 @@ export async function prepareTourForOffline(
     "serviceWorker" in navigator
   ) {
     try {
-      await navigator.serviceWorker.ready;
+      // `ready` never settles when no worker could be registered (some private-browsing modes,
+      // blocked storage). Cap the wait so the Download button can never hang on it.
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<void>((resolve) => setTimeout(resolve, 4000)),
+      ]);
     } catch {
       // ignore — the fallback path handles no-SW state
     }

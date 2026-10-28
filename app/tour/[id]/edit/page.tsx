@@ -1798,7 +1798,9 @@ export default function TourEditPage() {
       .eq("id", tour.id);
   }
 
-  if (!tour) {
+  // Hold the editor back until the role check above has passed, so a sales presenter
+  // never sees the editor UI flash up before being redirected.
+  if (!tour || !roleChecked) {
     return (
       <div className="min-h-screen grid place-items-center text-neutral-500">
         Loading…

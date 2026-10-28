@@ -34,6 +34,8 @@ import { decideVerdict, WINDOW_WORDS, type Attribution } from "@/lib/stopVerdict
 import { windowTranscriptTail } from "@/lib/stopPhrases";
 import { nvidiaConfigured, nvidiaJson } from "@/lib/ai/nvidia";
 import { geminiConfigured, geminiJson } from "@/lib/ai/gemini";
+import { getClientIp } from "@/lib/getClientIp";
+import { billingRateLimit, readJson } from "@/lib/server/billingGuard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,14 +127,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
   }
 
-  let stopId: string | undefined;
-  try {
-    stopId = (await req.json())?.stopId;
-  } catch {
-    return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
+  // Public by design (the browser calls it right after a recording stops), and
+  // it can spend an AI call — so it is capped per visitor address first.
+  const rl = await billingRateLimit(sb, `rec-verify:ip:${getClientIp(req.headers)}`, 60, 3600);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter || 60) } }
+    );
   }
+
+  const parsed = await readJson(req, 1024);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false, error: parsed.error }, { status: parsed.status });
+  }
+  const stopId = typeof parsed.body.stopId === "string" ? parsed.body.stopId : undefined;
   if (!stopId || !UUID.test(stopId)) {
     return NextResponse.json({ ok: false, error: "bad_stop_id" }, { status: 400 });
+  }
+  // One stop is judged once; a repeat caller has nothing to gain from asking again.
+  const perStop = await billingRateLimit(sb, `rec-verify:stop:${stopId}`, 5, 3600);
+  if (!perStop.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited" },
+      { status: 429, headers: { "Retry-After": String(perStop.retryAfter || 60) } }
+    );
   }
 
   const { data: stopRow, error: stopErr } = await sb

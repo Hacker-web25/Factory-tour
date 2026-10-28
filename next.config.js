@@ -4,6 +4,26 @@
 // lib/site/pages.ts, which fails the build if the two disagree.
 const { SITE_PATHS } = require("./lib/site/paths");
 
+// The exact Supabase host of THIS project (e.g. abcd1234.supabase.co), taken from the same env var
+// the app itself uses. A wildcard like *.supabase.co would let a script-injection bug load code
+// from, or send data to, ANY Supabase project in the world - including an attacker's free one.
+// If the variable is missing or unparsable (e.g. a bare local build) we fall back to the wildcard
+// rather than break the site.
+let SUPABASE_HOST = "*.supabase.co";
+try {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    const h = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host;
+    if (h && /^[a-z0-9.-]+$/i.test(h)) SUPABASE_HOST = h;
+  }
+} catch {
+  /* keep the wildcard */
+}
+
+// Swap the wildcard in the policy below for this project's exact host (no-op if we could not
+// work it out). The directives stay plain quoted strings on purpose: tests/billing/18 reads them
+// straight from this file to make sure the analytics tags are never accidentally blocked.
+const pinSupabaseHost = (directive) => directive.split("*.supabase.co").join(SUPABASE_HOST);
+
 /**
  * Site-wide security headers. These apply to every response — the
  * middleware adds a few more on auth-sensitive paths (no-store cache,
@@ -30,11 +50,14 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Lock down ambient APIs we don't use. Camera + mic kept open for
   // the presenter recorder; screen capture kept for the presenter
-  // workflow; geolocation + payment + usb are not used anywhere.
+  // workflow; geolocation is kept for OUR pages only because
+  // lib/presentationSession.ts records where a sales meeting took place
+  // (the browser still asks the presenter first; embedded third-party
+  // frames can never ask). usb is not used anywhere.
   {
     key: "Permissions-Policy",
     value: [
-      "geolocation=()",
+      "geolocation=(self)",
       "camera=(self)",
       "microphone=(self)",
       "payment=(self \"https://checkout.razorpay.com\")",
@@ -74,7 +97,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com https://www.youtube.com https://api.bigdatacloud.net https://generativelanguage.googleapis.com https://integrate.api.nvidia.com https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
       "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com",
       "media-src 'self' blob: https://*.supabase.co",
       "worker-src 'self' blob:",
@@ -83,7 +106,7 @@ const securityHeaders = [
       "form-action 'self'",
       "frame-ancestors 'self' https://*.myvpv.com",
       "upgrade-insecure-requests",
-    ].join("; "),
+    ].map(pinSupabaseHost).join("; "),
   },
 ];
 
@@ -130,7 +153,7 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "**.supabase.co" },
+      { protocol: "https", hostname: SUPABASE_HOST === "*.supabase.co" ? "**.supabase.co" : SUPABASE_HOST },
       { protocol: "https", hostname: "myvpv.com" },
       { protocol: "https", hostname: "img.youtube.com" },
     ],
