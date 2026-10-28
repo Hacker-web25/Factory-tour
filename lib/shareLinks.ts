@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { sha256Hex } from "@/lib/folders";
+import { recallGrant, rememberGrant, setViewContext } from "@/lib/viewContext";
 
 /**
  * Share link CRUD + helpers.
@@ -42,14 +43,28 @@ export type ShareLink = {
   shared_to_email: string | null;
   /** Optional phone number (typically for WhatsApp shares). */
   shared_to_phone: string | null;
+  /** Set by share_link_lookup(): the database no longer hands the password hash to a visitor, only
+   *  whether there is a password.  Absent on rows a signed-in owner reads directly. */
+  has_password?: boolean;
+  /** One-time (?token=) links: viewing window in minutes, and when the link was first used. */
+  session_minutes?: number | null;
+  used_at?: string | null;
 };
 
+/** Does opening this link require a password? */
+export function linkHasPassword(link: ShareLink): boolean {
+  return link.has_password ?? !!link.password_hash;
+}
+
 function randomToken(len = 22): string {
-  // URL-safe token — base36 concatenation.
-  return (
-    Math.random().toString(36).slice(2) +
-    Math.random().toString(36).slice(2)
-  ).slice(0, len);
+  // URL-safe token from the browser's cryptographic random source (Math.random is predictable, and
+  // this token is the only thing standing between a stranger and the tour).
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
 }
 
 export async function listShareLinks(tourId: string): Promise<ShareLink[]> {
@@ -240,7 +255,7 @@ export function tokenAttemptsExceeded(): boolean {
 
 export async function loadByToken(
   token: string
-): Promise<{ link: ShareLink; blocked?: string } | null> {
+): Promise<{ link: ShareLink; blocked?: string; orgId?: string | null } | null> {
   // Local brute-force shield — 15 failed token lookups in 10 min from
   // this browser earns a hard block. The timing is deliberately coarse
   // so a legitimate typo in a shared URL isn't punished.
@@ -250,6 +265,34 @@ export async function loadByToken(
     return null;
   }
 
+  const myFp = getViewerFingerprint();
+  // From now on every database call from this page tells the database which link is being opened
+  // (lib/viewContext.ts), so it can show the tour to this visitor — and only this one.
+  setViewContext({ shareToken: token, shareGrant: undefined, fp: myFp });
+  const saved = recallGrant(`link:${token}`);
+  if (saved) setViewContext({ shareGrant: saved });
+
+  // The database looks the link up, strips the password hash and decides whether it can still be
+  // opened (revoked / expired / view limit / device limit).
+  const rpc = await supabase.rpc("share_link_lookup", { p_token: token, p_fp: myFp });
+  if (!rpc.error) {
+    const res = rpc.data as {
+      link: ShareLink;
+      blocked: string | null;
+      org_id?: string | null;
+    } | null;
+    if (!res || !res.link) return null;
+    return { link: res.link, blocked: res.blocked ?? undefined, orgId: res.org_id ?? null };
+  }
+  // Database without supabase/security_phase3a_additive.sql: look the link up directly.
+  return loadByTokenLegacy(token, myFp);
+}
+
+/** Old behaviour, kept only so the app still works on a database that has not had Phase 3a applied. */
+async function loadByTokenLegacy(
+  token: string,
+  myFp: string
+): Promise<{ link: ShareLink; blocked?: string } | null> {
   const { data } = await supabase
     .from("share_links")
     .select("*")
@@ -262,11 +305,7 @@ export async function loadByToken(
     return { link, blocked: "This link has expired." };
   if (link.view_limit != null && link.view_count >= link.view_limit)
     return { link, blocked: "This link has reached its view limit." };
-  // Device limit — count distinct fingerprints seen so far; block a
-  // new device if we're already at the limit. An already-registered
-  // fingerprint always passes (same device revisiting).
   if (link.device_limit != null && link.device_limit > 0) {
-    const myFp = getViewerFingerprint();
     let seen: number;
     let isMine: boolean;
     const rpc = await supabase.rpc("share_link_device_status", {
@@ -281,7 +320,6 @@ export async function loadByToken(
       seen = Number(row?.seen ?? 0);
       isMine = Boolean(row?.mine);
     } else {
-      // Database without supabase/security_phase2a_additive.sql yet.
       seen = await distinctDeviceCount(link.id);
       const { data: mine } = await supabase
         .from("tour_events")
@@ -464,13 +502,39 @@ export function recordLinkOpen(link: ShareLink) {
 
 /** Check password against stored hash. Returns true if match or no
  *  password required. */
+export type PasswordResult = "ok" | "wrong" | "locked";
+
+/** Ask the database whether this is the link's password.  On success it returns a proof ("grant")
+ *  that is sent with every later request, so the tour data itself stays locked without it.  The
+ *  database also refuses after 8 wrong tries in 10 minutes. */
+export async function checkPasswordDetailed(
+  link: ShareLink,
+  password: string
+): Promise<PasswordResult> {
+  if (!linkHasPassword(link)) return "ok";
+  const proof = await sha256Hex(password);
+  const rpc = await supabase.rpc("share_link_unlock", {
+    p_token: link.token,
+    p_proof: proof,
+  });
+  if (!rpc.error && rpc.data) {
+    const r = rpc.data as { ok: boolean; grant?: string; error?: string };
+    if (r.ok && r.grant) {
+      setViewContext({ shareGrant: r.grant });
+      rememberGrant(`link:${link.token}`, r.grant);
+      return "ok";
+    }
+    return r.error === "locked" ? "locked" : "wrong";
+  }
+  // Database without Phase 3a: compare in the browser, as before.
+  return link.password_hash && proof === link.password_hash ? "ok" : "wrong";
+}
+
 export async function checkPassword(
   link: ShareLink,
   password: string
 ): Promise<boolean> {
-  if (!link.password_hash) return true;
-  const hash = await sha256Hex(password);
-  return hash === link.password_hash;
+  return (await checkPasswordDetailed(link, password)) === "ok";
 }
 
 /** Bump view_count. Fire-and-forget; not awaited by the caller. */
@@ -519,6 +583,7 @@ export function getViewerFingerprint(): string {
  *  the email gate). Read by the analytics tracker. */
 export function setViewerEmail(email: string) {
   if (typeof window === "undefined") return;
+  setViewContext({ email });
   try {
     sessionStorage.setItem("factour_viewer_email", email);
   } catch {}
@@ -526,7 +591,9 @@ export function setViewerEmail(email: string) {
 export function getViewerEmail(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return sessionStorage.getItem("factour_viewer_email");
+    const saved = sessionStorage.getItem("factour_viewer_email");
+    if (saved) setViewContext({ email: saved });
+    return saved;
   } catch {
     return null;
   }

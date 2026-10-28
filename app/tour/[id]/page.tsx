@@ -8,6 +8,13 @@ import TourPlayer from "@/components/viewer/TourPlayer";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import { getMyProfile } from "@/lib/auth";
 import { setAttribution } from "@/lib/analytics";
+import { getViewerFingerprint } from "@/lib/shareLinks";
+import {
+  clearViewContext,
+  recallGrant,
+  rememberGrant,
+  setViewContext,
+} from "@/lib/viewContext";
 
 type Status =
   | "loading"
@@ -42,6 +49,13 @@ export default function PublicTourPage() {
     // private / unlisted / password gates. Anyone else who navigates here
     // still gets the normal access flow.
     const isEditorPreview = params.get("preview") === "1";
+
+    // Tell the database which tour is being opened (and, if the visitor already entered the password in
+    // this tab, the proof of it). An "unlisted" tour is shown only to a request that names it.
+    clearViewContext();
+    setViewContext({ tourId: id, fp: getViewerFingerprint() });
+    const savedGrant = recallGrant(`tour:${id}`);
+    if (savedGrant) setViewContext({ tourGrant: savedGrant });
 
     // Presenter attribution — the sales dashboard's "Present" button
     // opens `/tour/{id}?presenter=<user_id>`. Wire that into the
@@ -86,6 +100,19 @@ export default function PublicTourPage() {
       }
     }
     if (!t) {
+      // A password-protected unlisted tour is hidden from the database until the password is entered, so
+      // the row can't be read yet. Ask the database whether that is why.
+      try {
+        const gate = await supabase.rpc("tour_gate_info", { p_tour: id });
+        const info = gate.data as { needs_password?: boolean; title?: string | null } | null;
+        if (info?.needs_password) {
+          setTour({ id, title: info.title ?? "" } as Tour);
+          setStatus("password");
+          return;
+        }
+      } catch {
+        // gate lookup failed — fall through to "not found"
+      }
       setStatus("not_found");
       return;
     }
@@ -123,53 +150,76 @@ export default function PublicTourPage() {
 
       if (visibility === "unlisted") {
         // Password check
-        if (t.unlisted_password) {
-          // Was it already entered in this session?
-          const saved = sessionStorage.getItem(`tour-pw-${id}`);
-          if (saved !== t.unlisted_password) {
-            setTour(t as Tour);
-            setStatus("password");
-            return;
-          }
+        // The database only returns a password-protected unlisted tour once the password was proven
+        // (a grant). A database without Phase 3b still returns the row, so ask for the password then.
+        if (t.unlisted_password && !savedGrant) {
+          setTour(t as Tour);
+          setStatus("password");
+          return;
         }
       }
     }
 
     // Public / already-authorised unlisted / public with token
     if (token) {
-      const { data: link } = await supabase
-        .from("share_links")
-        .select("*")
-        .eq("tour_id", id)
-        .eq("token", token)
-        .maybeSingle();
-      if (!link) {
-        setStatus("used");
-        return;
-      }
-
-      // Not yet consumed: consume + stamp time
-      if (!link.used) {
-        await supabase
-          .from("share_links")
-          .update({ used: true, used_at: new Date().toISOString() })
-          .eq("id", link.id);
-        if (link.session_minutes) {
-          expiryRef.current = Date.now() + link.session_minutes * 60_000;
-        }
-      } else {
-        // Already used — session-scoped links may still be within their window
-        if (!link.session_minutes || !link.used_at) {
+      // The database consumes the one-time link (atomically, on the server).
+      const consumed = await supabase.rpc("consume_one_time_link", {
+        p_tour: id,
+        p_token: token,
+      });
+      if (!consumed.error && consumed.data) {
+        const r = consumed.data as {
+          status: string;
+          session_minutes?: number | null;
+          expires_at?: string;
+        };
+        if (r.status === "missing" || r.status === "used") {
           setStatus("used");
           return;
         }
-        const usedMs = new Date(link.used_at).getTime();
-        const expiresAt = usedMs + link.session_minutes * 60_000;
-        if (Date.now() >= expiresAt) {
+        if (r.status === "expired" || r.status === "session_over") {
           setStatus("expired");
           return;
         }
-        expiryRef.current = expiresAt;
+        if (r.status === "consumed" && r.session_minutes) {
+          expiryRef.current = Date.now() + r.session_minutes * 60_000;
+        }
+        if (r.status === "in_session" && r.expires_at) {
+          expiryRef.current = new Date(r.expires_at).getTime();
+        }
+      } else {
+        // Database without Phase 3a: the old browser-side check.
+        const { data: link } = await supabase
+          .from("share_links")
+          .select("*")
+          .eq("tour_id", id)
+          .eq("token", token)
+          .maybeSingle();
+        if (!link) {
+          setStatus("used");
+          return;
+        }
+        if (!link.used) {
+          await supabase
+            .from("share_links")
+            .update({ used: true, used_at: new Date().toISOString() })
+            .eq("id", link.id);
+          if (link.session_minutes) {
+            expiryRef.current = Date.now() + link.session_minutes * 60_000;
+          }
+        } else {
+          if (!link.session_minutes || !link.used_at) {
+            setStatus("used");
+            return;
+          }
+          const expiresAt =
+            new Date(link.used_at).getTime() + link.session_minutes * 60_000;
+          if (Date.now() >= expiresAt) {
+            setStatus("expired");
+            return;
+          }
+          expiryRef.current = expiresAt;
+        }
       }
     }
 
@@ -235,8 +285,28 @@ export default function PublicTourPage() {
 
   async function submitPassword() {
     if (!tour) return;
-    if (passwordInput === tour.unlisted_password) {
-      sessionStorage.setItem(`tour-pw-${id}`, passwordInput);
+    // The database checks the password (and refuses after too many wrong tries) and answers with a
+    // proof that is sent with every later request.
+    const r = await supabase.rpc("tour_unlock", { p_tour: id, p_password: passwordInput });
+    if (!r.error && r.data) {
+      const res = r.data as { ok: boolean; grant?: string; error?: string };
+      if (res.ok && res.grant) {
+        rememberGrant(`tour:${id}`, res.grant);
+        setPasswordError("");
+        setStatus("loading");
+        await load();
+      } else {
+        setPasswordError(
+          res.error === "locked"
+            ? "Too many wrong attempts. Please wait a few minutes and try again."
+            : "Incorrect password."
+        );
+      }
+      return;
+    }
+    // Database without Phase 3a: compare in the browser, as before.
+    if (tour.unlisted_password && passwordInput === tour.unlisted_password) {
+      rememberGrant(`tour:${id}`, "legacy");
       setPasswordError("");
       setStatus("loading");
       await load();

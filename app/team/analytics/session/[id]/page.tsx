@@ -16,7 +16,7 @@ import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import {
-  recordingUrl,
+  useRecordingUrl,
   type PresentationSession,
 } from "@/lib/presentationSession";
 import {
@@ -101,7 +101,7 @@ export default function SessionAnalysisPage() {
     return analyzeTranscript(ps.transcript, ps.duration_sec);
   }, [recOk, ps?.transcript, ps?.duration_sec]);
 
-  const audio = ps && recOk ? recordingUrl(ps.audio_path) : null;
+  const audio = useRecordingUrl(ps && recOk ? ps.audio_path : null);
 
   if (loading || !me) {
     return (
