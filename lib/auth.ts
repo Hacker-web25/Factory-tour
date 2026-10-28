@@ -63,10 +63,12 @@ export async function getMyProfile(): Promise<Profile | null> {
 }
 
 /** Sign in with email + password. Returns { session, error }. */
-export async function signIn(email: string, password: string) {
+export async function signIn(email: string, password: string, captchaToken?: string | null) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email.trim().toLowerCase(),
     password,
+    // Cloudflare Turnstile token (ignored by Supabase until CAPTCHA protection is switched on there).
+    options: captchaToken ? { captchaToken } : undefined,
   });
   return { session: data.session, error };
 }
