@@ -145,6 +145,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/how-it-works": "How it works",
   "/faq": "FAQ",
   "/why-vpv": "Why VPV",
+  "/demo": "Live demo",
   "/about": "About",
   "/apply": "Apply",
   "/booking": "Booking",

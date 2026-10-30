@@ -10,7 +10,7 @@
  * render the markup, styles and behaviour below, so the menu is identical
  * everywhere:
  *
- *   Home · Why VPV · How it works · Plans · Case studies · FAQ · About us · Sign in
+ *   Home · Demo · Why VPV · How it works · Plans · Case studies · FAQ · About us · Sign in
  *
  * Behaviour (plain JS, no framework, so the static shell can run it):
  *   • sticky at the top of the page;
@@ -25,6 +25,7 @@ import { SITE_PATHS } from "@/lib/site/paths";
 
 export const SITE_NAV: { href: string; label: string }[] = [
   { href: "/", label: "Home" },
+  { href: "/demo", label: "Demo" },
   { href: "/why-vpv", label: "Why VPV" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/plans", label: "Plans" },
