@@ -520,7 +520,7 @@ function NextPlanCard({ from, to }: { from: SitePlanId; to: SitePlanId }) {
       <ul className="mb-3 space-y-1 text-left text-[11px] leading-snug text-vpv-muted">
         {q.addAreas > 0 && <li>+{q.addAreas} areas</li>}
         {plan.videos > 0 && <li>{plan.videos} process videos</li>}
-        {plan.pdfs > 0 && <li>{plan.pdfs} PDF reports</li>}
+        {plan.pdfs > 0 && <li>{plan.pdfs} lab reports & certifications</li>}
         {plan.sharingControls && <li>One-time links and sharing restrictions</li>}
       </ul>
       <div className="text-[22px] font-extrabold leading-none text-vpv-blue">{inr(q.amountInr)}</div>

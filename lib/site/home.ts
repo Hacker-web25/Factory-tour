@@ -9,9 +9,9 @@
  *      Open Graph, Twitter card, favicons, and the Organization record on
  *      the front page. The build ships a bare four-tag head, so without
  *      this every page would share one title and no canonical.
- *   2. A "Sign in" link in the site header, pointing at /login on this
- *      domain. The site has no sign-in entry of its own, and a customer
- *      who has already bought needs one.
+ *   2. The shared site header (lib/site/header.ts). The build's own header
+ *      is hidden; the one every page of myvpv.com uses (marketing and app
+ *      pages alike) is written into the shell above the app instead.
  *   3. The payment bridge. The site ships its own pay button that takes
  *      no money ("TEST MODE … coming soon"), because the build has no
  *      back end. The button — and all of its field + terms validation —
@@ -39,9 +39,11 @@ import { LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
 import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
+import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderHtml } from "@/lib/site/header";
+import { SITE_PATHS } from "@/lib/site/paths";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.36e97f56.js";
+const JS_SRC = "/static/js/main.c2c33ed9.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -157,16 +159,7 @@ const WEBSITE_LD = JSON.stringify({
  */
 const ERROR_GUARD = String.raw`window.addEventListener("error",function(e){e.error instanceof DOMException&&"DataCloneError"===e.error.name&&e.message&&e.message.includes("PerformanceServerTiming")&&(e.stopImmediatePropagation(),e.preventDefault())},!0)`;
 
-const SIGNIN_CSS = `#vpv-signin-btn{display:inline-flex;align-items:center;justify-content:center;padding:.65rem 1.3rem;margin-right:.6rem;border-radius:9999px;border:1.5px solid ${BRAND};color:${BRAND};background:#fff;font-weight:600;font-size:.9rem;font-family:inherit;line-height:1;letter-spacing:.01em;text-decoration:none;cursor:pointer;transition:background-color .15s ease,color .15s ease,transform .15s ease;white-space:nowrap}#vpv-signin-btn:hover{background:${BRAND};color:#fff;transform:translateY(-1px)}#vpv-signin-btn:active{transform:translateY(0)}@media (max-width:640px){#vpv-signin-btn{padding:.5rem 1rem;font-size:.8rem;margin-right:.4rem}}`;
 
-/**
- * Inserts the Sign in link into the site header once React has mounted
- * it. Preferred position is just before the header's "Start the
- * assessment" call to action; if the markup ever changes, it falls back
- * to the end of the header's top row, so the link never disappears
- * altogether. The observer gives up after 15s so it cannot sit watching
- * the DOM for the life of the tab.
- */
 /**
  * The payment bridge (lib/site/payBridge.ts) keeps the site's own
  * validated Pay button and intercepts its click to run the real Razorpay
@@ -209,14 +202,14 @@ const ONE_EMAIL_SCRIPT = String.raw`(function(){
  * listener runs in the CAPTURE phase, so it pre-empts the site's router, and
  * turns any such click into a real navigation.
  *
- * Deliberately narrow: it only acts on same-origin links whose path is
- * /assessment or below, and it leaves modified clicks (new tab, new window,
- * download) to the browser. If the site is ever rebuilt without those links,
+ * It acts on every same-origin link whose path the site does NOT own (the
+ * funnel, /why-vpv, /about, /login, the policies …), so none of them can
+ * render as an empty page inside the site; it leaves modified clicks (new
+ * tab, new window, download) and in-page #anchors to the browser. If the site is ever rebuilt without those links,
  * this does nothing at all rather than breaking anything.
  */
-const FUNNEL_BRIDGE_SCRIPT = String.raw`(function(){function isFunnel(u){return u.pathname==="/assessment"||u.pathname.indexOf("/assessment/")===0||u.pathname==="/why-vpv"}document.addEventListener("click",function(e){if(e.defaultPrevented)return;if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;if(a.target&&a.target!=="_self")return;if(a.hasAttribute("download"))return;var u;try{u=new URL(a.getAttribute("href"),window.location.origin)}catch(_){return}if(u.origin!==window.location.origin)return;if(!isFunnel(u))return;e.preventDefault();e.stopPropagation();window.location.assign(u.href)},true)})();`
+const FUNNEL_BRIDGE_SCRIPT = String.raw`(function(){var SPA=${JSON.stringify(SITE_PATHS)};function own(u){var p=u.pathname.replace(/\/+$/,"")||"/";return SPA.indexOf(p)>=0}document.addEventListener("click",function(e){if(e.defaultPrevented)return;if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;if(!a)return;if(a.target&&a.target!=="_self")return;if(a.hasAttribute("download"))return;var href=a.getAttribute("href")||"";if(href.charAt(0)==="#")return;var u;try{u=new URL(href,window.location.origin)}catch(_){return}if(u.origin!==window.location.origin)return;if(own(u))return;e.preventDefault();e.stopPropagation();window.location.assign(u.href)},true)})();`
 
-const SIGNIN_SCRIPT = String.raw`(function(){function add(){if(document.getElementById("vpv-signin-btn"))return true;var h=document.querySelector('header[data-testid="site-header"]')||document.querySelector("header");if(!h)return false;var a=document.createElement("a");a.id="vpv-signin-btn";a.href="/login";a.textContent="Sign in";var cta=h.querySelector('a[href="/assessment"]');if(cta&&cta.parentNode){cta.parentNode.insertBefore(a,cta)}else{(h.firstElementChild||h).appendChild(a)}return true}if(document.readyState!=="loading"&&add())return;document.addEventListener("DOMContentLoaded",add);var o=new MutationObserver(function(){if(add())o.disconnect()});o.observe(document.documentElement,{childList:true,subtree:true});setTimeout(function(){o.disconnect()},15000)})();`;
 
 /**
  * The homepage hero (see the "Homepage, October 2026" patches in
@@ -264,6 +257,14 @@ div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-g
 #vpv-focus .vf-skip{padding:11px 18px;border-radius:9999px;background:transparent!important;color:#fff;font-size:14px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.4)}\
 #vpv-focus:focus{outline:none}\
 @keyframes vpvFocusIn{from{opacity:0}to{opacity:1}}\
+.vpv-cs-hero{display:grid;gap:2.25rem}\
+.vpv-cs-hero-text{max-width:46rem}\
+.vpv-cs-logos{display:block;width:100%;height:auto;border-radius:28px;box-shadow:0 28px 60px -28px rgba(11,61,145,.28)}\
+.vpv-plans-nudge{margin-top:3rem;padding:2rem;border-radius:24px;background:linear-gradient(135deg,#F4F8FF 0%,#E8F1FF 100%);border:1px solid rgba(11,92,255,.14)}\
+.vpv-pn-title{font-size:1.5rem;line-height:1.25;font-weight:800;letter-spacing:-.01em;color:#0b2a5b}\
+.vpv-pn-text{margin-top:.5rem;max-width:40rem;font-size:1.0625rem;line-height:1.6;color:#475569}\
+.vpv-pn-text b{color:#0b5cff;font-weight:700}\
+@media (min-width:640px){.vpv-plans-nudge{padding:2.25rem 2.5rem}.vpv-pn-title{font-size:1.875rem}}\
 @media (prefers-reduced-motion:reduce){#vpv-focus{animation:none}}`;
 
 /**
@@ -320,12 +321,15 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <script>${ERROR_GUARD}</script>\
 <script defer="defer" src="${JS_SRC}"></script>\
 <link href="${CSS_HREF}" rel="stylesheet"/>\
-<style id="vpv-signin-btn-style">${SIGNIN_CSS}</style>\
+<link href="${SITE_HEADER_FONT_HREF}" rel="stylesheet"/>\
+<style id="vpv-site-header-style">${SITE_HEADER_CSS}header[data-testid="site-header"]{display:none!important}html,body{overflow-x:clip}</style>\
 <style id="vpv-home-style">${HOME_CSS}</style>\
 </head><body>\
 <noscript>You need to enable JavaScript to run this app.</noscript>\
+<script>window.__VPV_SPA=1</script>\
+${siteHeaderHtml(page.path)}\
 <div id="root"></div>\
-<script id="vpv-signin-btn-script">${SIGNIN_SCRIPT}</script>\
+<script id="vpv-site-header-script">${SITE_HEADER_SCRIPT}</script>\
 <script id="vpv-pay-bridge-script">${PAY_BRIDGE_SCRIPT}</script>\
 <script id="vpv-funnel-bridge-script">${FUNNEL_BRIDGE_SCRIPT}</script>\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\

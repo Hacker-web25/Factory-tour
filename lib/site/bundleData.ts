@@ -73,7 +73,7 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
     `${hoursLabel(p.shootHours)} of shoot time`,
     "Information icons",
     row(p.videos > 0, `${p.videos > 0 ? p.videos : 0} process videos`),
-    row(p.pdfs > 0, `${p.pdfs > 0 ? p.pdfs : 0} PDF reports`),
+    row(p.pdfs > 0, `${p.pdfs > 0 ? p.pdfs : 0} lab reports & certifications`),
     row(p.sharingControls, SHARING[0]),
     row(p.sharingControls, SHARING[1]),
     ...BASE_SECURITY,
@@ -150,6 +150,10 @@ function salesSentence(): string {
  * not drive. Each is an exact [old, new] pair; the sync applies a pair only
  * while `old` is still present, so running it twice changes nothing.
  */
+/** The plans page's call to action under the four cards, with its nudge. */
+const PLANS_CTA =
+  '(0,Dt.jsxs)("div",{className:"vpv-plans-nudge","data-testid":"plans-cta-top",children:[(0,Dt.jsx)("p",{className:"vpv-pn-title",children:"Not sure which plan is right for your factory?"}),(0,Dt.jsxs)("p",{className:"vpv-pn-text",children:["Tell us what you produce and what your buyers need to see. We\\u2019ll match you to the VPV that covers ",(0,Dt.jsx)("b",{children:"everything you need, and nothing you don\\u2019t"}),"."]}),(0,Dt.jsx)("div",{className:"mt-5 flex flex-col gap-3 sm:flex-row",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})})]}),';
+
 export function bundleTextPatches(): [string, string][] {
   const conf = SITE_PLANS.confidence;
   const ctrl = SITE_PLANS.control;
@@ -250,7 +254,7 @@ export function bundleTextPatches(): [string, string][] {
     // moves up to sit straight under the plan cards.
     [
       '(0,Dt.jsx)("h2",{className:"mt-16 text-2xl font-extrabold tracking-tight text-brand-deep sm:text-3xl",children:"Compare every feature"}),(0,Dt.jsx)("div",{className:"mt-6",children:(0,Dt.jsx)(ac,{})}),',
-      '(0,Dt.jsx)("div",{className:"mt-10 flex flex-col gap-3 sm:flex-row","data-testid":"plans-cta-top",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),',
+      PLANS_CTA,
     ],
     [
       ',(0,Dt.jsx)("div",{className:"mt-8 flex flex-col gap-3 sm:flex-row",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),(0,Dt.jsx)(va,{testId:"speak-cta-plans-page",className:"mt-10"})',
@@ -320,6 +324,27 @@ export function bundleTextPatches(): [string, string][] {
       "yesLabel:`Yes (${mn(un.options.ncr.amount)} + GST)`,noLabel:`No (${mn(un.options.outside.amount)} + GST)`",
       'yesLabel:"Yes",noLabel:"No"',
     ],
+    // ── 31 October 2026: site polish ──────────────────────────────────
+    // CASE STUDIES: the handshake photo and the small logo strip make way
+    // for one wide "Trusted by manufacturers" logo wall under the heading.
+    [
+      "(0,Dt.jsx)(Wr,{tone:\"gradient\",children:(0,Dt.jsxs)(\"div\",{className:\"grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]\",children:[(0,Dt.jsxs)(\"div\",{children:[(0,Dt.jsx)(\"p\",{className:\"eyebrow\",children:\"Case studies\"}),(0,Dt.jsx)(\"h1\",{className:\"mt-3 text-4xl font-extrabold tracking-tight text-brand-deep sm:text-5xl\",children:\"Real manufacturers. Real conversations.\"}),(0,Dt.jsx)(\"p\",{className:\"mt-4 text-lg text-slate-600\",children:kr}),(0,Dt.jsx)(\"div\",{className:\"mt-6\",children:(0,Dt.jsx)(ca,{})})]}),(0,Dt.jsx)(Vr,{src:On,eager:!0,alt:\"Business partners shaking hands in a bright factory office\",className:\"aspect-[4/3] w-full rounded-3xl object-cover\"})]})})",
+      "(0,Dt.jsx)(Wr,{tone:\"gradient\",children:(0,Dt.jsxs)(\"div\",{className:\"vpv-cs-hero\",\"data-testid\":\"case-studies-hero\",children:[(0,Dt.jsxs)(\"div\",{className:\"vpv-cs-hero-text\",children:[(0,Dt.jsx)(\"p\",{className:\"eyebrow\",children:\"Case studies\"}),(0,Dt.jsx)(\"h1\",{className:\"mt-3 text-4xl font-extrabold tracking-tight text-brand-deep sm:text-5xl\",children:\"Real manufacturers. Real conversations.\"}),(0,Dt.jsx)(\"p\",{className:\"mt-4 text-lg text-slate-600\",children:kr})]}),(0,Dt.jsx)(\"img\",{src:\"/img/trusted-manufacturers.webp\",width:1774,height:887,loading:\"eager\",decoding:\"async\",alt:\"Trusted by manufacturers across industries: Kilitch Drugs (pharma), GRKC (FMCG), Kesaria Rubber Industries, Nandan GSE, ViR, Saa Vishnu Group, Param, Miicron, JFL, Ecoste, de'Smat, Garima Global and EASA Elevators\",className:\"vpv-cs-logos\",\"data-testid\":\"case-studies-logos\"})]})})",
+    ],
+    // PLANS: a line above the "Find the Right VPV" button for anyone who
+    // has read the four cards and still isn't sure (carries the bundle from
+    // the bare button to the button with its nudge).
+    [
+      '(0,Dt.jsx)("div",{className:"mt-10 flex flex-col gap-3 sm:flex-row","data-testid":"plans-cta-top",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),',
+      PLANS_CTA,
+    ],
+    // The lower Kuula demo opens on the first real scene (Entrance), not the
+    // collection's index image, and no longer auto-advances back to it.
+    ["https://kuula.co/share/collection/7cprp?logo=-1&info=0&fs=1&vr=1&sd=1&autorotate=1.5&autop=10&thumbs=1", "https://kuula.co/share/5dmM7/collection/7cprp?logo=-1&info=0&fs=1&vr=1&sd=1&autorotate=1.5&thumbs=1"],
+    // "PDF reports" are now "lab reports & certifications" everywhere.
+    ['"PDF report"', '"lab report"'],
+    ["PDF reports", "lab reports & certifications"],
+    ['q:"How many videos and PDFs are included?"', 'q:"How many videos and lab reports are included?"'],
   ];
 
   // ── 26 October 2026: free cab travel for the first 50, yearly ₹199 Sales

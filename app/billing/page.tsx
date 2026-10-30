@@ -456,7 +456,7 @@ function PlanSummary({ isAdmin, quota }: { isAdmin: boolean; quota: number | nul
           <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.videos} process videos</li>
         )}
         {!legacy && plan.pdfs > 0 && (
-          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.pdfs} PDF reports</li>
+          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.pdfs} lab reports & certifications</li>
         )}
         {(legacy || plan.sharingControls) && (
           <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> One-time links and sharing restrictions</li>

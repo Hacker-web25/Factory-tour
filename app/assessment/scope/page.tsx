@@ -14,7 +14,7 @@ import Step2Scope from "@/components/funnel/Step2Scope";
 
 export const metadata: Metadata = {
   title: "What should buyers see?",
-  description: "Choose how many areas, process videos and PDF reports your Virtual Plant Visit should include.",
+  description: "Choose how many areas, process videos and lab reports & certifications your Virtual Plant Visit should include.",
   // Needs the answers from the step before it, so a visitor arriving from
   // a search result would land on a dead end.
   robots: { index: false, follow: false },

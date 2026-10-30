@@ -70,7 +70,7 @@ export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string }> = {
   share_links: { tier: "all", label: "Share a tour by link" },
 
   process_videos: { tier: "authority", label: "Process videos" },
-  pdf_reports: { tier: "authority", label: "PDF reports" },
+  pdf_reports: { tier: "authority", label: "Lab reports & certifications" },
 
   sharing_controls: { tier: "control", label: "One-time links and sharing restrictions" },
 
@@ -143,7 +143,7 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
 export const canUse = (f: WorkspaceFacts, key: FeatureKey) => accessTo(f, key).state === "open";
 export const isHidden = (f: WorkspaceFacts, key: FeatureKey) => accessTo(f, key).state === "hidden";
 
-/** How many process videos and PDF reports the plan includes. */
+/** How many process videos and lab reports & certifications the plan includes. */
 export function planLimits(f: WorkspaceFacts): { videos: number; pdfs: number } {
   if (f.role === "owner") return { videos: Infinity, pdfs: Infinity };
   const p = SITE_PLANS[effectivePlan(f)];

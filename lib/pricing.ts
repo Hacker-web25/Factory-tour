@@ -512,7 +512,7 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     tagline: "Prove you're a trusted manufacturer.",
     priceInr: 39_000,
     regularInr: 48_750,
-    plot: { label: "Plants up to 200 sq yards (gaj)", maxGaj: 200 },
+    plot: { label: "Recommended for factories up to 200 sq yards (gaj)", maxGaj: 200 },
     scenes: 4,
     videos: 0,
     pdfs: 0,
@@ -529,7 +529,7 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     tagline: "Show your systems, processes and capabilities.",
     priceInr: 59_000,
     regularInr: 73_750,
-    plot: { label: "Plants up to 500–600 sq yards (gaj)", maxGaj: 600 },
+    plot: { label: "Recommended for factories up to 500–600 sq yards (gaj)", maxGaj: 600 },
     scenes: 8,
     videos: 3,
     pdfs: 20,
@@ -546,7 +546,7 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     tagline: "Complete factory experience. Secure, controlled access and sharing.",
     priceInr: 90_000,
     regularInr: 112_500,
-    plot: { label: "Plants up to 1,000 sq yards (gaj)", maxGaj: 1000 },
+    plot: { label: "Recommended for factories up to 1,000 sq yards (gaj)", maxGaj: 1000 },
     scenes: 15,
     videos: 8,
     pdfs: 50,
@@ -567,7 +567,7 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     // 80% of ₹3,74,999 (to the rupee, after rounding).
     priceInr: 299_999,
     regularInr: 374_999,
-    plot: { label: "Plants of 1,000+ sq yards (gaj)", maxGaj: null },
+    plot: { label: "Recommended for factories of 1,000+ sq yards (gaj)", maxGaj: null },
     scenes: 25,
     videos: 15,
     pdfs: 100,
@@ -1334,7 +1334,7 @@ export type InvoiceLine = {
 export function planInclusionSentence(q: SiteQuote): string {
   const bits = [`360° factory walkthrough`, `${q.totalAreas} Active Operational Areas`];
   if (q.totalVideos > 0) bits.push(`${q.totalVideos} process videos`);
-  if (q.plan.pdfs > 0) bits.push(`${q.plan.pdfs} PDF reports`);
+  if (q.plan.pdfs > 0) bits.push(`${q.plan.pdfs} lab reports & certifications`);
   bits.push("information icons", "custom domain", "password-protected dashboard and branding");
   if (q.plan.sharingControls) bits.push("one-time link expiry and sharing restrictions");
   return `${bits.join(", ")}.`;
@@ -1515,7 +1515,7 @@ export function priceFor(
               [
                 q.addAreas > 0 ? `${q.addAreas} more areas` : "",
                 q.addVideos > 0 ? `${q.addVideos} more process videos` : "",
-                q.addPdfs > 0 ? `${q.addPdfs} more PDF reports` : "",
+                q.addPdfs > 0 ? `${q.addPdfs} more lab reports & certifications` : "",
                 SITE_PLANS[to].sharingControls && !SITE_PLANS[from].sharingControls ? "one-time links and sharing restrictions" : "",
               ]
                 .filter(Boolean)

@@ -22,6 +22,7 @@
 
 "use client";
 
+import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Factory, FileText, Plus, Sparkles, Video, X } from "lucide-react";
@@ -244,6 +245,58 @@ function FoldingGrid({
   );
 }
 
+/** A sub-heading inside a card. */
+function SubHeading({ children }: { children: React.ReactNode }) {
+  return <h3 className="mt-8 text-[14px] font-semibold text-vpv-ink">{children}</h3>;
+}
+
+/** The gold "picked for your industry" block at the top of a card. */
+function PickedPanel({
+  title,
+  note,
+  allIn,
+  count,
+  onAddAll,
+  children,
+}: {
+  title: string;
+  note: string;
+  allIn: boolean;
+  count: number;
+  onAddAll: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-6 rounded-2xl border border-[#E8C766] bg-[#FFFCF2] p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[14.5px] font-semibold text-vpv-ink">
+            <Sparkles className="h-4 w-4 text-[#B8860B]" aria-hidden /> {title}
+          </p>
+          <p className="mt-1 text-[13px] text-slate-600">{note}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAddAll}
+          disabled={allIn}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-vpv-grad px-4 py-2 text-[13px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(20,104,216,0.8)] transition-opacity hover:opacity-95 disabled:bg-none disabled:bg-vpv-tint disabled:text-vpv-blue disabled:shadow-none"
+        >
+          {allIn ? (
+            <>
+              <Check className="h-4 w-4" aria-hidden /> All added
+            </>
+          ) : (
+            <>
+              <Plus className="h-4 w-4" aria-hidden /> Add all {count}
+            </>
+          )}
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function Step2Scope() {
   const router = useRouter();
   const [s, setS] = useState<FunnelState | null>(null);
@@ -289,7 +342,7 @@ export default function Step2Scope() {
   const summary = useMemo(() => {
     const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`, `${videoCount} process video${videoCount === 1 ? "" : "s"}`];
     const pdfs = s?.pdfCount ?? 0;
-    parts.push(`${pdfs} PDF${pdfs === 1 ? "" : "s"}`);
+    parts.push(`${pdfs} report${pdfs === 1 ? "" : "s"}`);
     return parts.join(", ");
   }, [areaCount, videoCount, s?.pdfCount]);
 
@@ -367,16 +420,6 @@ export default function Step2Scope() {
   const areaStars = showStars ? stars.areaIds : [];
   const processStars = showStars ? stars.processIds : [];
 
-  const allPickedIn =
-    pickedAreas.every((a) => s.selectedAreas.includes(a.id)) &&
-    pickedProcesses.every((p) => s.selectedProcesses.includes(p.id));
-  const addAllPicked = () =>
-    setS({
-      ...s,
-      selectedAreas: [...new Set([...s.selectedAreas, ...pickedAreas.map((a) => a.id)])],
-      selectedProcesses: [...new Set([...s.selectedProcesses, ...pickedProcesses.map((p) => p.id)])],
-    });
-
   return (
     <>
       {header}
@@ -387,69 +430,38 @@ export default function Step2Scope() {
           </p>
         )}
 
-        {tailored.matched && (
-          <div className="mb-6 rounded-2xl border border-[#E8C766] bg-[#FFFCF2] p-6 sm:p-7">
-            <SectionTitle
-              icon={Sparkles}
-              title={`Picked for your ${industryWords} factory`}
-              aside={
-                <button
-                  type="button"
-                  onClick={addAllPicked}
-                  disabled={allPickedIn}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-vpv-grad px-4 py-2 text-[13px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(20,104,216,0.8)] transition-opacity hover:opacity-95 disabled:bg-none disabled:bg-vpv-tint disabled:text-vpv-blue disabled:shadow-none"
-                >
-                  {allPickedIn ? (
-                    <>
-                      <Check className="h-4 w-4" aria-hidden /> All added
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" aria-hidden /> Add all {pickedAreas.length + pickedProcesses.length}
-                    </>
-                  )}
-                </button>
-              }
-            >
-              What buyers of {industryWords} factories usually ask to see.
-              Each area is one AOA, a place they can stand in and look around in 360°; each process is a short video
-              of it running.
-            </SectionTitle>
-
-            <h3 className="mt-7 text-[14px] font-semibold text-vpv-ink">Areas</h3>
-            <TileGrid
-              items={pickedAreas}
-              selected={s.selectedAreas}
-              onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
-              starred={[]}
-              starLabel=""
-            />
-            {pickedProcesses.length > 0 && (
-              <>
-                <h3 className="mt-8 text-[14px] font-semibold text-vpv-ink">Process videos</h3>
-                <TileGrid
-                  items={pickedProcesses}
-                  selected={s.selectedProcesses}
-                  onToggle={(id) => setS({ ...s, selectedProcesses: toggle(s.selectedProcesses, id) })}
-                  starred={[]}
-                  starLabel=""
-                />
-                <p className="mt-4 text-[12.5px] text-slate-500">{VIDEO_SHOT_NOTE}</p>
-              </>
-            )}
-          </div>
-        )}
-
+        {/* 1. AREAS — picked for their industry, then everything else, then their own. */}
         <Card>
           <SectionTitle
             icon={Factory}
-            title={tailored.matched ? "More areas" : "Active Operational Areas"}
+            title="Active Operational Areas"
             aside={<CountPill n={areaCount} unit="selected" />}
           >
-            {tailored.matched
-              ? "Anything else in your plant a buyer should see."
-              : "An Active Operational Area (AOA) is one place in your plant a buyer can stand in and look around, in 360°. Most plants pick between 6 and 15."}
+            An Active Operational Area (AOA) is one place in your plant a buyer can stand in and look around, in
+            360°. Most plants pick between 6 and 15.
           </SectionTitle>
+
+          {pickedAreas.length > 0 && (
+            <PickedPanel
+              title={`Picked for your ${industryWords} factory`}
+              note={`What buyers of ${industryWords} factories usually ask to see.`}
+              allIn={pickedAreas.every((a) => s.selectedAreas.includes(a.id))}
+              count={pickedAreas.length}
+              onAddAll={() =>
+                setS({ ...s, selectedAreas: [...new Set([...s.selectedAreas, ...pickedAreas.map((a) => a.id)])] })
+              }
+            >
+              <TileGrid
+                items={pickedAreas}
+                selected={s.selectedAreas}
+                onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
+                starred={[]}
+                starLabel=""
+              />
+            </PickedPanel>
+          )}
+
+          {tailored.matched && <SubHeading>More areas</SubHeading>}
           {areaStars.length > 0 && <StarLegend phase={stars.phase} />}
           <FoldingGrid
             items={generalAreas}
@@ -461,23 +473,50 @@ export default function Step2Scope() {
             onUnfold={() => setAreasOpen(true)}
             unit="areas"
           />
+
+          <SubHeading>Something we haven&rsquo;t listed?</SubHeading>
+          <p className="mt-1 text-[13px] text-slate-500">Type it in and press Add. Add as many as you need.</p>
           <CustomAdder
-            placeholder="Add an area that isn't listed"
+            placeholder="e.g. Effluent treatment plant"
             items={s.customAreas}
             onChange={(customAreas) => setS({ ...s, customAreas })}
           />
         </Card>
 
+        {/* 2. PROCESS VIDEOS — same order: picked, more, their own. */}
         <Card className="mt-6">
           <SectionTitle
             icon={Video}
-            title={tailored.matched ? "More process videos" : "Process videos"}
+            title="Process videos"
             aside={<CountPill n={videoCount} unit="selected" />}
           >
-            {tailored.matched
-              ? "Any other process worth filming."
-              : `A short clip of a process actually running. An area shows a buyer the place; a video shows them the work. ${VIDEO_SHOT_NOTE}`}
+            {`A short clip of a process actually running. An area shows a buyer the place; a video shows them the work. ${VIDEO_SHOT_NOTE}`}
           </SectionTitle>
+
+          {pickedProcesses.length > 0 && (
+            <PickedPanel
+              title={`Picked for your ${industryWords} factory`}
+              note="The processes buyers in your industry most often want to see running."
+              allIn={pickedProcesses.every((p) => s.selectedProcesses.includes(p.id))}
+              count={pickedProcesses.length}
+              onAddAll={() =>
+                setS({
+                  ...s,
+                  selectedProcesses: [...new Set([...s.selectedProcesses, ...pickedProcesses.map((p) => p.id)])],
+                })
+              }
+            >
+              <TileGrid
+                items={pickedProcesses}
+                selected={s.selectedProcesses}
+                onToggle={(id) => setS({ ...s, selectedProcesses: toggle(s.selectedProcesses, id) })}
+                starred={[]}
+                starLabel=""
+              />
+            </PickedPanel>
+          )}
+
+          {tailored.matched && <SubHeading>More process videos</SubHeading>}
           {processStars.length > 0 && <StarLegend phase={stars.phase} />}
           <FoldingGrid
             items={generalProcesses}
@@ -489,8 +528,11 @@ export default function Step2Scope() {
             onUnfold={() => setProcessesOpen(true)}
             unit="processes"
           />
+
+          <SubHeading>A process we haven&rsquo;t listed?</SubHeading>
+          <p className="mt-1 text-[13px] text-slate-500">Type it in and press Add. Add as many as you need.</p>
           <CustomAdder
-            placeholder="Add a process that isn't listed"
+            placeholder="e.g. Heat treatment"
             items={s.customProcesses}
             onChange={(customProcesses) => setS({ ...s, customProcesses })}
           />
@@ -508,14 +550,15 @@ export default function Step2Scope() {
           </div>
         </Card>
 
+        {/* 3. LAB REPORTS & CERTIFICATIONS */}
         <Card className="mt-6">
-          <SectionTitle icon={FileText} title="PDF reports">
-            Certificates, test reports, datasheets or brochures a buyer can open from inside the tour.
-            ISO certificates and material test reports are the usual ones. Leave it at zero if you
-            would rather not; you can add them later from your dashboard.
+          <SectionTitle icon={FileText} title="Lab reports & certifications">
+            Attach your lab reports, test certificates and certifications (ISO, CE, GMP and the like) to your VPV as
+            PDFs or images. Buyers open them right inside the tour, at the spot they belong to. Leave it at zero if
+            you would rather not; you can add them later from your dashboard.
           </SectionTitle>
           <div className="mt-5 pl-[60px]">
-            <Counter value={s.pdfCount ?? 0} onChange={(n) => setS({ ...s, pdfCount: n })} min={0} max={40} suffix="PDFs" />
+            <Counter value={s.pdfCount ?? 0} onChange={(n) => setS({ ...s, pdfCount: n })} min={0} max={40} suffix="documents" />
           </div>
         </Card>
 

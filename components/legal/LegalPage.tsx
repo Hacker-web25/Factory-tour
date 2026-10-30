@@ -1,20 +1,19 @@
 /**
  * LegalPage — the shared shell for every policy and company page.
  *
- *   • Sticky header with the VPV mark and the key public links
+ *   • The shared site header (components/site/SiteHeader.tsx)
  *   • Title block with the effective date
  *   • "On this page" contents (sticky on desktop, collapsible on phones)
  *   • Numbered sections with stable #anchors, so one clause can be linked
  *     in an e-mail ("see /terms#price-changes")
  *   • Full footer with every policy link
  *
- * Server component, zero client JS: it prints cleanly, loads instantly
- * and can be exported as static HTML for the marketing site.
+ * Server component; only the shared header carries a little client JS.
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import VpvLogo from "@/components/dashboard/VpvLogo";
+import SiteHeader from "@/components/site/SiteHeader";
 import { COMPANY, POLICY } from "@/lib/company";
 import { SiteFooter } from "./SiteFooter";
 
@@ -25,46 +24,8 @@ export type LegalSection = {
   body: ReactNode;
 };
 
-const HEADER_LINKS = [
-  { href: "/why-vpv", label: "Why VPV" },
-  { href: "/plans", label: "Pricing" },
-  { href: "/about", label: "About" },
-  { href: "/security", label: "Security" },
-  { href: "/contact", label: "Contact" },
-];
-
-export function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-30 border-b border-vpv-line bg-white/90 backdrop-blur print:hidden">
-      <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between gap-4">
-        <a href={COMPANY.website} aria-label="VPV home" className="shrink-0">
-          <VpvLogo sublabel={null} height={24} />
-        </a>
-        <nav className="hidden sm:flex items-center gap-7 text-[13px] text-vpv-muted">
-          {HEADER_LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="hover:text-vpv-blue transition-colors">
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex shrink-0 items-center gap-2.5">
-          <Link
-            href="/assessment"
-            className="hidden sm:inline-flex rounded-full bg-vpv-grad px-4 py-2 text-[12.5px] font-semibold text-white shadow-[0_8px_22px_-10px_rgba(20,104,216,0.7)] hover:opacity-90 transition-opacity"
-          >
-            Get started
-          </Link>
-          <a
-            href={COMPANY.loginUrl}
-            className="rounded-full border border-vpv-line px-4 py-2 text-[12.5px] font-semibold text-vpv-ink hover:border-vpv-blue/40 hover:text-vpv-blue transition-colors"
-          >
-            Sign in
-          </a>
-        </div>
-      </div>
-    </header>
-  );
-}
+/** The one public site header (shared with the marketing pages). */
+export { SiteHeader };
 
 /** Header + footer wrapper for the company pages (pricing, contact, about)
  *  that bring their own hero instead of the policy title block. */

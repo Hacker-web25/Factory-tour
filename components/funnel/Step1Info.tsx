@@ -207,7 +207,7 @@ export default function Step1Info() {
 
             <div className="mt-4">
               <Field
-                label="What does your factory make?"
+                label="What does your factory produce?"
                 required
                 error={errors.industry}
                 hint={

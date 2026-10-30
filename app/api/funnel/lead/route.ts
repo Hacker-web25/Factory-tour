@@ -134,7 +134,7 @@ export async function POST(req: Request) {
   if (phone) patch.phone = phone;
   if (email && validEmail(email)) patch.email = email;
 
-  // "What does your factory make?" is now typed. Keep their exact words, and
+  // "What does your factory produce?" is now typed. Keep their exact words, and
   // work out the industry here as well, so the lead row says "Foundry,
   // castings & forgings" whatever the browser sent.
   const industryText = clean(body.industryText, 160);

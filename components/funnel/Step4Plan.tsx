@@ -281,7 +281,7 @@ export default function Step4Plan() {
     { icon: Maximize2, text: plan.plot.label },
     { icon: Layers, text: `${plan.scenes} Active Operational Areas` },
     { icon: Video, text: plan.videos > 0 ? `${plan.videos} process videos` : "Process videos as add-ons" },
-    { icon: FileText, text: plan.pdfs > 0 ? `${plan.pdfs} PDF reports` : "PDF reports as add-ons" },
+    { icon: FileText, text: plan.pdfs > 0 ? `${plan.pdfs} lab reports & certifications` : "Lab reports & certifications as add-ons" },
     { icon: Clock, text: `${hoursLabel(plan.shootHours)} of shoot time on site` },
     { icon: Check, text: "Information icons on every hotspot" },
     { icon: Check, text: "Your own branded workspace and domain" },
@@ -531,7 +531,7 @@ export default function Step4Plan() {
                       </li>
                     )}
                     <li>{p.scenes} areas</li>
-                    <li>{p.videos} process videos, {p.pdfs} PDF reports</li>
+                    <li>{p.videos} process videos, {p.pdfs} lab reports & certifications</li>
                     <li>{hoursLabel(p.shootHours)} shoot</li>
                     <li className={p.sharingControls ? "font-medium text-vpv-blue" : "text-slate-400"}>
                       {p.sharingControls ? "Sharing controls included" : "No sharing controls"}

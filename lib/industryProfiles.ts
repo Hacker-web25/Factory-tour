@@ -1,5 +1,5 @@
 /**
- * lib/industryProfiles.ts — "What does your factory make?", answered in
+ * lib/industryProfiles.ts — "What does your factory produce?", answered in
  * the buyer's own words, turned into the areas and processes worth showing.
  *
  * Step 1 used to make people find their trade in a 90-item dropdown, and

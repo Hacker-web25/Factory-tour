@@ -236,7 +236,7 @@ function PlanUpgradeCard({
   const gains = [
     q.addAreas > 0 ? `${q.addAreas} more areas — ${areasNow + q.addAreas} in all` : null,
     plan.videos > 0 ? `${plan.videos} process videos` : null,
-    plan.pdfs > 0 ? `${plan.pdfs} PDF reports` : null,
+    plan.pdfs > 0 ? `${plan.pdfs} lab reports & certifications` : null,
     plan.sharingControls ? "One-time links and sharing restrictions" : null,
     `${plan.shootHours} hours of shoot time`,
   ].filter(Boolean) as string[];
