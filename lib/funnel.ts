@@ -36,7 +36,7 @@ export type FunnelState = {
   industry: string;
   /** Kept for leads saved before the typed answer existed. */
   industryOther: string;
-  /** What they typed for "What does your factory make?". */
+  /** What they typed for "What does your factory produce?". */
   industryText: string;
   /** Industry guesses the visitor removed from the chips. */
   industryExcluded: string[];
@@ -279,7 +279,7 @@ export function recommendPlan(s: {
   if (fit) {
     if (aoa > 0) reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with ${p.scenes} included.`);
     if (videos > 0) reasons.push(`Includes ${p.videos} process videos — you asked for ${videos}.`);
-    if (pdfs > 0) reasons.push(`Includes ${p.pdfs} PDF reports — you asked for ${pdfs}.`);
+    if (pdfs > 0) reasons.push(`Includes ${p.pdfs} lab reports & certifications — you asked for ${pdfs}.`);
     return { plan: chosen, reasons, extraAreas: 0, extraVideos: 0, needsExtras: false };
   }
 
@@ -292,7 +292,7 @@ export function recommendPlan(s: {
   }
   if (extraAreas > 0) reasons.push(`${extraAreas} extra area${extraAreas === 1 ? "" : "s"} on top of the ${p.scenes} included.`);
   if (extraVideos > 0) reasons.push(`${extraVideos} extra process video${extraVideos === 1 ? "" : "s"} on top of the ${p.videos} included.`);
-  if (pdfs > p.pdfs) reasons.push(`${p.pdfs} PDF reports are included; you can add more from your dashboard.`);
+  if (pdfs > p.pdfs) reasons.push(`${p.pdfs} lab reports & certifications are included; you can add more from your dashboard.`);
   return { plan: chosen, reasons, extraAreas, extraVideos, needsExtras: true };
 }
 

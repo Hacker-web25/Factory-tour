@@ -99,7 +99,7 @@ export default function UpgradePrompt() {
     : [
         q && q.addAreas > 0 ? `${q.addAreas} more areas` : "",
         q && q.addVideos > 0 ? `${to!.videos} process videos` : "",
-        q && q.addPdfs > 0 ? `${to!.pdfs} PDF reports` : "",
+        q && q.addPdfs > 0 ? `${to!.pdfs} lab reports & certifications` : "",
         to!.sharingControls && !from.sharingControls ? "One-time links and sharing restrictions" : "",
       ].filter(Boolean);
 

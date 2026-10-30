@@ -19,10 +19,18 @@
 
 export const DEMO_TOUR_ID: string = process.env.NEXT_PUBLIC_DEMO_TOUR_ID ?? "";
 
-/** The fallback: the site's existing Kuula demo collection, with Kuula's
- *  own thumbnails and branding off so our frame is the only chrome. */
+/** The first real scene of the demo collection ("Entrance"). The
+ *  collection's own first post is an index/cover image; opening on it made
+ *  every visitor wait for a picture and then click in. Starting here puts
+ *  them inside the factory, looking around, the moment it loads. */
+export const KUULA_FIRST_SCENE = "5dmM7";
+
+/** The fallback: the site's existing Kuula demo collection, opened on its
+ *  first real scene, with Kuula's own thumbnails and branding off so our
+ *  frame is the only chrome. No auto-advance (`autop`): it would cycle the
+ *  visitor back round to the index page. */
 export const KUULA_DEMO_URL =
-  "https://kuula.co/share/collection/7cprp?logo=-1&info=0&fs=0&vr=0&sd=1&autorotate=0.6&autop=9&thumbs=0&inst=0";
+  `https://kuula.co/share/${KUULA_FIRST_SCENE}/collection/7cprp?logo=-1&info=0&fs=0&vr=0&sd=1&autorotate=0.6&thumbs=0&inst=0`;
 
 export function experienceSource(): { kind: "vpv" | "kuula"; src: string } {
   const id = DEMO_TOUR_ID.trim();

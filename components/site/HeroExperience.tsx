@@ -8,10 +8,9 @@
  *
  *   top bar     VPV, "Live factory tour", a full-screen button that works
  *   the stage   the tour itself — drag, swipe, pinch, tap the hotspots
- *   coach mark  two steps: the tour opens on the factory's index page,
- *               so the first mark points at the arrow that walks them
- *               in; the drag mark follows, and both go the moment they
- *               touch the tour
+ *   coach mark  "drag to look around"; the tour opens straight inside the
+ *               factory (no index page), and the mark goes the moment
+ *               they touch the tour
  *   bottom bar  what they just did, and "Get this for your factory"
  *
  * The coach mark cannot see a touch inside the tour (the tour is its own
@@ -22,26 +21,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronRight, Hand, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowRight, Hand, Maximize2, Minimize2 } from "lucide-react";
 import { experienceSource } from "@/lib/site/experience";
 import { VPV_LOGO_URL } from "@/components/dashboard/VpvLogo";
 
-const TIPS = ["Use the arrows to walk through", "Drag to look around", "Tap the glowing dots", "Pinch or scroll to zoom"];
+const TIPS = ["Drag to look around", "Tap the glowing dots", "Use the arrows to walk through", "Pinch or scroll to zoom"];
 
-/** The tour opens on the factory's index, so the arrow comes first. */
-const COACH = [
-  { icon: ChevronRight, anim: "xp-nudge", text: "Click the arrow to enter the factory" },
-  { icon: Hand, anim: "xp-drag", text: "Drag to look around this factory" },
-] as const;
-/** How long the drag mark stays once the arrow mark has done its job. */
-const DRAG_MARK_MS = 7000;
+/** The tour opens inside the factory, so the one mark is "drag". */
+const COACH = [{ icon: Hand, anim: "xp-drag", text: "Drag to look around this factory" }] as const;
+/** How long the drag mark stays if they don't touch the tour. */
+const DRAG_MARK_MS = 9000;
 
 export default function HeroExperience() {
   const stage = useRef<HTMLDivElement>(null);
   const [src] = useState(experienceSource);
   const [loaded, setLoaded] = useState(false);
   const [touched, setTouched] = useState(false);
-  const [step, setStep] = useState(0);
   const [full, setFull] = useState(false);
   const [tip, setTip] = useState(0);
 
@@ -54,34 +49,21 @@ export default function HeroExperience() {
   // that leftover timer instead of letting it fire late.
   useEffect(() => {
     if (touched) return;
-    if (step === 0) {
-      // Arrow mark: gone the moment they click in, or after 9s if they don't.
-      const onBlur = () => setStep(1);
-      window.addEventListener("blur", onBlur);
-      const t = setTimeout(() => setStep(1), 9000);
-      return () => {
-        window.removeEventListener("blur", onBlur);
-        clearTimeout(t);
-      };
-    }
-    if (step === 1) {
-      // Drag mark: up for its own fixed window, then done either way.
-      const t = setTimeout(() => setTouched(true), DRAG_MARK_MS);
-      return () => clearTimeout(t);
-    }
-  }, [step, touched]);
+    // Drag mark: gone the moment they press into the tour, or after a while.
+    const onBlur = () => setTouched(true);
+    window.addEventListener("blur", onBlur);
+    const t = setTimeout(() => setTouched(true), DRAG_MARK_MS);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      clearTimeout(t);
+    };
+  }, [touched]);
 
-  // The ticker holds on the arrow tip while the arrow coach mark is up, so
-  // the two never tell the visitor different things at the same moment.
+  // The ticker of tips along the bottom.
   useEffect(() => {
-    if (step < 1) return;
     const id = setInterval(() => setTip((i) => (i + 1) % TIPS.length), 2600);
     return () => clearInterval(id);
-  }, [step]);
-
-  useEffect(() => {
-    if (step >= 1) setTip((i) => (i === 0 ? 1 : i));
-  }, [step]);
+  }, []);
 
   useEffect(() => {
     const onChange = () => setFull(Boolean(document.fullscreenElement));
@@ -157,17 +139,16 @@ export default function HeroExperience() {
 
       {/* Coach marks: a caption low on the stage, clear of the tour's own
           scene and its own navigation arrows, which sit mid-screen. */}
-      {loaded && !touched && step < COACH.length && (
+      {loaded && !touched && (
         <div className="pointer-events-none absolute inset-x-0 bottom-[84px] flex justify-center px-4 sm:bottom-[96px]">
           <div
-            key={step}
             className="xp-fade flex items-center gap-2.5 rounded-full bg-black/60 py-2.5 pl-3 pr-4 shadow-lg backdrop-blur-sm"
           >
             {(() => {
-              const { icon: Icon, anim } = COACH[step];
+              const { icon: Icon, anim } = COACH[0];
               return <Icon className={`${anim} h-5 w-5 shrink-0`} aria-hidden />;
             })()}
-            <p className="text-[13.5px] font-semibold leading-tight sm:text-[14.5px]">{COACH[step].text}</p>
+            <p className="text-[13.5px] font-semibold leading-tight sm:text-[14.5px]">{COACH[0].text}</p>
           </div>
         </div>
       )}
