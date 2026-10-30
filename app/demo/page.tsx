@@ -3,7 +3,8 @@
  *
  * A real, public factory tour (lib/site/demo.ts) in TourPlayer — the same
  * viewer a salesperson presents with at /present — under the site header.
- * It opens on the first real scene; the tour's index pages are left out.
+ * A short, light cut: twelve named scenes (no index pages), pre-shrunk
+ * images served by this site — see lib/site/demo.ts.
  * Presenter chrome is kept to what a visitor needs: a full-screen button
  * and one way to get a VPV of their own.
  */
@@ -17,7 +18,7 @@ import type { Scene, Tour } from "@/lib/types";
 import TourPlayer from "@/components/viewer/TourPlayer";
 import SiteHeader from "@/components/site/SiteHeader";
 import { clearViewContext, setViewContext } from "@/lib/viewContext";
-import { DEMO_PAGE_START_SCENE, DEMO_PAGE_TOUR_ID } from "@/lib/site/demo";
+import { DEMO_PAGE_TOUR_ID, DEMO_SCENES, demoPanoramaPath, demoThumbPath } from "@/lib/site/demo";
 
 type State =
   | { kind: "loading" }
@@ -42,12 +43,24 @@ export default function DemoPage() {
           supabase.rpc("tour_is_locked", { p_tour_id: DEMO_PAGE_TOUR_ID }),
         ]);
         if (cancelled) return;
-        // The tour's index/cover scenes come before its first real scene;
-        // the demo leaves them out entirely (the player also hides any
-        // hotspot that pointed at them, e.g. "Go to main index").
-        const all = ((s ?? []) as Scene[]).slice().sort((a, b) => a.order_index - b.order_index);
-        const at = DEMO_PAGE_START_SCENE ? all.findIndex((x) => x.id === DEMO_PAGE_START_SCENE) : -1;
-        const scenes = at > 0 ? all.slice(at) : all;
+        // A short, light cut of the tour: the hand-picked scenes only, in
+        // walking order, named, with the site's own pre-shrunk images (see
+        // lib/site/demo.ts). Hotspots stay live; navigation hotspots to a
+        // scene outside the cut are hidden by the player.
+        const byId = new Map(((s ?? []) as Scene[]).map((x) => [x.id, x]));
+        const small = window.matchMedia("(max-width: 1023px)").matches;
+        const scenes: Scene[] = [];
+        DEMO_SCENES.forEach((d, i) => {
+          const live = byId.get(d.id);
+          if (!live) return;
+          scenes.push({
+            ...live,
+            name: d.name,
+            order_index: i,
+            image_path: demoPanoramaPath(d.file, small),
+            thumbnail_path: demoThumbPath(d.file),
+          });
+        });
         if (!t || locked === true || scenes.length === 0) setState({ kind: "unavailable" });
         else setState({ kind: "ok", tour: t as Tour, scenes });
       } catch {
@@ -58,6 +71,21 @@ export default function DemoPage() {
       cancelled = true;
     };
   }, []);
+
+  // Warm the next two scenes once the first is up, so the first steps
+  // through the factory are instant. Only two: a visitor who leaves early
+  // should not have paid for the whole tour.
+  useEffect(() => {
+    if (state.kind !== "ok") return;
+    const t = setTimeout(() => {
+      for (const sc of state.scenes.slice(1, 3)) {
+        const img = new window.Image();
+        img.decoding = "async";
+        img.src = sc.image_path;
+      }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [state]);
 
   useEffect(() => {
     const onChange = () => setFull(Boolean(document.fullscreenElement));

@@ -214,6 +214,14 @@ const nextConfig = {
           { key: "Vary", value: "Origin" },
         ],
       },
+      // The /demo tour's pre-shrunk panoramas: cached for a week by browsers
+      // and the CDN, so a returning visitor downloads nothing again.
+      {
+        source: "/demo/vee-tee/:file",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
+        ],
+      },
       // Static assets can cache aggressively.
       {
         source: "/_next/static/:path*",

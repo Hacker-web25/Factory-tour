@@ -38,6 +38,9 @@ export const PANORAMA_BUCKET = "panoramas";
 /** Public URL for a panorama-bucket path. Kept as the default for
  *  back-compat with the many callers that only ever meant panoramas. */
 export function publicUrl(path: string) {
+  // A path that is already a URL, or a file this site serves itself
+  // ("/demo/…"), is used as it is.
+  if (/^(https?:)?\/\//i.test(path) || path.startsWith("/")) return path;
   return supabase.storage.from(PANORAMA_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
