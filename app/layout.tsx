@@ -88,9 +88,16 @@ export const metadata: Metadata = {
       "Premium 360° virtual tours for factories and manufacturing sites.",
     images: ["https://myvpv.com/vpv-og.png"],
   },
+  // The "V" mark, the same tab icon the marketing pages use. (The wide
+  // VPV wordmark used here before was squeezed into the tab.) Relative
+  // paths, so customer subdomains load it from their own host.
   icons: {
-    icon: "https://myvpv.com/vpv-mark.png",
-    apple: "https://myvpv.com/vpv-mark.png",
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/vpv-icon-512.png",
   },
   alternates: {
     canonical: "https://myvpv.com/",
