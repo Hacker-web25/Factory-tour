@@ -18,7 +18,7 @@
  * Look and feel: shares AuthSplit with /login so both pages match.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -28,6 +28,10 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
+import TurnstileBox, {
+  type TurnstileHandle,
+  type TurnstileState,
+} from "@/components/auth/TurnstileBox";
 import AuthSplit, {
   ConsentCheckbox,
   authButtonPrimary,
@@ -71,6 +75,11 @@ export default function SalesSignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Cloudflare Turnstile token (single-use — reset after every attempt).
+  const captchaRef = useRef<TurnstileHandle>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaState, setCaptchaState] = useState<TurnstileState>("loading");
 
   // Already-signed-in presenter with no org? Must have come back after
   // email confirmation. Skip the account form and jump straight to the
@@ -124,6 +133,11 @@ export default function SalesSignupPage() {
       return;
     }
 
+    if (!captchaToken && captchaState === "loading") {
+      setError("One moment — the security check is still loading. Please try again.");
+      return;
+    }
+
     setBusy(true);
 
     // Create the Supabase auth user.
@@ -131,6 +145,7 @@ export default function SalesSignupPage() {
       email: email.trim().toLowerCase(),
       password,
       options: {
+        captchaToken: captchaToken ?? undefined,
         data: {
           full_name: fullName.trim(),
           name: fullName.trim(),
@@ -138,6 +153,7 @@ export default function SalesSignupPage() {
         },
       },
     });
+    captchaRef.current?.reset();
     setBusy(false);
     if (signUpError) {
       setError(signUpError.message);
@@ -303,6 +319,13 @@ export default function SalesSignupPage() {
           <div className="mt-1">
             <ConsentCheckbox checked={consent} onChange={setConsent} />
           </div>
+
+          <TurnstileBox
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onState={setCaptchaState}
+            className="mt-3 flex justify-center"
+          />
 
           {error && (
             <div className={authErrorBox}>

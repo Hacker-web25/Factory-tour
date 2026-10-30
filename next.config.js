@@ -93,12 +93,12 @@ const securityHeaders = [
       // Analytics: Google Analytics 4 and Microsoft Clarity, per each
       // vendor's own CSP guide. Without these the browser blocks both tags
       // silently and the dashboards stay empty.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com https://*.googletagmanager.com https://*.clarity.ms",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com https://*.googletagmanager.com https://*.clarity.ms https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
-      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com",
+      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com https://challenges.cloudflare.com",
       "media-src 'self' blob: https://*.supabase.co",
       "worker-src 'self' blob:",
       "object-src 'none'",

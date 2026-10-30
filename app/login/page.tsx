@@ -22,7 +22,7 @@
  *     see TAGLINE below).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -63,6 +63,10 @@ import {
 import { claimDeviceSlot, isNewDevice } from "@/lib/deviceSessions";
 import { notifyNewDevice } from "@/lib/newDeviceNotify";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
+import TurnstileBox, {
+  type TurnstileHandle,
+  type TurnstileState,
+} from "@/components/auth/TurnstileBox";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -73,6 +77,11 @@ export default function LoginPage() {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Cloudflare Turnstile ("are you a person?") — token is single-use, so it is reset after every attempt.
+  const captchaRef = useRef<TurnstileHandle>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaState, setCaptchaState] = useState<TurnstileState>("loading");
 
   // Rate-limit state — populated by checkLoginLockout
   const [lockedUntil, setLockedUntil] = useState<Date | null>(null);
@@ -159,6 +168,11 @@ export default function LoginPage() {
       return;
     }
 
+    if (!captchaToken && captchaState === "loading") {
+      setError("One moment — the security check is still loading. Please try again.");
+      return;
+    }
+
     setBusy(true);
 
     // 1. Rate-limit check BEFORE touching Supabase auth.
@@ -175,8 +189,15 @@ export default function LoginPage() {
     }
 
     // 2. Actual sign-in.
-    const { error: authError } = await signIn(email, password);
+    const { error: authError } = await signIn(email, password, captchaToken);
+    captchaRef.current?.reset();
     if (authError) {
+      if (/captcha/i.test(authError.message)) {
+        // The security check failed, not the password — don't count it against the account.
+        setError("The security check could not be completed. Please wait a moment and try again.");
+        setBusy(false);
+        return;
+      }
       await recordLoginAttempt(email, false);
       // After recording, re-check — the 5th failure flips the lock.
       const after = await checkLoginLockout(email);
@@ -342,6 +363,13 @@ export default function LoginPage() {
 
           <ConsentCheckbox checked={consent} onChange={setConsent} />
 
+          <TurnstileBox
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onState={setCaptchaState}
+            className="mb-3 flex justify-center"
+          />
+
           {error && (
             <div className={authErrorBox}>
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -411,18 +439,27 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaState, setCaptchaState] = useState<TurnstileState>("loading");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    if (!captchaToken && captchaState === "loading") {
+      setError("One moment — the security check is still loading. Please try again.");
+      return;
+    }
+    setBusy(true);
     const redirectTo =
       typeof window !== "undefined"
         ? `${window.location.origin}/auth/reset`
         : undefined;
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo,
+      captchaToken: captchaToken ?? undefined,
     });
+    captchaRef.current?.reset();
     setBusy(false);
     if (error) {
       setError(error.message);
@@ -463,6 +500,12 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
               className="w-full rounded-xl border border-vpv-line bg-white px-3.5 py-3 pl-10 text-[14px] text-vpv-ink outline-none transition-all placeholder:text-vpv-muted/50 focus:border-vpv-blue focus:ring-2 focus:ring-vpv-blue/15"
             />
           </div>
+          <TurnstileBox
+            ref={captchaRef}
+            onToken={setCaptchaToken}
+            onState={setCaptchaState}
+            className="mb-3 flex justify-center"
+          />
           {error && (
             <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-[12.5px] text-rose-700">
               {error}
