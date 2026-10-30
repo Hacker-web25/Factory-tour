@@ -61,6 +61,7 @@ const APEX_ONLY_PATHS = [
   "/setup",          // post-signup org creation (you sign in on the apex)
   "/apply",          // public qualification form
   "/why-vpv",        // the loss calculator, linked from the site
+  "/demo",           // the live demo tour, in the site menu
   "/experience",     // the live tour the homepage hero frames
   "/admin",          // platform-owner admin
   "/dashboard",      // platform-owner dashboard

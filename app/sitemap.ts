@@ -47,6 +47,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const seen = new Set(site.map((e) => e.url));
   return [
     ...site,
+    { url: `${SITE}/demo`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: `${SITE}/why-vpv`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE}/apply`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     ...company.filter((e) => !seen.has(e.url)),

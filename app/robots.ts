@@ -33,6 +33,7 @@ const PUBLIC_PATHS = [
   "/plans",
   "/case-studies",
   "/why-vpv",
+  "/demo",
   "/faq",
   "/assessment",
   "/get-started",
