@@ -1607,9 +1607,14 @@ function TourPlayerInner({
                   tabIndex={stripHidden ? -1 : 0}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {/* The small thumbnail when the scene has one; and only the
+                      tiles scrolled into view load, so a 70-scene strip no
+                      longer downloads 70 full panoramas on open. */}
                   <img
-                    src={publicUrl(s.image_path)}
+                    src={publicUrl(s.thumbnail_path ?? s.image_path)}
                     alt={s.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                   {/* Very translucent glass strip along the bottom carrying
