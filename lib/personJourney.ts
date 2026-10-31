@@ -25,6 +25,7 @@
  * Pure: rows in, a story out. Tested without a database.
  */
 
+import { journeyStartMs, scopeEvents } from "@/lib/journeyScope";
 import {
   folderDetail,
   type FolderCodeRow,
@@ -372,7 +373,23 @@ export function personJourney(input: {
     list.push(m);
   };
   for (const s of humanScans) push(s.visitor_id ?? "no-cookie", { t: ms(s.created_at), kind: "scan", scan: s });
-  for (const e of events) push(e.visitor_id, { t: ms(e.created_at), kind: "event", event: e });
+  {
+    // The person's own pages only: public pages, from the scan on (see journeyScope).
+    const byVisitor = new Map<string, FolderEventRow[]>();
+    for (const e of events) {
+      const list = byVisitor.get(e.visitor_id) ?? [];
+      list.push(e);
+      byVisitor.set(e.visitor_id, list);
+    }
+    const startMs = journeyStartMs(
+      code.code,
+      humanScans.map((s) => s.created_at),
+      events
+    );
+    for (const list of byVisitor.values()) {
+      for (const e of scopeEvents(list, startMs)) push(e.visitor_id, { t: ms(e.created_at), kind: "event", event: e });
+    }
+  }
 
   /* ── 2. split each browser's moments into visits ───────────────────────── */
   const groups: { key: string; moments: Moment[] }[] = [];

@@ -656,6 +656,8 @@ export type FolderPerson = {
   revenueInr: number;
 };
 
+import { journeyStartMs, scopeEvents } from "@/lib/journeyScope";
+
 const SESSION_GAP_MS = 30 * 60 * 1000;
 
 /** A string out of an event's meta, trimmed and capped. */
@@ -804,7 +806,15 @@ export function folderDetail(input: {
         if (lastAt === null || ls > lastAt) lastAt = ls;
       }
 
-      for (const e of eventsOf.get(vid) ?? []) {
+      // Only the person's own journey: public pages, from the scan on. The same
+      // browser may also have been used for the admin or an earlier test.
+      const allOfVisitor = eventsOf.get(vid) ?? [];
+      const startMs = journeyStartMs(
+        c.code,
+        codeScans.map((x) => x.created_at),
+        allOfVisitor
+      );
+      for (const e of scopeEvents(allOfVisitor, startMs)) {
         const t = ms(e.created_at);
         if (lastAt === null || t > lastAt) lastAt = t;
         if (e.session_id) sessions.add(e.session_id);
