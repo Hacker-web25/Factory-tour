@@ -381,7 +381,7 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
               </div>
             ) : (
               <div className="mt-4 overflow-x-auto rounded-2xl border border-vpv-line bg-white shadow-sm">
-                <table className="w-full min-w-[1040px] text-left text-[13.5px]">
+                <table className="w-full min-w-[1180px] text-left text-[13.5px]">
                   <thead className="border-b border-vpv-line bg-vpv-canvas text-[12px] text-slate-500">
                     <tr>
                       <th className="px-4 py-3 font-medium">#</th>
@@ -389,6 +389,7 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
                       <th className="px-4 py-3 font-medium">Opened</th>
                       <th className="px-4 py-3 font-medium">Website</th>
                       <th className="px-4 py-3 font-medium">Got as far as</th>
+                      <th className="px-4 py-3 font-medium">Pages visited</th>
                       <th className="px-4 py-3 text-right font-medium">Time on site</th>
                       <th className="px-4 py-3 font-medium">Interest</th>
                       <th className="px-4 py-3 font-medium">Contact</th>
@@ -643,6 +644,24 @@ function PersonRow({ p, href, onOpen }: { p: FolderPerson; href: string; onOpen:
 
       <td className="px-4 py-3 text-[13px]">
         {p.opened ? p.stageLabel : <span className="text-vpv-muted">—</span>}
+      </td>
+      <td className="px-4 py-3 text-[13px]">
+        {p.pages.length > 0 ? (
+          <div>
+            <div className="font-medium text-vpv-ink">
+              {p.pages.length} {p.pages.length === 1 ? "page" : "pages"}
+            </div>
+            <div className="mt-0.5 max-w-[260px] text-[11.5px] leading-snug text-vpv-muted">
+              {p.pages
+                .slice(0, 4)
+                .map((x) => x.label)
+                .join(" · ")}
+              {p.pages.length > 4 ? ` · +${p.pages.length - 4} more` : ""}
+            </div>
+          </div>
+        ) : (
+          <span className="text-vpv-muted">—</span>
+        )}
       </td>
 
       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">

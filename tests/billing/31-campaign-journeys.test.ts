@@ -935,3 +935,46 @@ describe("admin-only", () => {
     }
   });
 });
+
+/* ── whose pages and time are counted ─────────────────────────────────────── */
+
+describe("a person's pages and time on site", () => {
+  // The same phone was used for the admin before the scan and after it.
+  const scanAt = "2026-10-31T12:06:00Z";
+  const events = [
+    ev("vt", "page_view", "/admin/marketing/folders", "2026-10-31T12:03:00Z"),
+    ev("vt", "page_time", "/admin/marketing/folders", "2026-10-31T12:03:50Z", { seconds: 600, scroll: 100 }),
+    ev("vt", "page_view", "/?utm_source=pamphlet&vpv=AAAA1111", "2026-10-31T12:06:02Z"),
+    ev("vt", "page_time", "/?utm_source=pamphlet&vpv=AAAA1111", "2026-10-31T12:06:20Z", { seconds: 17, scroll: 100 }),
+    ev("vt", "page_view", "/how-it-works", "2026-10-31T12:06:21Z"),
+    ev("vt", "page_time", "/how-it-works", "2026-10-31T12:06:26Z", { seconds: 5, scroll: 90 }),
+    ev("vt", "page_view", "/admin/marketing/folders/product-testing", "2026-10-31T12:07:00Z"),
+    ev("vt", "page_time", "/admin/marketing/folders/product-testing", "2026-10-31T12:09:00Z", { seconds: 120, scroll: 100 }),
+  ];
+  const args = {
+    folder: folder(),
+    codes: [AAAA],
+    scans: [scan("AAAA1111", "vt", scanAt)],
+    visitors: [visitor("vt", "AAAA1111", "2026-10-31T12:03:00Z", 3)],
+    events,
+    leads: [],
+    orders: [],
+  };
+
+  it("counts only public pages after the scan, never the admin or earlier use of the phone", () => {
+    const [p] = folderDetail(args).roster;
+    assert.equal(p!.activeSeconds, 22, "17 s + 5 s, not the 720 s spent in the admin");
+    assert.deepEqual(
+      p!.pages.map((x) => x.path).sort(),
+      ["/", "/how-it-works"]
+    );
+    assert.ok(!p!.pages.some((x) => x.path.startsWith("/admin")));
+  });
+
+  it("shows the same pages on the person's own page", () => {
+    const j = personJourney({ ...args, code: AAAA });
+    const paths = j.visits.flatMap((v) => v.stops.map((s) => s.path));
+    assert.ok(paths.includes("/how-it-works"));
+    assert.ok(!paths.some((x) => x.startsWith("/admin")), paths.join(","));
+  });
+});
