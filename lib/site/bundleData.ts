@@ -67,7 +67,6 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const ent = id === "enterprise";
   return [
     row(ent, ENTERPRISE_PERSONAL.discussion.short),
-    row(ent, ENTERPRISE_PERSONAL.shoot.short),
     p.plot.label,
     `${p.scenes} AOAs`,
     `${hoursLabel(p.shootHours)} of shoot time`,
@@ -277,12 +276,17 @@ export function bundleTextPatches(): [string, string][] {
     ],
     [
       'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),e]}',
-      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
+      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
     ],
     // The first Enterprise gold pass wrapped the text in a span; carry it on.
     [
       'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:e})]}',
-      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
+      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
+    ],
+    // The gold line is keyed on "Gupta" now that the discussion line reads "Mr. Gupta".
+    [
+      'children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]',
+      'children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]',
     ],
     // The first Enterprise sync used a grid class the site's CSS does not ship.
     ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid"'],

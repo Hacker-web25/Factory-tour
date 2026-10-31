@@ -43,7 +43,7 @@ import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderH
 import { SITE_PATHS } from "@/lib/site/paths";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.c2c33ed9.js";
+const JS_SRC = "/static/js/main.4fc876bd.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";

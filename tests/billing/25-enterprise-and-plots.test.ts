@@ -46,7 +46,7 @@ describe("enterprise: the plan and its plot sizes", () => {
   });
 
   it("names Mr. Nitin Gupta in both personal benefits", () => {
-    assert.match(ENTERPRISE_PERSONAL.discussion.short, /Nitin Gupta/);
+    assert.match(ENTERPRISE_PERSONAL.discussion.short, /Mr\. Gupta/);
     assert.match(ENTERPRISE_PERSONAL.shoot.short, /Nitin Gupta/);
     assert.match(ENTERPRISE_PERSONAL.discussion.long, /Nitin Gupta/);
     assert.match(ENTERPRISE_PERSONAL.shoot.long, /Nitin Gupta/);

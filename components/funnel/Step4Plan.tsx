@@ -273,10 +273,7 @@ export default function Step4Plan() {
 
   const inclusions: { icon: typeof Layers; text: string; strong?: boolean }[] = [
     ...(planId === "enterprise"
-      ? [
-          { icon: Star, text: ENTERPRISE_PERSONAL.discussion.short, strong: true },
-          { icon: Star, text: ENTERPRISE_PERSONAL.shoot.short, strong: true },
-        ]
+      ? [{ icon: Star, text: ENTERPRISE_PERSONAL.discussion.short, strong: true }]
       : []),
     { icon: Maximize2, text: plan.plot.label },
     { icon: Layers, text: `${plan.scenes} Active Operational Areas` },

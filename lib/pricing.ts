@@ -600,7 +600,7 @@ export const ENTERPRISE_PERSONAL = {
   person: "Mr. Nitin Gupta",
   discussion: {
     title: "A private, one-to-one discussion with Mr. Nitin Gupta",
-    short: "Personal, exclusive discussion with Mr. Nitin Gupta",
+    short: "Personal, exclusive discussion with Mr. Gupta",
     long:
       "Before a single frame is shot, you sit down one-to-one with Mr. Nitin Gupta, in a session reserved for you alone, " +
       "to shape how your plant is presented to the buyers who matter most to you.",
