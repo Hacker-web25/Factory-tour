@@ -349,6 +349,9 @@ export function bundleTextPatches(): [string, string][] {
     ['"PDF report"', '"lab report"'],
     ["PDF reports", "lab reports & certifications"],
     ['q:"How many videos and PDFs are included?"', 'q:"How many videos and lab reports are included?"'],
+    // HOW IT WORKS, steps 3 and 5.
+    ['Our team confirms availability within 1 working day and you get a preparation checklist."', 'Our team confirms availability within 1 working day."'],
+    ['we turn the captured factory into your interactive VPV. Delivery depends', 'we turn the captured factory into your interactive VPV with your team, without affecting your production. Delivery depends'],
   ];
 
   // ── 26 October 2026: free cab travel for the first 50, yearly ₹199 Sales

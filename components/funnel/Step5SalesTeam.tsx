@@ -183,8 +183,8 @@ export default function Step5SalesTeam() {
             <YesNo
               value={s.hasSalesTeam}
               onChange={(v) => setS({ ...s, hasSalesTeam: v })}
-              yesLabel="Yes, we have a sales team"
-              noLabel="No, we sell it ourselves"
+              yesLabel="Yes, I will have a sales team which will use VPV"
+              noLabel="No, I will use VPV myself"
             />
           </div>
         </Card>
