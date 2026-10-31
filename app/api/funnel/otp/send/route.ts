@@ -76,10 +76,17 @@ export async function POST(req: Request) {
   // randomInt is cryptographically random; Math.random would be guessable.
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const expiresAt = new Date(Date.now() + OTP_TTL_SECONDS * 1000).toISOString();
-  const leadId =
+  let leadId: string | null =
     typeof read.body.leadId === "string" && read.body.leadId.length === 36
       ? read.body.leadId
       : null;
+  // The browser may remember a lead that no longer exists (cleared, or from a
+  // test), and funnel_otp.lead_id is a foreign key: a stale id would stop the
+  // code being sent at all. The lead is only a note, so drop it, never the buyer.
+  if (leadId) {
+    const { data: lead } = await sb.from("funnel_leads").select("id").eq("id", leadId).maybeSingle();
+    if (!lead) leadId = null;
+  }
 
   const { error } = await sb.from("funnel_otp").insert({
     email,

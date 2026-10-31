@@ -27,6 +27,14 @@ describe("funnel e-mail OTP", () => {
 
   const ADDR = "buyer@factory-example.in";
 
+  it("still sends the code when the browser remembers a lead that no longer exists", async () => {
+    const res = await send({ email: ADDR, leadId: "11111111-2222-4333-8444-555555555555" });
+    const body = await w.readJson(res);
+    assert.equal(res.status, 200, JSON.stringify(body));
+    assert.equal(body.sent, true);
+    assert.equal(w.gw.emailsTo(ADDR).length, 1);
+  });
+
   it("e-mails a six-digit code, with a plain-text copy, and the code then verifies", async () => {
     const res = await send({ email: ADDR });
     const body = await w.readJson(res);

@@ -235,12 +235,15 @@ export async function POST(req: Request) {
 
   try {
     if (leadId) {
-      let { error } = await sb.from("funnel_leads").update(patch).eq("id", leadId);
+      let { data: hit, error } = await sb.from("funnel_leads").update(patch).eq("id", leadId).select("id");
       if (error && olderDatabase(error.message)) {
-        ({ error } = await sb.from("funnel_leads").update(withoutNewFields(patch)).eq("id", leadId));
+        ({ data: hit, error } = await sb.from("funnel_leads").update(withoutNewFields(patch)).eq("id", leadId).select("id"));
       }
       if (error) throw error;
-      return json({ ok: true, leadId });
+      // An id the browser remembers but the database no longer has: update
+      // matched nothing. Fall through and start a fresh lead, so the visitor's
+      // answers are still recorded and the browser gets a working id back.
+      if (hit && hit.length > 0) return json({ ok: true, leadId });
     }
 
     const row = {
