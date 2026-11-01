@@ -27,6 +27,7 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { getClientIp } from "@/lib/getClientIp";
 import { escapeLike } from "@/lib/server/billingGuard";
 import { isSafePath, normaliseCode } from "@/lib/analytics/attribution";
+import { isEmailCode } from "@/lib/personCodes";
 import {
   geoFrom,
   recordScan,
@@ -42,9 +43,19 @@ const SITE = "https://myvpv.com";
 
 /** 302, never 301: a permanent redirect would be cached by the browser and
  *  by every proxy in between, and the second scan would never reach us. */
-function send(to: URL | string): NextResponse {
+function send(to: URL | string, coupon?: string): NextResponse {
   const res = NextResponse.redirect(to, 302);
   res.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+  // An e-mail campaign's shared coupon rides along, so the buyer does not have
+  // to type it. Readable by the billing page, which checks it with the server.
+  if (coupon) {
+    res.cookies.set("vpv_coupon", coupon, {
+      maxAge: 14 * 24 * 60 * 60,
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    });
+  }
   return res;
 }
 
@@ -107,6 +118,31 @@ export async function GET(req: Request, { params }: { params: { code: string } }
   // Our own code, read back by the tracker and the funnel.
   dest.searchParams.set("vpv", row.code);
 
+  // An e-mail campaign's shared coupon, if it has one that can still be used.
+  // Only e-mail codes look it up, so the QR and print scans do no extra work,
+  // and a failure here can never stop the redirect: an e-mailed link must land.
+  let coupon: string | undefined;
+  if (isEmailCode(row.code)) {
+    try {
+      const f = await sb.from("campaign_codes").select("folder_id").eq("code", row.code).maybeSingle();
+      const folderId = (f.data as { folder_id: string | null } | null)?.folder_id;
+      if (folderId) {
+        const ec = await sb.from("email_campaigns").select("coupon_code").eq("folder_id", folderId).maybeSingle();
+        const couponCode = (ec.data as { coupon_code: string | null } | null)?.coupon_code;
+        if (couponCode) {
+          const c = await sb.from("coupons").select("active, expires_at").eq("code", couponCode).maybeSingle();
+          const cd = c.data as { active: boolean; expires_at: string | null } | null;
+          if (cd?.active && (!cd.expires_at || new Date(cd.expires_at).getTime() > Date.now())) {
+            coupon = couponCode;
+            dest.searchParams.set("coupon", couponCode);
+          }
+        }
+      }
+    } catch {
+      /* no coupon: the visitor still arrives */
+    }
+  }
+
   const headers = req.headers;
   const geo = geoFrom(headers);
   const visitorId = visitorIdFrom(headers);
@@ -151,5 +187,5 @@ export async function GET(req: Request, { params }: { params: { code: string } }
     await setVisitorDevice(sb, visitorId, headers.get("user-agent"));
   }
 
-  return send(dest);
+  return send(dest, coupon);
 }
