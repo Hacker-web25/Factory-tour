@@ -31,7 +31,7 @@
  */
 
 import type { OrderRow } from "@/lib/campaignReport";
-import { interestOf, type Interest } from "@/lib/interest";
+import { interestOf, type Interest, type Temperature } from "@/lib/interest";
 import {
   PRICE_PAGES,
   STAGE_KEYS,
@@ -601,6 +601,10 @@ export type FolderPerson = {
   os: string[];
   browsers: string[];
   interest: Interest;
+  /** The same verdict as Hot / Warm / Cold. */
+  temperature: Temperature;
+  /** 0–100 weighed engagement (time, pages, clicks, demo, price, FAQ, returns). */
+  points: number;
   /** 0–100. Orders people; never lifts one across a level. */
   interestScore: number;
   /** Why they are at that level, strongest first, in words. */
@@ -774,6 +778,9 @@ export function folderDetail(input: {
     let readTerms = false;
     let clickedPay = false;
     let pickedPlan: string | null = null;
+    let clicks = 0;
+    let sawDemo = false;
+    let reachedOut = false;
     let firstScan: number | null = null;
     let lastScan: number | null = null;
     let firstView: number | null = null;
@@ -849,6 +856,21 @@ export function folderDetail(input: {
             break;
           case "pay_click":
             clickedPay = true;
+            break;
+          case "cta_click":
+          case "outbound_click":
+            clicks += 1;
+            break;
+          case "video_play":
+          case "tour_opened":
+            clicks += 1;
+            sawDemo = true;
+            break;
+          case "tel_click":
+          case "whatsapp_click":
+          case "email_click":
+            clicks += 1;
+            reachedOut = true;
             break;
           case "plan_selected":
             pickedPlan = pickedPlan ?? metaStr(e.meta, "plan") ?? metaStr(e.meta, "label") ?? "a plan";
@@ -1010,6 +1032,11 @@ export function folderDetail(input: {
       leftContact: gaveContact,
       clickedPay,
       pickedPlan: pickedPlan !== null,
+      clicks,
+      pagesViewed: pageList.length,
+      maxScroll: pageList.reduce((m, p) => Math.max(m, p.scroll), 0),
+      sawDemo: sawDemo || pageList.some((p) => p.path === "/demo" && p.seconds >= 15),
+      reachedOut,
     });
     const formPhone = (lead?.phone ?? "").trim() || null;
     const formEmail = (lead?.email ?? "").trim() || null;
@@ -1037,6 +1064,8 @@ export function folderDetail(input: {
       os: [...osSeen].sort(),
       browsers: [...browsersSeen].sort(),
       interest: verdict.level,
+      temperature: verdict.temperature,
+      points: verdict.points,
       interestScore: verdict.score,
       interestWhy: verdict.why,
       pickedPlan,
