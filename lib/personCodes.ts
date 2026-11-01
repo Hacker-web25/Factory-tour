@@ -82,6 +82,14 @@ export function personLabel(p: Person): string {
   return p.company ? `${p.name} · ${p.company}` : p.name;
 }
 
+/** Every personal code made for an e-mail campaign starts with this. */
+export const EMAIL_CODE_PREFIX = "EM";
+
+/** True for a code made for an e-mail campaign (the only codes that carry a shared coupon). */
+export function isEmailCode(code: string): boolean {
+  return code.toUpperCase().startsWith(`${EMAIL_CODE_PREFIX}-`);
+}
+
 /**
  * `count` new codes of the form PREFIX-XXXXXX, none of them in `taken` and
  * none repeated. Adds what it makes to `taken`, so successive calls against

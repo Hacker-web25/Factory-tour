@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DeleteCampaignDialog } from "@/components/admin/DeleteCampaignDialog";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import { formatDuration } from "@/lib/buyerReport";
@@ -69,6 +70,7 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
   const [printed, setPrinted] = useState("");
   const [savingPrinted, setSavingPrinted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const token = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -218,12 +220,34 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
           ← Campaigns
         </Link>
 
-        <h1 className="mt-3 text-[28px] font-semibold tracking-tight">{f.name}</h1>
-        <p className="mt-1 text-[13.5px] text-vpv-muted">
-          {[f.city, f.state, f.channel, f.distributed_at ? `handed out ${f.distributed_at}` : null]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-[28px] font-semibold tracking-tight">{f.name}</h1>
+            <p className="mt-1 text-[13.5px] text-vpv-muted">
+              {[f.city, f.state, f.channel, f.distributed_at ? `handed out ${f.distributed_at}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="rounded-full border border-red-300 px-4 py-2 text-[13px] font-semibold text-red-700 hover:bg-red-50"
+          >
+            Delete campaign
+          </button>
+        </div>
+        {deleteOpen && (
+          <DeleteCampaignDialog
+            name={f.name}
+            slug={f.slug}
+            people={roster.length}
+            scanned={s.scannedCodes}
+            paid={s.paid}
+            onClose={() => setDeleteOpen(false)}
+            onDeleted={() => router.push(f.channel === "email" ? "/admin/channels/email" : "/admin/marketing/folders")}
+          />
+        )}
 
         {/* ── the numbers worth reading first ─────────────────────────── */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

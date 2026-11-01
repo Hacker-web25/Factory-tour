@@ -194,8 +194,24 @@ export default function Step5Billing() {
     }
   }
 
-  async function applyCoupon() {
-    const code = couponInput.trim();
+  // A coupon carried by the visitor's e-mail link (cookie set by /q/<code>):
+  // check it with the server and apply it once, so nothing has to be typed.
+  const carriedCoupon = useRef(false);
+  useEffect(() => {
+    if (carriedCoupon.current) return;
+    carriedCoupon.current = true;
+    let code = "";
+    try {
+      code = decodeURIComponent(/(?:^|;\s*)vpv_coupon=([^;]+)/.exec(document.cookie)?.[1] ?? "");
+    } catch {
+      code = "";
+    }
+    if (code) void applyCoupon(code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function applyCoupon(carried?: string) {
+    const code = (carried ?? couponInput).trim();
     if (!code) return;
     setCouponError(null);
     setCouponBusy(true);
@@ -207,13 +223,14 @@ export default function Step5Billing() {
       });
       const data = (await res.json()) as { ok?: boolean; message?: string; coupon?: Coupon };
       if (!res.ok || !data.ok || !data.coupon) {
-        setCouponError(data.message ?? "That coupon code is not valid.");
+        // A coupon the visitor never typed should not greet them with an error.
+        if (!carried) setCouponError(data.message ?? "That coupon code is not valid.");
         return;
       }
       setCoupon(data.coupon);
       setCouponInput("");
     } catch {
-      setCouponError("We could not check that code. Please try again.");
+      if (!carried) setCouponError("We could not check that code. Please try again.");
     } finally {
       setCouponBusy(false);
     }

@@ -6,6 +6,10 @@
  *   PATCH  record what the report cannot know by itself: how many were
  *          printed, when they went out, and which pieces actually reached
  *          a desk.
+ *   DELETE remove the campaign, its personal codes and their scans for good.
+ *          The caller must type the campaign's name. Leads, orders and
+ *          payments are never touched: they are the customer's, not the
+ *          campaign's, and only lose the tag that said where they came from.
  *
  * The queries are scoped to this folder's codes and chunked, because `in`
  * lists travel in the URL: a folder of 2,000 codes would otherwise build a
@@ -190,4 +194,50 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
 
   const after = await loadFolder(sb, slug);
   return json({ ok: true, folder: after.data, codesUpdated });
+}
+
+export async function DELETE(req: Request, { params }: { params: { slug: string } }) {
+  const g = await ownerGuard(req);
+  if ("error" in g) return g.error;
+  const { sb } = g;
+
+  const slug = clean(params.slug, 60);
+  if (!slug) return fail(400, "bad_slug");
+
+  const read = await readJson(req, MAX_BODY_BYTES);
+  if (!read.ok) return fail(read.status, read.error);
+
+  const found = await loadFolder(sb, slug);
+  if (found.error) return fail(500, "read_failed", found.error.message);
+  const folder = found.data as FolderRow | null;
+  if (!folder) return fail(404, "not_found", "No campaign by that name.");
+
+  // Deleting by mistake is expensive and cannot be undone: the name has to be typed.
+  const typed = clean(read.body.confirm, 140);
+  if (typed !== folder.name && typed.toLowerCase() !== folder.slug) {
+    return fail(400, "confirm_mismatch", "Type the campaign's name exactly to delete it.");
+  }
+
+  const codesQ = await pageAll<{ code: string }>((from, to) =>
+    sb
+      .from("campaign_codes")
+      .select("code")
+      .eq("folder_id", folder.id)
+      .order("code", { ascending: true })
+      .range(from, to)
+  );
+  if (codesQ.error) return fail(500, "read_failed", codesQ.error.message);
+
+  // The scans and any e-mail results go with their code (ON DELETE CASCADE).
+  for (let i = 0; i < codesQ.rows.length; i += CHUNK) {
+    const { error } = await sb
+      .from("campaign_codes")
+      .delete()
+      .in("code", codesQ.rows.slice(i, i + CHUNK).map((r) => r.code));
+    if (error) return fail(500, "delete_failed", error.message);
+  }
+  const del = await sb.from("campaign_folders").delete().eq("id", folder.id);
+  if (del.error) return fail(500, "delete_failed", del.error.message);
+
+  return json({ ok: true, deletedPeople: codesQ.rows.length, name: folder.name });
 }

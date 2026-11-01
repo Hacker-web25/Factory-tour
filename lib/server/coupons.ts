@@ -32,6 +32,19 @@ function escapeRe(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** How many paid orders have used this code. null when the orders could not be read. */
+export async function couponUses(sb: SupabaseClient, code: string): Promise<number | null> {
+  const { data: paid, error } = await sb
+    .from("billing_orders")
+    .select("notes")
+    .eq("status", "paid")
+    .eq("purpose", "basic_licence")
+    .limit(5000);
+  if (error) return null;
+  const used = new RegExp(`(^|, )coupon ${escapeRe(code)}( \\(|,|$)`);
+  return (paid ?? []).filter((r: { notes: string | null }) => used.test(r.notes ?? "")).length;
+}
+
 export async function checkCoupon(sb: SupabaseClient | null, raw: unknown): Promise<CouponCheck> {
   const code = normaliseCouponCode(raw);
   if (!code) return INVALID;
@@ -54,15 +67,10 @@ export async function checkCoupon(sb: SupabaseClient | null, raw: unknown): Prom
   }
 
   if (row.max_uses != null) {
-    const { data: paid, error: e2 } = await sb
-      .from("billing_orders")
-      .select("notes")
-      .eq("status", "paid")
-      .eq("purpose", "basic_licence")
-      .limit(5000);
-    if (e2) return { ok: false, reason: "unavailable", message: "We could not check that code. Please try again." };
-    const used = new RegExp(`(^|, )coupon ${escapeRe(code)}( \\(|,|$)`);
-    const uses = (paid ?? []).filter((r: { notes: string | null }) => used.test(r.notes ?? "")).length;
+    const uses = await couponUses(sb, code);
+    if (uses === null) {
+      return { ok: false, reason: "unavailable", message: "We could not check that code. Please try again." };
+    }
     if (uses >= Number(row.max_uses)) {
       return { ok: false, reason: "used_up", message: "That coupon code has already been used." };
     }
