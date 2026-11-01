@@ -209,6 +209,12 @@ export default function AdminPanelPage() {
             )}
           </Link>
           <Link
+            href="/admin/channels"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <Megaphone size={13} /> Channels
+          </Link>
+          <Link
             href="/admin/marketing"
             className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
           >

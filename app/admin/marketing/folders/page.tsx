@@ -24,7 +24,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
-import { FOLDER_CHANNELS, type FolderStat } from "@/lib/campaignFolders";
+import { FOLDER_CHANNELS, isFolderChannel, type FolderStat } from "@/lib/campaignFolders";
+import { QrZipUpload } from "@/components/admin/QrZipUpload";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const pctOf = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}% of people` : undefined);
@@ -39,6 +40,7 @@ export default function FoldersPage() {
   const [migration, setMigration] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
+  const [zipOpen, setZipOpen] = useState(false);
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [channel, setChannel] = useState<string>("pamphlet");
@@ -76,6 +78,17 @@ export default function FoldersPage() {
       setError("Could not reach the server.");
     }
   }, [token]);
+
+  // /admin/marketing/folders?new=email opens the form with that channel chosen
+  // (the Channels pages link here). Read from the address bar, not
+  // useSearchParams, which would force this whole page behind a Suspense boundary.
+  useEffect(() => {
+    const want = new URLSearchParams(window.location.search).get("new");
+    if (want && isFolderChannel(want)) {
+      setChannel(want);
+      setOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,8 +150,8 @@ export default function FoldersPage() {
   return (
     <main className="min-h-screen bg-vpv-canvas px-5 py-10 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/admin/marketing" className="text-[13px] font-medium text-vpv-blue underline underline-offset-2">
-          ← Marketing
+        <Link href="/admin/channels" className="text-[13px] font-medium text-vpv-blue underline underline-offset-2">
+          ← Channels
         </Link>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -150,14 +163,25 @@ export default function FoldersPage() {
               people who never scanned are exactly the ones the next run has to win.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="rounded-full bg-vpv-blue px-5 py-2.5 text-[13.5px] font-semibold text-white hover:opacity-90"
-          >
-            {open ? "Cancel" : "New campaign"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setZipOpen((v) => !v)}
+              className="rounded-full border border-vpv-blue px-5 py-2.5 text-[13.5px] font-semibold text-vpv-blue hover:bg-white"
+            >
+              {zipOpen ? "Close zip upload" : "Upload QR zip"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="rounded-full bg-vpv-blue px-5 py-2.5 text-[13.5px] font-semibold text-white hover:opacity-90"
+            >
+              {open ? "Cancel" : "New campaign"}
+            </button>
+          </div>
         </div>
+
+        {zipOpen && <QrZipUpload />}
 
         {migration && (
           <p className="mt-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900">
