@@ -15,6 +15,7 @@ import type {
   TransitionEffect,
 } from "@/lib/types";
 import { supabase, publicUrl, publicUrlIn } from "@/lib/supabase";
+import { mediaStorage } from "@/lib/media";
 import { findIcon } from "@/lib/iconLibrary";
 import { FONT_OPTIONS, fontFor } from "@/lib/fonts";
 import { PRESET_SOUNDS, playHotspotSound } from "@/lib/soundEffects";
@@ -1544,8 +1545,7 @@ function SceneActions({
   // Keeps the same tour folder as the original so RLS / paths stay tidy.
   async function saveBeautified(blob: Blob) {
     const path = `${tour.id}/${crypto.randomUUID()}.jpg`;
-    const { error } = await supabase.storage
-      .from("panoramas")
+    const { error } = await mediaStorage("panoramas")
       .upload(path, blob, {
         cacheControl: "3600",
         upsert: false,
@@ -1568,8 +1568,7 @@ function SceneActions({
       }
       const blob = await (await fetch(dataUrl)).blob();
       const path = `thumbnails/scene-${scene.id}-${crypto.randomUUID()}.png`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, blob, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
       onSceneChange({ ...scene, thumbnail_path: path });
@@ -1583,8 +1582,7 @@ function SceneActions({
     try {
       const ext = file.name.split(".").pop() ?? "png";
       const path = `thumbnails/scene-${scene.id}-${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
       onSceneChange({ ...scene, thumbnail_path: path });
@@ -1596,8 +1594,7 @@ function SceneActions({
   async function downloadRaw() {
     setBusy("dl");
     try {
-      const url = supabase.storage
-        .from("panoramas")
+      const url = mediaStorage("panoramas")
         .getPublicUrl(scene.image_path).data.publicUrl;
       const res = await fetch(url);
       const blob = await res.blob();
@@ -1616,8 +1613,7 @@ function SceneActions({
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
       const path = `${tour.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
       onSceneChange({ ...scene, image_path: path });
@@ -1811,8 +1807,7 @@ function SceneActions({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={
-              supabase.storage
-                .from("panoramas")
+              mediaStorage("panoramas")
                 .getPublicUrl(scene.thumbnail_path).data.publicUrl
             }
             alt=""
@@ -1892,8 +1887,7 @@ function SceneActions({
       {beautifyOpen && scene.image_path && (
         <BeautifyModal
           imageUrl={
-            supabase.storage
-              .from("panoramas")
+            mediaStorage("panoramas")
               .getPublicUrl(scene.image_path).data.publicUrl
           }
           onSave={saveBeautified}
@@ -1995,11 +1989,10 @@ function AmbientAudioSettings({
     try {
       const ext = file.name.split(".").pop() ?? "mp3";
       const path = `sounds/ambient-${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       if (applyToAll) {
         await onPatchTour({ ambient_audio_url: data.publicUrl });
       } else {
@@ -2258,8 +2251,7 @@ function NadirSettings({
     try {
       const ext = file.name.split(".").pop() ?? "png";
       const path = `nadirs/${tour.id}-${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file);
       if (error) return alert(error.message);
       await patch({ nadir_image_path: path });
@@ -2274,8 +2266,7 @@ function NadirSettings({
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={supabase.storage
-              .from("panoramas")
+            src={mediaStorage("panoramas")
               .getPublicUrl(tour.nadir_image_path).data.publicUrl}
             alt=""
             className="w-16 h-16 object-contain bg-black/40 rounded"
@@ -2514,8 +2505,7 @@ function TopStripSettings({
     try {
       const ext = file.name.split(".").pop() || "png";
       const path = `company-logos/${tour.id}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("tours")
+      const { error } = await mediaStorage("tours")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (error) {
         alert("Upload failed: " + error.message);
@@ -4011,11 +4001,10 @@ function VideoConfig({
     try {
       const ext = file.name.split(".").pop() ?? "mp4";
       const path = `videos/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({
         ...hotspot,
         video_url: data.publicUrl,
@@ -4222,14 +4211,13 @@ function BonusImageUploader({
     try {
       const ext = file.name.split(".").pop() ?? "png";
       const path = `hotspot-images/${hotspot.id}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) {
         alert("Upload failed: " + error.message);
         return;
       }
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({ ...hotspot, image_url: data.publicUrl });
     } finally {
       setUploading(false);
@@ -4610,8 +4598,7 @@ function AudioConfig({
     setUploading(true);
     try {
       const path = `audio/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, blob, {
           cacheControl: "3600",
           upsert: false,
@@ -4621,7 +4608,7 @@ function AudioConfig({
         alert(error.message);
         return;
       }
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({ ...hotspot, audio_url: data.publicUrl });
     } finally {
       setUploading(false);
@@ -4783,14 +4770,13 @@ function PolygonMediaConfig({
       );
       const folder = mode === "video" ? "videos" : "images";
       const path = `${folder}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) {
         alert(error.message);
         return;
       }
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       if (mode === "video") {
         onChange({ ...hotspot, video_url: data.publicUrl, image_url: null });
       } else {
@@ -4897,14 +4883,13 @@ function ImageSourceField({
     try {
       const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
       const path = `images/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) {
         alert(error.message);
         return;
       }
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({ ...hotspot, image_url: data.publicUrl });
     } finally {
       setUploading(false);
@@ -4972,11 +4957,10 @@ function PdfConfig({
     setUploading(true);
     try {
       const path = `docs/${crypto.randomUUID()}.pdf`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({
         ...hotspot,
         pdf_url: data.publicUrl,
@@ -5031,11 +5015,10 @@ function SoundEffectPicker({
     try {
       const ext = file.name.split(".").pop() ?? "mp3";
       const path = `sounds/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (error) return alert(error.message);
-      const { data } = supabase.storage.from("panoramas").getPublicUrl(path);
+      const { data } = mediaStorage("panoramas").getPublicUrl(path);
       onChange({
         ...hotspot,
         sound_effect: "custom",

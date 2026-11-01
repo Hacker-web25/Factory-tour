@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, publicUrl } from "@/lib/supabase";
+import { mediaStorage } from "@/lib/media";
 import type { Folder, Tour } from "@/lib/types";
 import TopBar from "@/components/TopBar";
 import {
@@ -185,8 +186,7 @@ export default function OwnerHome() {
   async function uploadThumbnail(tourId: string, file: File) {
     const ext = file.name.split(".").pop() ?? "jpg";
     const path = `thumbnails/${tourId}-${crypto.randomUUID()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("panoramas")
+    const { error: upErr } = await mediaStorage("panoramas")
       .upload(path, file, { cacheControl: "3600", upsert: false });
     if (upErr) return alert(`Upload failed: ${upErr.message}`);
     // .select() after update confirms the row was actually written —

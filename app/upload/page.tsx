@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { mediaStorage } from "@/lib/media";
 import { getMyProfile } from "@/lib/auth";
 import TopBar from "@/components/TopBar";
 import {
@@ -120,8 +121,7 @@ function UploadPage() {
       const ext = file.name.split(".").pop() ?? "jpg";
       const path = `${tourId}/${crypto.randomUUID()}.${ext}`;
 
-      const { error: upErr } = await supabase.storage
-        .from("panoramas")
+      const { error: upErr } = await mediaStorage("panoramas")
         .upload(path, file, { cacheControl: "3600", upsert: false });
       if (upErr) {
         updateItem(i, { status: "error", message: upErr.message });
@@ -327,8 +327,7 @@ function UploadPage() {
                               .delete()
                               .eq("id", it.scene_id);
                             if (it.image_path) {
-                              await supabase.storage
-                                .from("panoramas")
+                              await mediaStorage("panoramas")
                                 .remove([it.image_path]);
                             }
                           }

@@ -15,6 +15,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import { mediaStorage } from "@/lib/media";
 
 export type ActiveAudioRecorder = {
   stop: () => Promise<Blob>;
@@ -132,14 +133,13 @@ export async function uploadAudioBlob(
 ): Promise<string> {
   const ext = extFor(blob.type, originalName);
   const path = `tour-audio/${tourId}/${scope}-${scopeId}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from("tours")
+  const { error } = await mediaStorage("tours")
     .upload(path, blob, {
       contentType: blob.type || "audio/webm",
       upsert: true,
     });
   if (error) throw new Error(error.message);
-  const { data } = supabase.storage.from("tours").getPublicUrl(path);
+  const { data } = mediaStorage("tours").getPublicUrl(path);
   if (!data?.publicUrl) throw new Error("Uploaded but couldn't get a URL.");
   return data.publicUrl;
 }

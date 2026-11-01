@@ -19,6 +19,7 @@
 
 import { supabase, publicUrl } from "./supabase";
 import type { Hotspot, Scene, Tour } from "./types";
+import { mediaStorage } from "@/lib/media";
 
 const MAGIC = new Uint8Array([0x46, 0x43, 0x54, 0x52]); // "FCTR"
 const VERSION = 1;
@@ -148,8 +149,7 @@ export async function importTourFromFile(
     const blob = base64ToBlob(s.image_data, s.image_mime);
     const ext = extForMime(s.image_mime);
     const path = `${newTour.id}/${crypto.randomUUID()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("panoramas")
+    const { error: upErr } = await mediaStorage("panoramas")
       .upload(path, blob);
     if (upErr) throw new Error(`Scene upload failed: ${upErr.message}`);
 
@@ -179,7 +179,7 @@ export async function importTourFromFile(
     if (h.icon_url_data && h.icon_url_mime) {
       const path = `icons/${crypto.randomUUID()}.${extForMime(h.icon_url_mime)}`;
       const b = base64ToBlob(h.icon_url_data, h.icon_url_mime);
-      const { error } = await supabase.storage.from("panoramas").upload(path, b);
+      const { error } = await mediaStorage("panoramas").upload(path, b);
       if (!error) iconUrl = publicUrl(path);
     }
 
@@ -187,7 +187,7 @@ export async function importTourFromFile(
     if (h.image_url_data && h.image_url_mime) {
       const path = `icons/${crypto.randomUUID()}.${extForMime(h.image_url_mime)}`;
       const b = base64ToBlob(h.image_url_data, h.image_url_mime);
-      const { error } = await supabase.storage.from("panoramas").upload(path, b);
+      const { error } = await mediaStorage("panoramas").upload(path, b);
       if (!error) imgUrl = publicUrl(path);
     }
 

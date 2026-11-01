@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ICON_LIBRARY } from "@/lib/iconLibrary";
 import { supabase, publicUrl } from "@/lib/supabase";
+import { mediaStorage } from "@/lib/media";
 import {
   listRecent,
   recordUpload,
@@ -180,8 +181,7 @@ export default function IconPicker({
     try {
       const ext = (file.name.split(".").pop() ?? "png").toLowerCase();
       const path = `icons/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("panoramas")
+      const { error } = await mediaStorage("panoramas")
         .upload(path, file);
       if (error) {
         alert(error.message);

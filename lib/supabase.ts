@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { viewHeaders } from "@/lib/viewContext";
+import { mediaEnabled, mediaPublicUrl, rewriteSupabaseUrl } from "@/lib/mediaUrl";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -40,7 +41,11 @@ export const PANORAMA_BUCKET = "panoramas";
 export function publicUrl(path: string) {
   // A path that is already a URL, or a file this site serves itself
   // ("/demo/…"), is used as it is.
-  if (/^(https?:)?\/\//i.test(path) || path.startsWith("/")) return path;
+  if (/^(https?:)?\/\//i.test(path) || path.startsWith("/")) {
+    // A Supabase address saved before the move to Cloudflare points at the same file.
+    return rewriteSupabaseUrl(path, url) ?? path;
+  }
+  if (mediaEnabled(PANORAMA_BUCKET)) return mediaPublicUrl(PANORAMA_BUCKET, path);
   return supabase.storage.from(PANORAMA_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
@@ -48,5 +53,6 @@ export function publicUrl(path: string) {
  *  (stored in "tours"), recordings, and anything else that lives
  *  outside the panorama bucket. */
 export function publicUrlIn(bucket: string, path: string) {
+  if (mediaEnabled(bucket)) return mediaPublicUrl(bucket, path);
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }

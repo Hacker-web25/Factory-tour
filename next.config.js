@@ -24,6 +24,20 @@ try {
 // straight from this file to make sure the analytics tags are never accidentally blocked.
 const pinSupabaseHost = (directive) => directive.split("*.supabase.co").join(SUPABASE_HOST);
 
+// The Cloudflare media Worker that serves tour pictures and sounds once the owner switches it on
+// (cloudflare/README.md). Its EXACT origin is allowed for images, sounds, uploads and PDFs - never a
+// wildcard. With NEXT_PUBLIC_MEDIA_BASE_URL unset the policy below is unchanged.
+let MEDIA_ORIGIN = "";
+try {
+  if (process.env.NEXT_PUBLIC_MEDIA_BASE_URL) {
+    const u = new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL.trim());
+    if (u.protocol === "https:" && /^[a-z0-9.-]+$/i.test(u.hostname)) MEDIA_ORIGIN = u.origin;
+  }
+} catch {
+  /* Cloudflare stays off */
+}
+const withMedia = (directive) => (MEDIA_ORIGIN ? `${directive} ${MEDIA_ORIGIN}` : directive);
+
 /**
  * Site-wide security headers. These apply to every response — the
  * middleware adds a few more on auth-sensitive paths (no-store cache,
@@ -95,11 +109,11 @@ const securityHeaders = [
       // silently and the dashboards stay empty.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://www.youtube.com https://s.ytimg.com https://checkout.razorpay.com https://*.googletagmanager.com https://*.clarity.ms https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
+      withMedia("img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com"),
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com",
-      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com https://challenges.cloudflare.com",
-      "media-src 'self' blob: https://*.supabase.co",
+      withMedia("connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com"),
+      withMedia("frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com https://challenges.cloudflare.com"),
+      withMedia("media-src 'self' blob: https://*.supabase.co"),
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
