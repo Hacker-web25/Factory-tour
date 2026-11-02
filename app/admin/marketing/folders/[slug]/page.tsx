@@ -55,6 +55,8 @@ import { Empty, InterestChip, NotOwner, Panel, Stat, Tab, VisitedDot } from "@/c
 
 const PAGE_SIZE = 200;
 
+type L2qStatus = { ok: boolean; imported: number; matched: number; campaigns: number; at: number | null; error?: string };
+
 export default function CampaignPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
   const slug = params.slug;
@@ -71,6 +73,8 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
   const [savingPrinted, setSavingPrinted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [l2q, setL2q] = useState<L2qStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const token = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -87,6 +91,7 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
         detail?: FolderDetail;
         truncated?: boolean;
         message?: string;
+        link2qr?: L2qStatus | null;
       };
       if (!res.ok || !body.ok || !body.detail) {
         setError(body.message ?? "Could not load this campaign.");
@@ -94,6 +99,7 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
       }
       setD(body.detail);
       setTruncated(!!body.truncated);
+      if (body.link2qr) setL2q(body.link2qr);
       setPrinted(body.detail.folder.printed_count === null ? "" : String(body.detail.folder.printed_count));
       setError(null);
     } catch {
@@ -118,6 +124,23 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
       cancelled = true;
     };
   }, [router, load, slug]);
+
+  // LINK-2-QR's server sleeps when idle; this waits for it to wake up.
+  const syncNow = useCallback(async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/admin/marketing/link2qr", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await token()}` },
+      });
+      const body = (await res.json().catch(() => ({}))) as { link2qr?: L2qStatus; message?: string };
+      if (body.link2qr) setL2q(body.link2qr);
+      else setL2q((prev) => ({ ok: false, imported: 0, matched: 0, campaigns: 0, at: prev?.at ?? null, error: body.message ?? "LINK-2-QR did not answer." }));
+      await load();
+    } finally {
+      setSyncing(false);
+    }
+  }, [load, token]);
 
   // A new filter or search starts from the top of the list.
   useEffect(() => setShown(PAGE_SIZE), [filter, sort, query]);
@@ -275,11 +298,33 @@ export default function CampaignPage({ params }: { params: { slug: string } }) {
           </p>
         )}
 
+        {f.channel !== "email" && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-vpv-line bg-white px-4 py-3 text-[13px] text-vpv-muted">
+            <span>
+              {l2q?.ok
+                ? `Scans from LINK-2-QR are included (checked ${l2q.at ? new Date(l2q.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "just now"}).`
+                : l2q
+                  ? `LINK-2-QR did not answer (${l2q.error ?? "no reply"}), so its newest scans may be missing. Its server sleeps when idle; syncing again wakes it.`
+                  : "Scans from LINK-2-QR letters are copied in each time this page opens."}
+            </span>
+            <button
+              type="button"
+              onClick={syncNow}
+              disabled={syncing}
+              className="rounded-lg border border-vpv-line px-3 py-1.5 font-medium text-vpv-ink hover:bg-vpv-tint disabled:opacity-50"
+            >
+              {syncing ? "Syncing… (up to a minute)" : "Sync scans now"}
+            </button>
+          </div>
+        )}
+
         {nothingYet && (
           <p className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-900">
             Nothing has been recorded for this campaign yet, so every dot below is red. If cards have
-            already been scanned, the QR code is probably not reaching us: it must forward to{" "}
-            <span className="font-mono">myvpv.com/q/&lt;code&gt;</span> for a scan to be counted.
+            already been scanned, the QR code is not reaching us. Letters made in LINK-2-QR are counted
+            once this campaign was uploaded from that same LINK-2-QR zip; for website visits to be tied to
+            each person, the campaign&apos;s link in LINK-2-QR must be{" "}
+            <span className="font-mono">https://myvpv.com/q/l2q/&lt;LINK-2-QR campaign number&gt;</span>.
           </p>
         )}
 
