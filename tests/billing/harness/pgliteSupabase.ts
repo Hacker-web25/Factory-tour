@@ -53,6 +53,8 @@ type Filter = { sql: (push: (v: unknown) => string) => string };
 
 class Query implements PromiseLike<any> {
   private op: "select" | "insert" | "update" | "delete" | "upsert" = "select";
+  /** PostgREST's resolution=ignore-duplicates: on conflict do nothing. */
+  private ignoreDuplicates = false;
   private columns = "*";
   private filters: Filter[] = [];
   private orders: string[] = [];
@@ -78,10 +80,14 @@ class Query implements PromiseLike<any> {
     this.rows = Array.isArray(values) ? values : [values];
     return this;
   }
-  upsert(values: Record<string, unknown> | Record<string, unknown>[], opts: { onConflict?: string } = {}) {
+  upsert(
+    values: Record<string, unknown> | Record<string, unknown>[],
+    opts: { onConflict?: string; ignoreDuplicates?: boolean } = {}
+  ) {
     this.op = "upsert";
     this.rows = Array.isArray(values) ? values : [values];
     this.conflict = opts.onConflict ?? "id";
+    this.ignoreDuplicates = opts.ignoreDuplicates === true;
     return this;
   }
   update(values: Record<string, unknown>) {
@@ -207,7 +213,7 @@ class Query implements PromiseLike<any> {
           const sets = keys
             .filter((k) => !(this.conflict as string).split(",").map((c) => c.trim()).includes(k))
             .map((k) => `${ident(k)} = excluded.${ident(k)}`);
-          sql += sets.length ? ` on conflict (${target}) do update set ${sets.join(", ")}` : ` on conflict (${target}) do nothing`;
+          sql += sets.length && !this.ignoreDuplicates ? ` on conflict (${target}) do update set ${sets.join(", ")}` : ` on conflict (${target}) do nothing`;
         }
         return { sql: sql + ret, params };
       }

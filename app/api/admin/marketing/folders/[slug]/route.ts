@@ -19,6 +19,7 @@
 import { clean, fail, json, readJson } from "@/lib/server/billingGuard";
 import { ownerGuard, isMissingColumn } from "@/lib/server/ownerGuard";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { syncLink2Qr, type Link2QrSyncResult } from "@/lib/server/link2qrSync";
 import {
   folderDetail,
   isDeliveryState,
@@ -79,6 +80,11 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   }
   const codes = codesQ.rows;
 
+  // Letters printed by LINK-2-QR are scanned there, not here: bring those scans
+  // in first (short budget, never fails the page). See lib/link2qr.ts.
+  let link2qr: Link2QrSyncResult | null = null;
+  if (codes.length && folder.channel !== "email") link2qr = await syncLink2Qr(sb, { budgetMs: 8_000 });
+
   // A campaign with no codes yet is a real state, not an error: it has been
   // named and the codes are made next.
   if (!codes.length) {
@@ -99,6 +105,7 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   return json({
     ok: true,
     truncated,
+    link2qr,
     detail: folderDetail({ folder, codes, scans, visitors, events, leads, orders }),
   });
 }

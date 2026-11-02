@@ -13,6 +13,7 @@
  */
 
 import { clean, fail, json, readJson } from "@/lib/server/billingGuard";
+import { syncLink2Qr } from "@/lib/server/link2qrSync";
 import { ownerGuard, isMissingColumn } from "@/lib/server/ownerGuard";
 import { isSafePath } from "@/lib/analytics/attribution";
 import {
@@ -73,6 +74,9 @@ export async function GET(req: Request) {
     }
     return fail(500, "read_failed", codesQ.error.message);
   }
+
+  // Scans of LINK-2-QR letters live in LINK-2-QR until copied (lib/link2qr.ts).
+  if (codesQ.rows.length) await syncLink2Qr(sb, { budgetMs: 8_000 });
 
   const loaded = await loadCampaignBundle<FolderLeadRow, OrderRow>(
     sb,
