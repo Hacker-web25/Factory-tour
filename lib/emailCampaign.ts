@@ -244,9 +244,11 @@ const toCsv = (header: string[], rows: unknown[][]) =>
   BOM + [header.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\r\n") + "\r\n";
 
 /**
- * The file that goes INTO Zoho: one row per person, with their own link.
+ * The file that goes INTO Zoho Campaigns: one row per person, with their own link.
  * Import it as contacts and map "VPV Link" (and "VPV Code") to custom fields;
  * the e-mail then uses that field as its button.
+ *
+ * Kept for Zoho Campaigns users. For Zoho CRM, use `zohoCrmLeadsCsv` below.
  */
 export function zohoExportCsv(
   people: { email: string; name: string; company: string | null; phone: string | null; code: string }[],
@@ -259,6 +261,49 @@ export function zohoExportCsv(
     people.map((p) => {
       const n = splitName(p.name);
       const row: unknown[] = [p.email, n.first, n.last, p.company, p.phone, p.code, personalLink(p.code)];
+      if (coupon) row.push(coupon.code, coupon.validUntil ? formatIst(coupon.validUntil) : "");
+      return row;
+    })
+  );
+}
+
+/**
+ * The file that goes INTO Zoho CRM Leads. Zoho CRM's Lead module expects
+ * these exact field names on an import: Email, First Name, Last Name,
+ * Company (REQUIRED on Leads — Zoho rejects a row without it), Phone, Mobile.
+ * We fill Mobile with the same value as Phone because Zoho CRM mass-email
+ * dispatchers often read from Mobile only.
+ *
+ * The last three columns ("VPV Link", "VPV Code", "Coupon Code") are custom
+ * single-line fields the owner adds in Zoho CRM once, and maps during the
+ * import. The mass-email template then uses "${Leads.VPV_Link}" in the
+ * button's address, which Zoho merges per lead at send time.
+ *
+ * The file is UTF-8 with a BOM, CRLF line endings, which is what Excel
+ * assumes when the owner opens the file to check it before uploading.
+ */
+export function zohoCrmLeadsCsv(
+  people: { email: string; name: string; company: string | null; phone: string | null; code: string }[],
+  coupon: { code: string; validUntil: Date | null } | null
+): string {
+  const header = ["First Name", "Last Name", "Email", "Company", "Phone", "Mobile", "Lead Source", "VPV Link", "VPV Code"];
+  if (coupon) header.push("Coupon Code", "Coupon Valid Until");
+  const COMPANY_FALLBACK = "Unknown"; // Zoho CRM Leads reject rows without Company.
+  return toCsv(
+    header,
+    people.map((p) => {
+      const n = splitName(p.name);
+      const row: unknown[] = [
+        n.first,
+        n.last,
+        p.email,
+        p.company || COMPANY_FALLBACK,
+        p.phone,
+        p.phone, // Mobile copy, see doc comment above.
+        "VPV Email Campaign",
+        personalLink(p.code),
+        p.code,
+      ];
       if (coupon) row.push(coupon.code, coupon.validUntil ? formatIst(coupon.validUntil) : "");
       return row;
     })
