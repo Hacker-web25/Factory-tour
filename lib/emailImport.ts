@@ -378,3 +378,185 @@ export function planZohoReport(t: Table): { rows: ZohoRow[]; skipped: number; no
   }
   return { rows, skipped, noEmailColumn: false };
 }
+
+/* ────────────── Zoho CRM mass-email: one file, every status ────────────── */
+
+/**
+ * Zoho CRM's "Mass Email Status" / "Email Analytics" exports are one row per
+ * lead, with the outcome in the row itself — not a separate file per outcome
+ * (that is Zoho Campaigns). Two shapes turn up in practice:
+ *
+ *   • A single "Status" (or "Delivery Status", or "Mass Email Status") column
+ *     whose cell says what happened: "Opened", "Clicked", "Bounced",
+ *     "Opt-out", "Delivered", "Not Opened", …
+ *
+ *   • Several Yes/No columns side by side: Delivered, Opened, Clicked,
+ *     Bounced, Opt-out. One lead can appear once with several Yeses.
+ *
+ * This parser accepts either and returns rows grouped by what we care about
+ * (sent / opened / clicked / bounced / unsubscribed / complained). The caller
+ * uploads each group in the same request as the matching kind, so uploading
+ * one CRM file does what used to need five Zoho Campaigns files.
+ */
+
+/** Mass-email status words from the UI and the typical API export, in English. */
+const CRM_STATUS_MAP: { re: RegExp; kind: ZohoReportKind | null }[] = [
+  // Order matters: "not opened" must beat "opened"; "opt" must beat "open".
+  { re: /^\s*(not\s*opened|unopened|email\s*not\s*opened)\s*$/i, kind: null },
+  { re: /^\s*(opt[\s-]?out|unsubscribe[d]?|unsub)\s*$/i, kind: "unsubscribed" },
+  { re: /^\s*(spam|reported\s*spam|marked\s*as\s*spam|complaint)\s*$/i, kind: "complained" },
+  { re: /^\s*(bounce[d]?|hard\s*bounce|soft\s*bounce|undeliverable)\s*$/i, kind: "bounced" },
+  { re: /^\s*(click(ed)?|link\s*click(ed)?)\s*$/i, kind: "clicked" },
+  { re: /^\s*(open(ed)?|email\s*open(ed)?|read)\s*$/i, kind: "opened" },
+  { re: /^\s*(sent|delivered|dispatched|success(ful)?)\s*$/i, kind: "sent" },
+];
+
+/** True-ish cell values Zoho writes into Yes/No columns. */
+const YES_RE = /^\s*(y(es)?|true|1|✓|opened|clicked|delivered|bounced|opt[\s-]?out|unsubscribed|spam|complaint)\s*$/i;
+function isYes(v: string | undefined): boolean {
+  return typeof v === "string" && v.trim() !== "" && YES_RE.test(v);
+}
+
+/** Which named kind each shaped column stands for, if any. */
+function kindOfColumn(header: string): ZohoReportKind | null {
+  const h = header.trim().toLowerCase();
+  if (!h) return null;
+  if (/\bopt[\s-]?out\b|unsubscrib/.test(h)) return "unsubscribed";
+  if (/spam|complain/.test(h)) return "complained";
+  if (/bounce|undeliver/.test(h)) return "bounced";
+  if (/click/.test(h)) return "clicked";
+  if (/\bopen(ed)?\b|read/.test(h)) return "opened";
+  if (/\bsent\b|deliver|dispatch/.test(h)) return "sent";
+  return null;
+}
+
+export type CrmReportPlan = {
+  /** Rows grouped by the kind they count as — ready to feed the POST route one kind at a time. */
+  byKind: Record<ZohoReportKind, ZohoRow[]>;
+  /** Rows seen with a status cell we did not understand (e.g. "In progress"). */
+  unknown: number;
+  /** Rows whose e-mail cell was empty or malformed. */
+  skipped: number;
+  /** Addresses that appeared more than once in the file — only the first row for each counts. */
+  duplicates: number;
+  /** True when there was no email column at all. */
+  noEmailColumn: boolean;
+  /** True when there was no status cell or Yes/No column we could read. */
+  noStatusColumn: boolean;
+  /** How many leads the file described in total (one per address). */
+  totalLeads: number;
+  /** Which input shape won. */
+  shape: "status-column" | "yes-no-columns" | "none";
+};
+
+export function emptyCrmPlan(): CrmReportPlan {
+  return {
+    byKind: {
+      sent: [], opened: [], clicked: [], bounced: [], unsubscribed: [], complained: [],
+    },
+    unknown: 0,
+    skipped: 0,
+    duplicates: 0,
+    noEmailColumn: false,
+    noStatusColumn: false,
+    totalLeads: 0,
+    shape: "none",
+  };
+}
+
+/** Pick the kind for a status cell, or `undefined` if it has no clear meaning. */
+export function kindOfCrmStatus(cell: string): ZohoReportKind | null | undefined {
+  for (const { re, kind } of CRM_STATUS_MAP) if (re.test(cell)) return kind;
+  return undefined;
+}
+
+export function planZohoCrmReport(t: Table): CrmReportPlan {
+  const plan = emptyCrmPlan();
+  const map = guessColumns(t);
+  if (map.email < 0) {
+    plan.noEmailColumn = true;
+    return plan;
+  }
+  const dateCol = t.headers.findIndex((h) => /date|time|\bon\b|\bat\b/i.test(h));
+
+  // Shape detection: one Status column, or several Yes/No columns.
+  const statusCol = t.headers.findIndex((h, i) =>
+    i !== map.email && /\b(mass\s*email\s*status|email\s*status|delivery\s*status|status|outcome)\b/i.test(h)
+  );
+  // Columns whose heading matches a known kind — Delivered, Opened, Clicked, Bounced, Opt-out.
+  const kindCols: { col: number; kind: ZohoReportKind }[] = [];
+  if (statusCol < 0) {
+    t.headers.forEach((h, i) => {
+      if (i === map.email) return;
+      const k = kindOfColumn(h);
+      if (k) kindCols.push({ col: i, kind: k });
+    });
+  }
+
+  if (statusCol < 0 && kindCols.length === 0) {
+    plan.noStatusColumn = true;
+    return plan;
+  }
+
+  plan.shape = statusCol >= 0 ? "status-column" : "yes-no-columns";
+  const seen = new Set<string>();
+
+  for (const r of t.rows) {
+    const email = normaliseEmail(r[map.email] ?? "");
+    if (!email) {
+      plan.skipped += 1;
+      continue;
+    }
+    if (seen.has(email)) {
+      plan.duplicates += 1;
+      continue;
+    }
+    seen.add(email);
+    plan.totalLeads += 1;
+    const at = dateCol >= 0 ? parseReportDate(r[dateCol] ?? "") : null;
+
+    if (plan.shape === "status-column") {
+      const cell = (r[statusCol] ?? "").trim();
+      if (!cell) {
+        plan.unknown += 1;
+        continue;
+      }
+      const kind = kindOfCrmStatus(cell);
+      if (kind === undefined) {
+        plan.unknown += 1;
+        continue;
+      }
+      if (kind === null) {
+        // "Not opened" — Zoho says the e-mail reached them but was not opened.
+        // That is useful information: upload a "sent" row so the segments
+        // "not opened" and "did not open the e-mail" can tell them apart.
+        plan.byKind.sent.push({ email, at, count: null });
+        continue;
+      }
+      plan.byKind[kind].push({ email, at, count: null });
+      // Opened and Clicked imply Sent too, so the funnel in the UI is honest even
+      // when the exporter did not include a Sent column.
+      if (kind === "opened" || kind === "clicked") {
+        plan.byKind.sent.push({ email, at: null, count: null });
+      }
+    } else {
+      // yes-no-columns
+      let anyKind = false;
+      for (const { col, kind } of kindCols) {
+        if (isYes(r[col])) {
+          plan.byKind[kind].push({ email, at, count: null });
+          anyKind = true;
+        }
+      }
+      if (!anyKind) plan.unknown += 1;
+      // If we saw Opened or Clicked but no Sent/Delivered column, imply Sent.
+      const sawSent = kindCols.some((k) => k.kind === "sent") && plan.byKind.sent.find((x) => x.email === email);
+      const sawEngagement = plan.byKind.opened.find((x) => x.email === email) || plan.byKind.clicked.find((x) => x.email === email);
+      if (!sawSent && sawEngagement && !kindCols.some((k) => k.kind === "sent")) {
+        plan.byKind.sent.push({ email, at: null, count: null });
+      }
+    }
+  }
+
+  return plan;
+}

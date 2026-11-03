@@ -59,6 +59,7 @@ class Query implements PromiseLike<any> {
   private filters: Filter[] = [];
   private orders: string[] = [];
   private limitN: number | null = null;
+  private offsetN: number | null = null;
   private rows: Record<string, unknown>[] = [];
   private patch: Record<string, unknown> = {};
   private returning = false;
@@ -168,6 +169,12 @@ class Query implements PromiseLike<any> {
     this.limitN = n;
     return this;
   }
+  /** PostgREST .range(from,to) is inclusive — maps to SQL offset `from` limit `to-from+1`. */
+  range(from: number, to: number) {
+    this.offsetN = Math.max(0, from | 0);
+    this.limitN = Math.max(0, (to | 0) - this.offsetN + 1);
+    return this;
+  }
   single() {
     this.mode = "single";
     return this;
@@ -198,7 +205,8 @@ class Query implements PromiseLike<any> {
       case "select": {
         const ord = this.orders.length ? ` order by ${this.orders.join(", ")}` : "";
         const lim = this.limitN !== null ? ` limit ${this.limitN}` : "";
-        return { sql: `select ${cols} from ${t}${where}${ord}${lim}`, params };
+        const off = this.offsetN !== null ? ` offset ${this.offsetN}` : "";
+        return { sql: `select ${cols} from ${t}${where}${ord}${lim}${off}`, params };
       }
       case "insert":
       case "upsert": {
