@@ -30,3 +30,6 @@ vpv_pricing_thinking.md
 # Optional caches
 .cache/
 .turbo/
+
+# Built by scripts/copy-beautify-vendor.mjs (OpenCV + ONNX Runtime for Beautify)
+public/vendor/

@@ -9,8 +9,12 @@ import {
   preloadBeautifyWorker,
   healCrop,
   healCropAI,
-  onBeautifyWorkerStage,
+  cancelBeautifyAI,
+  onBeautifyStatus,
+  BeautifyCancelled,
+  type BeautifyStatus,
 } from "@/lib/beautifyWorker";
+import { INITIAL_AI, describeAi, describeTools } from "@/lib/beautifyProgress";
 
 /**
  * BeautifyModal — full-screen 360° panorama repair.
@@ -80,18 +84,27 @@ export default function BeautifyModal({
   // whole time — no more "Page Unresponsive" dialogs, and there's
   // headroom to heal much larger areas (whole walls, floors, etc.)
   // without ever blocking the UI.
-  const [workerStage, setWorkerStage] = useState<string>("idle");
-  const [modelProgress, setModelProgress] = useState(0);
+  //
+  // The worker reports everything the person needs to see: tool start-up,
+  // the AI model download (percent, MB, speed, time left), loading, and
+  // errors. See lib/beautifyProgress.ts for the wording.
+  const [wstatus, setWstatus] = useState<BeautifyStatus>({
+    tools: "idle",
+    toolsError: null,
+    ai: { ...INITIAL_AI },
+  });
   useEffect(() => {
-    const off = onBeautifyWorkerStage((s, p) => {
-      setWorkerStage(s);
-      setModelProgress(p);
-    });
+    const off = onBeautifyStatus(setWstatus);
     preloadBeautifyWorker().catch((e) =>
       console.warn("[beautify] worker preload failed", e)
     );
-    return off;
+    return () => {
+      off();
+      // Closing the editor while the AI is still downloading stops it.
+      cancelBeautifyAI();
+    };
   }, []);
+  const aiView = describeAi(wstatus.ai);
 
   // ---- Create the hidden canvases + load the panorama ----
   useEffect(() => {
@@ -270,12 +283,14 @@ export default function BeautifyModal({
     // "opencv" while the worker is still spinning up OpenCV (only
     // the very first Heal in a session), then "healing" once we're
     // actually inpainting. Main thread never blocks either way.
-    setBusy(workerStage === "ready" ? "healing" : "opencv");
+    setBusy(wstatus.tools === "ready" ? "healing" : "opencv");
     await new Promise((r) => setTimeout(r, 30));
     try {
       const ictx = imgC.getContext("2d")!;
-      // Full-image snapshot for undo. One-time big copy per Heal.
-      preHealRef.current = ictx.getImageData(0, 0, imgC.width, imgC.height);
+      // Full-image snapshot for undo. One-time big copy per Heal. Kept
+      // aside until the heal worked, so a failed try cannot overwrite the
+      // undo step of an earlier good one.
+      const snapshot = ictx.getImageData(0, 0, imgC.width, imgC.height);
 
       // Use tracked bounds — no full-mask scan needed.
       const b = maskBoundsRef.current;
@@ -318,6 +333,7 @@ export default function BeautifyModal({
       scCtx.putImageData(healed, 0, 0);
       ictx.drawImage(srcCrop, minX, minY);
 
+      preHealRef.current = snapshot;
       resetMask();
       setCanUndoHeal(true);
       setImgVersion((v) => v + 1);
@@ -344,20 +360,31 @@ export default function BeautifyModal({
       alert("Paint over the areas you want to repair first.");
       return;
     }
+    setError(null);
     setBusy("ai");
     await new Promise((r) => setTimeout(r, 30));
     try {
       const ictx = imgC.getContext("2d")!;
-      preHealRef.current = ictx.getImageData(0, 0, imgC.width, imgC.height);
+      const snapshot = ictx.getImageData(0, 0, imgC.width, imgC.height);
 
       const b = maskBoundsRef.current;
       // AI can handle bigger context — give it more padding so it has
-      // more texture to learn from.
+      // more texture to learn from. The model works on 512 px squares, so
+      // a tiny crop is widened to at least 512 px (where the picture is
+      // big enough): more surroundings to learn from, and no upscaling blur.
       const pad = Math.min(Math.max(brushSize * 3, 60), 400);
-      const minX = Math.max(0, Math.floor(b.minX - pad));
-      const minY = Math.max(0, Math.floor(b.minY - pad));
-      const maxX = Math.min(imgC.width - 1, Math.ceil(b.maxX + pad));
-      const maxY = Math.min(imgC.height - 1, Math.ceil(b.maxY + pad));
+      const [minX, maxX] = widenRange(
+        Math.floor(b.minX - pad),
+        Math.ceil(b.maxX + pad),
+        AI_MIN_CROP,
+        imgC.width
+      );
+      const [minY, maxY] = widenRange(
+        Math.floor(b.minY - pad),
+        Math.ceil(b.maxY + pad),
+        AI_MIN_CROP,
+        imgC.height
+      );
       const cropW = maxX - minX + 1;
       const cropH = maxY - minY + 1;
       console.log("[beautify] AI crop", cropW, "x", cropH, "at", minX, minY);
@@ -385,10 +412,12 @@ export default function BeautifyModal({
       scCtx.putImageData(healed, 0, 0);
       ictx.drawImage(srcCrop, minX, minY);
 
+      preHealRef.current = snapshot;
       resetMask();
       setCanUndoHeal(true);
       setImgVersion((v) => v + 1);
     } catch (e: any) {
+      if (e instanceof BeautifyCancelled) return; // the person pressed Cancel
       console.error("[beautify] AI repair error", e);
       setError(e?.message ?? "AI repair failed.");
     } finally {
@@ -523,11 +552,7 @@ export default function BeautifyModal({
           }}
         >
           {busy === "opencv"
-            ? workerStage === "loading"
-              ? "Downloading tools…"
-              : workerStage === "compiling"
-              ? "Compiling tools…"
-              : "Preparing tools…"
+            ? describeTools(wstatus.tools)
             : busy === "healing"
             ? "Healing…"
             : "Heal"}
@@ -545,15 +570,7 @@ export default function BeautifyModal({
           }}
           title="Neural inpainting (LaMa). First use downloads a ~200 MB model."
         >
-          {busy === "ai"
-            ? workerStage === "downloading-model"
-              ? `Downloading AI ${Math.round(modelProgress * 100)}%…`
-              : workerStage === "compiling-model"
-              ? "Loading AI model…"
-              : workerStage === "running-inference"
-              ? "AI working…"
-              : "Preparing AI…"
-            : "✨ Repair (AI)"}
+          {busy === "ai" ? aiView.button : "✨ Repair (AI)"}
         </button>
 
         <button
@@ -607,7 +624,62 @@ export default function BeautifyModal({
         {busy === "loading" && (
           <div style={loaderStyle}>Loading panorama…</div>
         )}
-        {error && <div style={errorStyle}>{error}</div>}
+        {error && (
+          <div
+            style={{ ...errorStyle, cursor: "pointer" }}
+            onClick={() => setError(null)}
+            title="Click to dismiss"
+            role="alert"
+          >
+            {error} <span style={{ opacity: 0.7, marginLeft: 8 }}>✕</span>
+          </div>
+        )}
+        {busy === "ai" && (
+          <div style={progressCardStyle} role="status" aria-live="polite">
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              {aiView.title || "Starting AI repair"}
+            </div>
+            <div
+              style={{
+                height: 8,
+                borderRadius: 4,
+                background: "#2a2a30",
+                overflow: "hidden",
+                margin: "8px 0",
+              }}
+            >
+              {aiView.percent === null ? (
+                <div className="beautify-bar-moving" style={movingBarStyle} />
+              ) : (
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${Math.max(2, Math.min(100, aiView.percent))}%`,
+                    background: "linear-gradient(90deg,#a855f7,#ec4899)",
+                    transition: "width 0.4s linear",
+                  }}
+                />
+              )}
+            </div>
+            <div style={{ color: "#bbb", fontSize: 12, whiteSpace: "pre-line" }}>
+              {aiView.subtitle}
+            </div>
+            {wstatus.ai.phase === "downloading" && (
+              <div style={{ color: "#777", fontSize: 11, marginTop: 6 }}>
+                One time only: the model stays on this computer afterwards.
+              </div>
+            )}
+            {aiView.cancellable && (
+              <button
+                onClick={() => cancelBeautifyAI()}
+                style={{ ...btnStyle, marginTop: 10 }}
+              >
+                Cancel
+              </button>
+            )}
+            <style>{`@keyframes beautify-slide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}`}</style>
+          </div>
+        )}
         {ready && imageCanvasRef.current && maskCanvasRef.current && (
           <Canvas
             camera={{ position: [0, 0, 0.01], fov: 75, near: 0.01, far: 2000 }}
@@ -685,12 +757,12 @@ function PanoSphere({
   const imgTex = useMemo(() => {
     const t = new THREE.CanvasTexture(imageCanvas);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = THREE.RepeatWrapping;
+    flipForInsideView(t);
     return t;
   }, [imageCanvas]);
   const maskTex = useMemo(() => {
     const t = new THREE.CanvasTexture(maskCanvas);
-    t.wrapS = THREE.RepeatWrapping;
+    flipForInsideView(t);
     return t;
   }, [maskCanvas]);
 
@@ -707,7 +779,7 @@ function PanoSphere({
     c.getContext("2d")!.putImageData(originalImageData, 0, 0);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = THREE.RepeatWrapping;
+    flipForInsideView(t);
     setBeforeTex(t);
   }, [showBefore, beforeTex, originalImageData]);
 
@@ -730,7 +802,9 @@ function PanoSphere({
 
   function uvToPixels(u: number, v: number) {
     return {
-      x: u * maskCanvas.width,
+      // The textures are flipped horizontally (flipForInsideView), so the
+      // picture's x runs the other way from the sphere's u.
+      x: (1 - u) * maskCanvas.width,
       // Three.js UV origin is bottom-left; canvas origin is top-left.
       y: (1 - v) * maskCanvas.height,
     };
@@ -811,6 +885,48 @@ function PanoSphere({
 // no-op raycast so a mesh renders but never intercepts pointer events
 const noRaycast = () => {};
 
+/**
+ * Same horizontal flip the tour viewer applies (components/panorama/
+ * PanoramaViewer.tsx). A sphere seen from the inside shows a texture
+ * mirrored; flipping it once puts the picture the way the real tour shows
+ * it, with text reading correctly and left/right as in the tour. Without
+ * this the editor showed (and therefore got painted on) a mirror image.
+ */
+function flipForInsideView(t: THREE.Texture) {
+  t.wrapS = THREE.RepeatWrapping;
+  t.repeat.x = -1;
+  t.offset.x = 1;
+}
+
+/** AI repair works on 512 px squares; never hand it a smaller crop than this when the picture allows. */
+const AI_MIN_CROP = 512;
+
+/**
+ * Turn [lo, hi] into an inclusive range at least `min` long, staying inside
+ * 0..limit-1 (grows evenly on both sides, shifts at the edges).
+ */
+function widenRange(lo: number, hi: number, min: number, limit: number): [number, number] {
+  let a = Math.max(0, lo);
+  let b = Math.min(limit - 1, hi);
+  const want = Math.min(min, limit);
+  const have = b - a + 1;
+  if (have < want) {
+    const extra = want - have;
+    a -= Math.floor(extra / 2);
+    b += Math.ceil(extra / 2);
+    if (a < 0) {
+      b -= a;
+      a = 0;
+    }
+    if (b > limit - 1) {
+      a -= b - (limit - 1);
+      b = limit - 1;
+    }
+    a = Math.max(0, a);
+  }
+  return [a, b];
+}
+
 const tabStyle: React.CSSProperties = {
   padding: "6px 12px",
   border: "none",
@@ -838,6 +954,27 @@ const loaderStyle: React.CSSProperties = {
   borderRadius: 6,
   border: "1px solid #333",
   fontSize: 14,
+};
+const progressCardStyle: React.CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: 28,
+  transform: "translateX(-50%)",
+  width: "min(460px, calc(100% - 32px))",
+  color: "#eee",
+  background: "rgba(24,24,28,0.96)",
+  padding: "14px 18px",
+  borderRadius: 8,
+  border: "1px solid #3a3a42",
+  fontSize: 13,
+  zIndex: 11,
+  boxShadow: "0 8px 30px rgba(0,0,0,0.5)",
+};
+const movingBarStyle: React.CSSProperties = {
+  height: "100%",
+  width: "30%",
+  background: "linear-gradient(90deg,#a855f7,#ec4899)",
+  animation: "beautify-slide 1.2s ease-in-out infinite",
 };
 const errorStyle: React.CSSProperties = {
   position: "absolute",
