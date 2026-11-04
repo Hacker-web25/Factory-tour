@@ -55,7 +55,32 @@ export type FakeRefund = {
   created_at: number;
 };
 
-export type SentEmail = { to: string[]; bcc?: string[]; subject: string; html: string; text?: string };
+export type SentEmail = {
+  to: string[];
+  bcc?: string[];
+  subject: string;
+  html: string;
+  text?: string;
+  /** Present on mail sent by the inbox: who it was sent as, and its threading headers. */
+  from?: string;
+  cc?: string[];
+  reply_to?: string;
+  headers?: Record<string, string>;
+};
+
+/** A message "received" by Resend, served at GET /emails/receiving/{id}. */
+export type FakeReceived = {
+  id: string;
+  from: string;
+  to: string[];
+  cc?: string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  message_id?: string;
+  headers?: Record<string, string>;
+  attachments?: { filename: string; content_type: string; size: number }[];
+};
 
 export const TEST_KEY_ID = "rzp_test_AbCdEf123456";
 export const LIVE_STYLE_KEY_ID = "rzp_live_AbCdEf123456";
@@ -68,6 +93,7 @@ export class FakeGateway {
   refunds = new Map<string, FakeRefund>();
   private refundKeys = new Map<string, FakeRefund>();
   emails: SentEmail[] = [];
+  received = new Map<string, FakeReceived>();
   requests: { method: string; url: string }[] = [];
 
   /** Fail the next N calls to a path prefix, e.g. "POST /v1/orders". */
@@ -93,6 +119,7 @@ export class FakeGateway {
     this.refunds.clear();
     this.refundKeys.clear();
     this.emails = [];
+    this.received.clear();
     this.requests = [];
     this.failures = [];
     this.hangs = [];
@@ -125,6 +152,11 @@ export class FakeGateway {
       new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
     /* Resend */
+    if (url.startsWith("https://api.resend.com/emails/receiving/")) {
+      const id = decodeURIComponent(url.slice("https://api.resend.com/emails/receiving/".length));
+      const r = this.received.get(id);
+      return r ? json(r) : json({ message: "not found" }, 404);
+    }
     if (url.startsWith("https://api.resend.com/emails")) {
       if (this.emailsDown) return json({ message: "down" }, 503);
       if (this.emailFailuresRemaining > 0) {
@@ -132,7 +164,7 @@ export class FakeGateway {
         return json({ message: "bounced" }, 422);
       }
       const b = JSON.parse(init.body);
-      this.emails.push({ to: b.to, bcc: b.bcc, subject: b.subject, html: b.html, text: b.text });
+      this.emails.push({ to: b.to, bcc: b.bcc, subject: b.subject, html: b.html, text: b.text, from: b.from, cc: b.cc, reply_to: b.reply_to, headers: b.headers });
       return json({ id: this.nextId("email") });
     }
 
