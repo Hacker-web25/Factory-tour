@@ -30,6 +30,7 @@ import {
   segmentCsv,
   timeLeft,
   zohoCrmLeadsCsv,
+  zohoExportCsv,
   emailTemplate,
   type EmailPerson,
   type SegmentId,
@@ -144,10 +145,13 @@ export default function EmailCampaignPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  // Zoho report upload — the CRM mass-email export has every outcome in one
-  // file; the per-kind picker is kept for Zoho Campaigns-style per-outcome
-  // exports and for anyone whose Zoho CRM export does not carry a Status column.
-  const [reportShape, setReportShape] = useState<"crm" | "per-kind">("crm");
+  // Which Zoho product sends the e-mail. Zoho Campaigns is the one in use (it
+  // works on every plan that has Campaigns, with custom fields and exportable
+  // reports). Zoho CRM mass e-mail needs a paid CRM edition (the Free edition
+  // has neither mass e-mail nor custom fields), so it is the alternative.
+  // Campaigns exports one report per outcome; CRM exports one file with all of them.
+  const [product, setProduct] = useState<"campaigns" | "crm">("campaigns");
+  const reportShape: "crm" | "per-kind" = product === "crm" ? "crm" : "per-kind";
   const [kind, setKind] = useState<ZohoReportKind>("opened");
   const [zohoMsg, setZohoMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [zohoBusy, setZohoBusy] = useState(false);
@@ -282,7 +286,7 @@ export default function EmailCampaignPage() {
             ok: false,
             text:
               "That report has no outcome column (Status, Delivery Status, Opened, Clicked…). " +
-              "If each outcome is its own file, switch to “Per outcome (Zoho Campaigns)” above.",
+              "If each outcome is its own file, pick “Zoho Campaigns” above and upload them one at a time.",
           });
           return;
         }
@@ -436,19 +440,20 @@ export default function EmailCampaignPage() {
             </button>
             <button
               type="button"
-              onClick={() =>
-                download(
-                  `${fileSlug(c.name)}-for-zoho-crm.csv`,
-                  zohoCrmLeadsCsv(
-                    meta.recipients.map((r) => ({ email: r.email, name: r.name ?? r.email, company: r.company, phone: r.phone, code: r.code })),
-                    cp ? { code: cp.code, validUntil: cp.expiresAt ? new Date(cp.expiresAt) : null } : null
-                  )
-                )
-              }
+              onClick={() => {
+                const people = meta.recipients.map((r) => ({ email: r.email, name: r.name ?? r.email, company: r.company, phone: r.phone, code: r.code }));
+                const coupon = cp ? { code: cp.code, validUntil: cp.expiresAt ? new Date(cp.expiresAt) : null } : null;
+                if (product === "crm") download(`${fileSlug(c.name)}-for-zoho-crm.csv`, zohoCrmLeadsCsv(people, coupon));
+                else download(`${fileSlug(c.name)}-for-zoho-campaigns.csv`, zohoExportCsv(people, coupon));
+              }}
               className="rounded-full bg-vpv-blue px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90"
-              title="A CSV with the Zoho CRM Lead fields filled in. Import it into Leads."
+              title={
+                product === "crm"
+                  ? "A CSV with the Zoho CRM Lead fields filled in. Import it into Leads."
+                  : "A CSV of contacts, each with their own VPV Link. Import it into Zoho Campaigns."
+              }
             >
-              Download for Zoho CRM
+              {product === "crm" ? "Download for Zoho CRM" : "Download for Zoho Campaigns"}
             </button>
             <button
               type="button"
@@ -637,21 +642,58 @@ export default function EmailCampaignPage() {
             )}
           </section>
 
-          {/* ── Zoho CRM ─────────────────────────────────────────────── */}
+          {/* ── Zoho ─────────────────────────────────────────────────── */}
           <section className="rounded-2xl border border-vpv-line bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[16px] font-semibold">What Zoho CRM says</h2>
+              <h2 className="text-[16px] font-semibold">{product === "crm" ? "What Zoho CRM says" : "What Zoho Campaigns says"}</h2>
               <button type="button" onClick={() => setHelpOpen((v) => !v)} className="text-[12.5px] font-medium text-vpv-blue underline">
-                {helpOpen ? "Hide steps" : "How to use Zoho CRM with this"}
+                {helpOpen ? "Hide steps" : product === "crm" ? "How to use Zoho CRM with this" : "How to use Zoho Campaigns with this"}
               </button>
             </div>
             <p className="mt-2 text-[13px] leading-relaxed text-vpv-muted">
-              Zoho CRM tracks who was sent the mass e-mail and who opened or clicked it. Export the
-              Mass Email Status report from Zoho CRM and upload it here; each lead&rsquo;s outcome
-              is matched to its person on this campaign.
+              {product === "crm"
+                ? "Zoho CRM tracks who was sent the mass e-mail and who opened or clicked it. Export the Mass Email Status report from Zoho CRM and upload it here; each lead\u2019s outcome is matched to its person on this campaign."
+                : "Zoho Campaigns already tracks who was sent the e-mail, who opened it, who clicked, bounced or unsubscribed. Export those reports from the campaign in Zoho and upload them here; each address is matched to its person."}
             </p>
-            {helpOpen && (
+            {helpOpen && product === "campaigns" && (
               <ol className="mt-3 list-decimal space-y-2 rounded-xl bg-vpv-canvas p-4 pl-8 text-[12.5px] leading-relaxed text-slate-700">
+                <li>
+                  <strong>Add one contact field in Zoho Campaigns, once.</strong> In Zoho Campaigns open the contact
+                  fields (Contacts &rarr; manage or custom fields; the menu name varies) and add a single-line text
+                  field named <em>VPV Link</em>. A link here is about 30 characters; Zoho&rsquo;s plain text fields hold 50.
+                  Add <em>VPV Code</em> too if you want it.
+                </li>
+                <li>
+                  <strong>Download the contact file.</strong> Press <em>Download for Zoho Campaigns</em> above. Each
+                  row has the person&rsquo;s own link in &ldquo;VPV Link&rdquo;.
+                </li>
+                <li>
+                  <strong>Import it into a new mailing list.</strong> Contacts &rarr; Add Contacts &rarr; import a file.
+                  Map Contact Email, First Name, Last Name, Company, Phone, and map &ldquo;VPV Link&rdquo; to the new
+                  field. Use a fresh list for this campaign so only these people are sent it. A contact already in
+                  Zoho keeps one VPV Link at a time: importing again replaces the old one.
+                </li>
+                <li>
+                  <strong>Write the e-mail.</strong> Make the button&rsquo;s address the merge tag for VPV Link. Zoho
+                  writes custom fields as <span className="font-mono">$[UD:TAGNAME]$</span> (your own tag name).
+                  Zoho&rsquo;s help does not say this works inside a link address, so{" "}
+                  <strong>send a test to yourself first and check the address bar shows myvpv.com/q/EM-&hellip;</strong>{" "}
+                  after clicking. Do not send to the list until that works.
+                </li>
+                <li>
+                  <strong>After sending</strong>, press &ldquo;Everyone was sent it&rdquo; (or upload Zoho&rsquo;s Sent
+                  report). Later, from the campaign&rsquo;s reports in Zoho, export the Opened, Clicked, Bounced and
+                  Unsubscribed lists and upload each one here (pick the matching report type). Upload again whenever
+                  you like; repeats change nothing.
+                </li>
+              </ol>
+            )}
+            {helpOpen && product === "crm" && (
+              <ol className="mt-3 list-decimal space-y-2 rounded-xl bg-vpv-canvas p-4 pl-8 text-[12.5px] leading-relaxed text-slate-700">
+                <li>
+                  <strong>This needs a paid Zoho CRM edition.</strong> The Free edition has no mass e-mail and cannot
+                  create custom fields. Standard allows 250 mass e-mails a day.
+                </li>
                 <li>
                   <strong>Download the Lead-import file.</strong> Press <em>Download for Zoho CRM</em> above.
                   The columns match Zoho CRM&rsquo;s Lead fields: First Name, Last Name, Email, Company
@@ -660,62 +702,52 @@ export default function EmailCampaignPage() {
                 </li>
                 <li>
                   <strong>Add the custom fields to Leads, once.</strong> In Zoho CRM, open{" "}
-                  <em>Setup → Customization → Modules → Leads → Layout</em>, add a single-line text
+                  <em>Setup &rarr; Customization &rarr; Modules and Fields &rarr; Leads &rarr; Layout</em>, add a single-line text
                   field named <em>VPV Link</em> (and, if you like, <em>VPV Code</em>, <em>Coupon Code</em>).
                   Save.
                 </li>
                 <li>
-                  <strong>Import the file into Leads.</strong> <em>Leads → Import → Import Leads</em>,
+                  <strong>Import the file into Leads.</strong> <em>Leads &rarr; Import &rarr; Import Leads</em>,
                   pick the file, and map &ldquo;VPV Link&rdquo; to the field you just added. Pick a
                   Lead Source value (we already fill &ldquo;VPV Email Campaign&rdquo;). Finish the import.
                 </li>
                 <li>
-                  <strong>Write the mass e-mail.</strong> <em>Leads → Mass Email</em>, write or pick a
-                  template. Make the button&rsquo;s link{" "}
-                  <span className="font-mono">${"{"}Leads.VPV_Link{"}"}</span> — Zoho substitutes the
+                  <strong>Write the mass e-mail.</strong> Select the leads and send a mass e-mail. Make the button&rsquo;s link{" "}
+                  <span className="font-mono">${"{"}Leads.VPV_Link{"}"}</span>; Zoho substitutes the
                   per-lead value at send time. <strong>Send a test to yourself first</strong> and check
                   the address bar shows <span className="font-mono">myvpv.com/q/EM-&hellip;</span>{" "}
                   after clicking.
                 </li>
                 <li>
-                  <strong>Send.</strong> Pick the view of leads imported for this campaign (filter by
-                  Lead Source = &ldquo;VPV Email Campaign&rdquo; or by the import time) and send.
-                </li>
-                <li>
-                  <strong>After it goes out, export the Mass Email Status report.</strong>{" "}
-                  <em>Reports → Mass Email Reports</em> (or the Analytics tab on the mass-email itself),
-                  export as a CSV, and upload it below. One file covers Delivered / Opened / Clicked /
-                  Bounced / Opt-out. Uploading the same file twice changes nothing.
+                  <strong>After it goes out, export the mass e-mail status report</strong> and upload it below.
+                  One file covers Delivered / Opened / Clicked / Bounced / Opt-out. Uploading the same file twice
+                  changes nothing.
                 </li>
               </ol>
             )}
 
-            {/* Report shape toggle: combined (default) or per-outcome. */}
+            {/* Which Zoho product: Campaigns (default) or CRM. */}
             <div className="mt-4 flex flex-wrap gap-1 text-[12.5px]">
-              <button
-                type="button"
-                onClick={() => setReportShape("crm")}
-                className={`rounded-full border px-3 py-1 font-medium ${
-                  reportShape === "crm"
-                    ? "border-vpv-blue bg-vpv-blue text-white"
-                    : "border-vpv-line bg-white text-slate-700 hover:border-vpv-blue/60"
-                }`}
-                title="One file, every outcome (Zoho CRM Mass Email Status)"
-              >
-                Combined CRM report
-              </button>
-              <button
-                type="button"
-                onClick={() => setReportShape("per-kind")}
-                className={`rounded-full border px-3 py-1 font-medium ${
-                  reportShape === "per-kind"
-                    ? "border-vpv-blue bg-vpv-blue text-white"
-                    : "border-vpv-line bg-white text-slate-700 hover:border-vpv-blue/60"
-                }`}
-                title="One file per outcome (Zoho Campaigns-style)"
-              >
-                Per outcome (Zoho Campaigns)
-              </button>
+              {(
+                [
+                  ["campaigns", "Zoho Campaigns", "One report per outcome (Opened, Clicked, Bounced…)"],
+                  ["crm", "Zoho CRM", "One file with every outcome (needs a paid CRM edition)"],
+                ] as const
+              ).map(([id, label, tip]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setProduct(id)}
+                  className={`rounded-full border px-3 py-1 font-medium ${
+                    product === id
+                      ? "border-vpv-blue bg-vpv-blue text-white"
+                      : "border-vpv-line bg-white text-slate-700 hover:border-vpv-blue/60"
+                  }`}
+                  title={tip}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
