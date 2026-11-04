@@ -45,6 +45,8 @@ function toParam(v: unknown): unknown {
   if (Array.isArray(v) && v.every((x) => typeof x === "string")) {
     return "{" + v.map((x) => '"' + String(x).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"').join(",") + "}";
   }
+  // A list of numbers is a Postgres integer[] / numeric[].
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "number")) return "{" + v.join(",") + "}";
   if (v !== null && typeof v === "object") return JSON.stringify(v);
   return v;
 }

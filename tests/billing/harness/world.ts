@@ -53,7 +53,13 @@ export async function makeWorld() {
     if (!id) return null;
     const { data: profile } = await sb.from("profiles").select("id, email, full_name, role, org_id").eq("id", id).maybeSingle();
     if (!profile) return null;
-    return { sb: sb.as("authenticated", id) as any, user: { id } as any, profile: profile as any };
+    // A signed-in user whose e-mail is confirmed, unless the test says otherwise.
+    const confirmed = r.headers.get("x-test-unconfirmed") !== "1";
+    return {
+      sb: sb.as("authenticated", id) as any,
+      user: { id, email: (profile as any).email, email_confirmed_at: confirmed ? "2026-01-01T00:00:00Z" : null } as any,
+      profile: profile as any,
+    };
   });
 
   const routes = {

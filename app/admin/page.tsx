@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import TopBar from "@/components/TopBar";
 import { getMyProfile, type Profile } from "@/lib/auth";
-import { BarChart3, Building2, CreditCard, Eye, Image as ImageIcon, Link as LinkIcon, MapPin, Megaphone, Users } from "lucide-react";
+import { BarChart3, Building2, CreditCard, Eye, Image as ImageIcon, Inbox, Link as LinkIcon, MapPin, Megaphone, Users } from "lucide-react";
 
 /**
  * Owner-only super-admin panel. Shows every organization on the platform
@@ -207,6 +207,12 @@ export default function AdminPanelPage() {
                 {paymentsAttention}
               </span>
             )}
+          </Link>
+          <Link
+            href="/admin/inbox"
+            className="inline-flex items-center gap-1.5 rounded border border-border bg-panelSoft px-3 py-1.5 text-xs text-neutral-200 hover:text-accent"
+          >
+            <Inbox size={13} /> Inbox (support@)
           </Link>
           <Link
             href="/admin/channels"
