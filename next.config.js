@@ -47,6 +47,9 @@ const withMedia = (directive) => (MEDIA_ORIGIN ? `${directive} ${MEDIA_ORIGIN}` 
  *   - Supabase (project + wss realtime)
  *   - YouTube iframes + thumbnails
  *   - Google Fonts
+ *   - Hugging Face (huggingface.co and its *.hf.co download hosts): only the
+ *     Beautify AI model file, fetched by public/beautify-worker.js. connect-src
+ *     means data can be fetched from there, never script run.
  *   - Resend (for the email alert API)
  *   - Our own CDN (myvpv.com for the logo mark + OG image)
  *
@@ -111,7 +114,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       withMedia("img-src 'self' data: blob: https://*.supabase.co https://myvpv.com https://img.youtube.com https://*.ytimg.com https://cdn.razorpay.com https://*.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com"),
       "font-src 'self' data: https://fonts.gstatic.com",
-      withMedia("connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com"),
+      withMedia("connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.youtube.com https://api.bigdatacloud.net https://api.razorpay.com https://lumberjack.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com https://challenges.cloudflare.com https://huggingface.co https://*.hf.co"),
       withMedia("frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.supabase.co https://api.razorpay.com https://checkout.razorpay.com https://challenges.cloudflare.com"),
       withMedia("media-src 'self' blob: https://*.supabase.co"),
       "worker-src 'self' blob:",
@@ -234,6 +237,14 @@ const nextConfig = {
         source: "/demo/vee-tee/:file",
         headers: [
           { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
+        ],
+      },
+      // Beautify's OpenCV / ONNX Runtime copies (scripts/copy-beautify-vendor.mjs).
+      // The folder name carries a version, so a year of caching is safe.
+      {
+        source: "/vendor/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
       // Static assets can cache aggressively.
