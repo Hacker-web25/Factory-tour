@@ -46,6 +46,11 @@ export const EVENT_NAMES = [
   "video_play",
   "tour_opened",
 
+  /* How big they say the business is. The /why-vpv calculator saves the
+     visitor's numbers a moment after they stop moving a slider; the owner's
+     report ranks visitors by the size they typed. */
+  "calculator_used",
+
   /* What they were unsure about. A factory owner who opens three FAQ
      entries has three objections, and they are the ones to answer on the
      call. */
