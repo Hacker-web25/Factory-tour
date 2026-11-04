@@ -1,0 +1,30 @@
+Hi $[FNAME|there|there]$,
+
+Your buyer can't see your factory. So they wait, or they pick someone they can see.
+
+An enquiry comes in. You send the catalogue, the PDF, a few photos. Then it goes quiet.
+
+Usually not because of your price. A buyer will not put a serious order on a plant they cannot picture, and a plant visit is the one thing that settles it. But overseas buyers rarely fly in, and every visit costs you two days and a spotless shop floor.
+
+So we turned the visit into a link. It opens a real, working factory filmed in 360 degrees, the same thing your buyer would see on their phone. Twelve areas, gate to warehouse. No app, no login.
+
+Walk the factory:
+$[UD:VPV_LINK]$
+
+For your plant:
+1. Walkable from the gate to dispatch, with information tags on your machines and processes.
+2. One link for every buyer. Send it with your quote; it opens on any phone.
+3. We shoot it for you. Our crew comes to your plant. You do not learn any software.
+
+If it looks like something your buyers would use, just reply to this email with a good time and I will walk you through it. It comes straight to me.
+
+Aryan Bansal
+VPV - Virtual Plant Visit
+https://myvpv.com
+
+P.S. Your link already carries an introductory discount for checkout, so there is no code to type. It runs for a few days only.
+
+--
+You are receiving this because we think VPV could help your factory win buyers who cannot visit in person.
+Not for you? Unsubscribe in one click: $[LI:UNSUBLINK]$
+VPV - support@myvpv.com
