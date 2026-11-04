@@ -4,12 +4,12 @@ Files
 - `vpv-intro.html` — the e-mail (table layout, inline styles, 600 px, works on phones). Paste into Zoho Campaigns > Create campaign > Content > "Code your own" (HTML editor).
 - `vpv-intro.txt` — the plain-text version. Paste into the campaign's plain-text tab. A real text part lowers the spam score.
 - Images live in `public/email/` and are served from `https://myvpv.com/email/…` once this is deployed:
-  - `factory-tour-demo.gif` — 3-second 360° pan of the "CNC machining" scene from the public demo tour (rendered from `public/demo/vee-tee/31-4k.webp`, 520 px, ~0.9 MB). It is the in-e-mail demo; it links to the person's own link. Outlook desktop shows the first frame only, which is also a good picture.
+  - `factory-tour-demo.gif` — 3-second 360° pan of the "CNC machining" scene from the public demo tour (rendered from `public/demo/vee-tee/31-4k.webp`, 520 px, ~0.9 MB). It is the in-e-mail demo and is deliberately NOT a link, so the button is the only tracked click. Outlook desktop shows the first frame only, which is also a good picture.
   - `vpv-logo.png`, `vpv-clients.jpg`.
 
 Merge tags used (check spelling in the Zoho editor's Merge Tags menu)
 - `$[FNAME|there|there]$` first name, falls back to "there".
-- `$[UD:VPV_LINK]$` the person's own `myvpv.com/q/EM-…` link (Contact Custom Tags > VPV Link). Used three times: the GIF, the button, the .txt.
+- `$[UD:VPV_LINK]$` the person's own `myvpv.com/q/EM-…` link (Contact Custom Tags > VPV Link). Used twice: the button and the .txt.
 - `$[LI:UNSUBLINK]$` unsubscribe (or Footer tags > Unsubscribe).
 - Zoho's "Send Test Mail" does NOT fill merge tags (they show as raw text). To test, send the real campaign to a one-person list.
 
