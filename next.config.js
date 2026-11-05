@@ -212,6 +212,18 @@ const nextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      // The pictures inside our e-mails (logo, demo animation, client strip).
+      // The site-wide "same-site" policy above makes a browser refuse to show
+      // them anywhere but myvpv.com: Zoho's editor preview and any webmail that
+      // loads images straight from us showed broken pictures. They are public
+      // marketing images, so they may be embedded anywhere.
+      {
+        source: "/email/:path*",
+        headers: [
+          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
+      },
       // Later rule wins for the same header, so the marketing pages get
       // the embed-friendly set while everything else keeps the strict one.
       ...SITE_PATHS.map((path) => ({ source: path, headers: siteHeaders })),
