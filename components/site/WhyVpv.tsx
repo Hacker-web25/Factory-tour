@@ -15,9 +15,17 @@
 
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Eye, Play, ShieldCheck, Users, Video } from "lucide-react";
 import { SITE_PLANS, inr, inrLakhs } from "@/lib/pricing";
+import { track } from "@/lib/analytics/client";
+import {
+  CALC_DEFAULTS,
+  calcFigures,
+  metaFromInputs,
+  type CalcField,
+  type CalcInputs,
+} from "@/lib/whyVpvCalc";
 
 const NAVY = "#0B3D91";
 const BLUE = "#1468D8";
@@ -206,21 +214,91 @@ function SplitBar({ wonPct, backPct = 0 }: { wonPct: number; backPct?: number })
   );
 }
 
+/* ───────────────────────── autosave ───────────────────────── */
+
+/** How long the sliders must rest before the numbers are saved. */
+const SAVE_AFTER_MS = 1500;
+
+/**
+ * Saves what the visitor typed into the calculator, a moment after they stop
+ * moving it, like an autosave. Dragging a slider fires dozens of changes a
+ * second; only the value they settle on is recorded, plus one last save if
+ * they leave with an unsaved change. Untouched starting numbers are never
+ * sent. Respects the cookie notice: track() sends nothing once a visitor has
+ * declined measurement.
+ */
+function useCalculatorAutosave(inputs: CalcInputs) {
+  const live = useRef(inputs);
+  live.current = inputs;
+  const prev = useRef(inputs);
+  const moved = useRef<CalcField | null>(null);
+  const unsaved = useRef(false);
+  const saves = useRef(0);
+  const savedKey = useRef("");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const save = useCallback((beacon: boolean) => {
+    clearTimeout(timer.current);
+    if (!unsaved.current) return;
+    unsaved.current = false;
+    const now = live.current;
+    const key = JSON.stringify(now);
+    if (key === savedKey.current) return; // moved away and back to what was saved
+    savedKey.current = key;
+    saves.current += 1;
+    track(
+      "calculator_used",
+      metaFromInputs(now, { field: moved.current, saves: saves.current }),
+      { beacon, path: "/why-vpv" }
+    );
+  }, []);
+
+  const { leads, valueLakh, conv, lift } = inputs;
+  useEffect(() => {
+    const p = prev.current;
+    const changed = (["leads", "valueLakh", "conv", "lift"] as const).find((f) => p[f] !== inputs[f]);
+    if (!changed) return; // first render
+    prev.current = inputs;
+    moved.current = changed;
+    unsaved.current = true;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save(false), SAVE_AFTER_MS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, valueLakh, conv, lift, save]);
+
+  // Leaving the page (or the tab going to the background) saves at once.
+  useEffect(() => {
+    const flush = () => save(true);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [save]);
+}
+
 /* ───────────────────────── page ───────────────────────── */
 
 export default function WhyVpv() {
-  const [leads, setLeads] = useState(120);
-  const [valueLakh, setValueLakh] = useState(10);
-  const [conv, setConv] = useState(10);
-  const [lift, setLift] = useState(5);
+  const [leads, setLeads] = useState(CALC_DEFAULTS.leads);
+  const [valueLakh, setValueLakh] = useState(CALC_DEFAULTS.valueLakh);
+  const [conv, setConv] = useState(CALC_DEFAULTS.conv);
+  const [lift, setLift] = useState(CALC_DEFAULTS.lift);
+
+  useCalculatorAutosave({ leads, valueLakh, conv, lift });
 
   const perLead = valueLakh * 1_00_000;
-  const opportunity = leads * perLead;
-  const won = (opportunity * conv) / 100;
-  const lost = opportunity - won;
-  const liftCapped = Math.min(lift, 100 - conv);
-  const newConv = conv + liftCapped;
-  const recovered = (opportunity * liftCapped) / 100;
+  const { opportunity, won, lost, liftApplied: liftCapped, newConv, recovered } = calcFigures({
+    leads,
+    valueLakh,
+    conv,
+    lift,
+  });
   const perPoint = opportunity / 100;
   const plan = SITE_PLANS.authority;
   const planCost = plan.regularInr;

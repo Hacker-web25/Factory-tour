@@ -37,6 +37,8 @@ import {
 } from "@/lib/campaignFolders";
 import type { OrderRow } from "@/lib/campaignReport";
 import { formatSeconds } from "@/lib/interest";
+import { inrLakhs } from "@/lib/pricing";
+import { calcFigures, inputsFromMeta } from "@/lib/whyVpvCalc";
 import {
   FUNNEL_STAGES,
   STAGE_RANK,
@@ -299,6 +301,16 @@ export function describeEvent(
     }
     case "video_play":
       return { title: "Played a video", detail: label, tone: "good" };
+    case "calculator_used": {
+      const i = inputsFromMeta(m);
+      if (!i) return { title: "Tried the Why VPV calculator", detail: null, tone: "good" };
+      const f = calcFigures(i);
+      return {
+        title: "Tried the Why VPV calculator",
+        detail: `${i.leads.toLocaleString("en-IN")} leads × ${inrLakhs(i.valueLakh * 1_00_000)}, converting ${i.conv}%: ${inrLakhs(f.opportunity)} a year`,
+        tone: "good",
+      };
+    }
     case "tour_opened":
       return { title: "Opened a sample tour", detail: label, tone: "good" };
     case "exit_intent":
