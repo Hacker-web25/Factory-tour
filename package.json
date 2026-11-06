@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test:billing": "NODE_ENV=test tsx --test tests/billing/*.test.ts",
     "test:beautify": "NODE_ENV=test tsx --test tests/beautify/*.test.ts",
+    "test:dashboard": "NODE_ENV=test tsx --test tests/dashboard/*.test.ts",
     "sync:site": "tsx scripts/sync-site-bundle.ts",
     "build:invoice-assets": "tsx scripts/embed-invoice-assets.ts",
     "postinstall": "node scripts/copy-beautify-vendor.mjs",
