@@ -51,7 +51,7 @@ export default function Step3Security() {
     setBusy(true);
     const saved = saveFunnel({ wantsSharingControls: s.wantsSharingControls });
     await mirrorLead("security", saved);
-    router.push("/assessment/plan");
+    router.push("/assessment/sales-team");
   }
 
   const header = (

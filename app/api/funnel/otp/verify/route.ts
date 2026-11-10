@@ -115,7 +115,30 @@ export async function POST(req: Request) {
     }
   }
 
-  return json({ ok: true, verified: true, email });
+  // The caller has now PROVED they own this address, so telling them it
+  // already has an account leaks nothing to anyone else. The funnel uses it
+  // to send an existing customer to sign in instead of to a second payment.
+  // (Before the code is confirmed nothing here says whether an address is a
+  // customer; /api/billing/order refuses the purchase either way.)
+  let accountExists = false;
+  try {
+    const { data: existingUser } = await sb.rpc("billing_find_auth_user", { p_email: email });
+    if (existingUser) accountExists = true;
+    if (!accountExists) {
+      const { data: paid } = await sb
+        .from("billing_orders")
+        .select("id")
+        .eq("buyer_email", email)
+        .eq("purpose", "basic_licence")
+        .eq("status", "paid")
+        .limit(1);
+      accountExists = Boolean(paid && paid.length > 0);
+    }
+  } catch {
+    /* best effort: the order route is the gate that matters */
+  }
+
+  return json({ ok: true, verified: true, email, accountExists });
 }
 
 export function GET() {

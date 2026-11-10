@@ -724,6 +724,11 @@ export const VIDEO_SELF_NOTE =
   "Upload your video to your own YouTube channel and send us the public link.";
 
 /** Shown wherever ₹499 is quoted, while the old price is still honest. */
+/** What an AOA is, in one line. Shown behind the "?" beside every AOA count:
+ *  the plan cards on the marketing site and the plan step of the funnel. */
+export const AOA_HINT =
+  "1 AOA (Active Operational Area) = 1 unit of your plant, for example the Lab or the RM storage room. It is not the entire factory.";
+
 export function videoShotWasLabel(offerOpen = LAUNCH_OFFER.active): string | null {
   return offerOpen && LAUNCH_OFFER.active ? inr(VIDEO_SHOT_WAS_INR) : null;
 }

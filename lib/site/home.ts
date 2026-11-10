@@ -35,7 +35,7 @@
  */
 
 import { sitePage } from "@/lib/site/pages";
-import { LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
+import { AOA_HINT, LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
 import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
@@ -241,6 +241,10 @@ div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-g
 \
 @media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span 4;row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:block;margin-top:1.25rem}}\
 @media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{padding:1.25rem}}\
+.vpv-aoa-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border:1px solid #94a3b8;border-radius:999px;font-size:11px;font-weight:700;line-height:1;color:#64748b;cursor:help;vertical-align:middle;-webkit-text-fill-color:currentColor}\
+.vpv-aoa-q:hover,.vpv-aoa-q:focus{border-color:#1468D8;color:#1468D8;outline:none;z-index:30}\
+.vpv-aoa-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;padding:10px 12px;border:1px solid #dbe4f0;border-radius:12px;background:#fff;color:#0b1b33;-webkit-text-fill-color:#0b1b33;font-size:12.5px;font-weight:400;line-height:1.5;text-align:left;letter-spacing:0;text-transform:none;white-space:normal;box-shadow:0 18px 40px -16px rgba(7,22,48,.45);opacity:0;pointer-events:none;transition:opacity .15s}\
+.vpv-aoa-q:hover>.vpv-aoa-tip,.vpv-aoa-q:focus>.vpv-aoa-tip{opacity:1}\
 @keyframes vpvGold{0%{background-position:0% center}100%{background-position:220% center}}\
 @media (prefers-reduced-motion:reduce){.vpv-gold-tag,.vpv-gold-line{animation:none}}\
 #vpv-focus{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,14,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:vpvFocusIn .35s ease-out both}\
@@ -275,6 +279,33 @@ div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-g
  * stories" or a tap outside. Shown once each time the visitor arrives on the
  * page, including arrivals through the site's own menu.
  */
+/**
+ * The "?" beside every "N AOAs" row.
+ *
+ * The plan cards are drawn by the prebuilt site bundle from plain strings, so
+ * there is nowhere in the data to put a tooltip. This finds each "8 AOAs"
+ * row after the bundle has drawn it and adds a "?" that explains the term on
+ * hover, on keyboard focus and on tap. It re-runs when the page redraws.
+ */
+const AOA_HINT_SCRIPT = String.raw`(function(){
+  var TIP=${JSON.stringify(AOA_HINT)};
+  var RE=/^\s*\d+\s+AOAs\s*$/;
+  function fix(){try{
+    var w=document.createTreeWalker(document.getElementById("root")||document.body,NodeFilter.SHOW_TEXT,null),n,hits=[];
+    while(n=w.nextNode()){if(RE.test(n.nodeValue||"")){var p=n.parentNode;if(p&&p.querySelector&&!p.querySelector(".vpv-aoa-q"))hits.push(n);}}
+    for(var i=0;i<hits.length;i++){
+      var q=document.createElement("span");q.className="vpv-aoa-q";q.tabIndex=0;q.setAttribute("role","button");q.setAttribute("aria-label","What is an AOA? "+TIP);
+      q.appendChild(document.createTextNode("?"));
+      var t=document.createElement("span");t.className="vpv-aoa-tip";t.setAttribute("role","tooltip");t.textContent=TIP;q.appendChild(t);
+      q.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();try{this.focus()}catch(x){}});
+      hits[i].parentNode.insertBefore(q,hits[i].nextSibling);
+    }
+  }catch(e){}}
+  var due=false;function soon(){if(due)return;due=true;setTimeout(function(){due=false;fix()},60);}
+  if(document.readyState!=="loading")fix();else document.addEventListener("DOMContentLoaded",fix);
+  try{new MutationObserver(soon).observe(document.documentElement,{childList:true,subtree:true,characterData:true});}catch(e){}
+})();`;
+
 const CASE_STUDY_FOCUS_SCRIPT = String.raw`(function(){var ID="62asCfqRRbw",was=false;function on(){return location.pathname.replace(/\/+$/,"")==="/case-studies"}function src(m){return"https://www.youtube-nocookie.com/embed/"+ID+"?autoplay=1&mute="+(m?1:0)+"&playsinline=1&rel=0&modestbranding=1"}function key(e){if(e.key==="Escape")close()}function close(){var o=document.getElementById("vpv-focus");if(!o)return;o.parentNode.removeChild(o);document.documentElement.style.overflow="";document.removeEventListener("keydown",key)}function open(){if(document.getElementById("vpv-focus")||!document.body)return;var o=document.createElement("div");o.id="vpv-focus";o.setAttribute("role","dialog");o.setAttribute("aria-modal","true");o.setAttribute("aria-label","Anuj Anand's story");o.innerHTML='<div class="vf-card"><div class="vf-top"><div><b>80%+ conversion with VPV</b><span>Mr. Anuj Anand, Export Head, Kesaria Rubber Industries</span></div><button type="button" class="vf-x" aria-label="Close">✕</button></div><div class="vf-frame"><iframe title="Anuj Anand on VPV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="'+src(true)+'"></iframe></div><div class="vf-row"><button type="button" class="vf-sound">🔊 Turn on sound</button><button type="button" class="vf-skip">Browse all stories</button></div></div>';o.addEventListener("click",function(e){var t=e.target;if(t===o||t.closest(".vf-x")||t.closest(".vf-skip")){close();return}if(t.closest(".vf-sound")){o.querySelector("iframe").src=src(false);t.closest(".vf-sound").style.display="none"}});document.body.appendChild(o);document.documentElement.style.overflow="hidden";document.addEventListener("keydown",key);o.tabIndex=-1;o.focus()}function check(){var n=on();if(n&&!was)setTimeout(open,350);if(!n)close();was=n}["pushState","replaceState"].forEach(function(k){var f=history[k];history[k]=function(){var r=f.apply(this,arguments);setTimeout(check,0);return r}});window.addEventListener("popstate",check);if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",check);else check()})();`;
 
 /**
@@ -334,6 +365,7 @@ ${siteHeaderHtml(page.path)}\
 <script id="vpv-funnel-bridge-script">${FUNNEL_BRIDGE_SCRIPT}</script>\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
+<script id="vpv-aoa-hint-script">${AOA_HINT_SCRIPT}</script>\
 ${measureScriptTag()}\
 </body></html>`;
 }
