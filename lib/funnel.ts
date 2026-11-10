@@ -54,14 +54,14 @@ export type FunnelState = {
   /** How big the plant is. Empty until they say; "Not sure" is allowed. */
   plotBand: PlotBand | "";
 
-  /* Step 2 — the scope they want. Areas and processes are picked from the
-     catalogue in lib/factoryAreas.ts; the counts follow from the picks. */
+  /* Step 2 — the scope they want. Areas are picked from the catalogue in
+     lib/factoryAreas.ts; the count follows from the picks. Process videos
+     are NOT picked here any more: since Nov 2026 they are two add-ons on
+     Step 4 (upload your own, or we shoot it), so the scope step stays one
+     question about the plant itself. */
   selectedAreas: string[];
   customAreas: string[];
-  selectedProcesses: string[];
-  customProcesses: string[];
   aoaCount: number | null;
-  videoCount: number | null;
   pdfCount: number | null;
 
   /* Step 3 — the security question. */
@@ -70,7 +70,11 @@ export type FunnelState = {
   /* Step 4 — the plan and the add-ons. */
   chosenPlan: SitePlanId | null;
   extraAreas: number;
-  extraVideos: number;
+  /** Process videos the customer uploads to their own YouTube channel.
+   *  Free up to the plan's allowance, then VIDEO_SELF_INR each. */
+  selfVideos: number;
+  /** Process videos our crew shoots, VIDEO_SHOT_INR each. */
+  shotVideos: number;
 
   /* Step 1 — agreement to the Terms, Privacy Policy and other policies.
      The Privacy Policy is where being contacted about this enquiry is
@@ -116,15 +120,13 @@ export const EMPTY_FUNNEL: FunnelState = {
   plotBand: "",
   selectedAreas: [],
   customAreas: [],
-  selectedProcesses: [],
-  customProcesses: [],
   aoaCount: null,
-  videoCount: null,
   pdfCount: null,
   wantsSharingControls: null,
   chosenPlan: null,
   extraAreas: 0,
-  extraVideos: 0,
+  selfVideos: 0,
+  shotVideos: 0,
   policiesAccepted: false,
   hasSalesTeam: null,
   salesSeats: 5,
@@ -203,7 +205,6 @@ export type Recommendation = {
   reasons: string[];
   /** Extras the plan does not cover, pre-set on the slider. */
   extraAreas: number;
-  extraVideos: number;
   /** True when nothing in the catalogue covers the ask on its own. */
   needsExtras: boolean;
 };
@@ -222,7 +223,11 @@ export type Recommendation = {
  *      Enterprise. One-time link expiry and share restrictions exist on no
  *      other plan and cannot be bought as an add-on, so no amount of extra
  *      areas on a cheaper plan gets them what they just said they need.
- *   3. THE SCOPE. Its areas, videos and PDFs must cover what they picked.
+ *   3. THE SCOPE. Its areas and PDFs must cover what they picked. Process
+ *      videos are deliberately NOT part of this test: since Nov 2026 they
+ *      are add-ons anyone can buy on any plan (upload your own, or we shoot
+ *      it), so wanting ten of them is no longer a reason to sell a dearer
+ *      plan — only the plant, the link and the areas are.
  *
  * If no plan covers the scope on its own, it is the plan their plant and
  * link need, with the shortfall added as extras.
@@ -233,13 +238,11 @@ export type Recommendation = {
  */
 export function recommendPlan(s: {
   aoaCount?: number | null;
-  videoCount?: number | null;
   pdfCount?: number | null;
   wantsSharingControls?: boolean | null;
   plotBand?: PlotBand | "" | null;
 }): Recommendation {
   const aoa = Math.max(0, s.aoaCount ?? 0);
-  const videos = Math.max(0, s.videoCount ?? 0);
   const pdfs = Math.max(0, s.pdfCount ?? 0);
   const reasons: string[] = [];
 
@@ -258,7 +261,7 @@ export function recommendPlan(s: {
   );
   const covers = (id: SitePlanId) => {
     const p = SITE_PLANS[id];
-    return p.scenes >= aoa && p.videos >= videos && p.pdfs >= pdfs;
+    return p.scenes >= aoa && p.pdfs >= pdfs;
   };
 
   const fit = allowed.find(covers);
@@ -278,22 +281,19 @@ export function recommendPlan(s: {
 
   if (fit) {
     if (aoa > 0) reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with ${p.scenes} included.`);
-    if (videos > 0) reasons.push(`Includes ${p.videos} process videos — you asked for ${videos}.`);
     if (pdfs > 0) reasons.push(`Includes ${p.pdfs} lab reports & certifications — you asked for ${pdfs}.`);
-    return { plan: chosen, reasons, extraAreas: 0, extraVideos: 0, needsExtras: false };
+    return { plan: chosen, reasons, extraAreas: 0, needsExtras: false };
   }
 
   const extraAreas = Math.max(0, aoa - p.scenes);
-  const extraVideos = Math.max(0, videos - p.videos);
   if (!wantsLink && !floorId) {
     reasons.push(`What you picked goes beyond every plan, so this is ${p.name}, our largest standard plan, with the rest added on.`);
   } else if (aoa > 0) {
     reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with the rest added on top of the ${p.scenes} included.`);
   }
   if (extraAreas > 0) reasons.push(`${extraAreas} extra area${extraAreas === 1 ? "" : "s"} on top of the ${p.scenes} included.`);
-  if (extraVideos > 0) reasons.push(`${extraVideos} extra process video${extraVideos === 1 ? "" : "s"} on top of the ${p.videos} included.`);
   if (pdfs > p.pdfs) reasons.push(`${p.pdfs} lab reports & certifications are included; you can add more from your dashboard.`);
-  return { plan: chosen, reasons, extraAreas, extraVideos, needsExtras: true };
+  return { plan: chosen, reasons, extraAreas, needsExtras: true };
 }
 
 /* ───────────────────────── Server mirror ─────────────────────────── */
@@ -353,14 +353,13 @@ export async function mirrorLead(
         aoaCount: state.aoaCount,
         selectedAreas: state.selectedAreas,
         customAreas: state.customAreas,
-        selectedProcesses: state.selectedProcesses,
-        customProcesses: state.customProcesses,
-        videoCount: state.videoCount,
+
         pdfCount: state.pdfCount,
         wantsSharingControls: state.wantsSharingControls,
         chosenPlan: state.chosenPlan,
         extraAreas: state.extraAreas,
-        extraVideos: state.extraVideos,
+        selfVideos: state.selfVideos,
+        shotVideos: state.shotVideos,
         marketingConsent: state.marketingConsent,
         policiesAccepted: state.policiesAccepted,
         hasSalesTeam: state.hasSalesTeam,

@@ -680,9 +680,33 @@ export function launchDiscount(regular: number): number {
 
 /* ─────────────────────── Add-ons ─────────────────────────────────── */
 
-/** Each extra process video, GST excluded. Flat across plans: the cost to
- *  us is the shoot time and the edit, which does not change by plan. */
-export const EXTRA_VIDEO_INR = 5_000;
+/**
+ * Process videos, GST excluded.
+ *
+ * Until Nov 2026 a process video meant one thing: our crew shot it and we
+ * hosted it, at ₹5,000 a video. Both halves of that have changed.
+ *
+ * Every video now lives on the CUSTOMER'S OWN YouTube channel and the tour
+ * embeds the public link. That is what makes the two prices below possible,
+ * and it is also why the policies say the footage is theirs to keep, move
+ * or delete — see /disclaimer. Two ways to get one:
+ *
+ *   SELF  the customer already has the footage, uploads it to their channel
+ *         and gives us the link. No crew, no edit, so it is free up to the
+ *         plan's allowance and ₹99 a video after that.
+ *   SHOT  we come and shoot it on iPhone, colour-grade it, and upload it to
+ *         their channel. ₹499 a video, whether or not the plan's allowance
+ *         still has room: the allowance covers footage they bring us, not
+ *         crew time.
+ *
+ * A plan's `videos` count is therefore a SELF-UPLOAD allowance, not a number
+ * of shoots. VIDEO_SHOT_WAS_INR is the genuine old price, struck through
+ * while the launch offer runs — it is tied to LAUNCH_OFFER so it cannot
+ * become a discount that never ends.
+ */
+export const VIDEO_SELF_INR = 99;
+export const VIDEO_SHOT_INR = 499;
+export const VIDEO_SHOT_WAS_INR = 5_000;
 
 /** Slider limits for the add-ons on the recommendation page. */
 export const EXTRA_AREA_MAX = 15;
@@ -690,10 +714,19 @@ export const EXTRA_VIDEO_MAX = 12;
 
 /**
  * Said on every screen that sells a video, because a buyer is entitled to
- * know what the footage is shot on before they pay, not after.
+ * know what the footage is shot on, and where it ends up, before they pay.
  */
 export const VIDEO_SHOT_NOTE =
-  "Process videos are shot on iPhone and colour-graded by our team.";
+  "We shoot on iPhone, colour-grade it, and upload it to your own YouTube channel.";
+
+/** The self-upload half of the same promise. */
+export const VIDEO_SELF_NOTE =
+  "Upload your video to your own YouTube channel and send us the public link.";
+
+/** Shown wherever ₹499 is quoted, while the old price is still honest. */
+export function videoShotWasLabel(offerOpen = LAUNCH_OFFER.active): string | null {
+  return offerOpen && LAUNCH_OFFER.active ? inr(VIDEO_SHOT_WAS_INR) : null;
+}
 
 /** A whole number of extras inside the slider's range. */
 export function clampExtraAreas(n: unknown): number {
@@ -944,12 +977,13 @@ export type ShootTime = {
 export function shootTimeFor(
   planId: SitePlanId,
   extraAreas = 0,
-  extraVideos = 0
+  /** Videos OUR CREW shoots. Self-uploaded ones take none of our time. */
+  shotVideos = 0
 ): ShootTime {
   const plan = SITE_PLANS[planId];
   const extraMinutes =
     clampExtraAreas(extraAreas) * MINUTES_PER_EXTRA_AREA +
-    clampExtraVideos(extraVideos) * MINUTES_PER_EXTRA_VIDEO;
+    clampExtraVideos(shotVideos) * MINUTES_PER_EXTRA_VIDEO;
   const extraHours = Math.ceil(extraMinutes / 60);
   const totalHours = plan.shootHours + extraHours;
   return {
@@ -1034,8 +1068,13 @@ export type SiteQuote = {
   /** What the special offer takes off, 0 once it has closed. */
   savingInr: number;
   extraAreas: number;
-  extraVideos: number;
   totalAreas: number;
+  /** Videos the customer uploads to their own YouTube channel. */
+  selfVideos: number;
+  /** Of those, the ones beyond the plan's allowance, charged VIDEO_SELF_INR. */
+  paidSelfVideos: number;
+  /** Videos our crew shoots, charged VIDEO_SHOT_INR each. */
+  shotVideos: number;
   totalVideos: number;
   /** Null when priced by the legacy travel zone instead of a city. */
   logistics: LogisticsQuote | null;
@@ -1097,7 +1136,10 @@ export function siteQuote(
   planId: SitePlanId,
   opts: {
     extraAreas?: number;
-    extraVideos?: number;
+    /** Videos the customer uploads themselves. Free up to plan.videos. */
+    selfVideos?: number;
+    /** Videos our crew shoots, VIDEO_SHOT_INR each. */
+    shotVideos?: number;
     city?: string;
     travel?: TravelZone;
     /** Whether the special offer still applies. The server decides this
@@ -1112,10 +1154,14 @@ export function siteQuote(
   const plan = SITE_PLANS[planId];
   const offerOpen = (opts.offerOpen ?? true) && LAUNCH_OFFER.active;
   const extraAreas = clampExtraAreas(opts.extraAreas);
-  const extraVideos = clampExtraVideos(opts.extraVideos);
+  const selfVideos = clampExtraVideos(opts.selfVideos);
+  const shotVideos = clampExtraVideos(opts.shotVideos);
+  // The plan's allowance covers footage the customer brings us, so only
+  // self-uploads draw it down; a shoot is charged whatever room is left.
+  const paidSelfVideos = Math.max(0, selfVideos - plan.videos);
   const totalAreas = plan.scenes + extraAreas;
-  const totalVideos = plan.videos + extraVideos;
-  const shoot = shootTimeFor(planId, extraAreas, extraVideos);
+  const totalVideos = selfVideos + shotVideos;
+  const shoot = shootTimeFor(planId, extraAreas, shotVideos);
   const savingInr = offerSaving(planId, offerOpen);
 
   const lines: QuoteLine[] = [
@@ -1143,12 +1189,22 @@ export function siteQuote(
       note: `${totalAreas} areas in total`,
     });
   }
-  if (extraVideos > 0) {
+  if (paidSelfVideos > 0) {
     lines.push({
       kind: "extra",
-      label: `${extraVideos} extra process video${extraVideos === 1 ? "" : "s"}`,
-      amountInr: extraVideos * EXTRA_VIDEO_INR,
-      note: VIDEO_SHOT_NOTE,
+      label: `${paidSelfVideos} extra process video${paidSelfVideos === 1 ? "" : "s"} you upload`,
+      amountInr: paidSelfVideos * VIDEO_SELF_INR,
+      note: plan.videos > 0
+        ? `${plan.videos} included with ${plan.name}, then ${inr(VIDEO_SELF_INR)} each. ${VIDEO_SELF_NOTE}`
+        : `${inr(VIDEO_SELF_INR)} each. ${VIDEO_SELF_NOTE}`,
+    });
+  }
+  if (shotVideos > 0) {
+    lines.push({
+      kind: "extra",
+      label: `${shotVideos} process video${shotVideos === 1 ? "" : "s"} shot by us`,
+      amountInr: shotVideos * VIDEO_SHOT_INR,
+      note: `${inr(VIDEO_SHOT_INR)} each. ${VIDEO_SHOT_NOTE}`,
     });
   }
 
@@ -1253,8 +1309,10 @@ export function siteQuote(
     offerOpen,
     savingInr,
     extraAreas,
-    extraVideos,
     totalAreas,
+    selfVideos,
+    paidSelfVideos,
+    shotVideos,
     totalVideos,
     logistics,
     available,
@@ -1482,7 +1540,10 @@ export function priceFor(
     travel?: TravelZone;
     city?: string;
     extraAreas?: number;
-    extraVideos?: number;
+    /** Videos the customer uploads themselves. */
+    selfVideos?: number;
+    /** Videos our crew shoots. */
+    shotVideos?: number;
     /** Decided by the order route from the real count of buyers. */
     offerOpen?: boolean;
     salesSeats?: number;
@@ -1601,7 +1662,8 @@ export function priceFor(
         : "confidence";
       const q = siteQuote(planId, {
         extraAreas: opts.extraAreas,
-        extraVideos: opts.extraVideos,
+        selfVideos: opts.selfVideos,
+        shotVideos: opts.shotVideos,
         city: opts.city,
         travel: opts.travel,
         offerOpen: opts.offerOpen,

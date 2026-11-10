@@ -344,7 +344,8 @@ export async function POST(req: Request) {
   let travel: unknown;
   let siteCity = "";
   let extraAreas = 0;
-  let extraVideos = 0;
+  let selfVideos = 0;
+  let shotVideos = 0;
   let salesSeats = 0;
   // A renewal pays for the Sales Team logins unless the customer says not to.
   // Support alone is a real choice: the logins then stop on their own date.
@@ -381,7 +382,8 @@ export async function POST(req: Request) {
     // slider cannot produce them, and clamping charges the buyer for what we
     // can actually deliver instead of failing a legitimate purchase.
     extraAreas = clampExtraAreas(body.extraAreas);
-    extraVideos = clampExtraVideos(body.extraVideos);
+    selfVideos = clampExtraVideos(body.selfVideos);
+    shotVideos = clampExtraVideos(body.shotVideos);
     salesSeats = clampSalesSeats(body.salesSeats);
   } else if (purpose === "basic_licence") {
     if (!isValidSceneCount(body.scenes)) return fail(400, "invalid_scenes", "Please choose between 2 and 20 scenes.");
@@ -455,7 +457,8 @@ export async function POST(req: Request) {
     travel: isTravelZone(travel) ? travel : undefined,
     city: siteCity || undefined,
     extraAreas,
-    extraVideos,
+    selfVideos,
+    shotVideos,
     offerOpen: offer ? offer.open : undefined,
     salesSeats: purpose === "support_renewal" ? (renewLogins ? renewalSeats.seats : 0) : salesSeats,
     seatInr: purpose === "seat_topup" ? topupSeatInr : renewalSeats.seatInr,

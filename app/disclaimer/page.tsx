@@ -90,6 +90,32 @@ const sections: LegalSection[] = [
     ),
   },
   {
+    id: "process-videos",
+    title: "Process videos and your YouTube channel",
+    body: (
+      <>
+        <P>
+          Process videos are not hosted by VPV. Whether you shot the video
+          yourself or paid us to shoot it, it is uploaded to a YouTube channel
+          that <B>you own and control</B>, and your tour embeds the public link
+          to it. Where we shoot a video for you, what you pay for is the shoot,
+          the colour grade and the upload; the file and the channel are yours
+          from that moment.
+        </P>
+        <P>
+          Because the channel is yours, what happens to a video afterwards is
+          outside our control. You can edit, replace, restrict or delete any of
+          them at any time, and doing so changes or breaks what your tour shows.
+          Your use of YouTube is governed by Google’s terms, not ours. VPV is
+          not responsible for a video becoming unavailable, for a channel being
+          suspended or removed, for advertising or recommendations YouTube
+          places around your video, or for viewing figures or other data YouTube
+          reports. We keep no master copy, so please keep your own.
+        </P>
+      </>
+    ),
+  },
+  {
     id: "recordings",
     title: "Recording and consent",
     body: (

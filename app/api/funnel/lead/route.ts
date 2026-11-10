@@ -164,18 +164,14 @@ export async function POST(req: Request) {
   }
 
   const aoa = intOrNull(body.aoaCount, 200);
-  const videos = intOrNull(body.videoCount, 100);
   const pdfs = intOrNull(body.pdfCount, 100);
   if (aoa !== null) patch.aoa_count = aoa;
-  if (videos !== null) patch.video_count = videos;
   if (pdfs !== null) patch.pdf_count = pdfs;
 
-  // The named areas and processes, for the rep's call. Only sent by step 2.
+  // The named areas, for the rep's call. Only sent by step 2. Processes are
+  // no longer picked by name: a video is now a count, bought on step 4.
   if (Array.isArray(body.selectedAreas) || Array.isArray(body.customAreas)) {
     patch.areas = describeSelection(body.selectedAreas, body.customAreas, "area");
-  }
-  if (Array.isArray(body.selectedProcesses) || Array.isArray(body.customProcesses)) {
-    patch.processes = describeSelection(body.selectedProcesses, body.customProcesses, "process");
   }
 
   if (typeof body.wantsSharingControls === "boolean") {
@@ -195,13 +191,19 @@ export async function POST(req: Request) {
   // notes is a number WE calculated and matches what they were shown.
   if (isSitePlanId(body.chosenPlan)) {
     const extraAreas = clampExtraAreas(body.extraAreas);
-    const extraVideos = clampExtraVideos(body.extraVideos);
+    const selfVideos = clampExtraVideos(body.selfVideos);
+    const shotVideos = clampExtraVideos(body.shotVideos);
     patch.chosen_plan = body.chosenPlan;
     patch.extra_areas = extraAreas;
-    patch.extra_videos = extraVideos;
+    // No migration for the two new counts: video_count is every video in
+    // the tour, and extra_videos is the ones OUR CREW must shoot — which is
+    // the number the shoot gets planned around.
+    patch.video_count = selfVideos + shotVideos;
+    patch.extra_videos = shotVideos;
     const q = siteQuote(body.chosenPlan, {
       extraAreas,
-      extraVideos,
+      selfVideos,
+      shotVideos,
       salesSeats: body.hasSalesTeam === false ? 0 : clampSalesSeats(body.salesSeats),
       city: typeof patch.factory_city === "string" ? patch.factory_city : undefined,
     });

@@ -16,7 +16,8 @@ import { COMPANY, POLICY, companyIdentity } from "@/lib/company";
 import {
   ENTERPRISE_PERSONAL,
   EXTRA_HOUR_INR,
-  EXTRA_VIDEO_INR,
+  VIDEO_SELF_INR,
+  VIDEO_SHOT_INR,
   LAUNCH_OFFER,
   MINUTES_PER_EXTRA_AREA,
   SALES_TEAM,
@@ -348,7 +349,14 @@ const sections: LegalSection[] = [
             add; on {SITE_PLANS.control.name}, for example, from{" "}
             {inr(discountBands("control")[0].each)} down to{" "}
             {inr(discountBands("control").slice(-1)[0].each)} each.{" "}
-            <B>Extra process videos</B> are {inr(EXTRA_VIDEO_INR)} each.{" "}
+            <B>Process videos</B> come two ways. A video you already have, which
+            you upload to your own YouTube channel and give us the public link
+            for, is included up to the number your plan lists and{" "}
+            {inr(VIDEO_SELF_INR)} each after that. A video <B>we</B> shoot is{" "}
+            {inr(VIDEO_SHOT_INR)} each, whatever your plan includes, because
+            the included videos cover footage you bring us rather than crew
+            time. Every process video is hosted on your own YouTube channel,
+            not ours.{" "}
             <B>Extra shoot time</B> is {inr(EXTRA_HOUR_INR)} per hour.
           </li>
           <li>

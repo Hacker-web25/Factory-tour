@@ -40,7 +40,6 @@ import {
 import {
   EXTRA_AREA_MAX,
   EXTRA_HOUR_INR,
-  EXTRA_VIDEO_INR,
   EXTRA_VIDEO_MAX,
   LAUNCH_OFFER,
   MINUTES_PER_EXTRA_AREA,
@@ -50,7 +49,11 @@ import {
   SITE_PLAN_ORDER,
   SUPPORT_MONTHLY_INR,
   supportWorthLabel,
+  VIDEO_SELF_INR,
+  VIDEO_SELF_NOTE,
+  VIDEO_SHOT_INR,
   VIDEO_SHOT_NOTE,
+  videoShotWasLabel,
   discountBands,
   extraAreaCost,
   extrasSaving,
@@ -189,6 +192,31 @@ function ShootTimeBar({ included, extra }: { included: number; extra: number }) 
   );
 }
 
+/**
+ * A "?" beside a term the buyer is not expected to know, with the
+ * explanation on hover, on keyboard focus, and on tap — focus-within is
+ * what makes it work on a phone, where there is no hover.
+ */
+function Hint({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle focus-within:z-20 hover:z-20">
+      <button
+        type="button"
+        aria-label={text}
+        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-white/45 text-[11px] font-bold leading-none text-white/80 transition hover:border-white hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+      >
+        ?
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-[248px] -translate-x-1/2 rounded-xl bg-white px-3 py-2.5 text-[12.5px] font-normal leading-relaxed text-vpv-ink opacity-0 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.6)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export default function Step4Plan() {
   const router = useRouter();
   const offer = useOfferState();
@@ -203,7 +231,8 @@ export default function Step4Plan() {
       ...loaded,
       chosenPlan: loaded.chosenPlan ?? rec.plan,
       extraAreas: loaded.chosenPlan ? loaded.extraAreas : rec.extraAreas,
-      extraVideos: loaded.chosenPlan ? loaded.extraVideos : rec.extraVideos,
+      selfVideos: loaded.selfVideos,
+      shotVideos: loaded.shotVideos,
     });
   }, []);
 
@@ -213,7 +242,7 @@ export default function Step4Plan() {
   const quote = useMemo(
     () =>
       s
-        ? siteQuote(planId, { extraAreas: s.extraAreas, extraVideos: s.extraVideos, city: s.factoryCity, offerOpen })
+        ? siteQuote(planId, { extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos, city: s.factoryCity, offerOpen })
         : null,
     [s, planId, offerOpen]
   );
@@ -222,14 +251,14 @@ export default function Step4Plan() {
     if (!s) return;
     // Extras are priced per plan, so carrying a count across would silently
     // change what it costs. Switching plan starts the sliders again.
-    setS({ ...s, chosenPlan: id, extraAreas: 0, extraVideos: 0 });
+    setS({ ...s, chosenPlan: id, extraAreas: 0, selfVideos: 0, shotVideos: 0 });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function onSubmit() {
     if (!s || !quote) return;
     setBusy(true);
-    const saved = saveFunnel({ chosenPlan: planId, extraAreas: s.extraAreas, extraVideos: s.extraVideos });
+    const saved = saveFunnel({ chosenPlan: planId, extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos });
     await mirrorLead("plan", saved, { recommendedPlan: rec?.plan });
     router.push("/assessment/sales-team");
   }
@@ -268,16 +297,30 @@ export default function Step4Plan() {
   const plan = SITE_PLANS[planId];
   const isRecommended = planId === rec.plan;
   const price = planPrice(planId, offerOpen);
-  const extrasCost = extraAreaCost(planId, s.extraAreas) + s.extraVideos * EXTRA_VIDEO_INR;
+  const extrasCost =
+    extraAreaCost(planId, s.extraAreas) +
+    Math.max(0, s.selfVideos - plan.videos) * VIDEO_SELF_INR +
+    s.shotVideos * VIDEO_SHOT_INR;
   const basePerArea = sitePerArea(planId, 0, offerOpen);
 
-  const inclusions: { icon: typeof Layers; text: string; strong?: boolean }[] = [
+  const inclusions: { icon: typeof Layers; text: string; strong?: boolean; hint?: string }[] = [
     ...(planId === "enterprise"
       ? [{ icon: Star, text: ENTERPRISE_PERSONAL.discussion.short, strong: true }]
       : []),
     { icon: Maximize2, text: plan.plot.label },
-    { icon: Layers, text: `${plan.scenes} Active Operational Areas` },
-    { icon: Video, text: plan.videos > 0 ? `${plan.videos} process videos` : "Process videos as add-ons" },
+    {
+      icon: Layers,
+      text: `${plan.scenes} Active Operational Areas`,
+      hint: "One AOA is one place a buyer can stand in and look around in 360\u00b0 \u2014 your lab, or the raw-material store \u2014 not the whole factory. Most plants pick between 6 and 15.",
+    },
+    {
+      icon: Video,
+      text: plan.videos > 0 ? `${plan.videos} process videos` : "Process videos as add-ons",
+      hint:
+        plan.videos > 0
+          ? `Upload ${plan.videos} videos you already have at no extra cost, then ${inr(VIDEO_SELF_INR)} each. Want us to shoot one instead? ${inr(VIDEO_SHOT_INR)} a video.`
+          : `Upload your own for ${inr(VIDEO_SELF_INR)} a video, or we shoot it for ${inr(VIDEO_SHOT_INR)}.`,
+    },
     { icon: FileText, text: plan.pdfs > 0 ? `${plan.pdfs} lab reports & certifications` : "Lab reports & certifications as add-ons" },
     { icon: Clock, text: `${hoursLabel(plan.shootHours)} of shoot time on site` },
     { icon: Check, text: "Information icons on every hotspot" },
@@ -323,12 +366,15 @@ export default function Step4Plan() {
               </div>
 
               <ul className="grid content-start gap-3 rounded-2xl bg-white/[0.08] p-5 text-[14.5px] sm:p-6">
-                {inclusions.map(({ icon: Icon, text, strong }) => (
+                {inclusions.map(({ icon: Icon, text, strong, hint }) => (
                   <li key={text} className={`flex items-center gap-3 ${strong ? "font-bold text-[#FFE7A0]" : ""}`}>
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15">
                       <Icon className="h-4 w-4" aria-hidden />
                     </span>
-                    {text}
+                    <span className="flex items-center gap-1.5">
+                      {text}
+                      {hint && <Hint text={hint} />}
+                    </span>
                   </li>
                 ))}
                 <li className={`flex items-center gap-3 border-t border-white/15 pt-3 ${plan.sharingControls ? "font-semibold" : "text-white/55"}`}>
@@ -402,16 +448,55 @@ export default function Step4Plan() {
                 />
                 <p className="mt-2 text-[12.5px] text-slate-500">Next area: {inr(nextExtraAreaPrice(planId, s.extraAreas))}</p>
               </div>
+              {/* Two ways to get a process video, priced apart: footage the
+                  buyer already owns costs us nothing but hosting, a shoot
+                  costs us a crew. Both land on THEIR YouTube channel. */}
               <div>
                 <Slider
-                  id="extra-videos"
-                  label={`Extra process videos: ${s.extraVideos} more, ${quote.totalVideos} in total`}
-                  value={s.extraVideos}
+                  id="self-videos"
+                  label={`Videos you already have: ${s.selfVideos}`}
+                  value={s.selfVideos}
                   max={EXTRA_VIDEO_MAX}
-                  onChange={(n) => setS({ ...s, extraVideos: n })}
+                  onChange={(n) => setS({ ...s, selfVideos: n })}
                 />
-                <p className="mt-2 text-[12.5px] text-slate-500">{inr(EXTRA_VIDEO_INR)} each. {VIDEO_SHOT_NOTE}</p>
+                <p className="mt-2 text-[12.5px] text-slate-500">
+                  {plan.videos > 0 ? (
+                    <>
+                      First {plan.videos} free with {plan.name}, then {inr(VIDEO_SELF_INR)} each.{" "}
+                    </>
+                  ) : (
+                    <>{inr(VIDEO_SELF_INR)} each. </>
+                  )}
+                  {VIDEO_SELF_NOTE}
+                  <sup className="text-vpv-blue">*</sup>
+                </p>
               </div>
+              <div>
+                <Slider
+                  id="shot-videos"
+                  label={`Videos we shoot for you: ${s.shotVideos}`}
+                  value={s.shotVideos}
+                  max={EXTRA_VIDEO_MAX}
+                  onChange={(n) => setS({ ...s, shotVideos: n })}
+                />
+                <p className="mt-2 text-[12.5px] text-slate-500">
+                  {videoShotWasLabel(offerOpen) && (
+                    <s className="text-slate-400">{videoShotWasLabel(offerOpen)}</s>
+                  )}{" "}
+                  <strong className="font-semibold text-vpv-ink">{inr(VIDEO_SHOT_INR)}</strong> each.{" "}
+                  {VIDEO_SHOT_NOTE}
+                  <sup className="text-vpv-blue">*</sup>
+                </p>
+              </div>
+              <p className="text-[12px] leading-relaxed text-slate-500">
+                <sup className="text-vpv-blue">*</sup> The YouTube channel is yours, not ours. You keep
+                control of every video on it and can change or remove one at any time — which also
+                means what happens to it afterwards is outside our hands. See the{" "}
+                <a href="/disclaimer" className="text-vpv-blue underline underline-offset-2">
+                  disclaimer
+                </a>
+                .
+              </p>
             </div>
           </div>
 

@@ -532,10 +532,17 @@ export default function CheckoutFlow({
             <span className="text-[14px] font-semibold text-vpv-ink">Total payable</span>
             <span className="text-[22px] font-semibold tabular-nums text-vpv-ink">{inr2(split.total)}</span>
           </div>
+          {/* The real cost to a GST-registered buyer, who reclaims the 18%
+              as input tax credit. Deliberately quieter than the total. */}
+          <div className="flex items-baseline justify-between pt-1">
+            <span className="text-[12.5px] font-medium text-slate-500">Your effective cost</span>
+            <span className="text-[17px] font-semibold tabular-nums text-slate-500">{inr2(split.taxable)}</span>
+          </div>
         </div>
-        <p className="mt-1.5 text-[12px] text-slate-500">
-          You pay the total above. The invoice carries our GSTIN so you can
-          claim input credit.
+        <p className="mt-1.5 text-[12px] leading-relaxed text-slate-500">
+          You pay the total above. If your business is GST-registered, the{" "}
+          {inr2(split.gst)} GST comes back to you as input tax credit, so the
+          real cost is {inr2(split.taxable)}. The invoice carries our GSTIN.
         </p>
         {quote && (
           <p className="mt-3 rounded-xl bg-white px-3 py-2.5 text-[12.5px] leading-relaxed text-slate-600 ring-1 ring-vpv-line">

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   EXTRA_AREA_MAX,
   EXTRA_HOUR_INR,
+  EXTRA_VIDEO_MAX,
   LAUNCH_OFFER,
   PLACEHOLDER_PRICES,
   SITE_PLANS,
@@ -307,13 +308,17 @@ describe("site plans: the named packs sold by the marketing site", () => {
   it("totals the quote to the sum of the lines it showed, plus GST", () => {
     // Nothing may appear in the total that was not a visible line: that is
     // the whole promise of the billing screen.
-    const q = siteQuote("control", { city: "Pune", extraAreas: 6, extraVideos: 3 });
+    const q = siteQuote("control", { city: "Pune", extraAreas: 6, selfVideos: 10, shotVideos: 3 });
     const sum = q.lines.reduce((t, l) => t + l.amountInr, 0);
     assert.equal(q.taxableInr, sum);
     assert.equal(q.gstInr, Math.round(sum * 0.18 * 100) / 100);
     assert.equal(q.totalInr, q.taxableInr + q.gstInr);
     assert.equal(q.totalAreas, SITE_PLANS.control.scenes + 6);
-    assert.equal(q.totalVideos, SITE_PLANS.control.videos + 3);
+    // 10 uploaded + 3 shot. Control's allowance covers 8 of the uploads,
+    // so only 2 of them are charged; every shot video is.
+    assert.equal(q.totalVideos, 13);
+    assert.equal(q.paidSelfVideos, 10 - SITE_PLANS.control.videos);
+    assert.equal(q.shotVideos, 3);
   });
 
   it("prices the funnel's add-ons server-side, whatever the browser asks", async () => {
@@ -322,7 +327,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
       sitePlanId: "authority",
       city: "Gurugram",
       extraAreas: 4,
-      extraVideos: 2,
+      selfVideos: 5,
+      shotVideos: 2,
       // All of these are attempts to name a price. None may be read.
       amount: 1,
       amountInr: 1,
@@ -330,7 +336,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     const expected = toPaise(
-      siteQuote("authority", { city: "Gurugram", extraAreas: 4, extraVideos: 2 }).totalInr
+      siteQuote("authority", { city: "Gurugram", extraAreas: 4, selfVideos: 5, shotVideos: 2 }).totalInr
     );
     assert.equal(r.body.amountPaise, expected);
     assert.equal(w.gw.orders.get(r.body.razorpayOrderId)!.amount, expected);
@@ -342,11 +348,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
       sitePlanId: "control",
       city: "Manesar",
       extraAreas: 9_999,
-      extraVideos: -5,
+      selfVideos: -5,
+      shotVideos: 9_999,
     });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     const expected = toPaise(
-      siteQuote("control", { city: "Manesar", extraAreas: EXTRA_AREA_MAX, extraVideos: 0 }).totalInr
+      siteQuote("control", { city: "Manesar", extraAreas: EXTRA_AREA_MAX, selfVideos: 0, shotVideos: EXTRA_VIDEO_MAX }).totalInr
     );
     assert.equal(r.body.amountPaise, expected);
   });
