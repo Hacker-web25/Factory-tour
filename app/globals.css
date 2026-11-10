@@ -3090,3 +3090,70 @@ html.vpv-preview-theme.has-gradient body {
     animation: none;
   }
 }
+
+/* ============================================================================
+   Admin panel: light theme
+   ----------------------------------------------------------------------------
+   Applied by components/admin/AdminTheme.tsx to every light page under /admin
+   (campaigns, marketing, payments, customers, inbox). The rest of the site is
+   the dark editor theme set at the top of this file; without this, text and
+   form boxes on the white admin cards that set no colour of their own came out
+   near-white and dark grey.
+
+   Everything below is colour only. The :where() wrappers give the defaults zero
+   specificity, so any colour a page sets itself (a Tailwind class) still wins.
+   ============================================================================ */
+.admin-light {
+  color-scheme: light;      /* native inputs, selects, date pickers, scrollbars */
+  color: #0c1017;           /* = vpv.ink: text with no colour of its own */
+}
+
+/* The page behind the cards, the scroll bar and the overscroll area. */
+html:has(.admin-light) {
+  color-scheme: light;
+  background: #f4f8fd;      /* = vpv.canvas */
+}
+html:has(.admin-light) body {
+  background: #f4f8fd;
+  color: #0c1017;
+}
+
+/* Form boxes: white, dark text, a clear edge. */
+:where(.admin-light) :where(input, select, textarea) {
+  background-color: #ffffff;
+  color: #0c1017;
+  border-color: #cbd5e1;
+}
+/* A box with no border of its own gets an edge that takes no room, so it does
+   not vanish into a white card and nothing moves. */
+:where(.admin-light) :where(
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [class*="border"], [class*="ring"]),
+  select:not([class*="border"], [class*="ring"]),
+  textarea:not([class*="border"], [class*="ring"])
+) {
+  box-shadow: inset 0 0 0 1px #cbd5e1;
+}
+:where(.admin-light) :where(input, textarea)::placeholder {
+  color: #7b8798;
+  opacity: 1;
+}
+:where(.admin-light) :where(input, select, textarea):disabled {
+  background-color: #f1f5f9;
+  color: #64748b;
+}
+:where(.admin-light) :where(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+  accent-color: #1468d8;    /* = vpv.blue */
+}
+:where(.admin-light) :where(input, select, textarea):focus-visible {
+  outline: 2px solid #1468d8;
+  outline-offset: 1px;
+}
+/* The "Choose file" button inside a file box, when a page does not style it. */
+:where(.admin-light input[type="file"])::file-selector-button {
+  background: #eaf2fe;      /* = vpv.tint */
+  color: #0b3d91;           /* = vpv.navy */
+}
+:where(.admin-light) ::selection {
+  background: #cfe2fb;
+  color: #0c1017;
+}
