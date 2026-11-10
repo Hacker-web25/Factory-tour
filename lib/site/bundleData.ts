@@ -55,28 +55,32 @@ const SHARING = [
 const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Customer branding"];
 
 /**
- * The feature list for one plan card. EVERY plan gets the same rows in the
- * same order, so "Custom domain" sits at the same height on all four cards.
- * A feature a plan does not have is still listed, with a leading "~": the
- * card draws it invisible, keeping the row's height so the rows below line
- * up, and drops it altogether on a phone, where the cards stack.
+ * The feature list for one plan card.
+ *
+ * Only what the plan actually includes is listed. Until Nov 2026 a feature
+ * a plan lacked was still emitted with a leading "~", which the card drew
+ * invisible to keep every row at the same height — so Confidence and
+ * Authority showed a block of white space where Control's extras would be.
+ * The ticks now run unbroken and the list simply grows with the plan:
+ * Confidence 7, Authority 9, Control 11, Enterprise 13.
  */
 function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const p = SITE_PLANS[id];
-  const row = (has: boolean, text: string) => (has ? text : `~${text}`);
   const ent = id === "enterprise";
-  return [
-    row(ent, ENTERPRISE_PERSONAL.discussion.short),
+  const rows: (string | false)[] = [
+    ent && ENTERPRISE_PERSONAL.discussion.short,
+    ent && ENTERPRISE_PERSONAL.shoot.short,
     p.plot.label,
     `${p.scenes} AOAs`,
     `${hoursLabel(p.shootHours)} of shoot time`,
     "Information icons",
-    row(p.videos > 0, `${p.videos > 0 ? p.videos : 0} process videos`),
-    row(p.pdfs > 0, `${p.pdfs > 0 ? p.pdfs : 0} lab reports & certifications`),
-    row(p.sharingControls, SHARING[0]),
-    row(p.sharingControls, SHARING[1]),
+    p.videos > 0 && `${p.videos} process videos`,
+    p.pdfs > 0 && `${p.pdfs} lab reports & certifications`,
+    p.sharingControls && SHARING[0],
+    p.sharingControls && SHARING[1],
     ...BASE_SECURITY,
   ];
+  return rows.filter((r): r is string => typeof r === "string");
 }
 
 /** `ln={…},sn=[…]` — the offer and the four plans, as the bundle names them. */

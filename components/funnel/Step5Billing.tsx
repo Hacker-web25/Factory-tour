@@ -127,7 +127,8 @@ export default function Step5Billing() {
       s && s.chosenPlan
         ? siteQuote(s.chosenPlan, {
             extraAreas: s.extraAreas,
-            extraVideos: s.extraVideos,
+            selfVideos: s.selfVideos,
+            shotVideos: s.shotVideos,
             city: s.factoryCity,
             offerOpen,
             salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
@@ -292,7 +293,8 @@ export default function Step5Billing() {
       sitePlanId: s.chosenPlan,
       city: s.factoryCity,
       extraAreas: s.extraAreas,
-      extraVideos: s.extraVideos,
+      selfVideos: s.selfVideos,
+      shotVideos: s.shotVideos,
       salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
       coupon: coupon?.code,
       workspaceSlug: s.workspaceSlug,
@@ -536,7 +538,18 @@ export default function Step5Billing() {
                   <dt className="text-[16px] font-semibold text-vpv-ink">Total payable now</dt>
                   <dd className="text-[32px] font-semibold tracking-[-0.02em] tabular-nums text-vpv-ink">{inr(quote.totalInr)}</dd>
                 </div>
+                {/* What the VPV really costs a GST-registered buyer, who
+                    reclaims the 18% as input tax credit. Sized between the
+                    body text and the total: smaller than what they pay. */}
+                <div className="flex items-center justify-between gap-4 border-none pt-2">
+                  <dt className="text-[14px] font-medium text-slate-500">Your effective cost</dt>
+                  <dd className="text-[22px] font-semibold tracking-[-0.01em] tabular-nums text-slate-500">{inr(quote.taxableInr)}</dd>
+                </div>
               </dl>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
+                If your business is GST-registered, the {inr(quote.gstInr)} GST comes back to you as input tax
+                credit, so the VPV really costs you {inr(quote.taxableInr)}. Our GSTIN is on the invoice.
+              </p>
             </Card>
             <div className="mt-5 hidden lg:block">
               <BackLink href="/assessment/sales-team">Back to sales team</BackLink>

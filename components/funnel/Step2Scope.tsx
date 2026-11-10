@@ -1,15 +1,19 @@
 /**
  * Step 2 of the funnel — what buyers should see.
  *
- * Every area and process from lib/factoryAreas.ts is laid out as a tile,
+ * Every area from lib/factoryAreas.ts is laid out as a tile,
  * the way the old site's assessment did it. The list is the persuasion: a
  * factory owner who scrolls past "Effluent Treatment Plant" or "Tool Room"
  * realises those are exactly the places buyers ask about, and picks them.
- * Each area picked is one AOA (Active Operational Area); each process
- * picked is one process video. Anything missing can be typed in.
+ * Each area picked is one AOA (Active Operational Area). Anything missing
+ * can be typed in.
+ *
+ * Process videos are NOT chosen here. Since Nov 2026 they are two add-ons
+ * on Step 4 — upload your own, or we shoot it — so this step asks only
+ * about the plant itself.
  *
  * When the buyer told us what they make (step 1), the page opens with a
- * "Picked for your factory" section: the areas and processes buyers of
+ * "Picked for your factory" section: the areas buyers of
  * that industry ask to see, including ones the general list does not
  * carry (a spinning department, a clean room). Nothing is pre-selected —
  * the buyer taps them in, or adds them all with one button — and the
@@ -25,7 +29,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Factory, FileText, Plus, Sparkles, Video, X } from "lucide-react";
+import { Check, ChevronDown, Factory, FileText, Plus, Sparkles, X } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -44,15 +48,12 @@ import {
   CURATED_AREA_PICKS,
   CURATED_PROCESS_PICKS,
   FACTORY_AREAS,
-  FACTORY_PROCESSES,
   STAR_COPY,
   areaById,
-  processById,
   type CatalogueItem,
   type StarPhase,
 } from "@/lib/factoryAreas";
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
-import { VIDEO_SHOT_NOTE } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
 function toggle(list: string[], id: string): string[] {
@@ -303,7 +304,6 @@ export default function Step2Scope() {
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   const [areasOpen, setAreasOpen] = useState(false);
-  const [processesOpen, setProcessesOpen] = useState(false);
   const stars = useStars();
   const starLabel = STAR_COPY[stars.phase].badge;
 
@@ -316,10 +316,6 @@ export default function Step2Scope() {
     () => (tailored.matched ? tailored.areaIds.map((id) => areaById(id)).filter((x): x is CatalogueItem => Boolean(x)) : []),
     [tailored]
   );
-  const pickedProcesses = useMemo(
-    () => (tailored.matched ? tailored.processIds.map((id) => processById(id)).filter((x): x is CatalogueItem => Boolean(x)) : []),
-    [tailored]
-  );
 
   useEffect(() => {
     const loaded = loadFunnel();
@@ -327,24 +323,21 @@ export default function Step2Scope() {
     // Drop any industry-specific pick that no longer applies (they went
     // back and changed what they make), so it is not counted unseen.
     const keepArea = (id: string) => FACTORY_AREAS.some((a) => a.id === id) || t.areaIds.includes(id);
-    const keepProcess = (id: string) => FACTORY_PROCESSES.some((p) => p.id === id) || t.processIds.includes(id);
     setS({
       ...loaded,
       selectedAreas: loaded.selectedAreas.filter(keepArea),
-      selectedProcesses: loaded.selectedProcesses.filter(keepProcess),
       pdfCount: loaded.pdfCount ?? 0,
     });
   }, []);
 
   const areaCount = s ? s.selectedAreas.length + s.customAreas.length : 0;
-  const videoCount = s ? s.selectedProcesses.length + s.customProcesses.length : 0;
 
   const summary = useMemo(() => {
-    const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`, `${videoCount} process video${videoCount === 1 ? "" : "s"}`];
+    const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`];
     const pdfs = s?.pdfCount ?? 0;
     parts.push(`${pdfs} report${pdfs === 1 ? "" : "s"}`);
     return parts.join(", ");
-  }, [areaCount, videoCount, s?.pdfCount]);
+  }, [areaCount, s?.pdfCount]);
 
   async function onSubmit() {
     if (!s) return;
@@ -357,15 +350,13 @@ export default function Step2Scope() {
     const saved = saveFunnel({
       selectedAreas: s.selectedAreas,
       customAreas: s.customAreas,
-      selectedProcesses: s.selectedProcesses,
-      customProcesses: s.customProcesses,
       aoaCount: areaCount,
-      videoCount,
       pdfCount: s.pdfCount,
       // A new scope means a new recommendation; drop an earlier plan choice.
       chosenPlan: null,
       extraAreas: 0,
-      extraVideos: 0,
+      selfVideos: 0,
+      shotVideos: 0,
     });
     await mirrorLead("scope", saved);
     router.push("/assessment/security");
@@ -378,8 +369,8 @@ export default function Step2Scope() {
       title={tailored.matched ? `What should buyers see in your ${industryWords} plant?` : "What should your buyers see?"}
       summary={
         tailored.matched
-          ? "We have picked the areas and processes buyers in your industry usually ask to see. Tap the ones you have, then add anything else from the full list."
-          : "Tap every area and process you would want a buyer to see. Each area becomes one AOA in your VPV, and each process becomes a short video of it running."
+          ? "We have picked the areas buyers in your industry usually ask to see. Tap the ones you have, then add anything else from the full list."
+          : "Tap every area you would want a buyer to see. Each area becomes one AOA in your VPV — a place they can stand in and look around in 360°."
       }
       image="factory-floor"
       imageAlt="A bright, orderly Indian factory floor with CNC machines"
@@ -413,12 +404,10 @@ export default function Step2Scope() {
 
   // In the general lists: leave out what the picked section already shows.
   const generalAreas = FACTORY_AREAS.filter((a) => !tailored.matched || !tailored.areaIds.includes(a.id));
-  const generalProcesses = FACTORY_PROCESSES.filter((p) => !tailored.matched || !tailored.processIds.includes(p.id));
   // Our own "Must-show" stars only make sense without a tailored section;
   // real "Popular pick" stars always do.
   const showStars = !tailored.matched || stars.phase === "popular";
   const areaStars = showStars ? stars.areaIds : [];
-  const processStars = showStars ? stars.processIds : [];
 
   return (
     <>
@@ -481,73 +470,6 @@ export default function Step2Scope() {
             items={s.customAreas}
             onChange={(customAreas) => setS({ ...s, customAreas })}
           />
-        </Card>
-
-        {/* 2. PROCESS VIDEOS — same order: picked, more, their own. */}
-        <Card className="mt-6">
-          <SectionTitle
-            icon={Video}
-            title="Process videos"
-            aside={<CountPill n={videoCount} unit="selected" />}
-          >
-            {`A short clip of a process actually running. An area shows a buyer the place; a video shows them the work. ${VIDEO_SHOT_NOTE}`}
-          </SectionTitle>
-
-          {pickedProcesses.length > 0 && (
-            <PickedPanel
-              title={`Picked for your ${industryWords} factory`}
-              note="The processes buyers in your industry most often want to see running."
-              allIn={pickedProcesses.every((p) => s.selectedProcesses.includes(p.id))}
-              count={pickedProcesses.length}
-              onAddAll={() =>
-                setS({
-                  ...s,
-                  selectedProcesses: [...new Set([...s.selectedProcesses, ...pickedProcesses.map((p) => p.id)])],
-                })
-              }
-            >
-              <TileGrid
-                items={pickedProcesses}
-                selected={s.selectedProcesses}
-                onToggle={(id) => setS({ ...s, selectedProcesses: toggle(s.selectedProcesses, id) })}
-                starred={[]}
-                starLabel=""
-              />
-            </PickedPanel>
-          )}
-
-          {tailored.matched && <SubHeading>More process videos</SubHeading>}
-          {processStars.length > 0 && <StarLegend phase={stars.phase} />}
-          <FoldingGrid
-            items={generalProcesses}
-            selected={s.selectedProcesses}
-            onToggle={(id) => setS({ ...s, selectedProcesses: toggle(s.selectedProcesses, id) })}
-            starred={processStars}
-            starLabel={starLabel}
-            folded={tailored.matched && !processesOpen}
-            onUnfold={() => setProcessesOpen(true)}
-            unit="processes"
-          />
-
-          <SubHeading>A process we haven&rsquo;t listed?</SubHeading>
-          <p className="mt-1 text-[13px] text-slate-500">Type it in and press Add. Add as many as you need.</p>
-          <CustomAdder
-            placeholder="e.g. Heat treatment"
-            items={s.customProcesses}
-            onChange={(customProcesses) => setS({ ...s, customProcesses })}
-          />
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-slate-500">
-            <span>Each process you pick needs its machine running on shoot day.</span>
-            {videoCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setS({ ...s, selectedProcesses: [], customProcesses: [] })}
-                className="font-medium text-vpv-blue underline underline-offset-2"
-              >
-                I don&rsquo;t need process videos
-              </button>
-            )}
-          </div>
         </Card>
 
         {/* 3. LAB REPORTS & CERTIFICATIONS */}

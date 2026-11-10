@@ -86,7 +86,7 @@ describe("enterprise: plot band → plan", () => {
   });
 
   it("never recommends Enterprise to a smaller plant, however much they ask for", () => {
-    const r = recommendPlan({ aoaCount: 60, videoCount: 40, pdfCount: 300 });
+    const r = recommendPlan({ aoaCount: 60, pdfCount: 300 });
     assert.notEqual(r.plan, "enterprise");
     assert.equal(r.needsExtras, true);
     const r2 = recommendPlan({ aoaCount: 60, plotBand: "upto1000" });

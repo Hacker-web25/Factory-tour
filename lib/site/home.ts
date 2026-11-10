@@ -43,7 +43,7 @@ import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderH
 import { SITE_PATHS } from "@/lib/site/paths";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.fb64e5a9.js";
+const JS_SRC = "/static/js/main.0c98c354.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -237,9 +237,9 @@ const HOME_CSS = `[data-testid="hero-experience"]{position:relative;width:100%;h
 .vpv-gold-line{font-size:1rem;line-height:1.35}\
 li:has(>.vpv-gold-line)>svg{color:#D9A21B;width:1.15rem;height:1.15rem;margin-top:.2rem}\
 div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFFBEA 0%,#fff 38%)!important;box-shadow:0 18px 44px -18px rgba(217,162,27,.55)!important}\
-.vpv-ph{visibility:hidden}\
-@media (max-width:1023px){.vpv-ph{display:none}}\
-@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span 16;row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span 13;margin-top:1.25rem}}\
+\
+\
+@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span 4;row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:block;margin-top:1.25rem}}\
 @media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{padding:1.25rem}}\
 @keyframes vpvGold{0%{background-position:0% center}100%{background-position:220% center}}\
 @media (prefers-reduced-motion:reduce){.vpv-gold-tag,.vpv-gold-line{animation:none}}\

@@ -296,7 +296,8 @@ export function useRazorpayPayment(
        *  what the funnel sends instead of the older two-zone answer. */
       city?: string;
       extraAreas?: number;
-      extraVideos?: number;
+      selfVideos?: number;
+      shotVideos?: number;
       /** Sales-team logins bought with a site plan. */
       salesSeats?: number;
       /** The address the customer chose for their workspace. */
@@ -337,7 +338,8 @@ export function useRazorpayPayment(
               travel: args.travel,
               city: args.city,
               extraAreas: args.extraAreas,
-              extraVideos: args.extraVideos,
+              selfVideos: args.selfVideos,
+              shotVideos: args.shotVideos,
               salesSeats: args.salesSeats,
               workspaceSlug: args.workspaceSlug,
               renewLogins: args.renewLogins,
