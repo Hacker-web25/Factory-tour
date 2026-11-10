@@ -100,6 +100,10 @@ export type FunnelState = {
    *  sends the buyer to the welcome page instead of inviting a second
    *  payment. Empty until then. */
   paidOrderId: string;
+  /** The e-mail that order was paid with. The redirect to the welcome page
+   *  only counts for this address: someone else pricing a plant in the same
+   *  browser must reach their own bill, not the last buyer's receipt. */
+  paidEmail: string;
 };
 
 export const EMPTY_FUNNEL: FunnelState = {
@@ -137,6 +141,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   verifiedEmail: "",
   gstin: "",
   paidOrderId: "",
+  paidEmail: "",
 };
 
 const KEY = "vpv.funnel.v1";

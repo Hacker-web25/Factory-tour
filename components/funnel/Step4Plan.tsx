@@ -48,6 +48,7 @@ import {
   SITE_PLANS,
   SITE_PLAN_ORDER,
   SUPPORT_MONTHLY_INR,
+  AOA_HINT,
   supportWorthLabel,
   VIDEO_SELF_INR,
   VIDEO_SELF_NOTE,
@@ -197,19 +198,23 @@ function ShootTimeBar({ included, extra }: { included: number; extra: number }) 
  * explanation on hover, on keyboard focus, and on tap — focus-within is
  * what makes it work on a phone, where there is no hover.
  */
-function Hint({ text }: { text: string }) {
+function Hint({ text, onLight = false }: { text: string; onLight?: boolean }) {
   return (
     <span className="group relative inline-flex align-middle focus-within:z-20 hover:z-20">
       <button
         type="button"
         aria-label={text}
-        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-white/45 text-[11px] font-bold leading-none text-white/80 transition hover:border-white hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        className={`flex h-[18px] w-[18px] items-center justify-center rounded-full border text-[11px] font-bold leading-none transition focus:outline-none focus-visible:ring-2 ${
+          onLight
+            ? "border-slate-400 text-slate-500 hover:border-vpv-blue hover:text-vpv-blue focus-visible:ring-vpv-blue/50"
+            : "border-white/45 text-white/80 hover:border-white hover:text-white focus-visible:ring-white/70"
+        }`}
       >
         ?
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-[248px] -translate-x-1/2 rounded-xl bg-white px-3 py-2.5 text-[12.5px] font-normal leading-relaxed text-vpv-ink opacity-0 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.6)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+        className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-[248px] -translate-x-1/2 rounded-xl border border-vpv-line bg-white px-3 py-2.5 text-left text-[12.5px] font-normal leading-relaxed text-vpv-ink opacity-0 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.6)] transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
       >
         {text}
       </span>
@@ -242,16 +247,25 @@ export default function Step4Plan() {
   const quote = useMemo(
     () =>
       s
-        ? siteQuote(planId, { extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos, city: s.factoryCity, offerOpen })
+        ? siteQuote(planId, {
+            extraAreas: s.extraAreas,
+            selfVideos: s.selfVideos,
+            shotVideos: s.shotVideos,
+            city: s.factoryCity,
+            offerOpen,
+            // Asked on the step before this one, so the total is the real one.
+            salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
+          })
         : null,
     [s, planId, offerOpen]
   );
 
   function pick(id: SitePlanId) {
     if (!s) return;
-    // Extras are priced per plan, so carrying a count across would silently
-    // change what it costs. Switching plan starts the sliders again.
-    setS({ ...s, chosenPlan: id, extraAreas: 0, selfVideos: 0, shotVideos: 0 });
+    // Extra areas are priced per plan, so carrying a count across would
+    // silently change what it costs: that slider starts again. Videos cost
+    // the same on every plan, so the buyer's answer from the scope step stays.
+    setS({ ...s, chosenPlan: id, extraAreas: 0 });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -260,12 +274,12 @@ export default function Step4Plan() {
     setBusy(true);
     const saved = saveFunnel({ chosenPlan: planId, extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos });
     await mirrorLead("plan", saved, { recommendedPlan: rec?.plan });
-    router.push("/assessment/sales-team");
+    router.push("/assessment/billing");
   }
 
   const header = (title: string, summary?: string) => (
     <FunnelHeader
-      step={3}
+      step={4}
       title={title}
       summary={summary}
       image="vpv-preview"
@@ -310,8 +324,8 @@ export default function Step4Plan() {
     { icon: Maximize2, text: plan.plot.label },
     {
       icon: Layers,
-      text: `${plan.scenes} Active Operational Areas`,
-      hint: "One AOA is one place a buyer can stand in and look around in 360\u00b0 \u2014 your lab, or the raw-material store \u2014 not the whole factory. Most plants pick between 6 and 15.",
+      text: `${plan.scenes} AOAs (Active Operational Areas)`,
+      hint: AOA_HINT,
     },
     {
       icon: Video,
@@ -612,7 +626,9 @@ export default function Step4Plan() {
                         Private discussion and personal shoot by {ENTERPRISE_PERSONAL.person}
                       </li>
                     )}
-                    <li>{p.scenes} areas</li>
+                    <li className="flex items-center gap-1.5">
+                      {p.scenes} AOAs <Hint text={AOA_HINT} onLight />
+                    </li>
                     <li>{p.videos} process videos, {p.pdfs} lab reports & certifications</li>
                     <li>{hoursLabel(p.shootHours)} shoot</li>
                     <li className={p.sharingControls ? "font-medium text-vpv-blue" : "text-slate-400"}>
@@ -637,7 +653,7 @@ export default function Step4Plan() {
           <PrimaryButton onClick={() => void onSubmit()} busy={busy}>
             Continue with {plan.name.replace("VPV ", "")}
           </PrimaryButton>
-          <BackLink href="/assessment/security">Back to protection</BackLink>
+          <BackLink href="/assessment/sales-team">Back to sales team</BackLink>
         </div>
       </FunnelBody>
     </>

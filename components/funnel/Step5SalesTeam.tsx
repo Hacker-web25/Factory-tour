@@ -1,5 +1,6 @@
 /**
- * Step 5 of the funnel — the sales team.
+ * The sales-team step of the funnel. It is asked BEFORE the plan is shown,
+ * so the plan page's running total already includes the logins.
  *
  * A factory pays its salespeople every month to take the plant to buyers,
  * and today the MD cannot see a single one of those meetings. This step
@@ -133,12 +134,12 @@ export default function Step5SalesTeam() {
       monthlySalary: s.monthlySalary,
     });
     await mirrorLead("sales", saved);
-    router.push("/assessment/billing");
+    router.push("/assessment/plan");
   }
 
   const header = (
     <FunnelHeader
-      step={4}
+      step={3}
       title="Do you have a sales team?"
       summary="Your VPV can do more than show your factory. With a login for each salesperson, it shows you what your sales team is doing with it."
       image="sales-meeting"
@@ -158,11 +159,12 @@ export default function Step5SalesTeam() {
     );
   }
 
-  if (!s.chosenPlan || !s.factoryCity) {
+  // This step now comes BEFORE the plan, so the plan is not chosen yet.
+  if (!s.factoryCity || s.wantsSharingControls === null) {
     return (
       <>
         {header}
-        <FunnelBody><RestartNotice missing="your plan" /></FunnelBody>
+        <FunnelBody><RestartNotice missing="your earlier answers" /></FunnelBody>
       </>
     );
   }
@@ -329,9 +331,9 @@ export default function Step5SalesTeam() {
 
         <div className="mt-10 flex flex-col gap-4 sm:flex-row-reverse sm:items-center sm:justify-between">
           <PrimaryButton onClick={() => void onContinue()} busy={busy} disabled={s.hasSalesTeam === null}>
-            {s.hasSalesTeam ? `Add ${s.salesSeats} login${s.salesSeats === 1 ? "" : "s"} and continue` : "Continue to billing"}
+            {s.hasSalesTeam ? `Add ${s.salesSeats} login${s.salesSeats === 1 ? "" : "s"} and continue` : "Continue to your plan"}
           </PrimaryButton>
-          <BackLink href="/assessment/plan">Back to your plan</BackLink>
+          <BackLink href="/assessment/security">Back to protection</BackLink>
         </div>
         {s.hasSalesTeam === null && <p className="mt-3 text-[12.5px] text-slate-500">Pick one to carry on.</p>}
       </FunnelBody>

@@ -80,6 +80,8 @@ export default function Step5Billing() {
   const [otp, setOtp] = useState<OtpPhase>("unsent");
   const [code, setCode] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
+  /** True once the server has said this e-mail already has an account. */
+  const [existing, setExisting] = useState(false);
   const [gstinError, setGstinError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
   const [pincodeError, setPincodeError] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function Step5Billing() {
   // wondering whether it worked.
   const pay = useRazorpayPayment({
     onPaid: (orderId) => {
-      saveFunnel({ paidOrderId: orderId });
+      saveFunnel({ paidOrderId: orderId, paidEmail: loadFunnel().email.trim().toLowerCase() });
       router.replace(`/assessment/welcome?order=${encodeURIComponent(orderId)}`);
     },
   });
@@ -106,11 +108,21 @@ export default function Step5Billing() {
   const [supportOpen, setSupportOpen] = useState(false);
 
   useEffect(() => {
-    const loaded = loadFunnel();
-    // Already paid from this browser: never show a pay button again.
+    let loaded = loadFunnel();
+    // Already paid from this browser BY THIS BUYER: never show a pay button
+    // again. The e-mail must match the one that paid. Without that check a
+    // second person pricing a plant in the same browser was sent straight to
+    // the first buyer's "payment received" page without paying anything.
     if (loaded.paidOrderId) {
-      router.replace(`/assessment/welcome?order=${encodeURIComponent(loaded.paidOrderId)}`);
-      return;
+      const sameBuyer = Boolean(loaded.paidEmail) && loaded.paidEmail === loaded.email.trim().toLowerCase();
+      if (sameBuyer) {
+        router.replace(`/assessment/welcome?order=${encodeURIComponent(loaded.paidOrderId)}`);
+        return;
+      }
+      // A different address (or a receipt from before the e-mail was
+      // recorded): forget it. If this address really has bought, the server
+      // says so below and we send them to sign in.
+      loaded = saveFunnel({ paidOrderId: "", paidEmail: "" });
     }
     // Propose the address from the company name they gave on step 1, so
     // the common case is "yes, that's right" rather than a blank box.
@@ -170,6 +182,18 @@ export default function Step5Billing() {
     }
   }
 
+  /** This address already has a VPV account: buying again is done signed in. */
+  function goToSignIn(email: string) {
+    setExisting(true);
+    router.replace(`/login?existing=1&email=${encodeURIComponent(email.trim().toLowerCase())}`);
+  }
+  // The server refuses a second purchase on an address that has an account,
+  // whatever this page believed. Follow its answer to the sign-in page.
+  useEffect(() => {
+    if (pay.errorCode === "account_exists" && s?.email) goToSignIn(s.email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pay.errorCode]);
+
   async function verifyCode() {
     if (!s) return;
     setOtpError(null);
@@ -180,7 +204,7 @@ export default function Step5Billing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: s.email, code, leadId: s.leadId }),
       });
-      const data = (await res.json()) as { ok?: boolean; message?: string };
+      const data = (await res.json()) as { ok?: boolean; message?: string; accountExists?: boolean };
       if (!res.ok || !data.ok) {
         setOtpError(data.message ?? "That code is not right.");
         setOtp("sent");
@@ -189,6 +213,10 @@ export default function Step5Billing() {
       const saved = saveFunnel({ emailVerified: true, verifiedEmail: s.email });
       setS(saved);
       setOtp("verified");
+      // They have just proved the address is theirs, so it is safe to say it
+      // already has a VPV account, and to send them to sign in instead of
+      // letting them start a second purchase.
+      if (data.accountExists) goToSignIn(s.email);
     } catch {
       setOtpError("We could not reach our server. Please try again.");
       setOtp("sent");
@@ -319,6 +347,28 @@ export default function Step5Billing() {
         <FunnelBody>
           <Card>
             <div className="h-5 w-40 animate-pulse rounded bg-vpv-tint" />
+          </Card>
+        </FunnelBody>
+      </>
+    );
+  }
+
+  if (existing) {
+    return (
+      <>
+        <FunnelHeader step={5} title="You already have a VPV account" />
+        <FunnelBody>
+          <Card>
+            <p className="text-[15px] leading-relaxed text-slate-700" data-testid="existing-account">
+              <strong className="font-semibold text-vpv-ink">{s.email}</strong> already has a VPV workspace. Taking you
+              to sign in, where you can add areas, videos or logins to it.
+            </p>
+            <a
+              href={`/login?existing=1&email=${encodeURIComponent(s.email.trim().toLowerCase())}`}
+              className="mt-5 inline-flex rounded-full bg-vpv-grad px-6 py-3 text-[14px] font-semibold text-white"
+            >
+              Sign in
+            </a>
           </Card>
         </FunnelBody>
       </>
@@ -552,7 +602,7 @@ export default function Step5Billing() {
               </p>
             </Card>
             <div className="mt-5 hidden lg:block">
-              <BackLink href="/assessment/sales-team">Back to sales team</BackLink>
+              <BackLink href="/assessment/plan">Back to your plan</BackLink>
             </div>
           </div>
 
@@ -870,7 +920,7 @@ export default function Step5Billing() {
               </>
             )}
             <div className="lg:hidden">
-              <BackLink href="/assessment/sales-team">Back to sales team</BackLink>
+              <BackLink href="/assessment/plan">Back to your plan</BackLink>
             </div>
           </div>
         </div>

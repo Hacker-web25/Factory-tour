@@ -77,6 +77,15 @@ export default function LoginPage() {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Sent here by the pricing funnel: this e-mail already has a workspace. */
+  const [existingNotice, setExistingNotice] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.get("existing")) return;
+    setExistingNotice(true);
+    const e = (q.get("email") ?? "").trim().slice(0, 254);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) setEmail(e);
+  }, []);
 
   // Cloudflare Turnstile ("are you a person?") — token is single-use, so it is reset after every attempt.
   const captchaRef = useRef<TurnstileHandle>(null);
@@ -295,6 +304,12 @@ export default function LoginPage() {
             For MDs &amp; Owners
           </div>
 
+          {existingNotice && (
+            <p className="mb-5 rounded-xl border border-vpv-blue/25 bg-vpv-tint px-4 py-3 text-[13px] leading-relaxed text-vpv-navy" data-testid="existing-account-notice">
+              This e-mail already has a VPV workspace. Sign in to add areas, videos or logins. Your first password is in
+              your welcome e-mail; use &ldquo;Forgot password&rdquo; if you cannot find it.
+            </p>
+          )}
           <h1 className="text-[26px] font-semibold tracking-tight text-vpv-ink">Welcome back</h1>
           <p className="mt-1 mb-7 text-[13.5px] text-vpv-muted">
             Sign in to your VPV command centre. Sales-team members have a separate entry below.

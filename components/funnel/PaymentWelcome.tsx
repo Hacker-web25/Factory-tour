@@ -97,12 +97,20 @@ export default function PaymentWelcome() {
   const [invoiceNo, setInvoiceNo] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [answered, setAnswered] = useState(false);
+  /** True when the answers saved in this browser are this order's buyer's. */
+  const isMine = useRef(false);
 
   /* ── Which order, and who bought it. ─────────────────────────────── */
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("order") ?? "";
     const f = loadFunnel();
-    setFunnel(f);
+    // The name, company, e-mail and phone on this page come from the answers
+    // saved in this browser. Show them only when those answers belong to THIS
+    // order: the same order id, paid with the same e-mail. Otherwise the page
+    // would greet whoever last used the browser with someone else's receipt.
+    const mine = f.paidOrderId === id && Boolean(f.paidEmail) && f.paidEmail === f.email.trim().toLowerCase();
+    isMine.current = mine;
+    setFunnel(mine ? f : null);
     if (!UUID.test(id)) {
       setStatus("missing");
       return;
@@ -155,7 +163,9 @@ export default function PaymentWelcome() {
             if (!mirrored) {
               mirrored = true;
               const f = loadFunnel();
-              if (f.leadId) void mirrorLead("paid", f);
+              // Only the buyer's own lead is marked paid, never whichever
+              // lead happens to be in this browser.
+              if (f.leadId && isMine.current) void mirrorLead("paid", f);
             }
           }
           // Ready, or a person is finishing it: nothing more to wait for.
@@ -655,7 +665,7 @@ function ProblemCard({ status }: { status: "failed" | "refunded" | "missing" }) 
         {status === "failed" && (
           <Link
             href="/assessment/billing"
-            onClick={() => saveFunnel({ paidOrderId: "" })}
+            onClick={() => saveFunnel({ paidOrderId: "", paidEmail: "" })}
             className="inline-flex rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#071630]"
           >
             Back to your bill

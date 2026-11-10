@@ -8,9 +8,9 @@
  * Each area picked is one AOA (Active Operational Area). Anything missing
  * can be typed in.
  *
- * Process videos are NOT chosen here. Since Nov 2026 they are two add-ons
- * on Step 4 — upload your own, or we shoot it — so this step asks only
- * about the plant itself.
+ * Process videos are asked last, after the areas and the reports: two ways
+ * to get one (upload your own, or we shoot it), each with its own price. The
+ * plan step shows the same two counts again as sliders.
  *
  * When the buyer told us what they make (step 1), the page opens with a
  * "Picked for your factory" section: the areas buyers of
@@ -29,7 +29,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Factory, FileText, Plus, Sparkles, X } from "lucide-react";
+import { Camera, Check, ChevronDown, Factory, FileText, Plus, Sparkles, Upload, Video, X } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -55,6 +55,15 @@ import {
 } from "@/lib/factoryAreas";
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
+import {
+  EXTRA_VIDEO_MAX,
+  VIDEO_SELF_INR,
+  VIDEO_SELF_NOTE,
+  VIDEO_SHOT_INR,
+  VIDEO_SHOT_NOTE,
+  inr,
+  videoShotWasLabel,
+} from "@/lib/pricing";
 
 function toggle(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -336,8 +345,10 @@ export default function Step2Scope() {
     const parts = [`${areaCount} area${areaCount === 1 ? "" : "s"}`];
     const pdfs = s?.pdfCount ?? 0;
     parts.push(`${pdfs} report${pdfs === 1 ? "" : "s"}`);
+    const videos = (s?.selfVideos ?? 0) + (s?.shotVideos ?? 0);
+    parts.push(`${videos} video${videos === 1 ? "" : "s"}`);
     return parts.join(", ");
-  }, [areaCount, s?.pdfCount]);
+  }, [areaCount, s?.pdfCount, s?.selfVideos, s?.shotVideos]);
 
   async function onSubmit() {
     if (!s) return;
@@ -355,8 +366,8 @@ export default function Step2Scope() {
       // A new scope means a new recommendation; drop an earlier plan choice.
       chosenPlan: null,
       extraAreas: 0,
-      selfVideos: 0,
-      shotVideos: 0,
+      selfVideos: s.selfVideos,
+      shotVideos: s.shotVideos,
     });
     await mirrorLead("scope", saved);
     router.push("/assessment/security");
@@ -482,6 +493,88 @@ export default function Step2Scope() {
           <div className="mt-5 pl-[60px]">
             <Counter value={s.pdfCount ?? 0} onChange={(n) => setS({ ...s, pdfCount: n })} min={0} max={40} suffix="documents" />
           </div>
+        </Card>
+
+        {/* 4. PROCESS VIDEOS — two ways to get one, priced apart. Footage the
+            buyer already owns costs us only the attaching; a shoot costs a
+            crew. Either way it lives on THEIR YouTube channel. */}
+        <Card className="mt-6">
+          <SectionTitle
+            icon={Video}
+            title="Process videos"
+            aside={<CountPill n={s.selfVideos + s.shotVideos} unit="selected" />}
+          >
+            A short video of a process, such as moulding, filling or testing, that buyers play inside the tour at the
+            spot it happens. Leave both at zero if you would rather not; you can add videos later.
+          </SectionTitle>
+          <div className="mt-6 grid gap-4 md:grid-cols-2" data-testid="scope-videos">
+            <div className="flex flex-col rounded-2xl border border-vpv-line bg-vpv-canvas p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-vpv-blue">
+                  <Upload className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[15.5px] font-semibold text-vpv-ink">Already have the videos? Add them yourself</p>
+                  <p className="mt-1 text-[22px] font-semibold tabular-nums text-vpv-ink">
+                    {inr(VIDEO_SELF_INR)}
+                    <span className="ml-1.5 text-[12.5px] font-normal text-slate-500">per video, + GST</span>
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 flex-1 text-[13px] leading-relaxed text-slate-600">
+                {VIDEO_SELF_NOTE} We attach it to your tour.
+                <sup className="text-vpv-blue">*</sup>
+              </p>
+              <div className="mt-4">
+                <Counter
+                  value={s.selfVideos}
+                  onChange={(n) => setS({ ...s, selfVideos: n })}
+                  min={0}
+                  max={EXTRA_VIDEO_MAX}
+                  suffix="videos"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col rounded-2xl border border-vpv-line bg-vpv-canvas p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-vpv-blue">
+                  <Camera className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <p className="text-[15.5px] font-semibold text-vpv-ink">Want us to shoot the process video for you?</p>
+                  <p className="mt-1 text-[22px] font-semibold tabular-nums text-vpv-ink">
+                    {videoShotWasLabel() && (
+                      <s className="mr-2 text-[15px] font-normal text-slate-400">{videoShotWasLabel()}</s>
+                    )}
+                    {inr(VIDEO_SHOT_INR)}
+                    <span className="ml-1.5 text-[12.5px] font-normal text-slate-500">per video, + GST</span>
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 flex-1 text-[13px] leading-relaxed text-slate-600">
+                {VIDEO_SHOT_NOTE}
+                <sup className="text-vpv-blue">*</sup>
+              </p>
+              <div className="mt-4">
+                <Counter
+                  value={s.shotVideos}
+                  onChange={(n) => setS({ ...s, shotVideos: n })}
+                  min={0}
+                  max={EXTRA_VIDEO_MAX}
+                  suffix="videos"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="mt-4 text-[12px] leading-relaxed text-slate-500">
+            <sup className="text-vpv-blue">*</sup> The YouTube channel is created and owned by you, not by us. You
+            control every video on it, so we carry no responsibility for the channel or for what happens to a video
+            once it is there. Please read the{" "}
+            <a href="/disclaimer" className="text-vpv-blue underline underline-offset-2">
+              policy on process videos
+            </a>
+            . Some plans include a few self-uploaded videos at no extra cost; your bill shows exactly what you pay.
+          </p>
         </Card>
 
         <div className="mt-8">

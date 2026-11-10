@@ -169,6 +169,8 @@ export function useRazorpayPayment(
 ) {
   const [phase, setPhase] = useState<PayPhase>("idle");
   const [error, setError] = useState<string | null>(null);
+  /** The server's machine-readable reason, e.g. "account_exists". */
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [testMode, setTestMode] = useState(false);
   const [result, setResult] = useState<PayResult | null>(null);
@@ -314,6 +316,7 @@ export function useRazorpayPayment(
       lock.current = true;
       paid.current = false;
       setError(null);
+      setErrorCode(null);
       setNotice(null);
       setPhase("creating");
 
@@ -360,6 +363,7 @@ export function useRazorpayPayment(
             await waitForOrder(data.orderId, args.purpose);
             return;
           }
+          setErrorCode(typeof data.error === "string" ? data.error : null);
           setError(friendly(status, data));
           release();
           return;
@@ -483,6 +487,7 @@ export function useRazorpayPayment(
     phase,
     busy: phase === "creating" || phase === "checkout" || phase === "verifying",
     error,
+    errorCode,
     notice,
     testMode,
     result,

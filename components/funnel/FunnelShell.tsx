@@ -25,8 +25,8 @@ export const FUNNEL_STEPS = [
   { href: "/assessment", label: "Your details" },
   { href: "/assessment/scope", label: "What to show" },
   { href: "/assessment/security", label: "Protection" },
-  { href: "/assessment/plan", label: "Your plan" },
   { href: "/assessment/sales-team", label: "Sales team" },
+  { href: "/assessment/plan", label: "Your plan" },
   { href: "/assessment/billing", label: "Billing" },
 ] as const;
 
