@@ -163,10 +163,10 @@ export const POLICY = {
   /** Workspace set-up after payment is confirmed. */
   provisioningHours: 24,
   /** After a plan is paid for, we call to agree the shoot date within this. */
-  shootContactBusinessDays: 2,
+  shootContactBusinessDays: 5,
   /** The finished VPV is in the customer's workspace within this many
    *  working days of the shoot. ◀ CONFIRM: what the team can promise. */
-  vpvDeliveryWorkingDays: 10,
+  vpvDeliveryWorkingDays: 14,
   /** Notice the customer gives to move a shoot without losing travel costs. */
   rescheduleNoticeHours: 48,
 } as const;

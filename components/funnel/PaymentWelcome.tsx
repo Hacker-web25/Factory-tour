@@ -26,8 +26,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   Bookmark,
+  BadgeCheck,
   Camera,
   Check,
+  FileText,
+  MapPin,
+  Quote,
   Eye,
   Globe,
   Handshake,
@@ -265,39 +269,63 @@ export default function PaymentWelcome() {
 
       {status === "paid" && (
         <div className={`vpv-reveal relative mx-auto -mt-16 max-w-4xl px-5 pb-20 ${revealed ? "is-on" : ""}`}>
-          {/* ── Receipt ── */}
-          <div className="vpv-r3 grid gap-px overflow-hidden rounded-2xl border border-vpv-line bg-vpv-line shadow-[0_24px_60px_-30px_rgba(7,22,48,0.45)] sm:grid-cols-3">
-            <ReceiptCell label="Your plan" value={plan?.name ?? "VPV"} sub={funnel?.company || undefined} />
-            <ReceiptCell
-              label="GST invoice"
-              value={invoiceNo ?? "Being prepared"}
-              sub={funnel?.email ? `Sent to ${funnel.email}` : "Sent to your e-mail"}
-            />
-            <ReceiptCell
-              label="Your shoot"
-              value={funnel?.factoryCity ? `${funnel.factoryCity} plant` : "At your plant"}
-              sub={`We call within ${POLICY.shootContactBusinessDays} working days`}
-            />
+          {/* ── Receipt ── a gold edge, then plan / invoice / shoot ── */}
+          <div className="vpv-r3 overflow-hidden rounded-[22px] bg-white shadow-[0_30px_70px_-34px_rgba(7,22,48,0.55)] ring-1 ring-vpv-line" data-testid="receipt">
+            <div aria-hidden className="h-[3px] w-full bg-[linear-gradient(90deg,#B8862B_0%,#F3CF72_35%,#E9B949_65%,#B8862B_100%)]" />
+            <div className="grid divide-y divide-vpv-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <ReceiptCell
+                icon={BadgeCheck}
+                label="Your plan"
+                value={plan?.name ?? "VPV"}
+                sub={funnel?.company || undefined}
+                tag="Paid"
+              />
+              <ReceiptCell
+                icon={FileText}
+                label="GST invoice"
+                value={invoiceNo ?? "Being prepared"}
+                sub={funnel?.email ? `Sent to ${funnel.email}` : "Sent to your e-mail"}
+              />
+              <ReceiptCell
+                icon={MapPin}
+                label="Your shoot"
+                value={funnel?.factoryCity ? `${funnel.factoryCity} plant` : "At your plant"}
+                sub={`We call within ${POLICY.shootContactBusinessDays} working days`}
+              />
+            </div>
           </div>
 
           {/* ── Why this was a good decision ── */}
-          <div className="vpv-r4 mt-10 text-center">
-            <p className="mx-auto max-w-2xl text-balance text-[20px] font-medium leading-snug tracking-[-0.01em] text-vpv-ink sm:text-[24px]">
-              &ldquo;The supplier a buyer can see is the supplier a buyer remembers.&rdquo;
-            </p>
-            <p className="mt-2 text-[13px] text-slate-500">You just became that supplier.</p>
-          </div>
-          <div className="vpv-r4 mt-8 grid gap-4 sm:grid-cols-3">
-            <Pillar icon={Eye} title="Seen first">
-              Buyers shortlist the factories they can see. Now they can see yours.
-            </Pillar>
-            <Pillar icon={Bookmark} title="Remembered longer">
-              An exhibition ends after three days. Your plant visit keeps working after it.
-            </Pillar>
-            <Pillar icon={ShieldCheck} title="Trusted sooner">
-              Nothing builds confidence like walking the floor. Now every buyer can.
-            </Pillar>
-          </div>
+          <section className="vpv-r4 relative mt-14 overflow-hidden rounded-[28px] border border-[#EADBB0] bg-[linear-gradient(180deg,#FFFBEF_0%,#FFFFFF_70%)] px-5 pb-6 pt-10 sm:px-8 sm:pb-8">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[70%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(233,185,73,0.28),rgba(233,185,73,0))]"
+            />
+            <div className="relative text-center">
+              <span className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-[#071630] text-[#F3CF72] shadow-[0_10px_24px_-10px_rgba(7,22,48,0.7)]">
+                <Quote className="h-5 w-5" aria-hidden />
+              </span>
+              <p className="mx-auto mt-5 max-w-2xl text-balance text-[22px] font-semibold leading-snug tracking-[-0.015em] text-vpv-ink sm:text-[28px]">
+                The supplier a buyer can see is the supplier a buyer remembers.
+              </p>
+              <p className="mt-3 inline-flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.14em] text-[#8A6100]">
+                <span aria-hidden className="h-px w-6 bg-[#D9A21B]/60" />
+                You just became that supplier
+                <span aria-hidden className="h-px w-6 bg-[#D9A21B]/60" />
+              </p>
+            </div>
+            <div className="relative mt-9 grid gap-4 sm:grid-cols-3">
+              <Pillar n={1} icon={Eye} title="Seen first">
+                Buyers shortlist the factories they can see. Now they can see yours.
+              </Pillar>
+              <Pillar n={2} icon={Bookmark} title="Remembered longer">
+                An exhibition ends after three days. Your plant visit keeps working after it.
+              </Pillar>
+              <Pillar n={3} icon={ShieldCheck} title="Trusted sooner">
+                Nothing builds confidence like walking the floor. Now every buyer can.
+              </Pillar>
+            </div>
+          </section>
 
           {/* ── The question, then what happens next ── */}
           <div className="vpv-r5 mt-12">
@@ -335,7 +363,10 @@ export default function PaymentWelcome() {
         .vpv-reveal.is-on .vpv-r3 { transition-delay: .18s; }
         .vpv-reveal.is-on .vpv-r4 { transition-delay: .3s; }
         .vpv-reveal.is-on .vpv-r5 { transition-delay: .42s; }
+        .vpv-ping { animation: vpvPing 2.2s cubic-bezier(0,0,.2,1) infinite; }
+        @keyframes vpvPing { 0% { transform: scale(1); opacity: .7 } 80%,100% { transform: scale(1.6); opacity: 0 } }
         @media (prefers-reduced-motion: reduce) {
+          .vpv-ping { animation: none; display: none; }
           .vpv-reveal .vpv-r1, .vpv-reveal .vpv-r2, .vpv-reveal .vpv-r3, .vpv-reveal .vpv-r4, .vpv-reveal .vpv-r5 {
             transition: none; transform: none;
           }
@@ -347,30 +378,67 @@ export default function PaymentWelcome() {
 
 /* ───────────────────────────── pieces ───────────────────────────── */
 
-function ReceiptCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function ReceiptCell({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tag,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: string;
+  tag?: string;
+}) {
   return (
-    <div className="bg-white px-5 py-4">
-      <p className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
-      <p className="mt-1 truncate text-[16px] font-semibold text-vpv-ink" title={value}>
-        {value}
-      </p>
-      {sub && (
-        <p className="mt-0.5 truncate text-[12.5px] text-slate-500" title={sub}>
-          {sub}
+    <div className="flex min-w-0 items-start gap-3.5 px-5 py-5 sm:px-6">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-vpv-tint text-vpv-blue">
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+          {label}
+          {tag && (
+            <span className="rounded-full bg-[#E9F7EF] px-2 py-0.5 text-[10px] tracking-[0.1em] text-[#1F8A4C]">{tag}</span>
+          )}
         </p>
-      )}
+        <p className="mt-1 truncate text-[17px] font-semibold tracking-[-0.01em] text-vpv-ink" title={value}>
+          {value}
+        </p>
+        {sub && (
+          <p className="mt-0.5 truncate text-[12.5px] text-slate-500" title={sub}>
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-function Pillar({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: React.ReactNode }) {
+function Pillar({
+  n,
+  icon: Icon,
+  title,
+  children,
+}: {
+  n: number;
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl border border-vpv-line bg-white p-5">
-      <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#FBF3DC] text-[#A8701A]">
-        <Icon className="h-5 w-5" aria-hidden />
-      </span>
-      <p className="mt-3 text-[16px] font-semibold text-vpv-ink">{title}</p>
-      <p className="mt-1 text-[14px] leading-relaxed text-slate-600">{children}</p>
+    <div className="group relative rounded-2xl border border-vpv-line bg-white p-5 shadow-[0_14px_34px_-26px_rgba(7,22,48,0.5)] transition duration-300 hover:-translate-y-0.5 hover:border-[#E3B93C]/60 hover:shadow-[0_22px_44px_-26px_rgba(168,112,26,0.55)]">
+      <div className="flex items-center justify-between">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-[linear-gradient(145deg,#FFF6DA,#F6E2A6)] text-[#A8701A] ring-1 ring-[#E3B93C]/40">
+          <Icon className="h-5 w-5" aria-hidden />
+        </span>
+        <span aria-hidden className="text-[13px] font-semibold tabular-nums tracking-[0.08em] text-[#D9A21B]/70">
+          0{n}
+        </span>
+      </div>
+      <p className="mt-4 text-[17px] font-semibold tracking-[-0.01em] text-vpv-ink">{title}</p>
+      <p className="mt-1.5 text-[14px] leading-relaxed text-slate-600">{children}</p>
     </div>
   );
 }
@@ -582,60 +650,117 @@ function NextSteps({
       title: "Shoot day",
       body: enterprise
         ? `${ENTERPRISE_PERSONAL.person} leads the shoot of your plant himself, in a single visit.`
-        : "Our crew captures your plant in a single visit.",
+        : "Our VPV expert captures your plant in a single visit.",
     },
     {
       icon: Rocket,
-      title: "Your plant visit goes live",
+      title: "Your VPV, Virtual Plant Visit, is ready to build trust among clients",
       body: `In your workspace within ${POLICY.vpvDeliveryWorkingDays} working days of the shoot, ready to share with any buyer.`,
     },
   ];
 
   return (
     <section
-      className="rounded-3xl border border-vpv-line bg-white p-5 shadow-[0_24px_60px_-34px_rgba(7,22,48,0.35)] sm:p-8"
+      className="overflow-hidden rounded-[28px] border border-vpv-line bg-white shadow-[0_30px_70px_-40px_rgba(7,22,48,0.5)]"
       data-testid="next-steps"
     >
-      <p className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1F8A4C]">
-        <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> Thank you — that helps us a lot.
-      </p>
-      <h2 className="mt-2 text-[24px] font-semibold tracking-[-0.01em] text-vpv-ink sm:text-[28px]">What happens next</h2>
-
-      <ol className="mt-6 space-y-0">
-        {steps.map((s, i) => (
-          <li key={s.title} className="relative flex gap-4 pb-6 last:pb-0">
-            {i < steps.length - 1 && (
-              <span aria-hidden className="absolute left-5 top-11 h-[calc(100%-2.75rem)] w-px bg-vpv-line" />
-            )}
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-vpv-tint text-vpv-blue">
-              <s.icon className="h-[18px] w-[18px]" aria-hidden />
-            </span>
-            <div className="min-w-0 pt-1.5">
-              <p className="text-[15.5px] font-semibold text-vpv-ink">{s.title}</p>
-              <p className="mt-0.5 text-[14px] leading-relaxed text-slate-600">{s.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      <div className="mt-8 flex flex-col gap-3 border-t border-vpv-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-        {slug ? (
-          <a
-            href={`https://${slug}.myvpv.com`}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-vpv-grad px-7 py-3.5 text-[15px] font-semibold text-white shadow-[0_14px_30px_-12px_rgba(20,104,216,0.7)] transition-opacity hover:opacity-95"
-            data-testid="open-workspace"
-          >
-            Open your workspace <ArrowRight className="h-4 w-4" aria-hidden />
-          </a>
-        ) : (
-          <p className="text-[14px] text-slate-600">Your workspace link is in your welcome e-mail.</p>
-        )}
-        <p className="text-[13px] text-slate-500">
-          Questions?{" "}
-          <a href={`mailto:${COMPANY.emails.support}`} className="font-medium text-vpv-blue underline underline-offset-2">
-            {COMPANY.emails.support}
-          </a>
+      <div className="px-5 pt-7 sm:px-9 sm:pt-9">
+        <p className="inline-flex items-center gap-2 rounded-full bg-[#E9F7EF] px-3 py-1 text-[12.5px] font-semibold text-[#1F8A4C]">
+          <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden /> Thank you — that helps us a lot.
         </p>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-vpv-blue">Your VPV journey</p>
+            <h2 className="mt-1 text-[26px] font-semibold tracking-[-0.02em] text-vpv-ink sm:text-[32px]">What happens next</h2>
+          </div>
+          <p className="text-[13px] text-slate-500">
+            {steps.length} steps, from today to a plant any buyer can walk
+          </p>
+        </div>
+
+        <ol
+          className="relative mt-8 grid gap-7 pb-8 sm:mt-10 sm:pb-10 lg:gap-5 lg:[grid-template-columns:repeat(var(--n),minmax(0,1fr))]"
+          style={{ ["--n" as string]: steps.length } as React.CSSProperties}
+        >
+          {/* The rail: between the circles, down on a phone and across on a wide screen. */}
+          <span
+            aria-hidden
+            className="absolute left-6 right-6 top-[23px] hidden h-[2px] bg-[linear-gradient(90deg,#1468D8,#E9B949)] opacity-30 lg:block"
+            style={{ right: `calc(100% / ${steps.length} - 24px)` }}
+          />
+          {steps.map((s, i) => {
+            const now = i === 0;
+            const last = i === steps.length - 1;
+            return (
+              <li key={s.title} className="relative flex gap-4 lg:flex-col lg:gap-0">
+                {!last && (
+                  <span
+                    aria-hidden
+                    className="absolute -bottom-7 left-[23px] top-12 w-[2px] bg-[linear-gradient(180deg,rgba(20,104,216,0.35),rgba(233,185,73,0.35))] lg:hidden"
+                  />
+                )}
+                <span className="relative h-12 w-12 shrink-0">
+                  {now && <span aria-hidden className="vpv-ping absolute inset-0 rounded-full bg-vpv-blue/30" />}
+                  <span
+                    className={`relative z-10 grid h-12 w-12 place-items-center rounded-full ring-4 ring-white ${
+                      now
+                        ? "bg-vpv-grad text-white shadow-[0_12px_26px_-10px_rgba(20,104,216,0.8)]"
+                        : last
+                          ? "bg-[#071630] text-[#F3CF72] shadow-[0_12px_26px_-12px_rgba(7,22,48,0.8)]"
+                          : "bg-vpv-tint text-vpv-blue"
+                    }`}
+                  >
+                    <s.icon className="h-5 w-5" aria-hidden />
+                  </span>
+                </span>
+                <div className="min-w-0 pt-1 lg:pr-2 lg:pt-5">
+                  <p className="flex items-center gap-2 text-[11.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Step {i + 1}
+                    {now && <span className="rounded-full bg-vpv-tint px-2 py-0.5 text-[10px] tracking-[0.1em] text-vpv-blue">Now</span>}
+                  </p>
+                  <p className="mt-1 text-[16px] font-semibold leading-snug tracking-[-0.01em] text-vpv-ink">{s.title}</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-slate-600">{s.body}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* The way in, on the same navy and gold as the moment of payment. */}
+      <div className="relative overflow-hidden bg-[#071630] px-5 py-6 text-white sm:px-9 sm:py-7">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(60% 140% at 100% 0%, rgba(20,104,216,0.45), rgba(7,22,48,0) 60%), radial-gradient(40% 120% at 0% 100%, rgba(233,185,73,0.18), rgba(7,22,48,0) 70%)",
+          }}
+        />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[16px] font-semibold tracking-[-0.01em]">
+              {slug ? "Your workspace is ready" : "Your workspace is on its way"}
+            </p>
+            <p className="mt-0.5 text-[13px] text-white/65">
+              Questions?{" "}
+              <a href={`mailto:${COMPANY.emails.support}`} className="font-medium text-[#F3CF72] underline underline-offset-2">
+                {COMPANY.emails.support}
+              </a>
+            </p>
+          </div>
+          {slug ? (
+            <a
+              href={`https://${slug}.myvpv.com`}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-semibold text-[#071630] shadow-[0_14px_30px_-12px_rgba(233,185,73,0.6)] ring-1 ring-[#E9B949]/60 transition hover:bg-[#FFF8E6]"
+              data-testid="open-workspace"
+            >
+              Open your workspace <ArrowRight className="h-4 w-4" aria-hidden />
+            </a>
+          ) : (
+            <p className="text-[14px] text-white/75">The link is in your welcome e-mail.</p>
+          )}
+        </div>
       </div>
     </section>
   );
