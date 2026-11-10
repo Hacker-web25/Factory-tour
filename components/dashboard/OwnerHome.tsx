@@ -29,6 +29,7 @@ import { importTourFromFile } from "@/lib/backup";
 import { getMyProfile, type Organization } from "@/lib/auth";
 import { slugForOrgId } from "@/lib/orgSlug";
 import { goToDashboard } from "@/lib/authRedirect";
+import { MAX_TOUR_TITLE, nextTourTitle } from "@/lib/tourTitle";
 import {
   listFolders,
   createFolder,
@@ -181,6 +182,37 @@ export default function OwnerHome() {
     if (!confirm("Delete this tour?")) return;
     await supabase.from("tours").delete().eq("id", id);
     load();
+  }
+
+  /**
+   * Rename a tour. The new name shows at once and is rolled back with a
+   * message if the save does not go through. `updated_at` is left alone on
+   * purpose, so renaming does not move the tour to the top or change the
+   * date shown on its card.
+   */
+  async function renameTour(id: string, title: string) {
+    const previous = tours.find((t) => t.id === id)?.title;
+    if (previous === undefined) return;
+    setTours((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+    // .select() confirms a row was really written; a blocked update (no
+    // permission) comes back with no error and no row.
+    const { data, error } = await supabase
+      .from("tours")
+      .update({ title })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) {
+      console.error("[tour rename]", error);
+      setTours((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, title: previous } : t))
+      );
+      alert(
+        `Could not rename the tour.\n\n${
+          error?.message ?? "You may not have permission to edit this tour."
+        }`
+      );
+    }
   }
 
   async function uploadThumbnail(tourId: string, file: File) {
@@ -549,6 +581,7 @@ export default function OwnerHome() {
                   tour={t}
                   folders={folders}
                   onDelete={deleteTour}
+                  onRename={renameTour}
                   onUploadThumb={uploadThumbnail}
                   onMoveToFolder={handleMoveTourToFolder}
                 />
@@ -584,6 +617,7 @@ export default function OwnerHome() {
                   tour={t}
                   folders={folders}
                   onDelete={deleteTour}
+                  onRename={renameTour}
                   onUploadThumb={uploadThumbnail}
                   onMoveToFolder={handleMoveTourToFolder}
                 />
@@ -602,20 +636,23 @@ function TourCard({
   tour,
   folders,
   onDelete,
+  onRename,
   onUploadThumb,
   onMoveToFolder,
 }: {
   tour: TourWithCover;
   folders: Folder[];
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
   onUploadThumb: (id: string, f: File) => void;
   onMoveToFolder: (tourId: string, folderId: string | null) => void;
 }) {
   const router = useRouter();
   const goToEdit = () => router.push(`/tour/${tour.id}/edit`);
+  const [renaming, setRenaming] = useState(false);
   return (
     <div
-      draggable
+      draggable={!renaming}
       onDragStart={(e) => {
         // Clear any browser-default URL payload — otherwise dropping on
         // Chrome's own drop zones (or the browser chrome) navigates or
@@ -676,8 +713,25 @@ function TourCard({
           />
         </label>
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2 pt-6 pr-16">
-          <div className="text-[13px] font-medium truncate">{tour.title}</div>
+        <div
+          className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2 pt-6 ${
+            renaming ? "pr-2" : "pr-24"
+          }`}
+        >
+          {renaming ? (
+            <RenameInput
+              initial={tour.title}
+              onCommit={(v) => {
+                setRenaming(false);
+                const next = nextTourTitle(v, tour.title);
+                if (next) onRename(tour.id, next);
+              }}
+              onCancel={() => setRenaming(false)}
+              className="text-[13px] font-medium"
+            />
+          ) : (
+            <div className="text-[13px] font-medium truncate">{tour.title}</div>
+          )}
           <div className="text-3xs text-neutral-400 flex items-center gap-2">
             <span>
               {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
@@ -686,7 +740,23 @@ function TourCard({
             <span>{new Date(tour.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className={`absolute bottom-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${
+            renaming ? "hidden" : ""
+          }`}
+        >
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setRenaming(true);
+            }}
+            className="text-white/80 hover:text-accent p-1 rounded hover:bg-white/10"
+            title="Rename tour"
+            aria-label="Rename tour"
+          >
+            <Pencil size={12} />
+          </button>
           <MoveToFolderMenu
             tour={tour}
             folders={folders}
@@ -721,20 +791,23 @@ function TourRow({
   tour,
   folders,
   onDelete,
+  onRename,
   onUploadThumb,
   onMoveToFolder,
 }: {
   tour: TourWithCover;
   folders: Folder[];
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
   onUploadThumb: (id: string, f: File) => void;
   onMoveToFolder: (tourId: string, folderId: string | null) => void;
 }) {
   const router = useRouter();
   const goToEdit = () => router.push(`/tour/${tour.id}/edit`);
+  const [renaming, setRenaming] = useState(false);
   return (
     <div
-      draggable
+      draggable={!renaming}
       onDragStart={(e) => {
         try {
           e.dataTransfer.clearData();
@@ -766,7 +839,20 @@ function TourRow({
         onClick={goToEdit}
         className="min-w-0 flex-1 cursor-pointer"
       >
-        <div className="text-[13px] font-medium truncate">{tour.title}</div>
+        {renaming ? (
+          <RenameInput
+            initial={tour.title}
+            onCommit={(v) => {
+              setRenaming(false);
+              const next = nextTourTitle(v, tour.title);
+              if (next) onRename(tour.id, next);
+            }}
+            onCancel={() => setRenaming(false)}
+            className="text-[13px] font-medium"
+          />
+        ) : (
+          <div className="text-[13px] font-medium truncate">{tour.title}</div>
+        )}
         <div className="text-3xs text-neutral-500 flex items-center gap-2">
           <span>
             {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
@@ -802,6 +888,18 @@ function TourRow({
           }}
         />
       </label>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setRenaming(true);
+        }}
+        className="text-neutral-500 hover:text-accent p-1 rounded"
+        title="Rename tour"
+        aria-label="Rename tour"
+      >
+        <Pencil size={12} />
+      </button>
       <MoveToFolderMenu
         tour={tour}
         folders={folders}
@@ -826,6 +924,71 @@ function TourRow({
         <Trash2 size={12} />
       </button>
     </div>
+  );
+}
+
+/**
+ * The little text box that replaces a tour's name while it is being renamed.
+ * Enter or clicking away saves, Escape cancels. It stops clicks and keys from
+ * reaching the card underneath, so typing never opens the tour.
+ */
+function RenameInput({
+  initial,
+  onCommit,
+  onCancel,
+  className = "",
+}: {
+  initial: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+  className?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const [value, setValue] = useState(initial);
+
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+
+  // Enter then the blur that follows it must not save twice.
+  function finish(save: boolean) {
+    if (done.current) return;
+    done.current = true;
+    if (save) onCommit(value);
+    else onCancel();
+  }
+
+  return (
+    <input
+      ref={ref}
+      value={value}
+      maxLength={MAX_TOUR_TITLE}
+      aria-label="Tour name"
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        // Enter that confirms a word in an input method (Hindi, Chinese…)
+        // must not also save the name.
+        if (e.nativeEvent.isComposing) return;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          finish(true);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        }
+      }}
+      onBlur={() => finish(true)}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      className={`w-full bg-black/70 text-white border border-accent/70 rounded px-1 py-0.5 outline-none focus:border-accent ${className}`}
+    />
   );
 }
 
