@@ -71,39 +71,41 @@ export default function FunnelIntro() {
   return (
     <div className="border-b border-vpv-line bg-vpv-canvas">
       <style>{CSS}</style>
-      <div className="mx-auto max-w-5xl px-5 pt-8 pb-10">
-        <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.02em] text-vpv-ink sm:text-[40px]">
+      <div className="mx-auto max-w-6xl px-5 pt-7 pb-8">
+        <h1 className="text-[26px] font-semibold leading-[1.15] tracking-[-0.02em] text-vpv-ink sm:text-[32px]">
           Five simple steps
         </h1>
-        <p className="mt-3 max-w-[40rem] text-[16px] leading-relaxed text-slate-600">
+        <p className="mt-2 max-w-[44rem] text-[14.5px] leading-relaxed text-slate-600">
           The whole journey, from your quote to a live VPV. You can stop any time; your answers stay saved on this device.
         </p>
 
-        <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {STEPS.map((st, i) => (
             <li
               key={st.n}
-              className="vpvji-card group relative flex flex-col overflow-hidden rounded-2xl border border-vpv-line bg-[linear-gradient(180deg,#ffffff,#F4F8FD)] p-6 shadow-[0_1px_2px_rgba(11,61,145,0.05),0_16px_32px_-18px_rgba(11,61,145,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_-16px_rgba(11,61,145,0.34)]"
+              className="vpvji-card group relative flex flex-col overflow-hidden rounded-xl border border-vpv-line bg-[linear-gradient(180deg,#ffffff,#F4F8FD)] p-4 shadow-[0_1px_2px_rgba(11,61,145,0.05),0_16px_32px_-18px_rgba(11,61,145,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_-16px_rgba(11,61,145,0.34)]"
               style={{ animationDelay: `${i * 0.1}s` }}
             >
               <span className="vpvji-accent absolute left-0 right-0 top-0 h-[4px]" aria-hidden />
-              <span
-                className="vpvji-float flex h-12 w-12 items-center justify-center rounded-full text-[17px] font-bold text-white shadow-[0_12px_22px_-8px_rgba(20,104,216,0.6)]"
-                style={{ background: "linear-gradient(135deg,#0B3D91,#1468D8)", animationDelay: `${i * 0.3}s` }}
-              >
-                {st.n}
-              </span>
-              <p className="mt-5 text-[17px] font-bold text-vpv-ink">{st.title}</p>
-              <p className="mt-1 text-[13.5px] leading-relaxed text-slate-600">{st.text}</p>
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="vpvji-float flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white shadow-[0_10px_18px_-8px_rgba(20,104,216,0.6)]"
+                  style={{ background: "linear-gradient(135deg,#0B3D91,#1468D8)", animationDelay: `${i * 0.3}s` }}
+                >
+                  {st.n}
+                </span>
+                <p className="text-[15px] font-bold leading-tight text-vpv-ink">{st.title}</p>
+              </div>
+              <p className="mt-2.5 text-[12.5px] leading-snug text-slate-600">{st.text}</p>
               {st.facts && (
-                <ul className="mt-3 space-y-2">
+                <ul className="mt-2.5 space-y-1.5">
                   {st.facts.map((f, fi) => (
                     <li
                       key={f}
-                      className="vpvji-chip flex gap-2 rounded-xl border border-[#CFE0FB] bg-[#EAF2FE] px-3 py-2.5 text-[13px] font-semibold text-vpv-ink"
+                      className="vpvji-chip flex gap-1.5 rounded-lg border border-[#CFE0FB] bg-[#EAF2FE] px-2 py-1.5 text-[11.5px] font-semibold leading-snug text-vpv-ink"
                       style={{ animationDelay: `${0.5 + i * 0.1 + fi * 0.12}s` }}
                     >
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-vpv-blue" aria-hidden />
+                      <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-vpv-blue" aria-hidden />
                       <span>{f}</span>
                     </li>
                   ))}
@@ -114,7 +116,7 @@ export default function FunnelIntro() {
         </ol>
 
         {/* Progress bar now sits below the overview */}
-        <div className="mt-10">
+        <div className="mt-7">
           <StepBar current={0} />
         </div>
       </div>
