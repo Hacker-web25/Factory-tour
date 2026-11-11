@@ -23,7 +23,6 @@ import {
   ComingSoonCity,
   Field,
   FunnelBody,
-  FunnelHeader,
   PrimaryButton,
   SectionTitle,
   SelectInput,
@@ -33,6 +32,7 @@ import {
 import { LAUNCH_OFFER, PLOT_BANDS, isPlotBand } from "@/lib/pricing";
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
 import PreparingScreen, { preparingDurationMs } from "@/components/funnel/PreparingScreen";
+import FunnelIntro from "@/components/funnel/FunnelIntro";
 import { SERVICE_AREAS, SERVICE_AREA_NOTE, findCity, isServiceCity, logisticsFor } from "@/lib/logistics";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 
@@ -127,7 +127,7 @@ export default function Step1Info() {
   if (!s) {
     return (
       <>
-        <FunnelHeader step={0} title="Let's build your quote" />
+        <FunnelIntro />
         <FunnelBody>
           <Card>
             <div className="h-5 w-40 animate-pulse rounded bg-vpv-tint" />
@@ -147,15 +147,7 @@ export default function Step1Info() {
           city={resolvedCity.trim()}
         />
       )}
-      <FunnelHeader
-        step={0}
-       
-        title="Let's build your quote"
-        summary="A few details about you, and where your plant is. The city matters most: our crew travels to you, so it decides what travel costs, and we can't show you a real total without it."
-        image="owner-tablet"
-        imageAlt="A factory owner smiling with a tablet on his shop floor"
-        caption="Takes about two minutes"
-      />
+      <FunnelIntro />
       <FunnelBody>
         <form
           onSubmit={(ev) => {
