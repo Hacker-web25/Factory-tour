@@ -1,0 +1,21 @@
+{
+  "name": "vpv-hiw-tour",
+  "private": true,
+  "description": "Build tools for the How it works 3D factory tour (public/hiw-tour). Not part of the Next.js app.",
+  "type": "module",
+  "scripts": {
+    "fetch": "python3 fetch-assets.py",
+    "props": "node optimize.mjs",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "three": "0.169.0",
+    "n8ao": "1.9.4",
+    "esbuild": "0.24.0",
+    "@gltf-transform/core": "^4",
+    "@gltf-transform/extensions": "^4",
+    "@gltf-transform/functions": "^4",
+    "meshoptimizer": "0.21.0",
+    "sharp": "0.33.5"
+  }
+}
