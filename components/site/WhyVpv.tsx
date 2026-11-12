@@ -16,7 +16,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Eye, Play, ShieldCheck, Users, Video } from "lucide-react";
+import { ArrowRight, Eye, Play, ShieldCheck, TrendingDown, Users, Video } from "lucide-react";
 import { SITE_PLANS, inr, inrLakhs } from "@/lib/pricing";
 import { track } from "@/lib/analytics/client";
 import {
@@ -30,6 +30,8 @@ import {
 const NAVY = "#0B3D91";
 const BLUE = "#1468D8";
 const CYAN = "#19B8F2";
+const LOSS = "#FF7A6B"; // business going to competitors, on navy
+const LOSS_INK = "#D9443A"; // the same, on white
 
 const VALUE_PRESETS = [1, 2, 5, 10, 25, 50]; // lakh
 const DOTS = 20;
@@ -175,41 +177,185 @@ function NumberBox({
 
 /* ───────────────────────── visuals ───────────────────────── */
 
-/** Twenty leads: the ones won, the ones VPV could win back, the rest lost. */
-function LeadDots({ won, back = 0, dark = false }: { won: number; back?: number; dark?: boolean }) {
+/** Becomes true the first time the element scrolls into view, and stays true. */
+function useInView<T extends Element>(threshold = 0.3) {
+  const ref = useRef<T | null>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || inView) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { threshold }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [inView, threshold]);
+  return [ref, inView] as const;
+}
+
+/** Rises into place the first time it scrolls into view (motion only, see wv-reveal). */
+function Reveal({ children, delay = 0, className = "" }: { children: ReactNode; delay?: number; className?: string }) {
+  const [ref, inView] = useInView<HTMLDivElement>(0.15);
   return (
-    <div className="grid grid-cols-10 gap-1.5 sm:gap-2" aria-hidden>
-      {Array.from({ length: DOTS }, (_, i) => {
-        const kind = i < won ? "won" : i < won + back ? "back" : "lost";
-        const bg =
-          kind === "won" ? (dark ? "#FFFFFF" : BLUE) : kind === "back" ? CYAN : dark ? "rgba(255,255,255,.14)" : "#E6ECF5";
-        return (
-          <span
-            key={i}
-            className="wv-dot aspect-square rounded-full"
-            style={{
-              background: bg,
-              transitionDelay: `${i * 18}ms`,
-              transform: kind === "lost" ? "scale(.82)" : "scale(1)",
-              boxShadow: kind === "back" ? `0 0 0 3px ${CYAN}33` : undefined,
-            }}
-          />
-        );
-      })}
+    <div ref={ref} className={`wv-reveal ${inView ? "wv-in" : ""} ${className}`} style={{ transitionDelay: `${delay}ms` }}>
+      {children}
     </div>
   );
 }
 
-function SplitBar({ wonPct, backPct = 0 }: { wonPct: number; backPct?: number }) {
+/**
+ * Twenty leads in two bins: yours and your competitors'. When the panel first
+ * scrolls into view the leads pour out of the middle into their bins; after
+ * that, changing a number sends dots across from one bin to the other.
+ * Lost dots fill the competitors' bin from its first slot by taking slots in
+ * reverse, so a change moves only the dots that actually change hands.
+ */
+function LeadBuckets({ won, back = 0, dark = false }: { won: number; back?: number; dark?: boolean }) {
+  const [ref, inView] = useInView<HTMLDivElement>(0.35);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+
+  const ours = won + back;
+  const theirs = DOTS - ours;
+  const mid = 12;
+  const pad = 12;
+  const head = 36;
+  const gap = w < 400 ? 5 : 7;
+  const binW = Math.max(0, (w - mid) / 2);
+  const size = Math.max(10, Math.min(24, Math.floor((binW - pad * 2 - gap * 4) / 5)));
+  const binH = head + 4 * size + 3 * gap + pad;
+  const at = (side: 0 | 1, k: number) => ({
+    x: side * (binW + mid) + pad + (k % 5) * (size + gap),
+    y: head + Math.floor(k / 5) * (size + gap),
+  });
+  const wonC = dark ? "#FFFFFF" : BLUE;
+  const lostC = dark ? LOSS : "#F3C3BC";
+
   return (
-    <div className="relative h-3 overflow-hidden rounded-full bg-white/15" aria-hidden>
-      <div className="wv-bar absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${wonPct}%` }} />
-      {backPct > 0 && (
+    <div ref={ref} className="relative" style={{ height: binH }} aria-hidden>
+      {[0, 1].map((side) => (
         <div
-          className="wv-bar absolute inset-y-0 rounded-r-full"
-          style={{ left: `${wonPct}%`, width: `${backPct}%`, background: CYAN }}
-        />
-      )}
+          key={side}
+          className="absolute top-0 rounded-2xl"
+          style={{
+            left: side ? binW + mid : 0,
+            width: binW,
+            height: binH,
+            background: side
+              ? dark ? "rgba(255,122,107,.12)" : "#FFF3F1"
+              : dark ? "rgba(255,255,255,.06)" : "#EEF5FF",
+            boxShadow: `inset 0 0 0 1px ${side ? (dark ? "rgba(255,122,107,.35)" : "#F6D3CD") : dark ? "rgba(255,255,255,.12)" : "#D6E5FA"}`,
+          }}
+        >
+          <p
+            className="flex items-center justify-between px-3 pt-2.5 text-[12px] font-bold"
+            style={{ color: side ? (dark ? "#FFC2B8" : LOSS_INK) : dark ? "rgba(255,255,255,.85)" : NAVY }}
+          >
+            <span>{side ? "Your competitors" : "You"}</span>
+            <span className="tabular-nums">{side ? theirs : ours}</span>
+          </p>
+        </div>
+      ))}
+      {w > 0 &&
+        Array.from({ length: DOTS }, (_, i) => {
+          const kind = i < won ? "won" : i < ours ? "back" : "lost";
+          const p = kind === "lost" ? at(1, DOTS - 1 - i) : at(0, i);
+          const pool = { x: w / 2 - size / 2 + ((i % 5) - 2) * 3, y: head + size };
+          const q = inView ? p : pool;
+          return (
+            <span
+              key={i}
+              className="wv-bdot absolute left-0 top-0 rounded-full"
+              style={{
+                width: size,
+                height: size,
+                background: kind === "won" ? wonC : kind === "back" ? CYAN : lostC,
+                boxShadow: kind === "back" ? `0 0 0 3px ${CYAN}33` : undefined,
+                transform: `translate(${q.x}px, ${q.y}px) scale(${inView ? 1 : 0.4})`,
+                opacity: inView ? 1 : 0,
+                transitionDelay: `${inView ? 120 + i * 45 : 0}ms`,
+              }}
+            />
+          );
+        })}
+    </div>
+  );
+}
+
+/**
+ * Business leaving today, from local midnight up to this second, at the
+ * visitor's own yearly figure. Plain arithmetic on their inputs, and it
+ * says so. Ticks in whole rupees so the last digits visibly move.
+ */
+function LeakTicker({ perYear }: { perYear: number }) {
+  const reduced = usePrefersReducedMotion();
+  const [secs, setSecs] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      setSecs((d.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 1000);
+    };
+    tick();
+    const id = setInterval(tick, reduced ? 1000 : 150);
+    return () => clearInterval(id);
+  }, [reduced]);
+  const amount = secs === null ? 0 : (perYear / (365 * 24 * 3600)) * secs;
+  return (
+    <p className="mt-4 flex items-start gap-2.5 rounded-xl bg-black/20 px-3.5 py-2.5 text-[13px] leading-snug text-white/80">
+      <span className="wv-live mt-[5px] h-2 w-2 shrink-0 rounded-full" style={{ background: LOSS }} />
+      <span>
+        At your numbers, <b className="tabular-nums text-white">{inr(amount)}</b> has already gone to your competitors
+        today, and it is still going.
+      </span>
+    </p>
+  );
+}
+
+/** The loss, as the loudest thing in the results. Flashes when it grows. */
+function LossCard({ lost }: { lost: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prev = useRef(lost);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && lost > prev.current + 1) {
+      el.classList.remove("wv-hit");
+      void el.offsetWidth; // restart the animation
+      el.classList.add("wv-hit");
+    }
+    prev.current = lost;
+  }, [lost]);
+  return (
+    <div
+      ref={ref}
+      className="mt-6 rounded-2xl p-5 sm:p-6"
+      style={{ background: "linear-gradient(150deg, rgba(255,107,91,.32), rgba(255,107,91,.10))", boxShadow: "inset 0 0 0 1px rgba(255,138,122,.45)" }}
+    >
+      <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.16em] text-[#FFC2B8]">
+        <TrendingDown className="h-4 w-4" aria-hidden /> Going to your competitors, every year
+      </p>
+      <p className="mt-2 text-[36px] font-extrabold leading-none tracking-tight text-[#FFE6E1] sm:text-[48px]">
+        <Money value={lost} />
+      </p>
+      <p className="mt-2.5 text-[14px] text-[#FFD9D2]">
+        That is <b className="text-white"><Money value={lost / 365} /></b> every single day.
+      </p>
+      <LeakTicker perYear={lost} />
     </div>
   );
 }
@@ -307,23 +453,34 @@ export default function WhyVpv() {
   const wonDots = clamp(Math.round((conv / 100) * DOTS), conv > 0 ? 1 : 0, DOTS);
   const backDots = clamp(Math.round((newConv / 100) * DOTS) - wonDots, liftCapped > 0 ? 1 : 0, DOTS - wonDots);
 
+  const reduced = usePrefersReducedMotion();
+  const [motion, setMotion] = useState(false);
+  useEffect(() => setMotion(!reduced), [reduced]);
+  const [ctaRef, ctaIn] = useInView<HTMLHeadingElement>(0.5);
+
   return (
-    <main className="overflow-x-hidden">
+    <main className="overflow-x-hidden" data-wv-motion={motion ? "" : undefined}>
       <style>{`
         .wv-range { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 9999px; outline: none; cursor: pointer }
         .wv-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 9999px; background: #fff; border: 3px solid ${BLUE}; box-shadow: 0 4px 12px rgba(20,104,216,.35); transition: transform .15s }
         .wv-range::-webkit-slider-thumb:active { transform: scale(1.15) }
         .wv-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 9999px; background: #fff; border: 3px solid ${BLUE}; box-shadow: 0 4px 12px rgba(20,104,216,.35) }
         .wv-range:focus-visible { box-shadow: 0 0 0 4px rgba(20,104,216,.2) }
-        .wv-dot { transition: background-color .45s ease, transform .45s cubic-bezier(.2,.9,.3,1.3) }
-        .wv-bar { transition: width .7s cubic-bezier(.2,.8,.2,1), left .7s cubic-bezier(.2,.8,.2,1) }
+        .wv-bdot { transition: transform .8s cubic-bezier(.22,1,.36,1), background-color .45s ease, opacity .5s ease }
+        @keyframes wv-hit { 0% { transform: scale(1) } 30% { transform: scale(1.025) } 100% { transform: scale(1) } }
+        @keyframes wv-flash { 0% { box-shadow: inset 0 0 0 1px rgba(255,138,122,.45), 0 0 0 0 rgba(255,107,91,.55) } 100% { box-shadow: inset 0 0 0 1px rgba(255,138,122,.45), 0 0 0 20px rgba(255,107,91,0) } }
+        .wv-hit { animation: wv-hit .5s cubic-bezier(.22,1,.36,1), wv-flash .9s ease-out }
+        @keyframes wv-live { 50% { opacity: .25 } }
+        .wv-live { animation: wv-live 1.1s ease-in-out infinite }
+        [data-wv-motion] .wv-reveal { transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1) }
+        [data-wv-motion] .wv-reveal:not(.wv-in) { opacity: 0; transform: translateY(24px) }
         @keyframes wv-rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
         @keyframes wv-glow { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
         .wv-rise { animation: wv-rise .7s cubic-bezier(.2,.8,.2,1) both }
         .wv-glow { animation: wv-glow 4s ease-in-out infinite }
         @media (prefers-reduced-motion: reduce) {
-          .wv-rise, .wv-glow { animation: none }
-          .wv-dot, .wv-bar { transition: none }
+          .wv-rise, .wv-glow, .wv-hit, .wv-live { animation: none }
+          .wv-bdot { transition: none }
         }
       `}</style>
 
@@ -399,36 +556,25 @@ export default function WhyVpv() {
           {/* Results */}
           <div className="relative p-6 text-white sm:p-9" style={{ background: `linear-gradient(160deg, #0A2A66, ${NAVY} 55%, #10326F)` }} aria-live="polite">
             <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#9FD8FF]">Your total opportunity, a year</p>
-            <p className="mt-1 text-[40px] font-extrabold leading-none tracking-tight sm:text-[52px]">
+            <p className="mt-1 text-[32px] font-extrabold leading-none tracking-tight sm:text-[40px]">
               <Money value={opportunity} />
             </p>
             <p className="mt-2 text-[13px] text-white/60">
-              {leads.toLocaleString("en-IN")} leads × {inrLakhs(perLead)} each
+              {leads.toLocaleString("en-IN")} leads × {inrLakhs(perLead)} each. You win{" "}
+              <b className="text-white/90">
+                <Money value={won} />
+              </b>{" "}
+              of it ({conv}%).
             </p>
 
-            <div className="mt-7 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white/[0.07] p-4 ring-1 ring-white/10">
-                <p className="text-[12px] font-semibold text-white/65">You win ({conv}%)</p>
-                <p className="mt-1 text-[22px] font-bold sm:text-[26px]">
-                  <Money value={won} />
-                </p>
-              </div>
-              <div className="rounded-2xl p-4 ring-1 ring-[#FF8A7A]/40" style={{ background: "linear-gradient(160deg, rgba(255,107,91,.22), rgba(255,107,91,.08))" }}>
-                <p className="text-[12px] font-semibold text-[#FFC2B8]">Business going to competition</p>
-                <p className="mt-1 text-[22px] font-bold text-[#FFD9D2] sm:text-[26px]">
-                  <Money value={lost} />
-                </p>
-              </div>
-            </div>
+            <LossCard lost={lost} />
 
             <div className="mt-6">
-              <SplitBar wonPct={conv} />
-              <p className="mt-4 text-[13px] text-white/70">
-                Out of every 20 qualified leads, you win <b className="text-white">{wonDots}</b>.
+              <p className="mb-3 text-[13px] text-white/70">
+                Out of every 20 qualified leads, you win <b className="text-white">{wonDots}</b>. Your competitors win{" "}
+                <b style={{ color: "#FFC2B8" }}>{DOTS - wonDots}</b>.
               </p>
-              <div className="mt-3">
-                <LeadDots won={wonDots} dark />
-              </div>
+              <LeadBuckets won={wonDots} dark />
             </div>
 
             <p className="mt-6 rounded-xl bg-white/[0.06] px-4 py-3 text-[13.5px] leading-relaxed text-white/80">
@@ -444,7 +590,7 @@ export default function WhyVpv() {
 
       {/* ── What VPV wins back ───────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pt-16 sm:pt-24">
-        <div className="grid items-center gap-10 lg:grid-cols-[1fr_1fr]">
+        <Reveal className="grid items-center gap-10 lg:grid-cols-[1fr_1fr]">
           <div>
             <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-[#1468D8]">Win it back</p>
             <h2 className="mt-2 text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[38px]">
@@ -473,7 +619,7 @@ export default function WhyVpv() {
               + <Money value={recovered} />
             </p>
             <div className="mt-6">
-              <LeadDots won={wonDots} back={backDots} />
+              <LeadBuckets won={wonDots} back={backDots} />
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <i className="h-2.5 w-2.5 rounded-full" style={{ background: BLUE }} /> Won today
@@ -482,7 +628,7 @@ export default function WhyVpv() {
                   <i className="h-2.5 w-2.5 rounded-full" style={{ background: CYAN }} /> Won back with VPV
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <i className="h-2.5 w-2.5 rounded-full bg-[#DCE4F0]" /> Still lost
+                  <i className="h-2.5 w-2.5 rounded-full" style={{ background: "#F3C3BC" }} /> Still with competitors
                 </span>
               </div>
             </div>
@@ -501,7 +647,7 @@ export default function WhyVpv() {
               </p>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── How VPV converts ─────────────────────────────────── */}
@@ -517,9 +663,9 @@ export default function WhyVpv() {
             { icon: Video, t: "Close deals on a Zoom call", d: "Walk an international buyer through your plant on Zoom, with no travel on either side." },
             { icon: Users, t: "Every salesperson presenting the way you would", d: "Your whole team presents the plant the same way, every time, in every meeting." },
           ].map(({ icon: Icon, t, d }, i) => (
+            <Reveal key={t} delay={i * 90}>
             <div
-              key={t}
-              className="group rounded-2xl border border-slate-200 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#1468D8]/40 hover:shadow-[0_18px_40px_rgba(20,104,216,.12)]"
+              className="group h-full rounded-2xl border border-slate-200 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#1468D8]/40 hover:shadow-[0_18px_40px_rgba(20,104,216,.12)]"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-xl text-white" style={{ background: `linear-gradient(135deg, ${NAVY}, ${BLUE})` }}>
                 <Icon className="h-5 w-5" aria-hidden />
@@ -528,12 +674,14 @@ export default function WhyVpv() {
               <p className="mt-0.5 text-[16px] font-bold leading-snug text-slate-900">{t}</p>
               <p className="mt-2 text-[14px] leading-relaxed text-slate-600">{d}</p>
             </div>
+            </Reveal>
           ))}
         </div>
       </section>
 
       {/* ── Proof ────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pt-16 sm:pt-24">
+        <Reveal>
         <a
           href="/case-studies"
           className="group grid overflow-hidden rounded-[28px] text-white transition-transform duration-300 hover:-translate-y-0.5 md:grid-cols-[auto_1fr]"
@@ -562,12 +710,15 @@ export default function WhyVpv() {
             </p>
           </div>
         </a>
+        </Reveal>
       </section>
 
       {/* ── CTA ──────────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pb-20 pt-16 text-center sm:pb-28 sm:pt-24">
-        <h2 className="mx-auto max-w-2xl text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[38px]">
-          Stop handing <span style={{ color: BLUE }}>{inrLakhs(lost)}</span> a year to your competition.
+        <h2 ref={ctaRef} className="mx-auto max-w-2xl text-[28px] font-extrabold leading-tight tracking-tight text-slate-900 sm:text-[38px]">
+          Stop handing{" "}
+          <span style={{ color: LOSS_INK }}>{ctaIn ? <Money value={lost} /> : inrLakhs(lost)}</span> a year to your
+          competition.
         </h2>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a
