@@ -5,7 +5,7 @@
 .hs[data-part=conversion] .hs-glow{background:radial-gradient(closest-side,rgba(229,72,77,.24),transparent)}
 .hs[data-part=international] .hs-glow{background:radial-gradient(closest-side,rgba(25,184,242,.3),transparent)}
 .hs[data-part=privacy] .hs-glow{background:radial-gradient(closest-side,rgba(16,163,106,.22),transparent)}
-.hs-grid{position:relative;height:100%;max-width:72rem;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:24px minmax(0,1.05fr) minmax(0,1fr);gap:28px 44px;align-items:center}
+.hs-grid{position:relative;height:100%;max-width:72rem;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:28px 56px;align-items:center}
 /* rail */
 .hs-rail{display:flex;flex-direction:column;gap:18px;align-self:center}
 .hs-rail button{all:unset;cursor:pointer;position:relative;width:24px;height:24px;display:grid;place-items:center}
@@ -162,4 +162,29 @@
   .hs-steps{position:absolute;left:16px;right:16px;bottom:10px;display:flex;gap:6px}
   .hs-steps i{flex:1;height:3px;border-radius:3px;background:rgba(11,42,91,.14);transition:background .3s}
   .hs-steps i.on{background:var(--brand)}
+}
+
+/* short laptop screens: keep every part inside the pinned area */
+@media (min-width:1024px) and (max-height:820px){
+  .hs-h1{font-size:clamp(32px,3.7vw,50px)}
+  .hs-h2{font-size:clamp(28px,3vw,40px)}
+  .hs-lede{margin-top:14px;font-size:17px}
+  .hs-body{margin-top:10px;font-size:15.5px}
+  .hs-ctas{margin-top:20px}
+  .hs-cue{margin-top:22px}
+  .hs-calc{margin-top:14px;padding:14px 18px}
+  .hs-row--chips{margin-top:10px}
+  .hs-loss{margin-top:12px;padding:12px 16px}
+  .hs-loss-num{font-size:32px}
+  .hs-map{margin-top:12px;max-width:26rem}
+  .hs-locks{margin-top:12px;gap:8px}
+  .hs-lock{padding:9px 12px}
+  .hs-lock small{display:none}
+  .hs-answers{margin-top:12px;gap:8px}
+  .hs-ans{padding:11px 14px}
+  .hs-ans small{font-size:13px}
+}
+@media (min-width:1024px) and (max-height:680px){
+  .hs-ans small{display:none}
+  .hs-ans{align-items:center}
 }

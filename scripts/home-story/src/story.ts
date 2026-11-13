@@ -50,7 +50,7 @@ const TOASTS = [
   "",
   `<i class="hs-dot hs-dot--loss"></i><span>At ${CONV}%, 97 of every 100 buyers buy elsewhere</span>`,
   `${svg(icon.globe, 16)}<span>One link. Any buyer, any country.</span>`,
-  `${svg(icon.shield, 16)}<span>Link expires in 7 days · 1 device</span>`,
+  "",
   `<i class="hs-dot hs-dot--live"></i><span>Live · your whole sales team</span>`,
 ];
 
@@ -74,7 +74,6 @@ export function mount(host: HTMLElement): () => void {
   <div class="hs-pin">
     <div class="hs-glow" aria-hidden="true"></div>
     <div class="hs-grid">
-      <nav class="hs-rail" aria-label="Jump to a part">${PARTS.map((p, i) => `<button type="button" data-i="${i}"><i></i><span>${p.label}</span></button>`).join("")}</nav>
       <div class="hs-stage">
         <article class="hs-part" data-i="0" data-testid="home-section-hero">
           <p class="hs-eyebrow">Real Factories. Real Confidence.</p>
@@ -165,7 +164,6 @@ export function mount(host: HTMLElement): () => void {
 
   const $ = <T extends Element>(q: string) => sec.querySelector(q) as T;
   const parts = Array.from(sec.querySelectorAll<HTMLElement>(".hs-part"));
-  const railBtns = Array.from(sec.querySelectorAll<HTMLButtonElement>(".hs-rail button"));
   const steps = Array.from(sec.querySelectorAll<HTMLElement>(".hs-steps i"));
   const toast = $<HTMLElement>(".hs-toast");
   const pin = $<HTMLElement>(".hs-pin");
@@ -249,7 +247,6 @@ export function mount(host: HTMLElement): () => void {
     });
     sec.dataset.dir = dir;
     sec.dataset.part = PARTS[i].id;
-    railBtns.forEach((b, k) => { b.classList.toggle("on", k === i); b.classList.toggle("done", k < i); });
     steps.forEach((s, k) => s.classList.toggle("on", k <= i));
     toast.classList.remove("show");
     if (TOASTS[i]) { toast.innerHTML = TOASTS[i]; void toast.offsetWidth; toast.classList.add("show"); }
@@ -262,12 +259,6 @@ export function mount(host: HTMLElement): () => void {
     let i = 0; while (i < bounds.length - 1 && p >= bounds[i + 1] - 0.0001) i++;
     setActive(i);
   };
-  const jump = (i: number) => {
-    const span = sec.offsetHeight - (innerHeight - headerH());
-    const mid = bounds[i] + (PARTS[i].weight / total) * 0.35;
-    scrollTo({ top: sec.getBoundingClientRect().top + scrollY - headerH() + mid * span + 2, behavior: reduced ? "auto" : "smooth" });
-  };
-  railBtns.forEach((b) => b.addEventListener("click", () => jump(Number(b.dataset.i))));
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("resize", onScroll);
   recalc();
