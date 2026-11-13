@@ -75,13 +75,13 @@ export function mount(host: HTMLElement): () => void {
     <div class="hs-glow" aria-hidden="true"></div>
     <div class="hs-grid">
       <div class="hs-stage">
-        <article class="hs-part" data-i="0" data-testid="home-section-hero">
+        <article class="hs-part" data-i="0" data-testid="home-story-hero">
           <p class="hs-eyebrow">Real Factories. Real Confidence.</p>
           <h1 class="hs-h1" data-testid="landing-heading">${words("You are already investing in exhibitions and meeting buyers.")}</h1>
           <p class="hs-lede hs-in" style="--d:5">Give those buyers a better way to understand your factory and build confidence in your capabilities.</p>
           <div class="hs-ctas hs-in" style="--d:7">
-            <a class="hs-btn" href="/why-vpv" data-testid="hero-why-vpv">Why VPV? ${arrow}</a>
-            <a class="hs-pill" href="/case-studies" data-testid="hero-case-study"><span class="hs-play" aria-hidden="true"></span><span><b>80%+ conversion with VPV</b><small>Anuj Anand's story · See here</small></span></a>
+            <a class="hs-btn" href="/why-vpv" data-testid="home-story-why-vpv">Why VPV? ${arrow}</a>
+            <a class="hs-pill" href="/case-studies" data-testid="home-story-case-study"><span class="hs-play" aria-hidden="true"></span><span><b>80%+ conversion with VPV</b><small>Anuj Anand's story · See here</small></span></a>
           </div>
           <p class="hs-cue hs-in" style="--d:9" aria-hidden="true"><span></span>Scroll</p>
         </article>
@@ -150,9 +150,9 @@ export function mount(host: HTMLElement): () => void {
         </article>
       </div>
 
-      <div class="hs-demo" data-testid="hero-experience">
+      <div class="hs-demo" data-testid="home-story-demo">
         <div class="hs-frame">
-          <iframe src="/experience" title="Live VPV: walk through a real factory in 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay" allowfullscreen></iframe>
+          <iframe data-src="/experience" title="Live VPV: walk through a real factory in 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay" allowfullscreen></iframe>
           <button type="button" class="hs-guard" aria-label="Explore the live factory tour"><span>Click to explore the live tour</span></button>
           <p class="hs-toast" aria-hidden="true"></p>
         </div>
@@ -225,6 +225,16 @@ export function mount(host: HTMLElement): () => void {
   frame.addEventListener("mouseleave", lock);
   const outside = (e: Event) => { if (!frame.contains(e.target as Node)) lock(); };
   document.addEventListener("touchstart", outside, { passive: true });
+
+  /* ---------- load the live tour after the page itself ---------- */
+  // The 360° tour pulls several MB of panoramas. Starting it only once the
+  // page has loaded lets the text, buttons and fonts arrive first, and keeps
+  // the browser's loading spinner from waiting on the tour.
+  const iframe = $<HTMLIFrameElement>(".hs-frame iframe");
+  const startTour = () => { if (!iframe.src) iframe.src = iframe.dataset.src || "/experience"; frame.classList.add("is-loading"); iframe.addEventListener("load", () => frame.classList.remove("is-loading"), { once: true }); };
+  const idle = (f: () => void) => ("requestIdleCallback" in window ? (window as unknown as { requestIdleCallback: (cb: () => void, o: { timeout: number }) => void }).requestIdleCallback(f, { timeout: 1200 }) : setTimeout(f, 300));
+  if (document.readyState === "complete") idle(startTour);
+  else addEventListener("load", () => idle(startTour), { once: true });
 
   /* ---------- scroll → active part ---------- */
   const total = PARTS.reduce((a, p) => a + p.weight, 0);
