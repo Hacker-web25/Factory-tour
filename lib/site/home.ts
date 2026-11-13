@@ -280,6 +280,29 @@ div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-g
  * page, including arrivals through the site's own menu.
  */
 /**
+ * Home page: the scroll story.
+ *
+ * The bundle renders an empty <div id="home-story"> followed by
+ * <div id="home-classic"> (the plain hero). This mounts
+ * /home-story/story.js into #home-story, including after in-app navigation:
+ * the live demo stays pinned while five parts change beside it. If the
+ * script fails to load, the plain hero comes back.
+ * Source and rebuild steps: scripts/home-story/README.md.
+ */
+const HOME_STORY_CSS = `html.hs-on,html.hs-on body{overflow-x:clip}#home-story{display:none}html.hs-on #home-story{display:block;min-height:100vh}html.hs-on #home-classic{display:none}`;
+const HOME_STORY_SCRIPT = String.raw`(function(){
+  var d=document.documentElement,mod=null;d.classList.add("hs-on");
+  function check(){
+    var el=document.getElementById("home-story");
+    if(!el||el.getAttribute("data-mounted"))return;
+    el.setAttribute("data-mounted","1");
+    (mod||(mod=import("/home-story/story.js"))).then(function(m){m.mount(el)}).catch(function(){mod=null;d.classList.remove("hs-on")});
+  }
+  new MutationObserver(check).observe(document.getElementById("root")||document.body,{childList:true,subtree:true});
+  check();
+})();`;
+
+/**
  * How it works: the 3D factory walkthrough.
  *
  * The bundle renders an empty <div id="hiw-tour"> followed by
@@ -384,6 +407,7 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <style id="vpv-site-header-style">${SITE_HEADER_CSS}header[data-testid="site-header"]{display:none!important}html,body{overflow-x:clip}</style>\
 <style id="vpv-home-style">${HOME_CSS}</style>\
 <style id="vpv-hiw-tour-style">${HIW_TOUR_CSS}</style>\
+<style id="vpv-home-story-style">${HOME_STORY_CSS}</style>\
 </head><body>\
 <noscript>You need to enable JavaScript to run this app.</noscript>\
 <script>window.__VPV_SPA=1</script>\
@@ -396,6 +420,7 @@ ${siteHeaderHtml(page.path)}\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
 <script id="vpv-aoa-hint-script">${AOA_HINT_SCRIPT}</script>\
 <script id="vpv-hiw-tour-script">${HIW_TOUR_SCRIPT}</script>\
+<script id="vpv-home-story-script">${HOME_STORY_SCRIPT}</script>\
 ${measureScriptTag()}\
 </body></html>`;
 }

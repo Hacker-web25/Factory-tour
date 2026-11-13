@@ -1,0 +1,8 @@
+{
+  "name": "vpv-home-story",
+  "private": true,
+  "description": "Build tool for the home page scroll story (public/home-story). Not part of the Next.js app.",
+  "type": "module",
+  "scripts": { "build": "node build.mjs" },
+  "devDependencies": { "esbuild": "0.24.0" }
+}
