@@ -1,6 +1,5 @@
 /**
- * /why-vpv — what buyers who never see the factory cost, on the visitor's
- * own numbers. Linked from the homepage hero ("Why VPV?") and the menu.
+ * /why-vpv — the benefits of a virtual plant visit. Linked from the homepage hero ("Why VPV?") and the menu.
  */
 
 import type { Metadata } from "next";
@@ -8,9 +7,9 @@ import { PageShell } from "@/components/legal/LegalPage";
 import WhyVpv from "@/components/site/WhyVpv";
 
 export const metadata: Metadata = {
-  title: "Why VPV: what unconverted leads cost your factory",
+  title: "Why VPV: what a virtual plant visit does for your sales",
   description:
-    "Put in your qualified leads, business per lead and conversion, and see your total opportunity, what is left on the table, and what a virtual plant visit can win back.",
+    "Win buyer confidence, present like the best in your industry and reach buyers wherever they are: nine ways a virtual plant visit changes how manufacturers sell.",
   alternates: { canonical: "https://myvpv.com/why-vpv" },
 };
 
