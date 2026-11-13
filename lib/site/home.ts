@@ -283,20 +283,24 @@ div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-g
  * Home page: the scroll story.
  *
  * The bundle renders an empty <div id="home-story"> followed by
- * <div id="home-classic"> (the plain hero). This mounts
- * /home-story/story.js into #home-story, including after in-app navigation:
- * the live demo stays pinned while five parts change beside it. If the
- * script fails to load, the plain hero comes back.
+ * <div id="home-classic">. With the story on (html.hs-on, set here before
+ * the bundle runs), the bundle leaves #home-classic empty, so the old hero
+ * and its second copy of the live tour are never built. This mounts
+ * /home-story/story.js into #home-story, including after in-app navigation.
+ * If the script can't load, the page reloads once without the story and the
+ * plain hero shows (remembered for the tab's session).
  * Source and rebuild steps: scripts/home-story/README.md.
  */
 const HOME_STORY_CSS = `html.hs-on,html.hs-on body{overflow-x:clip}#home-story{display:none}html.hs-on #home-story{display:block;min-height:100vh}html.hs-on #home-classic{display:none}`;
 const HOME_STORY_SCRIPT = String.raw`(function(){
-  var d=document.documentElement,mod=null;d.classList.add("hs-on");
+  var d=document.documentElement,mod=null,K="vpv.hs.off";
+  try{if(sessionStorage.getItem(K))return}catch(e){}
+  d.classList.add("hs-on");
   function check(){
     var el=document.getElementById("home-story");
     if(!el||el.getAttribute("data-mounted"))return;
     el.setAttribute("data-mounted","1");
-    (mod||(mod=import("/home-story/story.js"))).then(function(m){m.mount(el)}).catch(function(){mod=null;d.classList.remove("hs-on")});
+    (mod||(mod=import("/home-story/story.js"))).then(function(m){m.mount(el)}).catch(function(){try{sessionStorage.setItem(K,"1");location.reload()}catch(e){d.classList.remove("hs-on")}});
   }
   new MutationObserver(check).observe(document.getElementById("root")||document.body,{childList:true,subtree:true});
   check();
@@ -314,16 +318,22 @@ const HOME_STORY_SCRIPT = String.raw`(function(){
  */
 const HIW_TOUR_CSS = `html.hiwt-on,html.hiwt-on body{overflow-x:clip}#hiw-tour{display:none}html.hiwt-on #hiw-tour{display:block;min-height:100vh;background:#dfe6ee}html.hiwt-on #hiw-classic{display:none}`;
 const HIW_TOUR_SCRIPT = String.raw`(function(){
-  try{
-    if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
-    var c=document.createElement("canvas"),g=c.getContext("webgl2")||c.getContext("webgl");
-    if(!g)return;var x=g.getExtension("WEBGL_lose_context");if(x)x.loseContext();
-  }catch(e){return}
-  var d=document.documentElement,mod=null;d.classList.add("hiwt-on");
+  var d=document.documentElement,mod=null,ok=null;
+  function can(){
+    if(ok!==null)return ok;ok=false;
+    try{
+      if(matchMedia("(prefers-reduced-motion: reduce)").matches)return ok;
+      var c=document.createElement("canvas"),g=c.getContext("webgl2")||c.getContext("webgl");
+      if(!g)return ok;var x=g.getExtension("WEBGL_lose_context");if(x)x.loseContext();ok=true;
+    }catch(e){}
+    return ok;
+  }
   function check(){
     var el=document.getElementById("hiw-tour");
     if(!el||el.getAttribute("data-mounted"))return;
     el.setAttribute("data-mounted","1");
+    if(!can())return;
+    d.classList.add("hiwt-on");
     (mod||(mod=import("/hiw-tour/tour.js"))).then(function(m){m.mount(el)}).catch(function(){mod=null;d.classList.remove("hiwt-on")});
   }
   new MutationObserver(check).observe(document.getElementById("root")||document.body,{childList:true,subtree:true});
