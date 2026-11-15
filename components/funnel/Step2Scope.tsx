@@ -329,9 +329,9 @@ export default function Step2Scope() {
   useEffect(() => {
     const loaded = loadFunnel();
     const t = matchIndustries(loaded.industryText, loaded.industryExcluded);
-    // Drop any industry-specific pick that no longer applies (they went
-    // back and changed what they make), so it is not counted unseen.
-    const keepArea = (id: string) => FACTORY_AREAS.some((a) => a.id === id) || t.areaIds.includes(id);
+    // Drop any pick this page no longer shows (they went back and changed
+    // what they make), so it is not counted unseen.
+    const keepArea = (id: string) => t.areaIds.includes(id) || t.moreAreaIds.includes(id);
     setS({
       ...loaded,
       selectedAreas: loaded.selectedAreas.filter(keepArea),
@@ -413,8 +413,9 @@ export default function Step2Scope() {
     );
   }
 
-  // In the general lists: leave out what the picked section already shows.
-  const generalAreas = FACTORY_AREAS.filter((a) => !tailored.matched || !tailored.areaIds.includes(a.id));
+  // In the general list: leave out what the picked section already shows,
+  // and shop floors this industry does not have (no foundry for a food plant).
+  const generalAreas = FACTORY_AREAS.filter((a) => tailored.moreAreaIds.includes(a.id));
   // Our own "Must-show" stars only make sense without a tailored section;
   // real "Popular pick" stars always do.
   const showStars = !tailored.matched || stars.phase === "popular";
