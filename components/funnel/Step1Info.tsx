@@ -15,9 +15,9 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Maximize2, MapPin, Sparkles, UserRound, X } from "lucide-react";
+import { Car, Maximize2, MapPin, UserRound } from "lucide-react";
 import {
   Card,
   ComingSoonCity,
@@ -71,7 +71,11 @@ export default function Step1Info() {
     setS((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  const industryMatch = matchIndustries(s?.industryText ?? "", s?.industryExcluded ?? []);
+  // What they make is matched quietly, for step 2 and the lead row; step 1
+  // shows no guess, so a near miss never puts a trade they do not have in
+  // front of them.
+  const industryText = s?.industryText ?? "";
+  const industryMatch = useMemo(() => matchIndustries(industryText), [industryText]);
   const typedCity = cityChoice === CITY_OTHER;
   const resolvedCity = typedCity ? (s?.factoryCity ?? "") : cityChoice;
   const quote = resolvedCity.trim() ? logisticsFor(resolvedCity) : null;
@@ -104,10 +108,12 @@ export default function Step1Info() {
 
     setBusy(true);
     const matched = findCity(withCity.factoryCity);
-    const ind = matchIndustries(withCity.industryText, withCity.industryExcluded);
+    const ind = matchIndustries(withCity.industryText);
     const saved = saveFunnel({
       ...withCity,
-      industry: ind.matched ? ind.profiles.map((p) => p.label).join(", ") : withCity.industryText.trim(),
+      industry: ind.profile ? ind.profile.label : withCity.industryText.trim(),
+      // Chips to remove a guess are gone; clear any left from before.
+      industryExcluded: [],
       // Being contacted about this enquiry is covered by the Privacy Policy
       // they have just agreed to, so the rep may call back.
       marketingConsent: true,
@@ -202,11 +208,7 @@ export default function Step1Info() {
                 label="What does your factory produce?"
                 required
                 error={errors.industry}
-                hint={
-                  industryMatch.matched || s.industryText.trim().length >= 3
-                    ? undefined
-                    : "A word or two is enough. We use it to suggest what your buyers will want to see."
-                }
+                hint="A word or two is enough, for example “steel pipes”, “namkeen” or “medical equipment”."
               >
                 <TextInput
                   value={s.industryText}
@@ -216,50 +218,6 @@ export default function Step1Info() {
                   maxLength={160}
                 />
               </Field>
-              {industryMatch.matched && (
-                <div className="mt-3 rounded-xl border border-[#E8C766] bg-[#FFFCF2] px-3.5 py-3">
-                  <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-[#7A5600]">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                    We&rsquo;ll tailor your VPV for
-                  </p>
-                  <ul className="mt-2 flex flex-wrap gap-2">
-                    {industryMatch.profiles.map((p) => (
-                      <li
-                        key={p.id}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-vpv-blue bg-white py-1 pl-3 pr-1.5 text-[13px] font-medium text-vpv-ink"
-                      >
-                        {p.label}
-                        <button
-                          type="button"
-                          onClick={() => set("industryExcluded", [...s.industryExcluded, p.id])}
-                          aria-label={`Not ${p.label}`}
-                          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-vpv-tint hover:text-vpv-ink"
-                        >
-                          <X className="h-3 w-3" aria-hidden />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {!industryMatch.matched && s.industryText.trim().length >= 3 && (
-                <p className="mt-2 text-[12.5px] leading-relaxed text-slate-500">
-                  We&rsquo;ll start you with the areas most factories show. Words like &ldquo;castings&rdquo;,
-                  &ldquo;garments&rdquo; or &ldquo;tablets&rdquo; help us tailor it to your plant.
-                  {s.industryExcluded.length > 0 && (
-                    <>
-                      {" "}
-                      <button
-                        type="button"
-                        onClick={() => set("industryExcluded", [])}
-                        className="font-medium text-vpv-blue underline underline-offset-2"
-                      >
-                        Undo removed suggestions
-                      </button>
-                    </>
-                  )}
-                </p>
-              )}
             </div>
           </Card>
 
