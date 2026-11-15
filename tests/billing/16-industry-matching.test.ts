@@ -14,8 +14,7 @@ import { INDUSTRY_PROFILES, matchIndustries, shortLabels } from "@/lib/industryP
 import {
   ALL_AREAS,
   ALL_PROCESSES,
-  CURATED_AREA_PICKS,
-  FACTORY_AREAS,
+  COMMON_AREAS,
   SHOP_SPECIFIC_AREAS,
   areaById,
   processById,
@@ -51,6 +50,11 @@ describe("matching what a factory makes", () => {
       ["pressure die casting", "die-casting"],
       ["tmt bars", "steel-plant"],
       ["stainless steel sheets", "steel-flat"],
+      ["bed", "furniture"],
+      ["door locks", "hardware"],
+      ["mobile accessories", "electronics"],
+      ["upvc windows", "aluminium"],
+      ["hydraulic cylinders", "machinery"],
     ];
     for (const [text, want] of cases) assert.equal(id(text), want, text);
   });
@@ -121,12 +125,13 @@ describe("matching what a factory makes", () => {
     assert.equal(id("pipes", ["steel-pipes"]), "plastic-pipes");
   });
 
-  it("falls back to our general picks when nothing matches", () => {
+  it("with no match, offers only what every plant has (no random shop floors)", () => {
     const m = matchIndustries("our company");
     assert.equal(m.matched, false);
     assert.equal(m.profile, null);
-    assert.deepEqual(m.areaIds, CURATED_AREA_PICKS);
-    assert.deepEqual(m.moreAreaIds, FACTORY_AREAS.map((a) => a.id));
+    assert.deepEqual(m.areaIds, COMMON_AREAS);
+    assert.deepEqual(m.moreAreaIds, []);
+    for (const a of SHOP_SPECIFIC_AREAS) assert.ok(!COMMON_AREAS.includes(a), a);
     assert.equal(matchIndustries("").matched, false);
     assert.equal(matchIndustries(undefined).matched, false);
   });
