@@ -80,9 +80,6 @@ export default function FunnelIntro() {
         <h1 className="text-[26px] font-semibold leading-[1.15] tracking-[-0.02em] text-vpv-ink sm:text-[32px]">
           Five simple steps
         </h1>
-        <p className="mt-2 max-w-[44rem] text-[14.5px] leading-relaxed text-slate-600">
-          The whole journey, from your quote to a live VPV. You can stop any time; your answers stay saved on this device.
-        </p>
 
         <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {STEPS.map((st, i) => (

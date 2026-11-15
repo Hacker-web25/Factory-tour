@@ -69,10 +69,6 @@ export default function Step3Security() {
         <p className="mt-10 max-w-4xl text-[34px] font-semibold leading-[1.05] tracking-[-0.025em] text-vpv-blue sm:text-[52px]">
           Stop your VPV link being shared with your competitors.
         </p>
-        <p className="mt-5 max-w-[36rem] text-[17px] leading-relaxed text-slate-600">
-          A brochure or a factory video, once sent, is out of your hands
-          forever. A VPV does not have to be.
-        </p>
       </div>
     </div>
   );
@@ -105,12 +101,8 @@ export default function Step3Security() {
     <>
       {header}
       <FunnelBody wide>
-        {/* The demonstration, directly under the headline. */}
-        <div className="overflow-hidden rounded-2xl border border-vpv-line bg-vpv-ink">
-          <PrivateLinkDemo />
-        </div>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        {/* The four controls first, then the demonstration of them. */}
+        <div className="grid gap-4 sm:grid-cols-2">
           {[
             { icon: Link2, title: "One-time links", body: "A link opens once, for the buyer you sent it to, and is dead afterwards. Forwarding it achieves nothing." },
             { icon: Timer, title: "Links that expire", body: "Give a link 24 hours, or a week. After that it stops working, whether or not anybody opened it." },
@@ -125,6 +117,10 @@ export default function Step3Security() {
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-600">{body}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-8 overflow-hidden rounded-2xl border border-vpv-line bg-vpv-ink">
+          <PrivateLinkDemo />
         </div>
 
         <Card className="mt-8">

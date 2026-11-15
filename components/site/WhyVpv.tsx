@@ -338,10 +338,6 @@ export default function WhyVpv() {
             </a>
           </div>
         </Reveal>
-        <p className="mx-auto mt-10 max-w-2xl text-[12px] leading-relaxed text-slate-400">
-          Mr. Anuj Anand&apos;s 80%+ is one customer&apos;s result, as he describes it in his video (his words translated from
-          Hindi).
-        </p>
       </section>
     </main>
   );
