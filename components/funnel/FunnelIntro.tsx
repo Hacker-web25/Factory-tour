@@ -35,7 +35,7 @@ const STEPS: Step[] = [
   {
     n: 3,
     title: "Book your shoot",
-    text: "Request a preferred shoot date. Our team confirms availability within 1 working day.",
+    text: "Our team will contact you once your payment is confirmed to schedule your shoot date. One rescheduling request is allowed free of charge. Any additional rescheduling will incur a fee of ₹500 per revision.",
   },
   {
     n: 4,

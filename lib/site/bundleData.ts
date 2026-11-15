@@ -356,6 +356,8 @@ export function bundleTextPatches(): [string, string][] {
     // HOW IT WORKS, steps 3 and 5.
     ['Our team confirms availability within 1 working day and you get a preparation checklist."', 'Our team confirms availability within 1 working day."'],
     ['we turn the captured factory into your interactive VPV. Delivery depends', 'we turn the captured factory into your interactive VPV with your team, without affecting your production. Delivery depends'],
+    // HOW IT WORKS, step 3 (15 November 2026): who schedules, and the rescheduling fee.
+    ['text:"Request a preferred shoot date. Our team confirms availability within 1 working day."', 'text:"Our team will contact you once your payment is confirmed to schedule your shoot date. One rescheduling request is allowed free of charge. Any additional rescheduling will incur a fee of ₹500 per revision."'],
   ];
 
   // ── 26 October 2026: free cab travel for the first 50, yearly ₹199 Sales
