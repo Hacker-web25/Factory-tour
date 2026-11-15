@@ -188,6 +188,22 @@
   .hs-ans small{font-size:13px}
 }
 @media (min-width:1024px) and (max-height:680px){
-  .hs-ans small{display:none}
-  .hs-ans{align-items:center}
+  .hs-ans small{font-size:12.5px;line-height:1.4}
+  .hs-ans{padding:9px 12px}
 }
+
+/* opening line: navy question, red follow-up, hand-drawn underline */
+.hs-h1--hero{font-size:clamp(32px,3.7vw,54px);line-height:1.06}
+.hs-red{display:block;margin-top:.12em;color:#d92d2d}
+.hs-mark{position:relative;display:inline-block;white-space:nowrap}
+.hs-scribble{position:absolute;left:-2%;right:-2%;bottom:-.24em;width:104%;height:.32em;overflow:visible}
+.hs-scribble path{fill:none;stroke:#d92d2d;stroke-width:4;stroke-linecap:round;vector-effect:non-scaling-stroke;stroke-dasharray:320;stroke-dashoffset:0}
+@media (prefers-reduced-motion:no-preference){
+  .hs-scribble path{stroke-dashoffset:320;transition:stroke-dashoffset .8s cubic-bezier(.65,0,.35,1) 1.05s}
+  .is-active .hs-scribble path{stroke-dashoffset:0}
+}
+/* how VPV helps: solid blue tiles */
+.hs-ic--grad{background:linear-gradient(140deg,#2f7bff,#0b4fe0);border-radius:14px;box-shadow:0 0 0 5px rgba(11,92,255,.12),0 10px 18px -8px rgba(11,92,255,.6)}
+.hs-ans b{font-size:16px}
+@media (min-width:1024px) and (max-height:820px){.hs-h1--hero{font-size:clamp(28px,3vw,42px)}}
+@media (max-width:1023px){.hs-h1--hero{font-size:clamp(25px,6.6vw,36px)}}

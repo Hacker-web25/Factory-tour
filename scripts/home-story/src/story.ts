@@ -32,11 +32,14 @@ const icon = {
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
+  chart: '<path d="M3 21h18"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
 };
 const svg = (d: string, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
 /** Wraps each word so headings can rise in word by word. */
-const words = (t: string) => t.split(" ").map((w, i) => `<span class="hs-w"><span style="--i:${i}">${w}</span></span>`).join(" ");
+const words = (t: string, from = 0) => t.split(" ").map((w, i) => `<span class="hs-w"><span style="--i:${from + i}">${w}</span></span>`).join(" ");
 
 const PARTS = [
   { id: "exhibitions", label: "Exhibitions", weight: 1.1 },
@@ -69,7 +72,6 @@ export function mount(host: HTMLElement): () => void {
   const sec = document.createElement("section");
   sec.className = "hs";
   sec.setAttribute("data-testid", "home-story");
-  sec.style.setProperty("--hs-parts", String(PARTS.reduce((a, p) => a + p.weight, 0)));
   sec.innerHTML = `
   <div class="hs-pin">
     <div class="hs-glow" aria-hidden="true"></div>
@@ -77,13 +79,13 @@ export function mount(host: HTMLElement): () => void {
       <div class="hs-stage">
         <article class="hs-part" data-i="0" data-testid="home-story-hero">
           <p class="hs-eyebrow">Real Factories. Real Confidence.</p>
-          <h1 class="hs-h1" data-testid="landing-heading">${words("You are already investing in exhibitions and meeting buyers.")}</h1>
-          <p class="hs-lede hs-in" style="--d:5">Give those buyers a better way to understand your factory and build confidence in your capabilities.</p>
-          <div class="hs-ctas hs-in" style="--d:7">
+          <h1 class="hs-h1 hs-h1--hero" data-testid="landing-heading">${words("You spend lakhs meeting global buyers.")}<span class="hs-red">${words("How much business are you losing", 6)} <span class="hs-mark">${words("after they leave?", 12)}<svg class="hs-scribble" viewBox="0 0 300 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C 60 5, 140 4, 297 9"/></svg></span></span></h1>
+          <p class="hs-lede hs-in" style="--d:12">Meeting a buyer is just the beginning. You need to give them enough proof, confidence and reasons to choose you, even after the exhibition is over.</p>
+          <div class="hs-ctas hs-in" style="--d:14">
             <a class="hs-btn" href="/why-vpv" data-testid="home-story-why-vpv">Why VPV? ${arrow}</a>
             <a class="hs-pill" href="/case-studies" data-testid="home-story-case-study"><span class="hs-play" aria-hidden="true"></span><span><b>80%+ conversion with VPV</b><small>Anuj Anand's story · See here</small></span></a>
           </div>
-          <p class="hs-cue hs-in" style="--d:9" aria-hidden="true"><span></span>Scroll</p>
+          <p class="hs-cue hs-in" style="--d:16" aria-hidden="true"><span></span>Scroll</p>
         </article>
 
         <article class="hs-part" data-i="1">
@@ -138,9 +140,9 @@ export function mount(host: HTMLElement): () => void {
           <h2 class="hs-h2">${words("Buyers trust what they can see.")}</h2>
           <ol class="hs-answers">
             ${[
-              [icon.eye, "More of your leads convert", "They see the machines, not slides. Every line, machine and quality check, in 360°, at the buyer's own pace."],
-              [icon.globe, "Close international deals on a call", "Walk an international buyer through your plant on Zoom, with no travel on either side."],
-              [icon.shield, "Only the buyers you choose get in", "One-time links, expiry, device limits and passwords keep your factory away from competitors."],
+              [icon.zap, "70% Faster Deal Closures", "Buyers get all the key factory information they need, so decisions happen sooner."],
+              [icon.chart, "50% Increased Conversion Ratio", "More of your exhibition and online leads turn into real business."],
+              [icon.trophy, "Helps Differentiate from your competition", "Show real operations, scale and quality, something most competitors still don't."],
             ].map(([ic, t, d], k) => `<li class="hs-ans hs-in" style="--d:${4 + k * 2}"><span class="hs-ic hs-ic--grad">${svg(ic, 20)}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}
           </ol>
           <div class="hs-ctas hs-in" style="--d:11">
@@ -237,14 +239,15 @@ export function mount(host: HTMLElement): () => void {
   else addEventListener("load", () => idle(startTour), { once: true });
 
   /* ---------- scroll → active part ---------- */
-  const total = PARTS.reduce((a, p) => a + p.weight, 0);
-  const bounds: number[] = []; PARTS.reduce((a, p) => { bounds.push(a / total); return a + p.weight; }, 0);
+  // Each part sits at its own stop: part 0 when the story first pins, the
+  // last part exactly where the pin lets go, about one screen apart.
+  const N = PARTS.length;
+  sec.style.setProperty("--hs-parts", String(N));
   const headerH = () => { const h = document.getElementById("vpv-site-header"); return h ? h.getBoundingClientRect().height : 0; };
-  const progress = () => {
-    const r = sec.getBoundingClientRect();
-    const span = sec.offsetHeight - (innerHeight - headerH());
-    return Math.min(1, Math.max(0, (headerH() - r.top) / Math.max(1, span)));
-  };
+  const span = () => Math.max(1, sec.offsetHeight - (innerHeight - headerH()));
+  const progress = () => Math.min(1, Math.max(0, (headerH() - sec.getBoundingClientRect().top) / span()));
+  const stopY = (i: number) => Math.round(sec.getBoundingClientRect().top + scrollY - headerH() + (i / (N - 1)) * span());
+  const engaged = () => { const r = sec.getBoundingClientRect(); return r.top <= headerH() + 2 && r.bottom >= innerHeight - 2; };
   let active = -1;
   const setActive = (i: number) => {
     if (i === active) return;
@@ -263,14 +266,116 @@ export function mount(host: HTMLElement): () => void {
     if (i === 1 && active !== 1) { shown = 0; recalc(); } // the loss counts up each time part 2 arrives
     active = i;
   };
+
+  /* ---------- one scroll = one part, with a magnetic settle ---------- */
+  let animating = false, sraf = 0, settleT = 0;
+  const to = (y: number) => scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
+  const animateTo = (y: number, dur: number, ease: (k: number) => number) => {
+    cancelAnimationFrame(sraf);
+    const y0 = scrollY, d = y - y0;
+    if (reduced || Math.abs(d) < 2) { to(y); animating = false; return; }
+    animating = true;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / dur);
+      to(y0 + d * ease(k));
+      if (k < 1) sraf = requestAnimationFrame(step); else animating = false;
+    };
+    sraf = requestAnimationFrame(step);
+  };
+  const inOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+  const outQuart = (k: number) => 1 - Math.pow(1 - k, 4);
+  const go = (i: number) => animateTo(stopY(i), 720, inOut);
+
+  // One wheel gesture moves exactly one part. A gesture is a run of wheel
+  // events less than 180ms apart, so a trackpad's momentum or a fast wheel
+  // spin can't skip parts. Leaving the story (down from the last part, up
+  // from the first) takes a fresh gesture, then the page scrolls normally.
+  let lastWheel = 0, acc = 0, fired = false, leaving = false;
+  const onWheel = (e: WheelEvent) => {
+    if (e.ctrlKey || !engaged()) return;
+    if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+    const now = performance.now();
+    const fresh = now - lastWheel > 180;
+    lastWheel = now;
+    if (fresh) { acc = 0; fired = false; leaving = false; }
+    const dir = Math.sign(e.deltaY);
+    if (!dir) return;
+    const next = active + dir;
+    if (next < 0 || next >= N) {
+      if (fresh && !animating && Math.abs(scrollY - stopY(active)) < 4) leaving = true;
+      if (!leaving) e.preventDefault();
+      return;
+    }
+    if (leaving) return;
+    e.preventDefault();
+    if (fired || animating) return;
+    acc += e.deltaY;
+    if (Math.abs(acc) >= 18) { fired = true; go(next); }
+  };
+
+  // Touch: a vertical swipe of 40px+ moves one part; the page itself only
+  // scrolls when leaving the story. The calculator's slider and chips keep
+  // their own touch handling.
+  let tY = 0, tX = 0, tMode: "" | "story" | "native" = "", touching = false;
+  const onTouchStart = (e: TouchEvent) => {
+    touching = true; tMode = "";
+    tY = e.touches[0].clientY; tX = e.touches[0].clientX;
+    if (!engaged() || (e.target as Element).closest?.(".hs-calc")) tMode = "native";
+  };
+  const onTouchMove = (e: TouchEvent) => {
+    if (tMode === "native") return;
+    const dy = tY - e.touches[0].clientY, dx = tX - e.touches[0].clientX;
+    if (!tMode) {
+      if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+      const next = active + Math.sign(dy);
+      tMode = Math.abs(dx) > Math.abs(dy) || next < 0 || next >= N ? "native" : "story";
+    }
+    if (tMode === "story") e.preventDefault();
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    touching = false;
+    if (tMode === "story" && !animating) {
+      const dy = tY - e.changedTouches[0].clientY;
+      const next = active + Math.sign(dy);
+      if (Math.abs(dy) > 40 && next >= 0 && next < N) go(next); else animateTo(stopY(active), 300, outQuart);
+    }
+    tMode = "";
+  };
+
+  // Keys: arrows, Page Up/Down and Space step through the parts too.
+  const onKey = (e: KeyboardEvent) => {
+    if (!engaged() || e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target as HTMLElement;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
+    const dir = ["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey) ? 1 : ["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey) ? -1 : 0;
+    const next = active + dir;
+    if (!dir || next < 0 || next >= N) return;
+    e.preventDefault();
+    if (!animating) go(next);
+  };
+
+  // Magnetic settle: wherever a scroll comes to rest inside the story
+  // (scrollbar drag, Home/End, a resize), it eases onto the nearest part.
+  const settle = () => {
+    if (animating || touching || leaving || !engaged()) return;
+    const i = Math.round(progress() * (N - 1));
+    const y = stopY(i);
+    if (Math.abs(scrollY - y) > 3) animateTo(y, 380, outQuart);
+  };
+
   const onScroll = () => {
     pin.style.setProperty("--hs-top", headerH() + "px");
-    const p = progress();
-    let i = 0; while (i < bounds.length - 1 && p >= bounds[i + 1] - 0.0001) i++;
-    setActive(i);
+    setActive(Math.round(progress() * (N - 1)));
+    if (!animating) { clearTimeout(settleT); settleT = window.setTimeout(settle, 160); }
   };
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("resize", onScroll);
+  addEventListener("wheel", onWheel, { passive: false });
+  addEventListener("touchstart", onTouchStart, { passive: true });
+  addEventListener("touchmove", onTouchMove, { passive: false });
+  addEventListener("touchend", onTouchEnd, { passive: true });
+  addEventListener("keydown", onKey);
   recalc();
   onScroll();
 
@@ -279,8 +384,10 @@ export function mount(host: HTMLElement): () => void {
   gone.observe(document.body, { childList: true, subtree: true });
   function dispose() {
     flush();
-    gone.disconnect(); cancelAnimationFrame(raf); clearTimeout(saveTimer);
+    gone.disconnect(); cancelAnimationFrame(raf); cancelAnimationFrame(sraf); clearTimeout(saveTimer); clearTimeout(settleT);
     removeEventListener("scroll", onScroll); removeEventListener("resize", onScroll); removeEventListener("pagehide", flush);
+    removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove);
+    removeEventListener("touchend", onTouchEnd); removeEventListener("keydown", onKey);
     document.removeEventListener("touchstart", outside);
   }
   return dispose;

@@ -18,7 +18,7 @@
 import { CheckCircle2 } from "lucide-react";
 import { StepBar } from "@/components/funnel/FunnelShell";
 
-type Step = { n: number; title: string; text: string; facts?: string[] };
+type Step = { n: number; title: string; text: string; facts?: string[]; domain?: string };
 
 // Exact copy from the How it works page (the Er step list).
 const STEPS: Step[] = [
@@ -48,6 +48,8 @@ const STEPS: Step[] = [
     title: "Your VPV goes live",
     text: "After the shoot, we turn the captured factory into your interactive VPV with your team, without affecting your production. Delivery depends on the scale and complexity of the plant.",
     facts: ["Typically 1 to 3 weeks after the shoot."],
+    // The address every customer gets for their VPV.
+    domain: "yourcompany.myvpv.com",
   },
 ];
 
@@ -59,11 +61,14 @@ const CSS = `
 .vpvji-card{opacity:1}
 .vpvji-accent{background:linear-gradient(90deg,#0B3D91,#1468D8 52%,#19B8F2)}
 .vpvji-chip{opacity:1}
+.vpvji-domain{background:linear-gradient(100deg,#FFF8E4,#FFF1C9 50%,#FFF8E4);border:1px solid #EBCB72;color:#8A5A00;box-shadow:0 8px 18px -12px rgba(176,124,10,.6)}
+.vpvji-here{box-shadow:0 0 0 2px #1468D8,0 16px 32px -18px rgba(11,61,145,.3)!important}
 @media (prefers-reduced-motion:no-preference){
   .vpvji-card{opacity:0;animation:vpvji-rise .6s cubic-bezier(.22,1,.36,1) both}
   .vpvji-float{animation:vpvji-float 3.6s ease-in-out infinite}
   .vpvji-accent{background:linear-gradient(90deg,#0B3D91,#1468D8,#19B8F2,#1468D8,#0B3D91);background-size:220% 100%;animation:vpvji-sheen 3.2s linear infinite}
   .vpvji-chip{opacity:0;animation:vpvji-pop .4s ease-out both}
+  .vpvji-domain{background-size:220% 100%;animation:vpvji-pop .45s ease-out both,vpvji-sheen 3.4s linear infinite}
 }
 `;
 
@@ -83,7 +88,8 @@ export default function FunnelIntro() {
           {STEPS.map((st, i) => (
             <li
               key={st.n}
-              className="vpvji-card group relative flex flex-col overflow-hidden rounded-xl border border-vpv-line bg-[linear-gradient(180deg,#ffffff,#F4F8FD)] p-4 shadow-[0_1px_2px_rgba(11,61,145,0.05),0_16px_32px_-18px_rgba(11,61,145,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_-16px_rgba(11,61,145,0.34)]"
+              className={`vpvji-card group relative flex flex-col ${i === 0 ? "vpvji-here" : ""} overflow-hidden rounded-xl border border-vpv-line bg-[linear-gradient(180deg,#ffffff,#F4F8FD)] p-4 shadow-[0_1px_2px_rgba(11,61,145,0.05),0_16px_32px_-18px_rgba(11,61,145,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_-16px_rgba(11,61,145,0.34)]`}
+              aria-current={i === 0 ? "step" : undefined}
               style={{ animationDelay: `${i * 0.1}s` }}
             >
               <span className="vpvji-accent absolute left-0 right-0 top-0 h-[4px]" aria-hidden />
@@ -111,12 +117,27 @@ export default function FunnelIntro() {
                   ))}
                 </ul>
               )}
+              {st.domain && (
+                <p
+                  className="vpvji-domain mt-2.5 whitespace-nowrap rounded-lg px-1.5 py-2 text-center text-[13.5px] font-bold lg:text-[clamp(11px,0.95vw,13.5px)] xl:text-[13.5px] tracking-[-0.01em]"
+                  style={{ animationDelay: `${0.8 + i * 0.1}s` }}
+                  title="Your VPV gets its own address"
+                >
+                  {st.domain}
+                </p>
+              )}
             </li>
           ))}
         </ol>
 
+        {/* Where the visitor is: step 1 of the five above */}
+        <div className="mt-8">
+          <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-vpv-blue">You&rsquo;re on step 1 of 5</p>
+          <h2 className="mt-1 text-[24px] font-semibold leading-tight tracking-[-0.02em] text-vpv-ink sm:text-[28px]">Find Your VPV</h2>
+        </div>
+
         {/* Progress bar now sits below the overview */}
-        <div className="mt-7">
+        <div className="mt-5">
           <StepBar current={0} />
         </div>
       </div>
