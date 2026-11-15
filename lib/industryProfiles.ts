@@ -25,7 +25,7 @@
  */
 
 import {
-  CURATED_AREA_PICKS,
+  COMMON_AREAS,
   CURATED_PROCESS_PICKS,
   FACTORY_AREAS,
   SHOP_SPECIFIC_AREAS,
@@ -98,7 +98,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["ring-spinning", "warping-sizing", "indigo-dyeing", "weaving-shed", "stenter-finishing", "fabric-inspection-area", "laboratory", "packaging-area", "fg-warehouse", "effluent-treatment-plant"],
     ["dyeing", "weaving", "quality-inspection", "packaging-process"]),
   P("carpets", "Carpets & rugs", "carpet",
-    ["carpet", "rug", "durrie", "dhurrie", "hand knotted", "hand tufted", "tufted", "kilim", "floor covering", "bath mat", "doormat"],
+    ["carpet", "rug", "durrie", "dhurrie", "hand knotted", "hand tufted", "tufted", "kilim", "floor covering", "bath mat", "doormat", "coir", "coir mat", "mat"],
     ["rm-warehouse", "yarn-dyeing", "carpet-looms", "carpet-finishing", "quality-control-area", "packaging-area", "fg-warehouse", "showroom"],
     ["dyeing", "weaving", "quality-inspection", "packaging-process"]),
   P("jute", "Jute products", "jute",
@@ -126,7 +126,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["rm-warehouse", "hygiene-zone", "converting-line", "laboratory", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["assembly-process", "quality-inspection", "packaging-process"]),
   P("foam-mattress", "Foam & mattresses", "mattress",
-    ["foam", "mattress", "pu foam", "epe foam", "coir mattress", "spring mattress", "foam sheet"],
+    ["foam", "mattress", "pu foam", "epe foam", "coir mattress", "spring mattress", "foam sheet", "pillow", "bedding"],
     ["rm-warehouse", "foaming-line", "cutting-section", "stitching-floor", "quality-control-area", "laboratory", "packaging-area", "fg-warehouse", "showroom"],
     ["blending-mixing", "cutting-and-shearing", "stitching", "quality-inspection", "packaging-process"]),
 
@@ -156,7 +156,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["raw-material-yard", "pickling-line", "wire-drawing", "annealing-furnace", "galvanizing-plant", "stranding-section", "wire-products", "laboratory", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["wire-drawing-process", "heat-treatment", "galvanizing", "quality-inspection", "laboratory-testing", "packaging-process"]),
   P("aluminium", "Aluminium extrusions & profiles", "aluminium extrusion",
-    ["aluminium", "aluminium profile", "aluminium section", "aluminium extrusion", "extrusion", "aluminium window", "aluminium door", "anodised", "anodising", "aluminium ladder"],
+    ["aluminium", "aluminium profile", "aluminium section", "aluminium extrusion", "extrusion", "aluminium window", "aluminium door", "anodised", "anodising", "aluminium ladder", "upvc window", "upvc door", "window", "facade", "curtain wall", "aluminium formwork"],
     ["rm-warehouse", "extrusion-press", "die-shop", "ageing-oven", "anodizing-plant", "paint-coating-area", "cnc-machining-area", "laboratory", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["extrusion", "heat-treatment", "surface-treatment", "painting-and-coating", "cnc-machining", "quality-inspection", "packaging-process"]),
   P("precision-parts", "Precision turned & machined parts", "precision parts",
@@ -184,11 +184,11 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["rm-warehouse", "wire-drawing", "cold-heading", "thread-rolling", "heat-treatment-shop", "plating-line", "sorting-inspection", "laboratory", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["wire-drawing-process", "forging", "heat-treatment", "plating", "quality-inspection", "packaging-process"]),
   P("sheet-metal", "Sheet metal fabrication & racks", "sheet metal",
-    ["sheet metal", "sheet metal fabrication", "laser cutting", "cnc bending", "press brake", "enclosure", "metal enclosure", "electrical enclosure", "server rack", "storage rack", "racking", "slotted angle", "shelving", "industrial rack", "laser cut", "cable tray"],
+    ["sheet metal", "sheet metal fabrication", "laser cutting", "cnc bending", "press brake", "enclosure", "metal enclosure", "electrical enclosure", "server rack", "storage rack", "racking", "slotted angle", "shelving", "industrial rack", "laser cut", "cable tray", "metal", "duct", "ducting", "hvac", "air handling unit", "metal product"],
     ["rm-warehouse", "profile-cutting", "sheet-metal-shop", "welding-fabrication-area", "paint-coating-area", "assembly-area", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["cutting-and-shearing", "press-stamping", "fabrication-and-welding", "painting-and-coating", "assembly-process", "quality-inspection"]),
   P("heavy-fabrication", "Heavy fabrication & process equipment", "fabrication",
-    ["fabrication", "fabricated", "fabricator", "structural fabrication", "steel structure", "peb", "pre engineered building", "pressure vessel", "boiler", "heat exchanger", "storage tank", "ss tank", "process equipment", "chimney", "ms structure", "industrial shed", "skid", "tower"],
+    ["fabrication", "fabricated", "fabricator", "structural fabrication", "steel structure", "peb", "pre engineered building", "pressure vessel", "boiler", "heat exchanger", "storage tank", "ss tank", "process equipment", "chimney", "ms structure", "industrial shed", "skid", "tower", "tank", "gas cylinder", "cylinder", "fire extinguisher", "silo"],
     ["rm-warehouse", "profile-cutting", "plate-rolling", "heavy-fabrication-bay", "welding-fabrication-area", "cnc-machining-area", "heat-treatment-shop", "ndt-lab", "hydro-testing", "shot-blasting-area", "paint-coating-area", "stock-yard", "dispatch-area"],
     ["cutting-and-shearing", "fabrication-and-welding", "heat-treatment", "hydro-testing-process", "painting-and-coating", "quality-inspection"]),
 
@@ -198,7 +198,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["press-shop", "welding-fabrication-area", "cnc-machining-area", "heat-treatment-shop", "paint-coating-area", "assembly-area", "tool-room", "metrology-room", "testing-bay", "quality-control-area", "fg-warehouse", "dispatch-area"],
     ["press-stamping", "fabrication-and-welding", "cnc-machining", "turning-and-milling", "heat-treatment", "painting-and-coating", "assembly-process", "quality-inspection"]),
   P("vehicles", "Vehicles & EVs (assembly)", "vehicle",
-    ["electric vehicle", "ev", "e rickshaw", "erickshaw", "scooter", "motorcycle", "two wheeler", "three wheeler", "tractor", "bus", "truck", "trailer", "bicycle", "e bike", "golf cart", "vehicle manufacturer", "car manufacturer", "bus body", "tipper", "ambulance"],
+    ["electric vehicle", "ev", "e rickshaw", "erickshaw", "scooter", "motorcycle", "two wheeler", "three wheeler", "tractor", "bus", "truck", "trailer", "bicycle", "cycle", "e bike", "golf cart", "vehicle manufacturer", "car manufacturer", "bus body", "tipper", "ambulance"],
     ["rm-warehouse", "press-shop", "body-shop", "welding-fabrication-area", "paint-coating-area", "assembly-area", "testing-bay", "quality-control-area", "stores-inventory-area", "research-and-development", "stock-yard", "dispatch-area"],
     ["press-stamping", "fabrication-and-welding", "painting-and-coating", "assembly-process", "product-testing", "quality-inspection"]),
   P("pumps-valves", "Pumps & valves", "pump and valve",
@@ -206,7 +206,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["rm-warehouse", "cnc-machining-area", "assembly-area", "testing-bay", "hydro-testing", "paint-coating-area", "quality-control-area", "stores-inventory-area", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["cnc-machining", "turning-and-milling", "assembly-process", "hydro-testing-process", "product-testing", "painting-and-coating", "quality-inspection"]),
   P("machinery", "Industrial machinery", "machinery",
-    ["machine", "machinery", "special purpose machine", "spm", "machine tool", "lathe", "cnc machine", "packaging machine", "food machine", "textile machinery", "printing machine", "compressor", "gearbox", "conveyor", "crane", "hoist", "material handling equipment", "hydraulic", "pneumatic", "hydraulic press", "industrial equipment", "equipment", "engineering", "engineering good", "plant machinery", "blower", "chiller", "cooling tower", "crusher", "dryer"],
+    ["machine", "machinery", "special purpose machine", "spm", "machine tool", "lathe", "cnc machine", "packaging machine", "food machine", "textile machinery", "printing machine", "compressor", "gearbox", "conveyor", "crane", "hoist", "material handling equipment", "hydraulic", "pneumatic", "hydraulic press", "hydraulic cylinder", "industrial equipment", "equipment", "engineering", "engineering good", "plant machinery", "blower", "chiller", "cooling tower", "crusher", "dryer", "elevator", "lift", "escalator", "ro plant", "ro system", "water treatment", "kitchen equipment", "commercial kitchen"],
     ["rm-warehouse", "cnc-machining-area", "welding-fabrication-area", "grinding-section", "assembly-area", "testing-bay", "paint-coating-area", "tool-room", "metrology-room", "quality-control-area", "stores-inventory-area", "research-and-development", "dispatch-area"],
     ["cutting-and-shearing", "fabrication-and-welding", "cnc-machining", "drilling-and-boring", "assembly-process", "product-testing", "painting-and-coating"], true),
   P("agri-machinery", "Agricultural machinery & implements", "farm equipment",
@@ -228,7 +228,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
 
   /* ───────────── Electrical and electronics ───────────── */
   P("electronics", "Electronics & PCB assembly", "electronics",
-    ["electronic", "pcb", "pcba", "smt", "circuit", "circuit board", "ems", "electronic assembly", "electronic component", "box build", "control card", "power supply", "smps", "charger", "adapter", "inverter", "ups", "set top box", "iot device", "electronic product", "controller", "drone", "ev charger", "television", "led tv"],
+    ["electronic", "pcb", "pcba", "smt", "circuit", "circuit board", "ems", "electronic assembly", "electronic component", "box build", "control card", "power supply", "smps", "charger", "adapter", "inverter", "ups", "set top box", "iot device", "electronic product", "controller", "drone", "ev charger", "television", "led tv", "mobile", "mobile phone", "mobile accessories", "phone", "earphone", "headphone", "speaker", "power bank", "cctv", "camera", "smart device", "electronics"],
     ["component-store", "esd-area", "smt-line", "tht-soldering", "assembly-area", "testing-bay", "burn-in-room", "quality-control-area", "research-and-development", "packaging-area", "fg-warehouse", "dispatch-area"],
     ["smt-assembly", "soldering", "assembly-process", "product-testing", "quality-inspection", "packaging-process"]),
   P("cables", "Wires & cables", "cable",
@@ -248,7 +248,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["rm-warehouse", "press-shop", "die-casting-cell", "cnc-machining-area", "winding-section", "varnish-impregnation", "assembly-area", "testing-bay", "paint-coating-area", "quality-control-area", "packaging-area", "fg-warehouse"],
     ["press-stamping", "coil-winding", "cnc-machining", "assembly-process", "product-testing", "painting-and-coating"]),
   P("switchgear", "Switchgear, panels & electrical accessories", "panel",
-    ["panel", "control panel", "electrical panel", "lt panel", "ht panel", "mcc panel", "pcc panel", "apfc", "plc panel", "distribution board", "db box", "switchgear", "switch", "mcb", "rccb", "mccb", "busbar", "bus duct", "feeder pillar", "vcb", "changeover", "starter", "electrical accessories", "modular switch", "socket", "electrical", "electrical equipment"],
+    ["panel", "control panel", "electrical panel", "lt panel", "ht panel", "mcc panel", "pcc panel", "apfc", "plc panel", "distribution board", "db box", "switchgear", "switch", "mcb", "rccb", "mccb", "busbar", "bus duct", "feeder pillar", "vcb", "changeover", "starter", "electrical accessories", "modular switch", "socket", "electrical", "electrical equipment", "electric", "wiring device", "fuse"],
     ["rm-warehouse", "sheet-metal-shop", "welding-fabrication-area", "paint-coating-area", "panel-wiring", "assembly-area", "hv-test-lab", "testing-bay", "quality-control-area", "packaging-area", "dispatch-area"],
     ["cutting-and-shearing", "press-stamping", "painting-and-coating", "assembly-process", "product-testing", "quality-inspection"]),
   P("lighting", "LED lighting", "lighting",
@@ -282,7 +282,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["rm-warehouse", "moulding-shop", "extrusion-line", "tool-room", "mould-store", "quality-control-area", "laboratory", "packaging-area", "fg-warehouse"],
     ["injection-moulding", "extrusion", "blow-moulding", "raw-material-inspection", "quality-inspection", "packaging-process"], true),
   P("injection-moulding", "Injection moulded parts", "injection moulding",
-    ["injection moulding", "injection moulded", "plastic moulding", "moulding", "moulded", "plastic moulded", "plastic component", "plastic part", "moulded component", "moulded furniture", "plastic chair", "household plastic", "plastic container", "crate", "bucket", "caps and closures", "closure", "plastic household"],
+    ["injection moulding", "injection moulded", "plastic moulding", "moulding", "moulded", "plastic moulded", "plastic component", "plastic part", "moulded component", "moulded furniture", "plastic chair", "household plastic", "plastic container", "crate", "bucket", "caps and closures", "closure", "plastic household", "helmet", "plastic furniture", "dustbin", "household item"],
     ["rm-warehouse", "moulding-shop", "tool-room", "mould-store", "assembly-area", "printing-section", "quality-control-area", "laboratory", "packaging-area", "utilities-area", "fg-warehouse"],
     ["injection-moulding", "tooling-and-die-making", "raw-material-inspection", "assembly-process", "quality-inspection", "packaging-process"]),
   P("plastic-pipes", "Plastic pipes & fittings", "plastic pipe",
@@ -450,7 +450,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["reel-store", "corrugation-plant", "printing-section", "die-cutting-section", "folder-gluer", "quality-control-area", "laboratory", "material-handling-area", "fg-warehouse", "dispatch-area"],
     ["printing-process", "die-cutting", "packaging-process", "quality-inspection", "material-handling"]),
   P("printing-cartons", "Printing & mono cartons", "printing and packaging",
-    ["printing", "printer", "offset printing", "mono carton", "monocarton", "printed carton", "duplex board", "paper box", "rigid box", "folding carton", "packaging box", "printing press", "commercial printing", "brochure", "book printing", "catalogue", "packaging material", "paper bag", "paper cup", "paper plate", "notebook", "packaging"],
+    ["printing", "printer", "offset printing", "mono carton", "monocarton", "printed carton", "duplex board", "paper box", "rigid box", "folding carton", "packaging box", "printing press", "commercial printing", "brochure", "book printing", "catalogue", "packaging material", "paper bag", "paper cup", "paper plate", "notebook", "packaging", "stationery", "diary", "calendar", "envelope", "file folder"],
     ["rm-warehouse", "pre-press", "printing-section", "lamination-section", "die-cutting-section", "folder-gluer", "colour-lab", "quality-control-area", "fg-warehouse", "dispatch-area"],
     ["printing-process", "lamination", "die-cutting", "quality-inspection", "packaging-process"]),
   P("labels", "Labels & stickers", "label",
@@ -464,7 +464,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
 
   /* ───────────── Wood and furniture ───────────── */
   P("furniture", "Furniture & interiors", "furniture",
-    ["furniture", "wooden furniture", "office furniture", "modular furniture", "modular kitchen", "wardrobe", "chair", "sofa", "table", "solid wood", "sheesham", "mango wood", "teak", "wood", "wooden", "home furniture", "school furniture", "hotel furniture", "outdoor furniture", "cane furniture", "bamboo furniture", "interior fit out", "joinery", "door", "wooden door"],
+    ["furniture", "wooden furniture", "office furniture", "modular furniture", "modular kitchen", "wardrobe", "chair", "sofa", "table", "solid wood", "sheesham", "mango wood", "teak", "wood", "wooden", "home furniture", "school furniture", "hotel furniture", "outdoor furniture", "cane furniture", "bamboo furniture", "interior fit out", "joinery", "door", "wooden door", "bed", "cot", "bunk bed", "double bed", "dining table", "bamboo", "rattan", "cabinet", "shoe rack", "tv unit"],
     ["timber-yard", "rm-warehouse", "panel-processing", "cnc-machining-area", "handwork-section", "assembly-area", "paint-coating-area", "upholstery-section", "quality-control-area", "packaging-area", "showroom", "fg-warehouse"],
     ["cutting-and-shearing", "edge-banding", "cnc-machining", "finishing-and-polishing", "assembly-process", "packaging-process"]),
   P("metal-furniture", "Metal furniture & storage", "metal furniture",
@@ -485,6 +485,10 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
     ["sanitaryware", "sanitary ware", "sanitary", "wash basin", "basin", "water closet", "wc", "toilet", "commode", "urinal", "ceramic sanitary"],
     ["raw-material-yard", "ball-mill-section", "plaster-mould-shop", "slip-casting", "dryer-section", "glazing-line", "kiln-area", "inspection-area", "laboratory", "packaging-area", "fg-warehouse", "showroom"],
     ["casting-process", "glazing", "kiln-firing", "quality-inspection", "packaging-process"]),
+  P("hardware", "Locks, hinges & builders' hardware", "hardware",
+    ["hardware", "builder hardware", "architectural hardware", "door hardware", "furniture hardware", "lock", "padlock", "door lock", "hinge", "door handle", "handle", "tower bolt", "door closer", "drawer channel", "telescopic channel", "door stopper", "kitchen hardware", "glass fitting"],
+    ["rm-warehouse", "press-shop", "die-casting-cell", "cnc-machining-area", "polishing-line", "plating-line", "assembly-area", "testing-bay", "quality-control-area", "packaging-area", "fg-warehouse", "dispatch-area"],
+    ["press-stamping", "casting-process", "cnc-machining", "finishing-and-polishing", "plating", "assembly-process", "quality-inspection"]),
   P("bath-fittings", "Bath fittings & faucets", "bath fittings",
     ["faucet", "tap", "cp fitting", "bath fitting", "bathroom fitting", "shower", "brass fitting", "bathroom accessories", "sanitary fitting"],
     ["rm-warehouse", "forge-shop", "foundry-casting-area", "cnc-machining-area", "polishing-line", "plating-line", "assembly-area", "testing-bay", "quality-control-area", "packaging-area", "fg-warehouse", "showroom"],
@@ -536,7 +540,7 @@ export const INDUSTRY_PROFILES: IndustryProfile[] = [
 
   /* ───────────── Crafts, toys and sports ───────────── */
   P("handicrafts", "Handicrafts & home décor", "handicrafts",
-    ["handicraft", "decor", "home decor", "artware", "art ware", "candle", "incense", "agarbatti", "dhoop", "brassware", "brass handicraft", "metal handicraft", "wooden handicraft", "marble handicraft", "gift", "corporate gift", "craft", "christmas decoration", "festive decor", "pooja item", "idol", "murti", "statue", "wall decor", "photo frame", "artificial flower"],
+    ["handicraft", "decor", "home decor", "artware", "art ware", "candle", "incense", "agarbatti", "dhoop", "brassware", "brass handicraft", "metal handicraft", "wooden handicraft", "marble handicraft", "gift", "corporate gift", "craft", "christmas decoration", "festive decor", "pooja item", "idol", "murti", "statue", "wall decor", "photo frame", "artificial flower", "umbrella", "home furnishing accessory", "pottery item", "lamp shade"],
     ["rm-warehouse", "handwork-section", "manufacturing-production-area", "paint-coating-area", "polishing-line", "finishing-room", "quality-control-area", "sampling-room", "packaging-area", "fg-warehouse", "showroom"],
     ["finishing-and-polishing", "painting-and-coating", "quality-inspection", "packaging-process"]),
   P("toys", "Toys & games", "toy",
@@ -744,12 +748,13 @@ export type IndustryMatch = {
    *  (empty when nothing matched). */
   profiles: IndustryProfile[];
   profile: IndustryProfile | null;
-  /** Recommended areas, factory exterior first. Our general picks when
-   *  nothing matched, so step 2 always has a starting point. */
+  /** Recommended areas, factory exterior first. With no match, the few
+   *  areas every plant has (step 2 then asks them to add their own). */
   areaIds: string[];
   processIds: string[];
   /** General areas to offer under "More areas": everything not already
-   *  picked, minus shop floors this industry does not have. */
+   *  picked, minus shop floors this industry does not have. Empty with no
+   *  match: a long list we cannot vouch for only reads as random. */
   moreAreaIds: string[];
   matched: boolean;
 };
@@ -852,9 +857,9 @@ export function matchIndustries(text: unknown, excluded: string[] = []): Industr
     return {
       profiles: [],
       profile: null,
-      areaIds: CURATED_AREA_PICKS,
+      areaIds: COMMON_AREAS,
       processIds: CURATED_PROCESS_PICKS,
-      moreAreaIds: FACTORY_AREAS.map((a) => a.id),
+      moreAreaIds: [],
       matched: false,
     };
   }

@@ -504,6 +504,21 @@ export const CURATED_AREA_PICKS = [
   "fg-warehouse",
   "cnc-machining-area",
 ];
+/**
+ * When we have no list for what a factory makes (step 1's answer matched no
+ * industry), step 2 asks them to add their own areas and offers only these
+ * few that every plant has, rather than the whole catalogue.
+ */
+export const COMMON_AREAS = [
+  "factory-exterior",
+  "manufacturing-production-area",
+  "quality-control-area",
+  "rm-warehouse",
+  "fg-warehouse",
+  "packaging-area",
+  "loading-unloading-area",
+  "dispatch-area",
+];
 export const CURATED_PROCESS_PICKS = [
   "cnc-machining",
   "assembly-process",

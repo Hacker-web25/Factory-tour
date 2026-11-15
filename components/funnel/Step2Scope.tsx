@@ -29,7 +29,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, ChevronDown, Factory, FileText, Plus, Sparkles, Upload, Video, X } from "lucide-react";
+import { Camera, Check, ChevronDown, Factory, FileText, PencilLine, Plus, Sparkles, Upload, Video, X } from "lucide-react";
 import {
   BackLink,
   Card,
@@ -260,6 +260,26 @@ function SubHeading({ children }: { children: React.ReactNode }) {
   return <h3 className="mt-8 text-[14px] font-semibold text-vpv-ink">{children}</h3>;
 }
 
+/**
+ * Shown instead of the gold panel when we have no ready list for what they
+ * make: rather than guess, ask them to name their own areas first.
+ */
+function OwnAreasPanel({ typed, children }: { typed: string; children: React.ReactNode }) {
+  const what = typed.trim().slice(0, 40);
+  return (
+    <div className="mt-6 rounded-2xl border border-vpv-blue/30 bg-vpv-tint/50 p-5 sm:p-6" data-testid="own-areas">
+      <p className="flex items-center gap-2 text-[14.5px] font-semibold text-vpv-ink">
+        <PencilLine className="h-4 w-4 text-vpv-blue" aria-hidden /> Add the areas in your plant
+      </p>
+      <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
+        {what ? <>We don&rsquo;t have a ready list for &ldquo;{what}&rdquo; yet, </> : <>We don&rsquo;t have a ready list for your plant yet, </>}
+        so tell us what buyers should see. Type an area and press Add. Add as many as you need.
+      </p>
+      {children}
+    </div>
+  );
+}
+
 /** The gold "picked for your industry" block at the top of a card. */
 function PickedPanel({
   title,
@@ -377,15 +397,15 @@ export default function Step2Scope() {
   const header = (
     <FunnelHeader
       step={1}
-      title={tailored.matched ? `What should buyers see in your ${industryWords} plant?` : "What should your buyers see?"}
+      title={tailored.matched ? `What should buyers see in your ${industryWords} plant?` : "What should buyers see in your plant?"}
       summary={
         tailored.matched
           ? "We have picked the areas buyers in your industry usually ask to see. Tap the ones you have, then add anything else from the full list."
-          : "Tap every area you would want a buyer to see. Each area becomes one AOA in your VPV — a place they can stand in and look around in 360°."
+          : "Add the areas in your plant, then tick the common ones you have. Each area becomes one AOA in your VPV — a place they can stand in and look around in 360°."
       }
       image="factory-floor"
       imageAlt="A bright, orderly Indian factory floor with CNC machines"
-      caption={tailored.matched ? `Picked for ${industryWords}` : "Pick as many as you like"}
+      caption={tailored.matched ? `Picked for ${industryWords}` : "Your plant, your areas"}
     />
   );
 
@@ -416,9 +436,13 @@ export default function Step2Scope() {
   // In the general list: leave out what the picked section already shows,
   // and shop floors this industry does not have (no foundry for a food plant).
   const generalAreas = FACTORY_AREAS.filter((a) => tailored.moreAreaIds.includes(a.id));
-  // Our own "Must-show" stars only make sense without a tailored section;
-  // real "Popular pick" stars always do.
-  const showStars = !tailored.matched || stars.phase === "popular";
+  // With no match, only the few areas every plant has.
+  const commonAreas = tailored.matched
+    ? []
+    : tailored.areaIds.map((id) => areaById(id)).filter((x): x is CatalogueItem => Boolean(x));
+  // Only real "Popular pick" stars: our own "Must-show" list names shop
+  // floors (CNC, assembly) that would look random to many trades.
+  const showStars = stars.phase === "popular";
   const areaStars = showStars ? stars.areaIds : [];
 
   return (
@@ -442,46 +466,69 @@ export default function Step2Scope() {
             360°. Most plants pick between 6 and 15.
           </SectionTitle>
 
-          {pickedAreas.length > 0 && (
-            <PickedPanel
-              title={`Picked for your ${industryWords} factory`}
-              note={`What buyers of ${industryWords} factories usually ask to see.`}
-              allIn={pickedAreas.every((a) => s.selectedAreas.includes(a.id))}
-              count={pickedAreas.length}
-              onAddAll={() =>
-                setS({ ...s, selectedAreas: [...new Set([...s.selectedAreas, ...pickedAreas.map((a) => a.id)])] })
-              }
-            >
-              <TileGrid
-                items={pickedAreas}
+          {tailored.matched ? (
+            <>
+              {pickedAreas.length > 0 && (
+                <PickedPanel
+                  title={`Picked for your ${industryWords} factory`}
+                  note={`What buyers of ${industryWords} factories usually ask to see.`}
+                  allIn={pickedAreas.every((a) => s.selectedAreas.includes(a.id))}
+                  count={pickedAreas.length}
+                  onAddAll={() =>
+                    setS({ ...s, selectedAreas: [...new Set([...s.selectedAreas, ...pickedAreas.map((a) => a.id)])] })
+                  }
+                >
+                  <TileGrid
+                    items={pickedAreas}
+                    selected={s.selectedAreas}
+                    onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
+                    starred={[]}
+                    starLabel=""
+                  />
+                </PickedPanel>
+              )}
+
+              <SubHeading>More areas</SubHeading>
+              {areaStars.length > 0 && <StarLegend phase={stars.phase} />}
+              <FoldingGrid
+                items={generalAreas}
                 selected={s.selectedAreas}
                 onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
-                starred={[]}
-                starLabel=""
+                starred={areaStars}
+                starLabel={starLabel}
+                folded={!areasOpen}
+                onUnfold={() => setAreasOpen(true)}
+                unit="areas"
               />
-            </PickedPanel>
+
+              <SubHeading>Something we haven&rsquo;t listed?</SubHeading>
+              <p className="mt-1 text-[13px] text-slate-500">Type it in and press Add. Add as many as you need.</p>
+              <CustomAdder
+                placeholder="e.g. Effluent treatment plant"
+                items={s.customAreas}
+                onChange={(customAreas) => setS({ ...s, customAreas })}
+              />
+            </>
+          ) : (
+            <>
+              <OwnAreasPanel typed={s.industryText}>
+                <CustomAdder
+                  placeholder="e.g. Frame welding, Upholstery, Final assembly"
+                  items={s.customAreas}
+                  onChange={(customAreas) => setS({ ...s, customAreas })}
+                />
+              </OwnAreasPanel>
+              <SubHeading>Areas every plant has</SubHeading>
+              {areaStars.length > 0 && <StarLegend phase={stars.phase} />}
+              <TileGrid
+                items={commonAreas}
+                selected={s.selectedAreas}
+                onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
+                starred={areaStars}
+                starLabel={starLabel}
+              />
+            </>
           )}
-
-          {tailored.matched && <SubHeading>More areas</SubHeading>}
-          {areaStars.length > 0 && <StarLegend phase={stars.phase} />}
-          <FoldingGrid
-            items={generalAreas}
-            selected={s.selectedAreas}
-            onToggle={(id) => setS({ ...s, selectedAreas: toggle(s.selectedAreas, id) })}
-            starred={areaStars}
-            starLabel={starLabel}
-            folded={tailored.matched && !areasOpen}
-            onUnfold={() => setAreasOpen(true)}
-            unit="areas"
-          />
-
-          <SubHeading>Something we haven&rsquo;t listed?</SubHeading>
-          <p className="mt-1 text-[13px] text-slate-500">Type it in and press Add. Add as many as you need.</p>
-          <CustomAdder
-            placeholder="e.g. Effluent treatment plant"
-            items={s.customAreas}
-            onChange={(customAreas) => setS({ ...s, customAreas })}
-          />
         </Card>
 
         {/* 3. LAB REPORTS & CERTIFICATIONS */}
