@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import IdleGuard from "@/components/IdleGuard";
 import PolygonFullscreenViewer from "@/components/PolygonFullscreenViewer";
 import OfflineBootstrap from "@/components/OfflineBootstrap";
@@ -14,10 +14,14 @@ import {
   GOOGLE_SITE_VERIFICATION,
 } from "@/lib/analytics/config";
 
-// Match myvpv.com — Inter across the whole product.
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+// Match myvpv.com — Inter across the whole product. Served from the repo
+// (Inter variable, Latin, SIL OFL — see app/fonts/Inter-OFL.txt) rather
+// than fetched from Google Fonts at build time, which failed builds when
+// Google sent back an unexpected response.
+const inter = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
+  style: "normal",
   variable: "--font-inter",
   display: "swap",
 });
