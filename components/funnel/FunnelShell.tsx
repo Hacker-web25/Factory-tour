@@ -79,10 +79,13 @@ export function FunnelHeader({
   image,
   imageAlt = "",
   caption,
+  note,
 }: {
   step: number;
   title: ReactNode;
   summary?: ReactNode;
+  /** Shown directly under the title, before the summary. */
+  note?: ReactNode;
   image?: string;
   imageAlt?: string;
   caption?: string;
@@ -96,6 +99,7 @@ export function FunnelHeader({
             <h1 className="text-[30px] font-semibold leading-[1.12] tracking-[-0.02em] text-vpv-ink sm:text-[40px]">
               {title}
             </h1>
+            {note}
             {summary && (
               <p className="mt-4 max-w-[34rem] text-[16px] leading-relaxed text-slate-600">{summary}</p>
             )}

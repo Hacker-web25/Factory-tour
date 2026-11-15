@@ -141,6 +141,18 @@ export default function Step5SalesTeam() {
     <FunnelHeader
       step={3}
       title="Do you have a sales team?"
+      note={
+        <div className="mt-5 max-w-[36rem]">
+          <p className="text-[26px] font-semibold leading-[1.15] tracking-[-0.02em] text-vpv-blue sm:text-[32px]">
+            VPV is for individual use only
+          </p>
+          <p className="mt-3 text-[15.5px] leading-relaxed text-slate-700">
+            VPV operates on an individual, license-based model. Each salesperson requires a separate license to access
+            and use the platform. A single license allows usage by one individual on one device at a time. To equip
+            multiple salespeople, a separate license must be purchased for each.
+          </p>
+        </div>
+      }
       summary="Your VPV can do more than show your factory. With a login for each salesperson, it shows you what your sales team is doing with it."
       image="sales-meeting"
       imageAlt="A salesperson presenting a factory tour to a buyer"
