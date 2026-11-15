@@ -30,7 +30,7 @@ const HERO = {
 const STEPS = [
   { n: 1, title: 'Find your VPV', text: 'Answer a few simple questions about your factory areas and processes. We recommend the right plan and explain why.', link: 'Start now' },
   { n: 2, title: 'Confirm & pay online', text: 'See every charge upfront, including GST, cab travel and support, hosting & security, then confirm your order.' },
-  { n: 3, title: 'Book your shoot', text: 'Request a preferred shoot date. Our team confirms availability within 1 working day.' },
+  { n: 3, title: 'Book your shoot', text: 'Our team will contact you once your payment is confirmed to schedule your shoot date. One rescheduling request is allowed free of charge. Any additional rescheduling will incur a fee of ₹500 per revision.' },
   { n: 4, title: 'We shoot your plant', text: 'Our team comes to your plant and captures it as it operates every day. We keep the shoot time low so production is not disturbed.', facts: ['1–5 hours. Your factory keeps running.', 'No MD needed at the factory. No production disruption.'] },
   { n: 5, title: 'Your VPV goes live', text: 'After the shoot, we turn the captured factory into your interactive VPV with your team, without affecting your production. Delivery depends on the scale and complexity of the plant.', facts: ['Typically 1 to 3 weeks after the shoot.'] },
 ];

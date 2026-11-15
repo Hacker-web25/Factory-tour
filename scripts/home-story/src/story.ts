@@ -5,7 +5,7 @@
  * the left side moves through five parts as the visitor scrolls:
  *
  *   1  You are already investing in exhibitions and meeting buyers.
- *   2  Converting only 3% of your leads?   (a small calculator)
+ *   2  Converting only 3% of your leads?   (a calculator: leads, value, conversion)
  *   3  Want to show your factory to international clients?
  *   4  Don't want to share your factory with your competition?
  *   5  How VPV helps: one answer to each of 2–4, then the call to action.
@@ -14,13 +14,23 @@
  * which the site bundle renders in place of the old home sections. If this
  * script fails, the plain hero in #home-classic shows instead.
  */
-import { calcFigures, metaFromInputs, type CalcInputs } from "@/lib/whyVpvCalc";
-import { inr, inrLakhs } from "@/lib/pricing";
+import { metaFromInputs, type CalcInputs } from "@/lib/whyVpvCalc";
 import { track } from "@/lib/analytics/client";
 import CSS from "./story.css";
 
-const CONV = 3; // the conversion part 2 asks about
-const VALUES = [1, 5, 10, 25]; // lakh
+const CONV = 3; // the conversion part 2 asks about, and the slider's start
+const VALUES = [5, 10, 25, 50, 100, 500]; // lakh
+const valueLabel = (v: number) => (v >= 100 ? `₹${v / 100}CR` : `₹${v}L`);
+const LEADS = { min: 500, max: 10_000, step: 50, start: 3_350 }; // over 5 years
+const CONVS = { min: 1, max: 20 };
+/** Save the calculator once the sliders have rested this long. */
+const SAVE_AFTER_MS = 1500;
+/** ₹5.03 Crore, ₹48.50 Lakh — two decimals, Indian grouping. */
+const money = (inrAmount: number) => {
+  const f = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (inrAmount >= 1_00_00_000) return `₹${f(inrAmount / 1_00_00_000)} Crore`;
+  return `₹${f(inrAmount / 1_00_000)} Lakh`;
+};
 
 const arrow = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const check = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
@@ -47,14 +57,6 @@ const PARTS = [
   { id: "international", label: "International buyers", weight: 1.1 },
   { id: "privacy", label: "Privacy", weight: 1.1 },
   { id: "helps", label: "How VPV helps", weight: 1.5 },
-];
-
-const TOASTS = [
-  "",
-  `<i class="hs-dot hs-dot--loss"></i><span>At ${CONV}%, 97 of every 100 buyers buy elsewhere</span>`,
-  `${svg(icon.globe, 16)}<span>One link. Any buyer, any country.</span>`,
-  "",
-  `<i class="hs-dot hs-dot--live"></i><span>Live · your whole sales team</span>`,
 ];
 
 let styled = false;
@@ -91,14 +93,22 @@ export function mount(host: HTMLElement): () => void {
         <article class="hs-part" data-i="1">
           <h2 class="hs-h2">${words(`Converting only ${CONV}% of your leads?`)}</h2>
           <div class="hs-calc hs-in" style="--d:4">
-            <label class="hs-row"><span>Qualified leads a year</span><b class="hs-leads-out">120</b></label>
-            <input class="hs-range" type="range" min="10" max="1000" step="10" value="120" aria-label="Qualified leads a year">
-            <p class="hs-row hs-row--chips"><span>Business per lead, a year</span></p>
-            <div class="hs-chips" role="group" aria-label="Business per lead, a year">${VALUES.map((v) => `<button type="button" data-v="${v}" aria-pressed="${v === 10}">₹${v}L</button>`).join("")}</div>
-            <div class="hs-loss" aria-live="polite">
-              <p class="hs-loss-label">Going to your competitors, every year</p>
-              <p class="hs-loss-num">₹0</p>
-              <p class="hs-loss-sub">You win <b class="hs-won">₹0</b> of it. That is <b class="hs-day">₹0</b> lost every day.</p>
+            <div class="hs-cq">
+              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-leads">Total Qualified Leads in 5 Years</label><output class="hs-val hs-leads-out" for="hs-leads">0</output></div>
+              <input id="hs-leads" class="hs-range hs-range--leads" type="range" min="${LEADS.min}" max="${LEADS.max}" step="${LEADS.step}" value="${LEADS.start}">
+              <p class="hs-ends"><span>${LEADS.min.toLocaleString("en-IN")}</span><span>${LEADS.max.toLocaleString("en-IN")}</span></p>
+            </div>
+            <div class="hs-cq">
+              <p class="hs-cq-t" id="hs-value-t">Average Potential Business Per Lead Year</p>
+              <div class="hs-chips" role="group" aria-labelledby="hs-value-t">${VALUES.map((v) => `<button type="button" data-v="${v}" aria-pressed="${v === 5}">${valueLabel(v)}</button>`).join("")}</div>
+            </div>
+            <div class="hs-cq">
+              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-conv">Your conversion ratio?<small>What % of leads turn into business?</small></label><output class="hs-val hs-conv-out" for="hs-conv">${CONV}%</output></div>
+              <div class="hs-conv-row"><span>${CONVS.min}%</span><input id="hs-conv" class="hs-range hs-range--conv" type="range" min="${CONVS.min}" max="${CONVS.max}" step="1" value="${CONV}"><span>${CONVS.max}%</span></div>
+            </div>
+            <div class="hs-res" aria-live="polite">
+              <div class="hs-res-row"><p>Business you win<small class="hs-won-sub">(at ${CONV}% conversion)</small></p><b class="hs-won">₹0</b></div>
+              <div class="hs-res-row hs-loss"><p>Business going to competition<small class="hs-lost-sub">(remaining ${100 - CONV}% leads)</small></p><b class="hs-loss-num">₹0</b></div>
             </div>
           </div>
         </article>
@@ -156,7 +166,6 @@ export function mount(host: HTMLElement): () => void {
         <div class="hs-frame">
           <iframe data-src="/experience" title="Live VPV: walk through a real factory in 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay" allowfullscreen></iframe>
           <button type="button" class="hs-guard" aria-label="Explore the live factory tour"><span>Click to explore the live tour</span></button>
-          <p class="hs-toast" aria-hidden="true"></p>
         </div>
       </div>
     </div>
@@ -167,40 +176,52 @@ export function mount(host: HTMLElement): () => void {
   const $ = <T extends Element>(q: string) => sec.querySelector(q) as T;
   const parts = Array.from(sec.querySelectorAll<HTMLElement>(".hs-part"));
   const steps = Array.from(sec.querySelectorAll<HTMLElement>(".hs-steps i"));
-  const toast = $<HTMLElement>(".hs-toast");
   const pin = $<HTMLElement>(".hs-pin");
 
   /* ---------- the calculator (part 2) ---------- */
-  const range = $<HTMLInputElement>(".hs-range");
+  const range = $<HTMLInputElement>(".hs-range--leads");
+  const convRange = $<HTMLInputElement>(".hs-range--conv");
   const leadsOut = $<HTMLElement>(".hs-leads-out");
+  const convOut = $<HTMLElement>(".hs-conv-out");
   const lossNum = $<HTMLElement>(".hs-loss-num");
   const lossBox = $<HTMLElement>(".hs-loss");
   const wonOut = $<HTMLElement>(".hs-won");
-  const dayOut = $<HTMLElement>(".hs-day");
+  const wonSub = $<HTMLElement>(".hs-won-sub");
+  const lostSub = $<HTMLElement>(".hs-lost-sub");
   const chips = Array.from(sec.querySelectorAll<HTMLButtonElement>(".hs-chips button"));
-  const inputs: CalcInputs = { leads: 120, valueLakh: 10, conv: CONV, lift: 5 };
+  // Leads here are over five years; the stored event keeps the Why VPV
+  // calculator's leads-a-year, so the owner's report reads the same.
+  const calc = { leads: LEADS.start, valueLakh: 5, conv: CONV };
+  const inputs = (): CalcInputs => ({ leads: Math.max(1, Math.round(calc.leads / 5)), valueLakh: calc.valueLakh, conv: calc.conv, lift: 5 });
+  let lastField: "leads" | "valueLakh" | "conv" = "leads";
   let shown = 0, raf = 0, prevLost = 0, saveTimer = 0, touched = false;
   const countTo = (target: number) => {
     cancelAnimationFrame(raf);
-    if (reduced) { shown = target; lossNum.textContent = inrLakhs(target); return; }
+    if (reduced) { shown = target; lossNum.textContent = money(target); return; }
     const from = shown, t0 = performance.now();
     const step = (t: number) => {
       const k = Math.min(1, (t - t0) / 700), e = 1 - Math.pow(1 - k, 3);
-      shown = from + (target - from) * e; lossNum.textContent = inrLakhs(shown);
+      shown = from + (target - from) * e; lossNum.textContent = money(shown);
       if (k < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
   };
+  const fill = (el: HTMLInputElement, v: number, min: number, max: number) => el.style.setProperty("--p", `${((v - min) / (max - min)) * 100}%`);
   const recalc = () => {
-    const f = calcFigures(inputs);
-    leadsOut.textContent = inputs.leads.toLocaleString("en-IN");
-    range.style.setProperty("--p", `${((inputs.leads - 10) / 990) * 100}%`);
-    wonOut.textContent = inrLakhs(f.won);
-    dayOut.textContent = inrLakhs(f.lost / 365);
-    countTo(f.lost);
-    if (f.lost > prevLost + 1 && prevLost > 0 && !reduced) { lossBox.classList.remove("hs-hit"); void lossBox.offsetWidth; lossBox.classList.add("hs-hit"); }
-    prevLost = f.lost;
-    chips.forEach((c) => c.setAttribute("aria-pressed", String(Number(c.dataset.v) === inputs.valueLakh)));
+    const opportunity = calc.leads * calc.valueLakh * 1_00_000;
+    const won = (opportunity * calc.conv) / 100;
+    const lost = opportunity - won;
+    leadsOut.textContent = calc.leads.toLocaleString("en-IN");
+    convOut.textContent = `${calc.conv}%`;
+    fill(range, calc.leads, LEADS.min, LEADS.max);
+    fill(convRange, calc.conv, CONVS.min, CONVS.max);
+    wonOut.textContent = money(won);
+    wonSub.textContent = `(at ${calc.conv}% conversion)`;
+    lostSub.textContent = `(remaining ${100 - calc.conv}% leads)`;
+    countTo(lost);
+    if (lost > prevLost + 1 && prevLost > 0 && !reduced) { lossBox.classList.remove("hs-hit"); void lossBox.offsetWidth; lossBox.classList.add("hs-hit"); }
+    prevLost = lost;
+    chips.forEach((c) => c.setAttribute("aria-pressed", String(Number(c.dataset.v) === calc.valueLakh)));
   };
   // Same event the Why VPV calculator sent, so the owner's calculator report,
   // journeys and interest scores keep working. Only after a real change.
@@ -208,13 +229,18 @@ export function mount(host: HTMLElement): () => void {
     clearTimeout(saveTimer);
     if (!touched) return;
     touched = false;
-    track("calculator_used", metaFromInputs(inputs, { field: "leads" }), { beacon, path: "/" });
+    track("calculator_used", metaFromInputs(inputs(), { field: lastField }), { beacon, path: "/" });
   };
-  const changed = () => { touched = true; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), 1500); recalc(); };
-  range.addEventListener("input", () => { inputs.leads = Number(range.value); changed(); });
-  chips.forEach((c) => c.addEventListener("click", () => { inputs.valueLakh = Number(c.dataset.v); changed(); }));
+  const changed = () => { touched = true; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), SAVE_AFTER_MS); recalc(); };
+  range.addEventListener("input", () => { calc.leads = Number(range.value); lastField = "leads"; changed(); });
+  convRange.addEventListener("input", () => { calc.conv = Number(convRange.value); lastField = "conv"; changed(); });
+  chips.forEach((c) => c.addEventListener("click", () => { calc.valueLakh = Number(c.dataset.v); lastField = "valueLakh"; changed(); }));
   const flush = () => save(true);
+  // Phones often skip pagehide when a tab is swiped away; hidden is the last
+  // reliable moment to send.
+  const onHidden = () => { if (document.visibilityState === "hidden") flush(); };
   addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", onHidden);
 
   /* ---------- the demo stays usable without trapping the scroll ---------- */
   // The tour takes wheel and touch input. A clear layer over it lets the page
@@ -261,8 +287,6 @@ export function mount(host: HTMLElement): () => void {
     sec.dataset.dir = dir;
     sec.dataset.part = PARTS[i].id;
     steps.forEach((s, k) => s.classList.toggle("on", k <= i));
-    toast.classList.remove("show");
-    if (TOASTS[i]) { toast.innerHTML = TOASTS[i]; void toast.offsetWidth; toast.classList.add("show"); }
     if (i === 1 && active !== 1) { shown = 0; recalc(); } // the loss counts up each time part 2 arrives
     active = i;
   };
@@ -389,6 +413,7 @@ export function mount(host: HTMLElement): () => void {
     removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove);
     removeEventListener("touchend", onTouchEnd); removeEventListener("keydown", onKey);
     document.removeEventListener("touchstart", outside);
+    document.removeEventListener("visibilitychange", onHidden);
   }
   return dispose;
 }

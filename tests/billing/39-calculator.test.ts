@@ -60,7 +60,8 @@ describe("the calculator's arithmetic", () => {
 });
 
 describe("the page really saves, and the server will store it", () => {
-  const src = readFileSync(join(process.cwd(), "components/site/WhyVpv.tsx"), "utf8");
+  // The calculator moved from Why VPV to the home page story.
+  const src = readFileSync(join(process.cwd(), "scripts/home-story/src/story.ts"), "utf8");
   it("sends calculator_used, which the server allowlists", () => {
     assert.match(src, /track\(\s*"calculator_used"/);
     assert.ok(EVENT_NAME_SET.has("calculator_used"));
