@@ -277,8 +277,9 @@ const HTML = `
   <div class="hg-wrap hg-hero-grid">
     <div class="hg-hero-text">
       <p class="hg-eyebrow hg-rv">How it works</p>
-      <h1 class="hg-h1 hg-rv" style="--k:1">Your factory online.<br><span>We do the hard part.</span></h1>
-      <p class="hg-lede hg-rv" style="--k:2">You answer a few questions and pay online. Our team does everything else: the planning, the shoot, the editing and the set-up. Your plant keeps running the whole time.</p>
+      <h1 class="hg-h1 hg-rv" style="--k:1">Turning your factory into a virtual experience <span>has never been simpler.</span></h1>
+      <p class="hg-lede hg-lede--q hg-rv" style="--k:2">Want potential global buyers to explore your factory without visiting in person?</p>
+      <p class="hg-lede hg-rv" style="--k:2">It's simple. Choose your plan, our team contacts you to book a shoot, and our VPV expert captures your factory in 360° and turns it into an interactive virtual tour. Once ready, you can share it with buyers and let them explore your facility from anywhere.</p>
       <div class="hg-ctas hg-rv" style="--k:3">
         <a class="hg-btn" href="/assessment" data-testid="hiw-cta">Find the Right VPV for Your Factory ${svg(I.arrow, 18, 2.2)}</a>
         <a class="hg-ghost" href="#hg-get">See what you get ${svg(I.down, 16, 2.2)}</a>
