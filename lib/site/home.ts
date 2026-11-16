@@ -307,34 +307,27 @@ const HOME_STORY_SCRIPT = String.raw`(function(){
 })();`;
 
 /**
- * How it works: the 3D factory walkthrough.
+ * How it works: the full guide.
  *
  * The bundle renders an empty <div id="hiw-tour"> followed by
- * <div id="hiw-classic"> (the plain hero + five step cards). When the browser
- * has WebGL and the visitor hasn't asked for reduced motion, this hides the
- * classic block and mounts /hiw-tour/tour.js into #hiw-tour, including after
- * in-app navigation. If anything fails, the classic block comes back.
- * Source and rebuild steps: scripts/hiw-tour/README.md.
+ * <div id="hiw-classic"> (the plain hero + five step cards) and the
+ * "Before the shoot" section (#hiw-after). This hides both and mounts
+ * /hiw-guide/guide.js into #hiw-tour, including after in-app navigation:
+ * the five steps in detail, every deliverable, the customer's part, life
+ * after go-live and every cost. If the script fails, the classic blocks
+ * come back. Source and rebuild steps: scripts/hiw-guide/README.md.
+ * (It replaced the 3D walkthrough in public/hiw-tour, which no longer loads.)
  */
-const HIW_TOUR_CSS = `html.hiwt-on,html.hiwt-on body{overflow-x:clip}#hiw-tour{display:none}html.hiwt-on #hiw-tour{display:block;min-height:100vh;background:#dfe6ee}html.hiwt-on #hiw-classic{display:none}`;
-const HIW_TOUR_SCRIPT = String.raw`(function(){
-  var d=document.documentElement,mod=null,ok=null;
-  function can(){
-    if(ok!==null)return ok;ok=false;
-    try{
-      if(matchMedia("(prefers-reduced-motion: reduce)").matches)return ok;
-      var c=document.createElement("canvas"),g=c.getContext("webgl2")||c.getContext("webgl");
-      if(!g)return ok;var x=g.getExtension("WEBGL_lose_context");if(x)x.loseContext();ok=true;
-    }catch(e){}
-    return ok;
-  }
+const HIW_GUIDE_CSS = `html.hg-on #hiw-classic,html.hg-on #hiw-after{display:none}html.hg-on #hiw-tour{min-height:100vh}`;
+const HIW_GUIDE_SCRIPT = String.raw`(function(){
+  var d=document.documentElement,mod=null;
   function check(){
     var el=document.getElementById("hiw-tour");
-    if(!el||el.getAttribute("data-mounted"))return;
+    if(!el){d.classList.remove("hg-on");return;}
+    if(el.getAttribute("data-mounted"))return;
     el.setAttribute("data-mounted","1");
-    if(!can())return;
-    d.classList.add("hiwt-on");
-    (mod||(mod=import("/hiw-tour/tour.js"))).then(function(m){m.mount(el)}).catch(function(){mod=null;d.classList.remove("hiwt-on")});
+    d.classList.add("hg-on");
+    (mod||(mod=import("/hiw-guide/guide.js"))).then(function(m){m.mount(el)}).catch(function(){mod=null;d.classList.remove("hg-on")});
   }
   new MutationObserver(check).observe(document.getElementById("root")||document.body,{childList:true,subtree:true});
   check();
@@ -416,7 +409,7 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <link href="${SITE_HEADER_FONT_HREF}" rel="stylesheet"/>\
 <style id="vpv-site-header-style">${SITE_HEADER_CSS}header[data-testid="site-header"]{display:none!important}html,body{overflow-x:clip}</style>\
 <style id="vpv-home-style">${HOME_CSS}</style>\
-<style id="vpv-hiw-tour-style">${HIW_TOUR_CSS}</style>\
+<style id="vpv-hiw-guide-style">${HIW_GUIDE_CSS}</style>\
 <style id="vpv-home-story-style">${HOME_STORY_CSS}</style>\
 </head><body>\
 <noscript>You need to enable JavaScript to run this app.</noscript>\
@@ -429,7 +422,7 @@ ${siteHeaderHtml(page.path)}\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
 <script id="vpv-aoa-hint-script">${AOA_HINT_SCRIPT}</script>\
-<script id="vpv-hiw-tour-script">${HIW_TOUR_SCRIPT}</script>\
+<script id="vpv-hiw-guide-script">${HIW_GUIDE_SCRIPT}</script>\
 <script id="vpv-home-story-script">${HOME_STORY_SCRIPT}</script>\
 ${measureScriptTag()}\
 </body></html>`;
