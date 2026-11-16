@@ -61,7 +61,7 @@ export default function CookieChoice() {
           type="button"
           onClick={() => choose(true)}
           disabled={declined === true}
-          className="rounded-full border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-default disabled:opacity-50"
+          className="min-w-[6.5rem] rounded-full border border-slate-300 bg-white px-5 py-2 text-[13px] font-semibold text-vpv-ink transition-colors hover:bg-slate-50 disabled:cursor-default disabled:border-vpv-blue disabled:bg-vpv-tint disabled:text-vpv-blue"
         >
           Decline
         </button>
@@ -69,7 +69,7 @@ export default function CookieChoice() {
           type="button"
           onClick={() => choose(false)}
           disabled={declined === false}
-          className="rounded-full bg-vpv-grad px-5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+          className="min-w-[6.5rem] rounded-full border border-slate-300 bg-white px-5 py-2 text-[13px] font-semibold text-vpv-ink transition-colors hover:bg-slate-50 disabled:cursor-default disabled:border-vpv-blue disabled:bg-vpv-tint disabled:text-vpv-blue"
         >
           Accept all
         </button>

@@ -6,7 +6,7 @@
 import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, L, Mail, P, UL } from "@/components/legal/prose";
-import { COMPANY } from "@/lib/company";
+import { COMPANY, POLICY } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Security",
@@ -54,8 +54,14 @@ const sections: LegalSection[] = [
           if we miss an input sanitisation bug.
         </li>
         <li>
-          <B>Signed URLs</B> for every panorama download. A customer tour’s
-          images cannot be hot-linked outside the viewer page.
+          <B>Private tours stay private.</B> A tour shared by link opens only
+          with that link, and a password, expiry or one-time rule on the link is
+          checked by the database, not by the page. Meeting files are kept in
+          private storage and opened only through short-lived signed links.
+        </li>
+        <li>
+          <B>Bot checks</B> (Cloudflare Turnstile) on sign-in and password-reset
+          forms.
         </li>
       </UL>
     ),
@@ -72,9 +78,24 @@ const sections: LegalSection[] = [
           standards. They never pass through, and are never stored on, VPV’s
           servers.
         </P>
-        {/* TODO(billing build): once the order/webhook routes ship, add the
-            server-side price list, signature verification and write-locked
-            payment tables here. Don't claim them before they exist. */}
+        <UL>
+          <li>
+            <B>Prices are set on our server.</B> The amount you pay is worked
+            out on our server from the published price list, never taken from
+            the page, so it cannot be changed in the browser.
+          </li>
+          <li>
+            <B>Every payment is verified.</B> A payment counts only after its
+            Razorpay signature is checked on our server, and Razorpay&rsquo;s
+            payment notices to us are signature-checked too. A daily check
+            matches our records against Razorpay&rsquo;s, so a payment is never
+            lost or counted twice.
+          </li>
+          <li>
+            <B>Payment records cannot be edited from the browser.</B> Only our
+            server can write them.
+          </li>
+        </UL>
       </>
     ),
   },
@@ -91,9 +112,16 @@ const sections: LegalSection[] = [
           solved it.
         </li>
         <li>
-          <B>Independent SOC 2 audit.</B> Not yet. We’re transparent about
-          where our controls stand today; a formal audit is on the roadmap
-          once the paid tier launches.
+          <B>Independent audit (such as SOC 2 or ISO 27001).</B> Not yet. We
+          would rather tell you where our controls stand than claim a
+          certificate we do not have. If we get one, it will be listed here.
+        </li>
+        <li>
+          <B>Hiding tour pictures from people who have the address.</B> The
+          360° pictures inside a tour are served from our media store at
+          long, unguessable addresses so they load fast. Someone who already
+          has a picture&rsquo;s address can open it; the link and password
+          rules protect the tour, not each picture.
         </li>
       </UL>
     ),
@@ -103,8 +131,8 @@ const sections: LegalSection[] = [
     title: "Report a vulnerability",
     body: (
       <P>
-        Email <Mail to={COMPANY.emails.support} />. We respond within two
-        business days. Please don’t publicly disclose a vulnerability until
+        Email <Mail to={COMPANY.emails.support} />. We acknowledge within{" "}
+        {POLICY.grievanceAckHours} hours. Please don’t publicly disclose a vulnerability until
         we’ve had a chance to patch it; we commit to patching within 30 days
         of a confirmed report, and we credit researchers who want to be named.
         Related reading: <L href="/privacy">Privacy Policy</L> and{" "}

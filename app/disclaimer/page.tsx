@@ -11,7 +11,7 @@ import { LAUNCH_OFFER } from "@/lib/pricing";
 export const metadata: Metadata = {
   title: "Disclaimer",
   description:
-    "The limits of what VPV, its analytics and its AI-assisted insights can promise, and what remains the responsibility of the customer.",
+    "The limits of what VPV and its figures can promise, and what remains the responsibility of the customer.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/disclaimer" },
 };
@@ -43,24 +43,16 @@ const sections: LegalSection[] = [
   },
   {
     id: "ai",
-    title: "AI-assisted insights",
+    title: "Recording and AI features",
     body: (
-      <>
-        <P>
-          Features such as meeting transcripts, speaker separation, summaries,
-          topic detection and scores are produced automatically from a
-          transcript. They:
-        </P>
-        <UL>
-          <li>can contain errors, miss context, mis-attribute a speaker or misread accents and mixed languages;</li>
-          <li>are an aid for your team’s review, <B>not professional, legal, financial or HR advice</B>;</li>
-          <li>should not be the only basis for evaluating, rewarding or disciplining a person, or for a decision about a customer.</li>
-        </UL>
-        <P>
-          Please verify anything important against the original recording or
-          notes.
-        </P>
-      </>
+      <P>
+        Meeting recording, transcripts and AI meeting analysis are switched off
+        for every customer today (see the{" "}
+        <L href="/terms#recording-ai">Terms</L>). If they are ever switched on,
+        their limits will be explained here first. Anything produced
+        automatically can be wrong, and would never be advice or the only basis
+        for a decision about a person.
+      </P>
     ),
   },
   {
@@ -68,7 +60,7 @@ const sections: LegalSection[] = [
     title: "Analytics are estimates",
     body: (
       <P>
-        Viewer analytics — visits, durations, locations, devices — depend on
+        Viewer figures (visits, durations, locations, devices) depend on
         browsers, network conditions, ad-blockers and the information a
         viewer provides. Treat them as a reliable guide, not an exact count.
         Location is approximate and may be unavailable if a person declines the
@@ -117,14 +109,13 @@ const sections: LegalSection[] = [
   },
   {
     id: "recordings",
-    title: "Recording and consent",
+    title: "Meeting location",
     body: (
       <P>
-        Recording tools are provided for the customer’s use. The customer is
-        responsible for telling participants about a recording and for any
-        consent applicable law requires. VPV does not give legal advice about
-        recording laws; please take advice for the countries you do business
-        in.
+        With Sales Team logins, the place a meeting started is taken from the
+        salesperson&rsquo;s browser, only with their permission. It can be
+        approximate or missing (indoors, or when permission is refused), so
+        treat it as a guide, not proof of where someone was.
       </P>
     ),
   },
@@ -135,7 +126,7 @@ const sections: LegalSection[] = [
       <P>
         We aim for high availability but do not guarantee the Service will be
         uninterrupted or error-free. VPV depends on third-party services for
-        hosting, payments, e-mail and AI processing, and an outage at one of
+        hosting, storage, payments and e-mail, and an outage at one of
         them can affect the Service. Links and embedded content from other
         websites are provided for convenience; we do not control and are not
         responsible for them.
@@ -162,7 +153,8 @@ const sections: LegalSection[] = [
         </li>
         <li>
           The special offer is limited to our first {LAUNCH_OFFER.limit} customers and ends on
-          its own once they have bought. See the{" "}
+          its own once they have bought. The regular price shown beside it is
+          the price from customer {LAUNCH_OFFER.limit + 1} onwards. See the{" "}
           <L href="/terms#special-offer">Terms</L>.
         </li>
         <li>

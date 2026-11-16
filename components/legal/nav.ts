@@ -37,19 +37,19 @@ export const POLICY_LINKS: PolicyLink[] = [
     href: "/shipping-policy",
     label: "Shipping & Delivery Policy",
     short: "Delivery",
-    blurb: "VPV is delivered digitally. This explains when and how your workspace is made available.",
+    blurb: "Nothing is shipped. When your workspace opens, when we shoot, and when your VPV goes live.",
   },
   {
     href: "/cookies",
     label: "Cookie Policy",
     short: "Cookies",
-    blurb: "The small amount of browser storage VPV uses, and what it is for.",
+    blurb: "Every cookie and piece of browser storage VPV uses, what it is for, and how to refuse measurement.",
   },
   {
     href: "/disclaimer",
     label: "Disclaimer",
     short: "Disclaimer",
-    blurb: "The limits of what VPV, its analytics and its AI-assisted insights can promise.",
+    blurb: "The limits of what VPV and its figures can promise, and what stays your responsibility.",
   },
   {
     href: "/security",

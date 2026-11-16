@@ -79,7 +79,7 @@ export const COMPANY: CompanyConfig = {
    *  be right before the first invoice goes out.   ◀ REQUIRED */
   state: "Haryana",
   /** Public support phone, with country code.   ◀ REQUIRED by most gateways */
-  phone: "",
+  phone: "+91 98183 72742",
   phoneHours: "Monday to Saturday, 10:00 to 18:00 IST",
 
   website: "https://myvpv.com",
@@ -90,8 +90,10 @@ export const COMPANY: CompanyConfig = {
   loginUrl: "https://myvpv.com/login",
   applyUrl: "https://myvpv.com/apply",
 
-  /** Where legal disputes are heard (see Terms › Governing law). */
-  jurisdiction: "New Delhi, India",
+  /** Where legal disputes are heard (see Terms › Governing law). Matches
+   *  the registered office above (16 Nov 2026: was "New Delhi", which the
+   *  business has no office in). */
+  jurisdiction: "Gurugram, Haryana, India",
 
   /** Named grievance officer — required for Indian data / e-commerce
    *  rules. Leave `name` empty to omit the name until you have one;
@@ -141,7 +143,9 @@ export {
 
 export const POLICY = {
   /** Shown as "Effective" on every policy page. Bump on material edits. */
-  updated: "26 October 2026",
+  updated: "16 November 2026",
+  /** The version before this one, named in the "What changed" box. */
+  previousUpdated: "26 October 2026",
   /** Prior e-mail notice before a new price applies to an existing customer. */
   priceChangeNoticeDays: 30,
   /** Prior notice before changed Terms / Privacy Policy take effect. */
@@ -164,11 +168,24 @@ export const POLICY = {
   provisioningHours: 24,
   /** After a plan is paid for, we call to agree the shoot date within this. */
   shootContactBusinessDays: 2,
-  /** The finished VPV is in the customer's workspace within this many
-   *  working days of the shoot. ◀ CONFIRM: what the team can promise. */
-  vpvDeliveryWorkingDays: 10,
-  /** Notice the customer gives to move a shoot without losing travel costs. */
+  /** The LATEST the finished VPV reaches the customer's workspace, in
+   *  working days after the shoot. The site says "typically 1–3 weeks";
+   *  15 working days is the outer edge of that, so the promise and the
+   *  marketing copy can never contradict each other (16 Nov 2026: was 10,
+   *  which a "3 weeks" delivery would have broken). */
+  vpvDeliveryWorkingDays: 15,
+  /** How the site describes the usual delivery time. */
+  vpvDeliveryTypical: "1 to 3 weeks",
+  /** Notice we ask for before a shoot is moved. */
   rescheduleNoticeHours: 48,
+  /** Changes of shoot date that cost nothing. */
+  freeReschedules: 1,
+  /** Each change of shoot date after the free one, GST excluded. */
+  rescheduleFeeInr: 500,
+  /** E-Commerce Rules 2020 r.4(5): a complaint is acknowledged within 48
+   *  hours and resolved within one month. */
+  grievanceAckHours: 48,
+  grievanceResolveDays: 30,
 } as const;
 
 /* ───────────────────────────── Helpers ────────────────────────────── */
