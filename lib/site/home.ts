@@ -316,7 +316,8 @@ const HOME_STORY_SCRIPT = String.raw`(function(){
  * the five steps in detail, every deliverable, the customer's part, life
  * after go-live and every cost. If the script fails, the classic blocks
  * come back. Source and rebuild steps: scripts/hiw-guide/README.md.
- * (It replaced the 3D walkthrough in public/hiw-tour, which no longer loads.)
+ * (It replaced the 3D walkthrough once in public/hiw-tour; those files were
+ * removed on 16 Nov 2026 and are in git history.)
  */
 const HIW_GUIDE_CSS = `html.hg-on #hiw-classic,html.hg-on #hiw-after{display:none}html.hg-on #hiw-tour{min-height:100vh}`;
 const HIW_GUIDE_SCRIPT = String.raw`(function(){

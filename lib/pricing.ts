@@ -459,6 +459,20 @@ export function fromPaise(paise: number): number {
  */
 export const PLACEHOLDER_PRICES = false;
 
+/**
+ * The old Basic licence (choose 2–20 scenes, priced by the scene ladder,
+ * no shoot) is no longer sold: the Terms say so since 16 Nov 2026. Until
+ * then anyone could open /get-started and buy a full workspace for about
+ * ₹9,000, a quarter of the cheapest VPV plan.
+ *
+ * false (now): the order route refuses a NEW `basic_licence` on live keys
+ * (410 `plan_retired`). Site plans, which are stored as basic_licence
+ * underneath, are not affected, and neither are scene top-ups or renewals
+ * for customers who already have a Basic workspace. Test mode stays open so
+ * the older test-suite keeps exercising the shared payment path.
+ */
+export const BASIC_LICENCE_ON_SALE = false;
+
 export type SitePlanId = "confidence" | "authority" | "control" | "enterprise";
 
 /** Marginal price of each EXTRA area beyond what the plan includes.

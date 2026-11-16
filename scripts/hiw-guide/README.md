@@ -22,4 +22,4 @@ Rebuild after editing `src/`, or after changing `lib/pricing.ts` / `lib/logistic
 cd scripts/hiw-guide && npm install && npm run build
 ```
 
-This page replaced the 3D walkthrough in `scripts/hiw-tour` / `public/hiw-tour`, which is no longer loaded.
+This page replaced the 3D walkthrough that lived in `scripts/hiw-tour` / `public/hiw-tour` (removed 16 Nov 2026; see git history).

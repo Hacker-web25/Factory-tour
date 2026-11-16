@@ -299,7 +299,7 @@ const sections: LegalSection[] = [
         <DataTable
           head={["Provider", "What it does for us", "Data involved"]}
           rows={[
-            ["Supabase", "Database, sign-in and private file storage. Hosted in the EU (Frankfurt).", "Account, enquiry, website-visit, billing and Workspace data."],
+            ["Supabase", "Database, sign-in and private file storage. Hosted in Seoul, South Korea.", "Account, enquiry, website-visit, billing and Workspace data."],
             ["Cloudflare", "Stores and serves the 360° pictures in tours (R2), and checks sign-in forms for bots (Turnstile).", "Tour pictures; your network address and browser details when you load them or sign in."],
             ["Vercel", "Hosts the website and application.", "Requests, network addresses, technical logs."],
             ["Razorpay Software Private Limited", "Payment processing for cards, UPI, net banking and wallets.", "Billing name, e-mail, phone, amount and the payment details you enter on its checkout."],
@@ -325,7 +325,7 @@ const sections: LegalSection[] = [
     title: "Where data is stored",
     body: (
       <P>
-        Our main database is in Frankfurt, Germany, and our providers run
+        Our main database is in Seoul, South Korea, our website runs on Vercel’s servers, and our other providers run
         infrastructure worldwide. Because VPV is run from India, this means
         personal data travels outside India. We use providers that encrypt data
         in transit and control access to it, and we transfer data only where

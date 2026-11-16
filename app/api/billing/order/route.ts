@@ -85,6 +85,7 @@ import {
   monthsUntil,
   seatPrice,
   PLACEHOLDER_PRICES,
+  BASIC_LICENCE_ON_SALE,
   priceFor,
   storedPurpose,
   withGst,
@@ -192,6 +193,16 @@ export async function POST(req: Request) {
       503,
       "prices_not_final",
       "Online payment for these plans is not open yet. Please contact support@myvpv.com and we will take your order directly."
+    );
+  }
+
+  // The scene-ladder licence is retired (see BASIC_LICENCE_ON_SALE). A site
+  // plan arrives as purpose "site_plan", so only the old request is refused.
+  if (purpose === "basic_licence" && !BASIC_LICENCE_ON_SALE && razorpayIsLive()) {
+    return fail(
+      410,
+      "plan_retired",
+      "This plan is no longer sold. Please choose a VPV plan at myvpv.com/plans."
     );
   }
 

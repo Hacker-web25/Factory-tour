@@ -177,6 +177,11 @@ const nextConfig = {
     // Clamp DoS vectors on the Image optimisation endpoint.
     minimumCacheTTL: 60,
     dangerouslyAllowSVG: false,
+    // next/image is not used anywhere, so the optimiser endpoint
+    // (/_next/image) is switched off: Next 14 has open advisories against it
+    // (GHSA-2xp9-vwfh-vxw4, GHSA-2464-fhr4-w9xw) that only a Next 15.5+
+    // upgrade fixes. Turn it back on only together with that upgrade.
+    unoptimized: true,
   },
   transpilePackages: ["three"],
 
@@ -201,6 +206,15 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/pricing", destination: "/plans", permanent: false },
+      // The old Basic checkout. The plan is retired (lib/pricing.ts
+      // BASIC_LICENCE_ON_SALE); the page stays in the code for reference.
+      { source: "/get-started", destination: "/plans", permanent: false },
+      // The marketing app's own booking and confirmation screens, from before
+      // checkout moved to /assessment. Nothing links to them any more (no
+      // visits in 45 days, checked 16 Nov 2026) and their wording ("we
+      // confirm within 1 working day") no longer matches the Terms.
+      { source: "/booking", destination: "/assessment", permanent: false },
+      { source: "/order-confirmation", destination: "/assessment", permanent: false },
       { source: "/assessment/processes", destination: "/assessment/scope", permanent: false },
       { source: "/assessment/price", destination: "/assessment/plan", permanent: false },
     ];
