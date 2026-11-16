@@ -1,26 +1,32 @@
 /**
- * /refund-policy — Cancellation, Return & Refund Policy.
+ * /refund-policy — Cancellation & Refund Policy.
  *
- * Razorpay's reviewers look for this page by name. The refund window and
- * timings are policy decisions held in lib/company.ts (POLICY); change
- * them there and this page, the Terms and the Pricing FAQ all follow.
+ * Razorpay's reviewers look for this page by name. Every window and amount
+ * comes from lib/company.ts (POLICY) and lib/pricing.ts; change them there
+ * and this page, the Terms and the checkout all follow.
  *
- * Draft for legal review — see the notice in the delivery notes.
+ * 16 Nov 2026: rewritten for the four VPV plans (Basic, Pro and Ultra are no
+ * longer sold; see "Older plans"). A failure on OUR side is now a firm refund
+ * for what was not delivered, not a refund "at our discretion": a business
+ * that keeps the money for a shoot it never did is the kind of one-sided
+ * term the Consumer Protection Act 2019 treats as unfair.
  */
 
 import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, DataTable, L, Mail, OL, P, UL } from "@/components/legal/prose";
 import { COMPANY, POLICY } from "@/lib/company";
-import { PRO_MONTHLY_INR, SCENE_MIN, SUPPORT_ANNUAL_INR, SUPPORT_NAME, inr, priceForScenes } from "@/lib/pricing";
+import { SALES_TEAM, SUPPORT_ANNUAL_INR, SUPPORT_NAME, inr } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Cancellation & Refund Policy",
   description:
-    "How to cancel VPV, when a refund is due, how to request one and how long it takes. VPV is a digital service: nothing is shipped and nothing is returned.",
+    "How to cancel VPV, when you get a refund, how to ask for one and how long it takes. VPV is a service delivered online: nothing is shipped and nothing is returned.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/refund-policy" },
 };
+
+const reach = COMPANY.phone ? ` or WhatsApp ${COMPANY.phone}` : "";
 
 const sections: LegalSection[] = [
   {
@@ -29,36 +35,33 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          VPV is a digital software service. There are no physical goods, so
-          nothing is shipped and there is no product to return. This policy
-          covers cancelling a subscription or renewal, and refunds of money
-          you have paid for the Basic Plan, Annual Support &amp; Maintenance,
-          and Pro or Ultra orders.
+          VPV is a service delivered online, with one visit to your factory to
+          shoot it. Nothing is shipped, so there is nothing to return. This
+          policy covers cancelling, and refunds of money paid for a VPV Plan,
+          its add-ons, {SUPPORT_NAME} and Sales Team logins.
         </P>
         <Callout title="At a glance">
           <UL>
             <li>
-              All payments to VPV are <B>non-refundable by default</B>.
+              Payments are <B>not refundable once made</B>, because we start
+              booking your shoot as soon as you pay. The exceptions below are
+              firm, not &ldquo;at our discretion&rdquo;.
             </li>
             <li>
-              <B>Exception:</B> if a failure on VPV's side (platform outage,
-              data loss caused by us, a core function we described that does
-              not work) prevents you from using the Service, write to us. We
-              will review the request and, where we agree a refund is due,
-              we will issue one at our discretion.
+              <B>If we cannot shoot or deliver</B> for a reason on our side, you
+              get a <B>full refund</B> of what was not delivered.
             </li>
             <li>
-              Duplicate charges, excess charges and payments taken for an
-              order that was never confirmed are <B>always refunded in full</B>.
+              Duplicate, excess or wrong charges are <B>always refunded in
+              full</B>.
             </li>
             <li>
-              You can stop a renewal at any time by writing to{" "}
-              <Mail to={COMPANY.emails.support} />; there are no
-              cancellation fees. The current paid period is not refunded.
+              You can stop renewing at any time, by e-mail{reach}. No fee, no
+              reason needed, no call to persuade you to stay.
             </li>
             <li>
-              Where we approve a refund, it reaches your original payment
-              method in <B>{POLICY.refundProcessing}</B>.
+              An approved refund reaches your original payment method in{" "}
+              <B>{POLICY.refundProcessing}</B>.
             </li>
           </UL>
         </Callout>
@@ -72,182 +75,145 @@ const sections: LegalSection[] = [
       <>
         <UL>
           <li>
-            <B>Before you pay.</B> You can abandon checkout at any time; you
-            are charged only when payment succeeds.
+            <B>Before you pay.</B> Leave checkout at any time; you are charged
+            only when payment succeeds.
           </li>
           <li>
-            <B>Annual Support &amp; Maintenance (Basic).</B> The first year is
-            included with your licence. From the second year you can stop
-            renewing at any time by e-mailing <Mail to={COMPANY.emails.support} />.
-            If a renewal is not paid, the Workspace locks {POLICY.supportGraceDays}{" "}
-            days after the renewal date and unlocks as soon as you renew; your
-            Content is kept (see the Terms). We send reminders before and after
-            each renewal date, so a year never starts without you knowing.
+            <B>{SUPPORT_NAME}.</B> It renews only when you pay for it: we never
+            charge you automatically. To stop, simply do not renew, or tell us
+            and we stop the reminders. If a renewal is not paid, the Workspace
+            locks {POLICY.supportGraceDays} days after the renewal date and
+            unlocks as soon as you renew; your Content is kept (see the{" "}
+            <L href="/terms#support">Terms</L>).
           </li>
           <li>
-            <B>Closing your Workspace.</B> E-mail us. The Workspace stays
-            active to the end of the period you have paid for. After
-            cancellation we keep your data for {POLICY.retentionAfterCancelDays}{" "}
-            days so you can return, then delete it as described in the{" "}
+            <B>Sales Team logins.</B> Untick them at renewal, or tell us. They
+            end on their own date; nothing your salespeople created is deleted.
+          </li>
+          <li>
+            <B>Closing your Workspace.</B> E-mail us{reach}. It stays open to the
+            end of the period you have paid for. We then keep your data for{" "}
+            {POLICY.retentionAfterCancelDays} days so you can come back, and
+            delete it as described in the{" "}
             <L href="/privacy#retention">Privacy Policy</L>.
           </li>
-          <li>
-            <B>Pro and Ultra.</B> These are monthly plans. Cancel with 30
-            days&rsquo; written notice to <Mail to={COMPANY.emails.support} />;
-            billing stops at the end of the notice period. Anything else agreed
-            in your written proposal takes precedence; where the proposal is
-            silent, this policy applies.
-          </li>
         </UL>
-        <P>
-          Fees are not pro-rated when you cancel part-way through a paid
-          period.
-        </P>
+        <P>Fees are not paid back for part of a period you cancel during.</P>
       </>
     ),
   },
   {
     id: "eligibility",
-    title: "When a refund may be considered",
+    title: "When you get a refund",
     body: (
       <>
-        <P>
-          <B>All payments to VPV are non-refundable</B>, except in the three
-          situations in the table below. In every other case, including a
-          change of mind, lower-than-expected use, or a decision to switch
-          providers, the fee stays with us. If you believe your situation
-          falls under an exception, write to us and we will review it.
-        </P>
         <DataTable
           head={["Situation", "What happens"]}
           rows={[
             [
-              "VPV-side failure — platform outage, data loss caused by us, or a core function we described that does not work",
+              "We cannot shoot your factory for a reason on our side (for example, we cannot offer you a shoot date within a reasonable time, or your factory turns out to be outside the cities we shoot in)",
               <>
-                We investigate and, where we agree the failure is on our
-                side and no reasonable fix is possible, we issue a refund
-                for the affected period or purchase, at our discretion. We
-                e-mail you with the decision and, if a refund is agreed, a
-                reference to track it.
+                <B>Full refund</B> of everything you paid for that order, or a
+                new date if you prefer. Your choice.
               </>,
             ],
             [
-              "Duplicate, excess or erroneous charge",
+              "We shot your factory but cannot deliver the VPV for a reason on our side",
               <>
-                <B>Full refund</B> of the extra amount, whatever the time
-                elapsed, once we confirm it. We issue a credit note.
+                <B>Full refund</B> of the Plan Fee and add-ons not delivered.
               </>,
             ],
             [
-              "Payment taken but order not confirmed",
+              "An area, video or report you paid for is missing from what we delivered",
               <>
-                Reversed automatically by your bank or Razorpay, usually
-                within {POLICY.refundProcessing}. If it is not, write to us
-                with the payment ID and we will trace it.
+                We deliver it, at no charge. If we cannot, we <B>refund that
+                item</B> at the price on your bill.
               </>,
             ],
             [
-              `Basic licence (from ${inr(priceForScenes(SCENE_MIN))} + 18% GST)`,
+              "Duplicate, excess or wrong charge",
               <>
-                <B>Non-refundable</B> once payment succeeds, including the
-                first year of Annual Support &amp; Maintenance bundled with
-                it. See the VPV-side-failure row above for exceptions.
+                <B>Full refund</B> of the extra amount, however long ago, once
+                we confirm it. We issue a credit note.
               </>,
             ],
             [
-              "Scene top-up",
+              "Money taken, but the order was never confirmed",
               <>
-                <B>Non-refundable</B> once payment succeeds.
+                Usually reversed automatically by your bank or Razorpay within{" "}
+                {POLICY.refundProcessing}. If not, send us the payment ID and we
+                will trace and refund it.
               </>,
             ],
             [
-              `${SUPPORT_NAME} (${inr(SUPPORT_ANNUAL_INR)} + 18% GST a year)`,
+              "A serious, lasting fault on our side stops you using the Service (an outage, or data loss caused by us) and we cannot fix it within a reasonable time",
               <>
-                <B>Non-refundable</B> and not pro-rated once the year has
-                started. When the first year is charged with your order, it is
-                refunded with the order if the order is refunded before your
-                Workspace goes live. You can stop a renewal at any time before
-                it is paid.
-              </>,
-            ],
-            [
-              `Pro and Ultra monthly fees (from ${inr(PRO_MONTHLY_INR)} a month)`,
-              <>
-                <B>Non-refundable</B>, and the current month is not
-                pro-rated. Cancel at any time with 30 days&rsquo; written
-                notice; billing stops at the end of that notice period.
-                Anything else is as stated in your written proposal.
+                A <B>refund for the affected period</B> of {SUPPORT_NAME}, or of
+                the affected item.
               </>,
             ],
           ]}
         />
         <P>
-          Where we do approve a refund, it is the full amount paid for the
-          affected item, including the GST on it. We bear the payment
-          gateway's fee; it is not deducted. We issue a credit note for
-          every refunded invoice.
+          Where a refund is due, it is the full amount paid for that item,
+          including the GST on it. We bear the payment gateway&rsquo;s fee; it is
+          never deducted. We issue a credit note for every refunded invoice.
         </P>
       </>
     ),
   },
   {
     id: "not-refundable",
-    title: "What is never refundable",
+    title: "What is not refundable",
     body: (
-      <UL>
-        <li>
-          Any payment, after it has succeeded, where none of the three
-          situations in the table above applies. This is the default.
-        </li>
-        <li>
-          Renewal charges where you were reminded in advance and did not
-          cancel before the renewal date, unless the charge was made in
-          error.
-        </li>
-        <li>
-          Charges for a Workspace that we suspended or ended for a serious
-          breach of the <L href="/terms#acceptable-use">acceptable-use rules</L>.
-        </li>
-        <li>
-          Third-party costs you incurred, such as your own photography,
-          travel, or software you bought from someone else.
-        </li>
-        <li>
-          Any cab travel charge and extra shoot time, once the
-          shoot has taken place. They pay for a visit that has already
-          happened.
-        </li>
-        <li>
-          A change of mind, lower-than-expected use of the Service, or a
-          decision to switch providers.
-        </li>
-      </UL>
+      <>
+        <P>
+          Outside the situations above, payments stay with us once made. We say
+          this plainly before you pay, on the billing page, so that it is never
+          a surprise. In particular:
+        </P>
+        <UL>
+          <li>a change of mind, using VPV less than expected, or switching to another provider, once you have paid;</li>
+          <li>
+            {SUPPORT_NAME} ({inr(SUPPORT_ANNUAL_INR)} plus GST a year) and Sales
+            Team logins ({inr(SALES_TEAM.regularInr)} per salesperson a year at
+            the regular price) once the year has started;
+          </li>
+          <li>cab travel, extra shoot time and date-change fees once the shoot visit has happened, because they pay for a visit that took place;</li>
+          <li>a renewal you paid after we reminded you, unless it was charged in error;</li>
+          <li>fees for a Workspace we suspended or closed for a serious breach of the <L href="/terms#acceptable-use">acceptable-use rules</L>;</li>
+          <li>costs you paid to someone else, such as your own photography or software.</li>
+        </UL>
+      </>
     ),
   },
   {
     id: "shoot-changes",
-    title: "Moving or cancelling a factory shoot",
+    title: "Changing or cancelling the shoot date",
     body: (
       <UL>
         <li>
-          <B>You move the date</B> with at least {POLICY.rescheduleNoticeHours}{" "}
-          hours&rsquo; notice: no charge. With less notice, or if the crew
-          arrives and cannot shoot because of something on your side, travel
-          costs we have already incurred may be charged again for the new
-          date.
+          <B>You change the date:</B> the first change is free; each change after
+          that is {inr(POLICY.rescheduleFeeInr)} plus GST, shown to you before
+          you confirm it. Please give us at least {POLICY.rescheduleNoticeHours}{" "}
+          hours&rsquo; notice.
         </li>
         <li>
-          <B>We move the date:</B> we reschedule at no extra charge.
+          <B>Our crew arrives and cannot shoot</B> because of something on your
+          side: the visit counts as a change of date, and any cab travel charge
+          on your order is charged again for the new visit.
         </li>
         <li>
-          <B>We cannot shoot at all</B> for a reason on our side: you may ask
-          for a refund under &ldquo;When a refund may be considered&rdquo;
-          above.
+          <B>We change the date:</B> no charge, and it does not count as your
+          change.
         </li>
         <li>
-          <B>Special offer price.</B> A refunded order gives up its place in
-          the special offer. If you order again later, you pay the price shown
-          at that time.
+          <B>We cannot shoot at all</B> for a reason on our side: full refund
+          (see the table above).
+        </li>
+        <li>
+          <B>Special offer.</B> A refunded order gives up its place in the
+          special offer. If you order again later, you pay the price shown then.
         </li>
       </UL>
     ),
@@ -257,30 +223,27 @@ const sections: LegalSection[] = [
     title: "How to ask for a refund",
     body: (
       <>
-        <P>
-          You can always ask, even where the default is non-refundable. We
-          read every request and reply.
-        </P>
+        <P>You can always ask. We read every request and reply.</P>
         <OL>
           <li>
-            E-mail <Mail to={COMPANY.emails.support} /> from your account
-            address, or from the billing contact on the invoice.
+            E-mail <Mail to={COMPANY.emails.support} />
+            {reach}, or use the form on the <L href="/contact">Contact</L> page.
           </li>
           <li>
-            Include the invoice number or Razorpay payment ID, the amount
-            and the reason you believe a refund is due — in particular,
-            which VPV-side issue you encountered and when.
+            Give the invoice number or Razorpay payment ID, the amount, and why
+            you believe a refund is due.
           </li>
           <li>
-            We reply within {POLICY.replyBusinessDays} business days. If we
-            need more information we will ask once and decide promptly
-            after.
+            We acknowledge within {POLICY.grievanceAckHours} hours and give you
+            our decision within {POLICY.replyBusinessDays} business days. If we
+            need more information, we ask once.
           </li>
         </OL>
         <P>
-          If we decline, we will explain why. You may reply to ask for a
-          second review by a senior member of the team. A declined refund
-          does not stop you from cancelling future renewals.
+          If we say no, we explain why in writing. You can ask for a second
+          review by a senior member of the team, and you keep every right you
+          have under the Consumer Protection Act, 2019 (see{" "}
+          <L href="/terms#grievance">Complaints</L>).
         </P>
       </>
     ),
@@ -289,19 +252,14 @@ const sections: LegalSection[] = [
     id: "processing",
     title: "How refunds are paid",
     body: (
-      <>
-        <P>
-          Refunds go back to the <B>original payment method</B> through
-          Razorpay — to the card, UPI ID, bank account or wallet used. After
-          we approve a refund it normally appears in {POLICY.refundProcessing};
-          some banks take longer to show it on a statement. We e-mail you when
-          the refund has been sent to your bank, with a credit note and a reference you can give your bank.
-        </P>
-        <P>
-          Pro and Ultra orders paid by bank transfer are refunded to the
-          account they came from.
-        </P>
-      </>
+      <P>
+        Refunds go back to the <B>original payment method</B> through Razorpay:
+        the card, UPI ID, bank account or wallet you paid with. Once approved,
+        a refund normally appears in {POLICY.refundProcessing}; some banks take
+        longer to show it. We e-mail you when it has been sent, with a credit
+        note and a reference you can give your bank. Payments made by bank
+        transfer are refunded to the account they came from.
+      </P>
     ),
   },
   {
@@ -309,10 +267,9 @@ const sections: LegalSection[] = [
     title: "Chargebacks and disputes",
     body: (
       <P>
-        Please contact us before raising a dispute with your bank or card
-        issuer; we usually resolve a genuine problem faster directly. If a
-        chargeback is raised, we respond to it with the order, delivery and
-        usage records we hold.
+        Please contact us before raising a dispute with your bank; we can
+        usually fix a genuine problem faster directly. If a chargeback is
+        raised, we answer it with the order, delivery and usage records we hold.
       </P>
     ),
   },
@@ -321,11 +278,22 @@ const sections: LegalSection[] = [
     title: "Price changes and refunds",
     body: (
       <P>
-        Prices may change, but only after we e-mail you at least{" "}
-        {POLICY.priceChangeNoticeDays} days in advance, and a change never
-        affects something you have already paid for (see{" "}
-        <L href="/terms#price-changes">Terms › Price changes</L>). A refund
-        is always for the price you actually paid, not the current price.
+        A refund is always for the price you actually paid, not today&rsquo;s
+        price. Price changes need {POLICY.priceChangeNoticeDays} days&rsquo;
+        e-mail notice and never affect something you have already paid for (see{" "}
+        <L href="/terms#price-changes">Terms, Price changes</L>).
+      </P>
+    ),
+  },
+  {
+    id: "older-plans",
+    title: "Older plans",
+    body: (
+      <P>
+        If you bought Basic, Pro or Ultra before these plans were withdrawn, the
+        refund terms on your order still apply. Where your order says nothing,
+        this policy applies. Pro and Ultra could be cancelled with 30
+        days&rsquo; written notice; that has not changed.
       </P>
     ),
   },
@@ -335,8 +303,8 @@ const sections: LegalSection[] = [
     body: (
       <UL>
         <li>Refunds and billing: <Mail to={COMPANY.emails.support} /></li>
-        <li>Anything else: <Mail to={COMPANY.emails.support} /></li>
-        <li>Full details on the <L href="/contact">Contact</L> page.</li>
+        {COMPANY.phone ? <li>Phone and WhatsApp: {COMPANY.phone} ({COMPANY.phoneHours})</li> : null}
+        <li>All details on the <L href="/contact">Contact</L> page.</li>
       </UL>
     ),
   },
@@ -346,7 +314,7 @@ export default function RefundPolicyPage() {
   return (
     <LegalPage
       title="Cancellation & Refund Policy"
-      summary="Clear rules for cancelling and for getting your money back — including how long it takes."
+      summary="Clear rules for cancelling and for getting your money back, including how long it takes."
       sections={sections}
     />
   );

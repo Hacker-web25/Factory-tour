@@ -12,9 +12,12 @@
  *      tick.
  *   2. PRIDE. A big purchase deserves a moment: the words around the tick
  *      say what they just bought into — a plant any buyer can now walk.
- *   3. ONE QUESTION. "How do you plan to use it?" Pick at least one; there is
- *      no skip. The answer goes to /api/billing/usage and shapes how VPV is
- *      positioned. The next steps and the workspace link come after it.
+ *   3. ONE QUESTION. "How do you plan to use it?" The answer goes to
+ *      /api/billing/usage and shapes how VPV is positioned. It is OPTIONAL
+ *      (16 Nov 2026): a buyer who has just paid must never be made to hand
+ *      over information to reach what they paid for. That is "forced action"
+ *      under the CCPA's dark-pattern guidelines, so a plain "Skip" sits next
+ *      to Continue and shows the next steps and the workspace link at once.
  *
  * The workspace, the welcome e-mail and the invoice never depend on the
  * answer: they are created by the payment itself. This page only decides
@@ -431,12 +434,12 @@ function UsageQuestion({ orderId, onDone }: { orderId: string; onDone: () => voi
       aria-labelledby="usage-q"
       data-testid="usage-question"
     >
-      <p className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-vpv-blue">One question before we begin</p>
+      <p className="text-[12.5px] font-semibold uppercase tracking-[0.14em] text-vpv-blue">One optional question</p>
       <h2 id="usage-q" className="mt-2 text-[24px] font-semibold leading-tight tracking-[-0.01em] text-vpv-ink sm:text-[28px]">
         How do you plan to use your virtual plant visit?
       </h2>
       <p className="mt-2 text-[14.5px] leading-relaxed text-slate-600">
-        Choose all that apply. It helps us plan your shoot around how you will use it.
+        Choose all that apply. It helps us plan your shoot around how you will use it. You can skip it; nothing about your order changes.
       </p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2" role="group" aria-label="How you plan to use it">
@@ -514,9 +517,18 @@ function UsageQuestion({ orderId, onDone }: { orderId: string; onDone: () => voi
             </>
           )}
         </button>
+        <button
+          type="button"
+          onClick={onDone}
+          disabled={busy}
+          className="text-[14px] font-semibold text-vpv-muted underline underline-offset-4 hover:text-vpv-ink disabled:opacity-50"
+          data-testid="usage-skip"
+        >
+          Skip
+        </button>
         <p className="text-[12.5px] text-slate-500">
           {picked.length === 0
-            ? "Choose at least one to continue."
+            ? "Choose at least one to continue, or skip."
             : wantsOther && other.trim().length < 3
               ? "Tell us in a few words, then continue."
               : `${picked.length} chosen`}

@@ -44,11 +44,14 @@ const sections: LegalSection[] = [
           advertisement for ourselves was worth the money.
         </P>
         <P>
-          You can refuse the measurement kind. Choose <B>Decline</B> on the
-          notice at the bottom of the page (or below, in Your choices), and Google Analytics and Microsoft
-          Clarity are not loaded at all on any page you visit afterwards, and
-          our own measurement stops recording your visit. Nothing about the
-          product stops working, and you can change your mind at any time in Your choices below.
+          You can refuse the measurement kind. Measurement is on until you
+          choose, and the notice stays at the bottom of the page until you
+          answer it. Choose <B>Decline</B> there (or below, in Your choices),
+          and Google Analytics and Microsoft Clarity are not loaded at all on
+          any page you visit afterwards, and our own measurement stops
+          recording your visit. The Accept and Decline buttons look the same on
+          purpose. Nothing about the product stops working, and you can change
+          your mind at any time in Your choices below.
         </P>
       </>
     ),
@@ -131,7 +134,7 @@ const sections: LegalSection[] = [
             [
               <code key="m1" className="text-[12.5px]">vpv_vid</code>,
               "Cookie — measurement",
-              "A random number that stands for this browser, so we can tell one visit from another and see whether a printed QR code led to an enquiry. It holds no name, e-mail or address, and is not shared with anyone.",
+              "A random number that stands for this browser, so we can tell one visit from another and see whether a printed QR code or one of our e-mails led to an enquiry. It holds no name, e-mail or address and is not shared with anyone. If you open a personal link from our e-mail, or fill in a form, our own records link this number to you (see the Privacy Policy).",
               "One year, or until you clear this site's data.",
             ],
             [
@@ -139,6 +142,18 @@ const sections: LegalSection[] = [
               "Cookie — your choice",
               "Set when you choose Decline. Stops Google Analytics and Microsoft Clarity loading, and stops us recording your visit.",
               "One year, or until you clear this site's data.",
+            ],
+            [
+              <code key="m6" className="text-[12.5px]">vpv_coupon</code>,
+              "Cookie — functional",
+              "Set only when you open a link from one of our e-mails that carries a discount code, so the code is applied when you reach the bill.",
+              "14 days.",
+            ],
+            [
+              <code key="m7" className="text-[12.5px]">vpv.cookie.notice.v1</code>,
+              "Local storage — your choice",
+              "Remembers that you answered the cookie notice, so it is not shown again.",
+              "Until cleared.",
             ],
             [
               <code key="m3" className="text-[12.5px]">vpv.attr.v1, vpv.sid.v1</code>,
@@ -184,8 +199,13 @@ const sections: LegalSection[] = [
             (Google) may set cookies when you load or play it.
           </li>
           <li>
-            <B>Google Fonts</B> — fonts may be fetched from Google’s servers,
-            which receive your IP address.
+            <B>Google Fonts</B> — the marketing pages fetch their typeface from
+            Google’s servers, which receive your IP address.
+          </li>
+          <li>
+            <B>Cloudflare</B> — the bot check on sign-in forms (Turnstile) and
+            the store that serves tour pictures may receive your IP address and
+            browser details.
           </li>
           <li>
             <B>Razorpay</B> — when you pay, Razorpay’s checkout runs on its own

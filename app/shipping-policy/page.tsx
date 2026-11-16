@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import LegalPage, { type LegalSection } from "@/components/legal/LegalPage";
 import { B, Callout, L, Mail, OL, P, UL } from "@/components/legal/prose";
 import { COMPANY, POLICY } from "@/lib/company";
-import { LAUNCH_OFFER } from "@/lib/pricing";
+import { LAUNCH_OFFER, inr } from "@/lib/pricing";
 
 export const metadata: Metadata = {
   title: "Shipping & Delivery Policy",
@@ -55,9 +55,9 @@ const sections: LegalSection[] = [
           </li>
         </OL>
         <P>
-          Pro and Ultra Workspaces are not bought through the website. We set
-          them up for you after the proposal is agreed, normally on the same
-          business day, and send the sign-in details by e-mail.
+          If you move up to a higher plan later, its features open as soon as
+          that payment is confirmed, and we agree a date to shoot any extra
+          areas it includes.
         </P>
       </>
     ),
@@ -82,15 +82,21 @@ const sections: LegalSection[] = [
             shown on your bill.
           </li>
           <li>
-            The finished VPV — your areas, process videos, PDF reports and
-            information icons — is placed in your Workspace within{" "}
-            <B>{POLICY.vpvDeliveryWorkingDays} working days</B> of the shoot,
-            and we e-mail you when it is live.
+            The finished VPV (your areas, process videos, PDF reports and
+            information icons) is usually live in your Workspace{" "}
+            <B>{POLICY.vpvDeliveryTypical}</B> after the shoot, and never later
+            than <B>{POLICY.vpvDeliveryWorkingDays} working days</B> after it. We
+            e-mail you when it is live. If something on our side would make us
+            miss that, we tell you before the date, with the reason and a new
+            date.
           </li>
         </OL>
         <P>
-          Process videos are shot on iPhone and colour-graded by our team. A
-          shoot moved at your request moves the delivery date with it.
+          Process videos we shoot are filmed on iPhone, colour-graded by our
+          team and uploaded to your own YouTube channel. A shoot moved at your
+          request moves the delivery date with it. The first change of shoot
+          date is free; each later one is {inr(POLICY.rescheduleFeeInr)} plus GST (see the{" "}
+          <L href="/terms#shoot">Terms</L>).
         </P>
         <P>
           If you bought Sales Team logins, they are ready as soon as your
@@ -117,9 +123,9 @@ const sections: LegalSection[] = [
             re-send access to the correct administrator.
           </li>
           <li>
-            <B>We could not deliver?</B> If we cannot give you access within a
-            reasonable time because of a problem on our side, you can ask for a
-            full refund under the{" "}
+            <B>We could not deliver?</B> If we cannot shoot your factory or
+            deliver your VPV because of a problem on our side, you get a full
+            refund of what was not delivered, under the{" "}
             <L href="/refund-policy">Cancellation &amp; Refund Policy</L>.
           </li>
         </UL>
@@ -143,7 +149,8 @@ const sections: LegalSection[] = [
     body: (
       <P>
         Questions about access or delivery:{" "}
-        <Mail to={COMPANY.emails.support} /> — we reply within{" "}
+        <Mail to={COMPANY.emails.support} />
+        {COMPANY.phone ? `, or phone or WhatsApp ${COMPANY.phone}` : ""}. We reply within{" "}
         {POLICY.replyBusinessDays} business days. More ways to reach us are on
         the <L href="/contact">Contact</L> page.
       </P>

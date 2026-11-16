@@ -40,7 +40,7 @@ const TOPICS = [
   {
     icon: Scale,
     title: "Legal and privacy",
-    text: "Terms, data-protection requests and complaints to our grievance officer.",
+    text: `Terms, data-protection requests and complaints to our grievance officer. Acknowledged within ${POLICY.grievanceAckHours} hours, resolved within ${POLICY.grievanceResolveDays} days.`,
   },
   {
     icon: ShieldCheck,
@@ -191,8 +191,9 @@ export default function ContactPage() {
                 Razorpay payment ID so we can find it at once.
               </li>
               <li>
-                Considering Pro or Ultra? Tell us about your plants and we will
-                reply with a short call invite and a written proposal.
+                Considering VPV Enterprise, or have several plants? Tell us
+                about them below and we will reply with a short call invite and
+                a written proposal.
               </li>
               <li>
                 Prefer to read first? See{" "}

@@ -6,6 +6,10 @@
  * cookie that stops Google Analytics and Clarity loading on every later
  * page, and makes /api/track discard this browser's events.
  *
+ * The two buttons look exactly alike on purpose. Making "Accept" the bright
+ * one and "Decline" the faint one is "interface interference" in the CCPA's
+ * dark-pattern guidelines (2023): the choice has to be equally easy to see.
+ *
  * Deliberately a quiet bar, not a modal that blocks the page. The visitor
  * is a factory owner who followed a QR code off a pamphlet; a full-screen
  * consent wall is the fastest way to lose them before they see anything.
@@ -95,14 +99,14 @@ export default function CookieNotice() {
           <button
             type="button"
             onClick={() => close(true)}
-            className="rounded-full border border-slate-300 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+            className="min-w-[6.5rem] rounded-full border border-slate-300 bg-white px-5 py-2 text-[13px] font-semibold text-vpv-ink transition-colors hover:bg-slate-50"
           >
             Decline
           </button>
           <button
             type="button"
             onClick={() => close(false)}
-            className="rounded-full bg-vpv-grad px-5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="min-w-[6.5rem] rounded-full border border-slate-300 bg-white px-5 py-2 text-[13px] font-semibold text-vpv-ink transition-colors hover:bg-slate-50"
           >
             Accept all
           </button>
