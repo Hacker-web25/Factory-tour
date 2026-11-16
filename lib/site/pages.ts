@@ -52,7 +52,7 @@ export const SITE_PAGES: SitePage[] = [
     path: "/how-it-works",
     title: "How it works | MyVPV.com",
     description:
-      "From first click to a live VPV, without interrupting any process. One short meeting with your MD and sales team, one efficient factory shoot, and your plant keeps running as usual.",
+      "Everything about getting your VPV, in plain words: the 5 easy steps, what you get, the little we need from you, how you use it after it goes live, and every cost.",
     indexable: true,
     priority: 0.8,
   },
