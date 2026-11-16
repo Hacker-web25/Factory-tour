@@ -21,13 +21,17 @@ import CSS from "./story.css";
 const CONV = 3; // the conversion part 2 asks about, and the slider's start
 const VALUES = [5, 10, 25, 50, 100, 500]; // lakh
 const valueLabel = (v: number) => (v >= 100 ? `₹${v / 100}CR` : `₹${v}L`);
-const LEADS = { min: 500, max: 10_000, step: 50, start: 3_350 }; // over 5 years
+const LEADS = { min: 100, max: 10_000, step: 50, start: 1_000 }; // over 5 years
+const VALUE_START = 100; // lakh: ₹1 crore per lead to begin with
 const CONVS = { min: 1, max: 20 };
 /** Save the calculator once the sliders have rested this long. */
 const SAVE_AFTER_MS = 1500;
 /** ₹5.03 Crore, ₹48.50 Lakh — two decimals, Indian grouping. */
 const money = (inrAmount: number) => {
-  const f = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const f = (v: number) => {
+    const d = v >= 1000 ? 0 : 2; // ₹7,275 Crore, not ₹7,275.00 Crore
+    return v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+  };
   if (inrAmount >= 1_00_00_000) return `₹${f(inrAmount / 1_00_00_000)} Crore`;
   return `₹${f(inrAmount / 1_00_000)} Lakh`;
 };
@@ -100,7 +104,11 @@ export function mount(host: HTMLElement): () => void {
             </div>
             <div class="hs-cq">
               <p class="hs-cq-t" id="hs-value-t">Average Potential Business Per Lead Year</p>
-              <div class="hs-chips" role="group" aria-labelledby="hs-value-t">${VALUES.map((v) => `<button type="button" data-v="${v}" aria-pressed="${v === 5}">${valueLabel(v)}</button>`).join("")}</div>
+              <div class="hs-chips" role="group" aria-labelledby="hs-value-t">${VALUES.map((v) => `<button type="button" data-v="${v}" aria-pressed="${v === VALUE_START}">${valueLabel(v)}</button>`).join("")}<button type="button" class="hs-chip-custom" aria-pressed="false" aria-expanded="false" aria-controls="hs-custom-box">Custom</button></div>
+              <div class="hs-custom" id="hs-custom-box" hidden>
+                <label class="hs-custom-field"><span aria-hidden="true">₹</span><input id="hs-custom" type="text" inputmode="decimal" autocomplete="off" placeholder="Type an amount" aria-label="Your own business per lead, a year"></label>
+                <select class="hs-custom-unit" aria-label="Unit"><option value="1">Lakh</option><option value="100" selected>Crore</option></select>
+              </div>
             </div>
             <div class="hs-cq">
               <div class="hs-cq-head"><label class="hs-cq-t" for="hs-conv">Your conversion ratio?<small>What % of leads turn into business?</small></label><output class="hs-val hs-conv-out" for="hs-conv">${CONV}%</output></div>
@@ -188,11 +196,16 @@ export function mount(host: HTMLElement): () => void {
   const wonOut = $<HTMLElement>(".hs-won");
   const wonSub = $<HTMLElement>(".hs-won-sub");
   const lostSub = $<HTMLElement>(".hs-lost-sub");
-  const chips = Array.from(sec.querySelectorAll<HTMLButtonElement>(".hs-chips button"));
+  const chips = Array.from(sec.querySelectorAll<HTMLButtonElement>(".hs-chips button[data-v]"));
+  const customChip = $<HTMLButtonElement>(".hs-chip-custom");
+  const customBox = $<HTMLElement>(".hs-custom");
+  const customInput = $<HTMLInputElement>("#hs-custom");
+  const customUnit = $<HTMLSelectElement>(".hs-custom-unit");
   // Leads here are over five years; the stored event keeps the Why VPV
   // calculator's leads-a-year, so the owner's report reads the same.
-  const calc = { leads: LEADS.start, valueLakh: 5, conv: CONV };
-  const inputs = (): CalcInputs => ({ leads: Math.max(1, Math.round(calc.leads / 5)), valueLakh: calc.valueLakh, conv: calc.conv, lift: 5 });
+  const calc = { leads: LEADS.start, valueLakh: VALUE_START, conv: CONV };
+  let customOn = false;
+  const inputs = (): CalcInputs => ({ leads: Math.max(1, Math.round(calc.leads / 5)), valueLakh: Math.min(10_000, Math.max(0.1, calc.valueLakh)), conv: calc.conv, lift: 5 });
   let lastField: "leads" | "valueLakh" | "conv" = "leads";
   let shown = 0, raf = 0, prevLost = 0, saveTimer = 0, touched = false;
   const countTo = (target: number) => {
@@ -206,6 +219,8 @@ export function mount(host: HTMLElement): () => void {
     };
     raf = requestAnimationFrame(step);
   };
+  // Very large custom amounts: shrink the figure rather than spill out.
+  const fit = (el: HTMLElement, text: string) => el.style.setProperty("--fit", text.length > 15 ? ".7" : text.length > 13 ? ".85" : "1");
   const fill = (el: HTMLInputElement, v: number, min: number, max: number) => el.style.setProperty("--p", `${((v - min) / (max - min)) * 100}%`);
   const recalc = () => {
     const opportunity = calc.leads * calc.valueLakh * 1_00_000;
@@ -216,12 +231,17 @@ export function mount(host: HTMLElement): () => void {
     fill(range, calc.leads, LEADS.min, LEADS.max);
     fill(convRange, calc.conv, CONVS.min, CONVS.max);
     wonOut.textContent = money(won);
+    fit(wonOut, money(won));
+    fit(lossNum, money(lost));
     wonSub.textContent = `(at ${calc.conv}% conversion)`;
     lostSub.textContent = `(remaining ${100 - calc.conv}% leads)`;
     countTo(lost);
     if (lost > prevLost + 1 && prevLost > 0 && !reduced) { lossBox.classList.remove("hs-hit"); void lossBox.offsetWidth; lossBox.classList.add("hs-hit"); }
     prevLost = lost;
-    chips.forEach((c) => c.setAttribute("aria-pressed", String(Number(c.dataset.v) === calc.valueLakh)));
+    chips.forEach((c) => c.setAttribute("aria-pressed", String(!customOn && Number(c.dataset.v) === calc.valueLakh)));
+    customChip.setAttribute("aria-pressed", String(customOn));
+    customChip.setAttribute("aria-expanded", String(customOn));
+    customBox.hidden = !customOn;
   };
   // Same event the Why VPV calculator sent, so the owner's calculator report,
   // journeys and interest scores keep working. Only after a real change.
@@ -234,7 +254,24 @@ export function mount(host: HTMLElement): () => void {
   const changed = () => { touched = true; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), SAVE_AFTER_MS); recalc(); };
   range.addEventListener("input", () => { calc.leads = Number(range.value); lastField = "leads"; changed(); });
   convRange.addEventListener("input", () => { calc.conv = Number(convRange.value); lastField = "conv"; changed(); });
-  chips.forEach((c) => c.addEventListener("click", () => { calc.valueLakh = Number(c.dataset.v); lastField = "valueLakh"; changed(); }));
+  chips.forEach((c) => c.addEventListener("click", () => { customOn = false; calc.valueLakh = Number(c.dataset.v); lastField = "valueLakh"; changed(); }));
+  // "Custom": their own amount per lead, in lakh or crore. Until they type
+  // a usable number the figures stay on the last value.
+  const applyCustom = () => {
+    const n = parseFloat(customInput.value.replace(/[^0-9.]/g, ""));
+    if (!(n > 0)) return;
+    calc.valueLakh = n * Number(customUnit.value);
+    lastField = "valueLakh";
+    changed();
+  };
+  customChip.addEventListener("click", () => {
+    customOn = true;
+    recalc();
+    customInput.focus();
+    applyCustom();
+  });
+  customInput.addEventListener("input", applyCustom);
+  customUnit.addEventListener("change", applyCustom);
   const flush = () => save(true);
   // Phones often skip pagehide when a tab is swiped away; hidden is the last
   // reliable moment to send.
