@@ -3,13 +3,14 @@
 The home page (`/`) opens with the live 360° demo pinned on one side. As the visitor scrolls, the text beside it moves through five parts:
 
 1. You are already investing in exhibitions and meeting buyers.
-2. Converting only 3% of your leads? This part has a small calculator. It sends the same `calculator_used` event the Why VPV calculator used to send, so the calculator report keeps working.
+2. What's the cost of not giving buyers enough confidence to buy from you? This part has a small calculator (leads 100–5,000 over five years, typed or dragged; conversion 1–50%). It sends the same `calculator_used` event the Why VPV calculator used to send, so the calculator report keeps working.
 3. Want to show your factory to international clients?
 4. Don't want to share your factory with your competition?
 5. How VPV helps: one answer each to parts 2–4, then the call to action.
 
 * `src/story.ts`: markup, scroll logic and the calculator. It imports `lib/whyVpvCalc`, `lib/pricing` and `lib/analytics/client` from the app.
 * `src/story.css`: styles. Esbuild inlines them into the bundle.
+* The tour on the right changes scene with each part. `story.ts` tells `/experience` which part is showing (`postMessage`); `components/site/HeroExperience.tsx` swaps scenes, and `KUULA_STORY_SCENES` in `lib/site/experience.ts` lists them (one per part).
 * Output: `public/home-story/story.js`.
 
 The site bundle renders `<div id="home-story">` and, after it, `<div id="home-classic">` (the old hero only).

@@ -11,7 +11,13 @@
  *   coach mark  "drag to look around"; the tour opens straight inside the
  *               factory (no index page), and the mark goes the moment
  *               they touch the tour
- *   bottom bar  what they just did, and "Get this for your factory"
+ *   bottom bar  what they just did, and "Want this for your factory?"
+ *
+ * Scenes: the home page's scroll story tells this page which part of the
+ * story is showing (postMessage, same origin) and the tour moves to that
+ * part's scene, cross-fading between two stacked frames so the visitor
+ * never sees a blank or a loader. Only the Kuula demo can do this; a VPV
+ * tour (NEXT_PUBLIC_DEMO_TOUR_ID) stays on its opening scene.
  *
  * The coach mark cannot see a touch inside the tour (the tour is its own
  * frame), but the page loses focus the instant the visitor presses into
@@ -22,7 +28,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Hand, Maximize2, Minimize2 } from "lucide-react";
-import { experienceSource } from "@/lib/site/experience";
+import { experienceSource, kuulaSceneUrl, KUULA_STORY_SCENES } from "@/lib/site/experience";
 import { VPV_LOGO_URL } from "@/components/dashboard/VpvLogo";
 
 const TIPS = ["Drag to look around", "Tap the glowing dots", "Use the arrows to walk through", "Pinch or scroll to zoom"];
@@ -31,9 +37,21 @@ const TIPS = ["Drag to look around", "Tap the glowing dots", "Use the arrows to 
 const COACH = [{ icon: Hand, anim: "xp-drag", text: "Drag to look around this factory" }] as const;
 /** How long the drag mark stays if they don't touch the tour. */
 const DRAG_MARK_MS = 9000;
+/** After the next scene's page has loaded, how long it gets to paint its
+ *  picture before it fades in over the old one; and how long that fade is.
+ *  If a scene never reports back, it is shown anyway after a while. */
+const SCENE_SETTLE_MS = 1000;
+const SCENE_FADE_MS = 700;
+const SCENE_GIVE_UP_MS = 9000;
+/** Loading the next scene ahead of time: how long after the first scene
+ *  opens, and how long after each swap, so it never competes with them. */
+const PRELOAD_FIRST_MS = 5000;
+const PRELOAD_DELAY_MS = 1500;
 
 export default function HeroExperience() {
   const stage = useRef<HTMLDivElement>(null);
+  const frameA = useRef<HTMLIFrameElement>(null);
+  const frameB = useRef<HTMLIFrameElement>(null);
   const [src] = useState(experienceSource);
   const [loaded, setLoaded] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -58,6 +76,114 @@ export default function HeroExperience() {
       clearTimeout(t);
     };
   }, [touched]);
+
+  // Scroll story → scene. `shown` is the scene on screen, `want` the one the
+  // story is asking for. A scene loads in the hidden frame and fades in ON TOP
+  // of the old one (so the picture never dips to dark); the old frame is then
+  // emptied, so only two tours are ever alive. To make the change feel
+  // immediate, the NEXT scene is loaded in the hidden frame ahead of time, a
+  // moment after the current one is up. Asking for a scene that is not ready
+  // yet waits for it (and gives up waiting after a while); asking for the one
+  // on screen leaves things as they are.
+  useEffect(() => {
+    if (src.kind !== "kuula") return;
+    const frames = [frameA.current, frameB.current];
+    if (!frames[0] || !frames[1]) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
+    const count = KUULA_STORY_SCENES.length;
+    let front = 0;
+    let shown = 0;
+    let want = 0;
+    let back = { scene: -1, ready: false }; // what the hidden frame holds
+    let loadId = 0;
+    let finishSwap: (() => void) | null = null;
+    const timers = new Set<number>();
+    const later = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(() => { timers.delete(id); fn(); }, ms);
+      timers.add(id);
+      return id;
+    };
+    const blank = (el: HTMLIFrameElement) => { el.onload = null; if (el.getAttribute("src") !== "about:blank") el.src = "about:blank"; };
+
+    const swap = () => {
+      const next = back.scene;
+      if (!back.ready || next < 0 || next === shown) return;
+      const incoming = frames[1 - front]!;
+      const outgoing = frames[front]!;
+      incoming.style.zIndex = "2";
+      outgoing.style.zIndex = "1";
+      incoming.style.transition = reduced ? "none" : `opacity ${SCENE_FADE_MS}ms ease`;
+      incoming.style.pointerEvents = "auto";
+      outgoing.style.pointerEvents = "none";
+      incoming.style.opacity = "1";
+      front = 1 - front;
+      shown = next;
+      back = { scene: -1, ready: false };
+      loadId += 1; // anything still loading for the old back frame is moot
+      let finishTimer = 0;
+      finishSwap = () => {
+        window.clearTimeout(finishTimer);
+        incoming.style.transition = "none";
+        incoming.style.opacity = "1";
+        outgoing.style.transition = "none";
+        outgoing.style.opacity = "0";
+        blank(outgoing);
+        finishSwap = null;
+        // the scene after this one starts loading in the now-empty frame
+        if (!saveData && shown + 1 < count && want === shown) later(() => preload(shown + 1), PRELOAD_DELAY_MS);
+      };
+      finishTimer = window.setTimeout(() => finishSwap?.(), SCENE_FADE_MS + 100);
+    };
+
+    // Load a scene into the hidden frame; once its page is up and has had a
+    // moment to paint it is "ready", and is shown straight away if wanted.
+    const loadBack = (scene: number) => {
+      if (back.scene === scene) return;
+      const el = frames[1 - front]!;
+      back = { scene, ready: false };
+      loadId += 1;
+      const mine = loadId;
+      el.onload = () => {
+        el.onload = null;
+        later(() => {
+          if (mine !== loadId) return;
+          back.ready = true;
+          if (want === scene) swap();
+        }, SCENE_SETTLE_MS);
+      };
+      el.src = kuulaSceneUrl(KUULA_STORY_SCENES[scene].code);
+    };
+    const preload = (scene: number) => { if (!finishSwap && want === shown && scene !== shown) loadBack(scene); };
+
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.source !== window.parent) return;
+      const d = e.data as { type?: string; index?: unknown } | null;
+      if (!d || d.type !== "vpv-hero-scene") return;
+      const n = Number(d.index);
+      if (!Number.isFinite(n)) return;
+      const next = ((Math.round(n) % count) + count) % count;
+      if (next === want) return;
+      want = next;
+      finishSwap?.(); // a fade still running is completed first
+      if (next === shown) return;
+      if (back.scene === next && back.ready) { swap(); return; }
+      loadBack(next); // no-op if it is already on its way
+      const mine = loadId;
+      later(() => { if (mine === loadId && want === next && shown !== next) { back.ready = true; swap(); } }, SCENE_GIVE_UP_MS);
+    };
+
+    window.addEventListener("message", onMessage);
+    // Tell the home page we are listening, so it can say which part is showing.
+    try { window.parent.postMessage({ type: "vpv-hero-ready" }, window.location.origin); } catch { /* not framed */ }
+    // The opening scene is up first; then the second starts loading behind it.
+    if (!saveData) later(() => preload(1), PRELOAD_FIRST_MS);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      timers.forEach((t) => window.clearTimeout(t));
+      timers.clear();
+    };
+  }, [src.kind]);
 
   // The ticker of tips along the bottom.
   useEffect(() => {
@@ -94,8 +220,13 @@ export default function HeroExperience() {
         @media (prefers-reduced-motion: reduce) { .xp-pulse, .xp-drag, .xp-nudge, .xp-fade { animation: none } }
       `}</style>
 
-      {/* The tour itself. */}
+      {/* The tour itself: two stacked frames, so a scene change can fade
+          one tour into the next (see the scene effect above). The second
+          stays empty until the story asks for another scene. The frames
+          take z-index 1 and 2 while swapping, so the bars and marks below
+          are z-10 to stay on top of both. */}
       <iframe
+        ref={frameA}
         src={src.src}
         title="Live VPV: walk through a real factory in 360°"
         className="absolute inset-0 h-full w-full border-0"
@@ -103,15 +234,28 @@ export default function HeroExperience() {
         allowFullScreen
         onLoad={() => setLoaded(true)}
       />
+      {src.kind === "kuula" && (
+        <iframe
+          ref={frameB}
+          src="about:blank"
+          title="Live VPV: next scene"
+          aria-hidden="true"
+          tabIndex={-1}
+          className="absolute inset-0 h-full w-full border-0"
+          style={{ opacity: 0, pointerEvents: "none" }}
+          allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay"
+          allowFullScreen
+        />
+      )}
 
       {!loaded && (
-        <div className="absolute inset-0 grid place-items-center bg-[#0B1220]">
+        <div className="absolute inset-0 z-10 grid place-items-center bg-[#0B1220]">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-white" />
         </div>
       )}
 
       {/* Top bar. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-3 sm:px-5 sm:pt-4">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent px-3 pb-8 pt-3 sm:px-5 sm:pt-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-8 items-center rounded-lg bg-white px-2 shadow">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -140,7 +284,7 @@ export default function HeroExperience() {
       {/* Coach marks: a caption low on the stage, clear of the tour's own
           scene and its own navigation arrows, which sit mid-screen. */}
       {loaded && !touched && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[84px] flex justify-center px-4 sm:bottom-[96px]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[84px] z-10 flex justify-center px-4 sm:bottom-[96px]">
           <div
             className="xp-fade flex items-center gap-2.5 rounded-full bg-black/60 py-2.5 pl-3 pr-4 shadow-lg backdrop-blur-sm"
           >
@@ -154,7 +298,7 @@ export default function HeroExperience() {
       )}
 
       {/* Bottom bar. */}
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/75 to-transparent px-3 pb-3 pt-10 sm:px-5 sm:pb-4">
+      <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 bg-gradient-to-t from-black/75 to-transparent px-3 pb-3 pt-10 sm:px-5 sm:pb-4">
         <p key={tip} className="xp-fade pointer-events-none hidden text-[13px] text-white/85 sm:block">
           {TIPS[tip]}
         </p>
@@ -163,7 +307,7 @@ export default function HeroExperience() {
           target="_top"
           className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0B3D91] shadow-lg transition-transform hover:scale-[1.03]"
         >
-          Get this for your factory <ArrowRight className="h-4 w-4" aria-hidden />
+          Want this for your factory? <ArrowRight className="h-4 w-4" aria-hidden />
         </a>
       </div>
     </div>

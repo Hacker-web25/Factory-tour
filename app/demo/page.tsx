@@ -139,7 +139,7 @@ export default function DemoPage() {
                   className="hidden items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[13px] font-semibold text-[#0B3D91] shadow-lg transition-transform hover:scale-[1.03] sm:inline-flex"
                   data-testid="demo-cta"
                 >
-                  Get this for your factory <ArrowRight className="h-4 w-4" aria-hidden />
+                  Want this for your factory? <ArrowRight className="h-4 w-4" aria-hidden />
                 </a>
               )}
               <button
