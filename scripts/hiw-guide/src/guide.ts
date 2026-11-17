@@ -281,7 +281,7 @@ const HTML = `
       <p class="hg-lede hg-lede--q hg-rv" style="--k:2">Want potential global buyers to explore your factory without visiting in person?</p>
       <p class="hg-lede hg-rv" style="--k:2">It's simple. Choose your plan, our team contacts you to book a shoot, and our VPV expert captures your factory in 360° and turns it into an interactive virtual tour. Once ready, you can share it with buyers and let them explore your facility from anywhere.</p>
       <div class="hg-ctas hg-rv" style="--k:3">
-        <a class="hg-btn" href="/assessment" data-testid="hiw-cta">Find the Right VPV for Your Factory ${svg(I.arrow, 18, 2.2)}</a>
+        <a class="hg-btn" href="/plans" data-testid="hiw-cta">Find the Right VPV for Your Factory ${svg(I.arrow, 18, 2.2)}</a>
         <a class="hg-ghost" href="#hg-get">See what you get ${svg(I.down, 16, 2.2)}</a>
       </div>
     </div>
@@ -305,7 +305,7 @@ ${section("hg-cost", "What it costs", "Every rupee, in plain words", `Nothing is
 <section class="hg-end" aria-labelledby="hg-end-t"><div class="hg-wrap hg-end-in hg-rv">
   <h2 class="hg-h2" id="hg-end-t">That's all there is to it.</h2>
   <p class="hg-intro">Find your plan and see your price in a few minutes. No call needed.</p>
-  <div class="hg-ctas"><a class="hg-btn hg-btn--light" href="/assessment" data-testid="hiw-cta-end">Find the Right VPV for Your Factory ${svg(I.arrow, 18, 2.2)}</a>
+  <div class="hg-ctas"><a class="hg-btn hg-btn--light" href="/plans" data-testid="hiw-cta-end">Find the Right VPV for Your Factory ${svg(I.arrow, 18, 2.2)}</a>
   <a class="hg-ghost hg-ghost--light" href="${WHATSAPP.href}" target="_blank" rel="noopener">${svg(I.chat, 17)} Prefer to talk? ${WHATSAPP.label}</a></div>
 </div></section>`;
 

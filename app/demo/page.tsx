@@ -119,7 +119,7 @@ export default function DemoPage() {
             <div className="max-w-sm">
               <p className="text-lg font-semibold">The live demo is being updated</p>
               <p className="mt-2 text-sm text-white/70">Please check back in a few minutes, or see a VPV made for your factory.</p>
-              <a href="/assessment" className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#0B3D91]">
+              <a href="/plans" className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#0B3D91]">
                 Find the right VPV for your factory <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
             </div>

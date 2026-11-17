@@ -327,7 +327,7 @@ export default function WhyVpv() {
           </h2>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a
-              href="/assessment"
+              href="/plans"
               className="inline-flex h-14 items-center gap-2 rounded-full px-8 text-[16px] font-bold text-white shadow-[0_14px_30px_rgba(20,104,216,.35)] transition-transform hover:scale-[1.03]"
               style={{ background: `linear-gradient(120deg, ${NAVY}, ${BLUE} 55%, ${CYAN})` }}
             >

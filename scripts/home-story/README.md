@@ -4,8 +4,8 @@ The home page (`/`) opens with the live 360° demo pinned on one side. As the vi
 
 1. You are already investing in exhibitions and meeting buyers.
 2. What's the cost of not giving buyers enough confidence to buy from you? This part has a small calculator (leads 100–5,000 over five years, typed or dragged; conversion 1–50%). It sends the same `calculator_used` event the Why VPV calculator used to send, so the calculator report keeps working.
-3. Want to show your factory to international clients?
-4. Don't want to share your factory with your competition?
+3. Give international buyers the confidence to choose you.
+4. Show your factory only to buyers. Keep competitors out.
 5. How VPV helps: one answer each to parts 2–4, then the call to action.
 
 * `src/story.ts`: markup, scroll logic and the calculator. It imports `lib/whyVpvCalc`, `lib/pricing` and `lib/analytics/client` from the app.
