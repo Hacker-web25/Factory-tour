@@ -236,7 +236,7 @@ var h={label:"Cab travel",amountInr:4e3,mode:"By cab from our Gurugram office, t
       <p class="hg-lede hg-lede--q hg-rv" style="--k:2">Want potential global buyers to explore your factory without visiting in person?</p>
       <p class="hg-lede hg-rv" style="--k:2">It's simple. Choose your plan, our team contacts you to book a shoot, and our VPV expert captures your factory in 360\xB0 and turns it into an interactive virtual tour. Once ready, you can share it with buyers and let them explore your facility from anywhere.</p>
       <div class="hg-ctas hg-rv" style="--k:3">
-        <a class="hg-btn" href="/assessment" data-testid="hiw-cta">Find the Right VPV for Your Factory ${n(a.arrow,18,2.2)}</a>
+        <a class="hg-btn" href="/plans" data-testid="hiw-cta">Find the Right VPV for Your Factory ${n(a.arrow,18,2.2)}</a>
         <a class="hg-ghost" href="#hg-get">See what you get ${n(a.down,16,2.2)}</a>
       </div>
     </div>
@@ -260,6 +260,6 @@ ${g("hg-cost","What it costs","Every rupee, in plain words",`Nothing is hidden. 
 <section class="hg-end" aria-labelledby="hg-end-t"><div class="hg-wrap hg-end-in hg-rv">
   <h2 class="hg-h2" id="hg-end-t">That's all there is to it.</h2>
   <p class="hg-intro">Find your plan and see your price in a few minutes. No call needed.</p>
-  <div class="hg-ctas"><a class="hg-btn hg-btn--light" href="/assessment" data-testid="hiw-cta-end">Find the Right VPV for Your Factory ${n(a.arrow,18,2.2)}</a>
+  <div class="hg-ctas"><a class="hg-btn hg-btn--light" href="/plans" data-testid="hiw-cta-end">Find the Right VPV for Your Factory ${n(a.arrow,18,2.2)}</a>
   <a class="hg-ghost hg-ghost--light" href="${O.href}" target="_blank" rel="noopener">${n(a.chat,17)} Prefer to talk? ${O.label}</a></div>
 </div></section>`,N=!1;function we(e){if(!N){let i=document.createElement("style");i.id="hg-style",i.textContent=R,document.head.appendChild(i),N=!0}let t=document.createElement("div");t.className="hg",t.setAttribute("data-testid","hiw-guide"),t.innerHTML=oe,e.appendChild(t);let o=Array.from(t.querySelectorAll(".hg-rv")),s=null;if("IntersectionObserver"in window){t.classList.add("hg-js"),s=new IntersectionObserver(c=>c.forEach(l=>{l.isIntersecting&&(l.target.classList.add("is-in"),s?.unobserve(l.target))}),{rootMargin:"0px 0px -8% 0px",threshold:.08}),o.forEach(c=>s.observe(c));let i=t.querySelector(".hg-steps");if(i){let c=new IntersectionObserver(l=>l.forEach(m=>{m.isIntersecting&&(i.classList.add("is-drawn"),c.disconnect())}),{threshold:.05});c.observe(i)}}let u=()=>document.getElementById("vpv-site-header"),p=()=>t.style.setProperty("--hg-top",`${u()?.getBoundingClientRect().height??0}px`);p(),addEventListener("resize",p);let I=i=>{let c=i.target.closest?.("a[href^='#']");if(!c||!t.contains(c))return;let l=t.querySelector(c.getAttribute("href"));if(!l)return;i.preventDefault();let m=u(),M=t.querySelector(".hg-jump"),L=(m?m.getBoundingClientRect().height:0)+(M?M.offsetHeight:0)+12,C=matchMedia("(prefers-reduced-motion: reduce)").matches;scrollTo({top:l.getBoundingClientRect().top+scrollY-L,behavior:C?"auto":"smooth"})};t.addEventListener("click",I);let S=new MutationObserver(()=>{e.isConnected||k()});S.observe(document.body,{childList:!0,subtree:!0});function k(){S.disconnect(),s?.disconnect(),t.removeEventListener("click",I),removeEventListener("resize",p)}return k}export{we as mount};

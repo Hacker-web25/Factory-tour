@@ -346,6 +346,21 @@ export function bundleTextPatches(): [string, string][] {
       '(0,Dt.jsx)("div",{className:"mt-10 flex flex-col gap-3 sm:flex-row","data-testid":"plans-cta-top",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})}),',
       PLANS_CTA,
     ],
+    // The "Find the Right VPV for Your Factory" buttons on the closing call to
+    // action, How it works and Case studies go to the plans page; the plans
+    // page's own button ("Not sure which plan is right...") stays on /assessment.
+    [
+      '{to:"/assessment",className:"btn-primary mt-8 !min-h-[56px] !px-8 text-lg","data-testid":"final-cta-btn"',
+      '{to:"/plans",className:"btn-primary mt-8 !min-h-[56px] !px-8 text-lg","data-testid":"final-cta-btn"',
+    ],
+    [
+      '{to:"/assessment",className:"btn-primary mt-8","data-testid":"hiw-cta"',
+      '{to:"/plans",className:"btn-primary mt-8","data-testid":"hiw-cta"',
+    ],
+    [
+      '{to:"/assessment",className:"btn-primary mt-8","data-testid":"case-studies-cta"',
+      '{to:"/plans",className:"btn-primary mt-8","data-testid":"case-studies-cta"',
+    ],
     // The lower Kuula demo opens on the first real scene (Entrance), not the
     // collection's index image, and no longer auto-advances back to it.
     ["https://kuula.co/share/collection/7cprp?logo=-1&info=0&fs=1&vr=1&sd=1&autorotate=1.5&autop=10&thumbs=1", "https://kuula.co/share/5dmM7/collection/7cprp?logo=-1&info=0&fs=1&vr=1&sd=1&autorotate=1.5&thumbs=1"],

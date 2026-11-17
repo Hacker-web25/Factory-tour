@@ -7,8 +7,8 @@
  *   1  You are already investing in exhibitions and meeting buyers.
  *   2  What's the cost of not giving buyers enough confidence to buy from you?
  *      (a calculator: leads, value, conversion)
- *   3  Want to show your factory to international clients?
- *   4  Don't want to share your factory with your competition?
+ *   3  Give international buyers the confidence to choose you.
+ *   4  Show your factory only to buyers. Keep competitors out.
  *   5  How VPV helps: one answer to each of 2–4, then the call to action.
  *
  * Mounted by the loader in lib/site/home.ts into <div id="home-story">,
@@ -123,7 +123,7 @@ export function mount(host: HTMLElement): () => void {
         </article>
 
         <article class="hs-part" data-i="2">
-          <h2 class="hs-h2">${words("Want to show your factory to international clients?")}</h2>
+          <h2 class="hs-h2">${words("Give international buyers the confidence to choose you.")}</h2>
           <p class="hs-body hs-in" style="--d:5">Walk an international buyer through your plant on Zoom, with no travel on either side. Send your VPV with your company profile, so they understand your capability before deciding on a physical audit.</p>
           <div class="hs-map hs-in" style="--d:7" aria-hidden="true">
             <svg viewBox="0 0 440 150">
@@ -131,25 +131,29 @@ export function mount(host: HTMLElement): () => void {
               <path class="hs-arc" style="--k:1" d="M300 104 Q230 20 120 44"/>
               <path class="hs-arc" style="--k:2" d="M300 104 Q190 10 64 66"/>
               <path class="hs-arc" style="--k:3" d="M300 104 Q360 50 392 92"/>
+              <path class="hs-arc" style="--k:4" d="M300 104 Q286 48 330 30"/>
+              <path class="hs-arc" style="--k:5" d="M300 104 Q376 4 414 44"/>
               <circle class="hs-home" cx="300" cy="104" r="7"/>
               <circle class="hs-city" style="--k:0" cx="190" cy="58" r="5"/><circle class="hs-city" style="--k:1" cx="120" cy="44" r="5"/>
               <circle class="hs-city" style="--k:2" cx="64" cy="66" r="5"/><circle class="hs-city" style="--k:3" cx="392" cy="92" r="5"/>
+              <circle class="hs-city" style="--k:4" cx="330" cy="30" r="5"/><circle class="hs-city" style="--k:5" cx="414" cy="44" r="5"/>
               <text class="hs-tl hs-tl--home" x="300" y="130">Your factory</text>
               <text class="hs-tl" style="--k:0" x="196" y="80">Dubai</text><text class="hs-tl" style="--k:1" x="120" y="30">Frankfurt</text>
               <text class="hs-tl" style="--k:2" x="64" y="52">Paris</text><text class="hs-tl" style="--k:3" x="392" y="78">Singapore</text>
+              <text class="hs-tl" style="--k:4" x="330" y="16">Russia</text><text class="hs-tl" style="--k:5" x="414" y="30">USA</text>
             </svg>
           </div>
         </article>
 
         <article class="hs-part" data-i="3">
-          <h2 class="hs-h2">${words("Don't want to share your factory with your competition?")}</h2>
-          <p class="hs-body hs-in" style="--d:5">Decide exactly who gets in. Protect each link you send:</p>
+          <h2 class="hs-h2">${words("Show your factory only to buyers. Keep competitors out.")}</h2>
+          <p class="hs-body hs-in" style="--d:5">Decide exactly who gets to see your factory.</p>
           <ul class="hs-locks">
             ${[
-              [icon.link, "One-time links", "A link opens once, for the buyer you sent it to."],
-              [icon.timer, "Links that expire", "Give a link 24 hours, or a week."],
-              [icon.device, "Device limits", "Decide how many devices a link works on."],
-              [icon.key, "Password protection", "Only the buyer you gave it to can get in."],
+              [icon.link, "One-time view links", "A link opens once, for the buyer you sent it to."],
+              [icon.timer, "Control link expiry time", "Give a link 24 hours, or a week."],
+              [icon.device, "Limit device access", "Decide how many devices a link works on."],
+              [icon.key, "Password protected link", "Only the buyer you gave it to can get in."],
             ].map(([ic, t, d], k) => `<li class="hs-lock hs-in" style="--d:${6 + k}"><span class="hs-ic">${svg(ic, 18)}</span><span><b>${t}</b><small>${d}</small></span><i class="hs-switch" style="--k:${k}"></i></li>`).join("")}
           </ul>
         </article>
@@ -159,13 +163,13 @@ export function mount(host: HTMLElement): () => void {
           <h2 class="hs-h2">${words("Buyers trust what they can see.")}</h2>
           <ol class="hs-answers">
             ${[
-              [icon.zap, "70% Faster Deal Closures", "Buyers get all the key factory information they need, so decisions happen sooner."],
-              [icon.chart, "50% Increased Conversion Ratio", "More of your exhibition and online leads turn into real business."],
+              [icon.zap, "Up to 70% Faster Deal Closures", "Buyers get all the key factory information they need, so decisions happen sooner."],
+              [icon.chart, "Up to 50% Increased Conversion Ratio", "More of your exhibition and online leads turn into real business."],
               [icon.trophy, "Helps Differentiate from your competition", "Show real operations, scale and quality, something most competitors still don't."],
             ].map(([ic, t, d], k) => `<li class="hs-ans hs-in" style="--d:${4 + k * 2}"><span class="hs-ic hs-ic--grad">${svg(ic, 20)}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}
           </ol>
           <div class="hs-ctas hs-in" style="--d:11">
-            <a class="hs-btn" href="/assessment" data-testid="home-story-cta">Find the Right VPV for Your Factory ${arrow}</a>
+            <a class="hs-btn" href="/plans" data-testid="home-story-cta">Find the Right VPV for Your Factory ${arrow}</a>
             <a class="hs-link" href="/why-vpv">See everything VPV does ${arrow}</a>
           </div>
         </article>
@@ -309,6 +313,18 @@ export function mount(host: HTMLElement): () => void {
   const unlock = () => frame.classList.add("is-open");
   const lock = () => frame.classList.remove("is-open");
   guard.addEventListener("click", unlock);
+  // A mouse that moves over the tour hands it the mouse straight away, so the
+  // very first press can already drag. (A press on the clear layer could only
+  // open the tour, never start the drag, so coming back to it took two goes.)
+  // Not while the wheel is in use: a wheel over the tour keeps turning the
+  // story's parts, and touch still opens it with a tap.
+  let lastWheelAt = -1e4;
+  guard.addEventListener("wheel", () => { lastWheelAt = performance.now(); }, { passive: true });
+  guard.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || performance.now() - lastWheelAt < 900) return;
+    if (Math.abs(e.movementX) + Math.abs(e.movementY) < 2) return;
+    unlock();
+  });
   frame.addEventListener("mouseleave", lock);
   const outside = (e: Event) => { if (!frame.contains(e.target as Node)) lock(); };
   document.addEventListener("touchstart", outside, { passive: true });
