@@ -150,11 +150,11 @@ export function mount(host: HTMLElement): () => void {
           <p class="hs-body hs-in" style="--d:5">Decide exactly who gets to see your factory.</p>
           <ul class="hs-locks">
             ${[
-              [icon.link, "One-time view links", "A link opens once, for the buyer you sent it to."],
-              [icon.timer, "Control link expiry time", "Give a link 24 hours, or a week."],
-              [icon.device, "Limit device access", "Decide how many devices a link works on."],
-              [icon.key, "Password protected link", "Only the buyer you gave it to can get in."],
-            ].map(([ic, t, d], k) => `<li class="hs-lock hs-in" style="--d:${6 + k}"><span class="hs-ic">${svg(ic, 18)}</span><span><b>${t}</b><small>${d}</small></span><i class="hs-switch" style="--k:${k}"></i></li>`).join("")}
+              [icon.link, "One-time view links"],
+              [icon.timer, "Control link expiry time"],
+              [icon.device, "Limit device access"],
+              [icon.key, "Password protected link"],
+            ].map(([ic, t], k) => `<li class="hs-lock hs-in" style="--d:${6 + k}"><span class="hs-ic">${svg(ic, 18)}</span><span><b>${t}</b></span><i class="hs-switch" style="--k:${k}"></i></li>`).join("")}
           </ul>
         </article>
 
