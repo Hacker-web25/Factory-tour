@@ -117,15 +117,15 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(SITE_PLANS.authority.sharingControls, false);
     assert.equal(SITE_PLANS.control.sharingControls, true);
 
-    // The special offer: 20% off the regular price for the first 50
+    // The special offer: 50% off the regular price for the first 50
     // customers, landing exactly on the decided prices. The regular prices
     // are what is charged from the 101st buyer, so they are pinned too.
     assert.equal(LAUNCH_OFFER.active, true);
-    assert.equal(LAUNCH_OFFER.percent, 20);
+    assert.equal(LAUNCH_OFFER.percent, 50);
     assert.equal(LAUNCH_OFFER.limit, 50);
-    assert.equal(SITE_PLANS.confidence.regularInr, 48_750);
-    assert.equal(SITE_PLANS.authority.regularInr, 73_750);
-    assert.equal(SITE_PLANS.control.regularInr, 112_500);
+    assert.equal(SITE_PLANS.confidence.regularInr, 78_000);
+    assert.equal(SITE_PLANS.authority.regularInr, 118_000);
+    assert.equal(SITE_PLANS.control.regularInr, 180_000);
     for (const id of SITE_PLAN_ORDER) {
       const p = SITE_PLANS[id];
       // Enterprise's ₹2,99,999 is a chosen headline price, so compare to the nearest rupee.
@@ -144,8 +144,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(sitePlanQuote("authority", "ncr").amountInr, 59_000);
     assert.equal(sitePlanQuote("control", "ncr").amountInr, 90_000);
     // Once it closes: regular price + ₹4,000 cab.
-    assert.equal(sitePlanQuote("confidence", "ncr", false).amountInr, 48_750 + 4_000);
-    assert.equal(sitePlanQuote("control", "ncr", false).amountInr, 112_500 + 4_000);
+    assert.equal(sitePlanQuote("confidence", "ncr", false).amountInr, 78_000 + 4_000);
+    assert.equal(sitePlanQuote("control", "ncr", false).amountInr, 180_000 + 4_000);
   });
 
   it("keeps every upgrade path pointing UP", () => {
@@ -521,7 +521,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     const closed = siteQuote("control", { city: "Manesar", offerOpen: false });
     assert.equal(closed.savingInr, 0);
     assert.ok(!closed.lines.some((l) => l.kind === "offer"));
-    assert.equal(closed.taxableInr, 112_500 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(closed.taxableInr, 180_000 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("charges the regular price for real once 50 customers have paid", async () => {

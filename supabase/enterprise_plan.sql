@@ -26,4 +26,4 @@ alter table public.funnel_leads
     check (plot_size is null or plot_size in ('upto200','upto600','upto1000','above1000'));
 
 comment on column public.funnel_leads.plot_size is
-  'Plant size band the visitor chose: upto200, upto600, upto1000 or above1000 (sq yards / gaj).';
+  'Plant size band the visitor chose: upto200, upto600, upto1000 or above1000 (sq yards).';

@@ -112,7 +112,7 @@ describe("upgrade prices", () => {
     assert.deepEqual(upgradeQuote("confidence", "control", true), { amountInr: 51_000, addAreas: 11, addVideos: 8, addPdfs: 50 });
     assert.deepEqual(upgradeQuote("authority", "control", true), { amountInr: 31_000, addAreas: 7, addVideos: 5, addPdfs: 30 });
     // After the offer, both prices are the regular ones.
-    assert.equal(upgradeQuote("confidence", "control", false).amountInr, 112_500 - 48_750);
+    assert.equal(upgradeQuote("confidence", "control", false).amountInr, 180_000 - 78_000);
   });
 
   it("the invoice line says what was bought", () => {

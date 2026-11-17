@@ -41,9 +41,10 @@ import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
 import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderHtml } from "@/lib/site/header";
 import { SITE_PATHS } from "@/lib/site/paths";
+import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.97b133f9.js";
+const JS_SRC = "/static/js/main.e4f71ff3.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -239,7 +240,12 @@ li:has(>.vpv-gold-line)>svg{color:#D9A21B;width:1.15rem;height:1.15rem;margin-to
 div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFFBEA 0%,#fff 38%)!important;box-shadow:0 18px 44px -18px rgba(217,162,27,.55)!important}\
 \
 \
-@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span 4;row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:block;margin-top:1.25rem}}\
+@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span ${3 + PLAN_ROWS};row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span ${PLAN_ROWS};margin-top:1.25rem}}\
+.vpv-strike{color:#0f172a;text-decoration:line-through;text-decoration-color:#e11d2e;text-decoration-thickness:2px}\
+.vpv-was{margin:0}.vpv-was .vpv-strike{font-size:1.875rem;line-height:1.15;font-weight:800;letter-spacing:-.02em;text-decoration-thickness:3px}\
+.vpv-now-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}\
+.vpv-now{margin:0;font-size:1.125rem;line-height:1.3;font-weight:800;color:#0b2a5b}\
+.vpv-no{color:#94a3b8}.vpv-no-ic{flex:none;margin-top:.125rem;color:#e5484d}\
 @media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{padding:1.25rem}}\
 .vpv-aoa-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border:1px solid #94a3b8;border-radius:999px;font-size:11px;font-weight:700;line-height:1;color:#64748b;cursor:help;vertical-align:middle;-webkit-text-fill-color:currentColor}\
 .vpv-aoa-q:hover,.vpv-aoa-q:focus{border-color:#1468D8;color:#1468D8;outline:none;z-index:30}\

@@ -2,7 +2,7 @@
  * VPV Enterprise, plant sizes and the new PDF counts.
  *
  * What matters: the headline prices and PDF counts are pinned, Enterprise is
- * charged the right amount (₹2,99,999 + GST under the offer, ₹3,74,999 after
+ * charged the right amount (₹2,99,999 + GST under the offer, ₹5,99,998 after
  * it), and the recommendation never pushes a small plant into Enterprise or
  * leaves a 1,000+ sq yard plant on a plan sized for less.
  */
@@ -39,7 +39,7 @@ describe("enterprise: the plan and its plot sizes", () => {
     assert.equal(SITE_PLANS.control.pdfs, 50);
     assert.equal(SITE_PLANS.enterprise.pdfs, 100);
     assert.equal(SITE_PLANS.enterprise.priceInr, 299_999);
-    assert.equal(SITE_PLANS.enterprise.regularInr, 374_999);
+    assert.equal(SITE_PLANS.enterprise.regularInr, 599_998);
     assert.equal(SITE_PLANS.enterprise.sharingControls, true);
     assert.ok(isSitePlanId("enterprise"));
     assert.ok(!isSitePlanId("platinum"));
@@ -52,17 +52,17 @@ describe("enterprise: the plan and its plot sizes", () => {
     assert.match(ENTERPRISE_PERSONAL.shoot.long, /Nitin Gupta/);
   });
 
-  it("charges ₹2,99,999 + 18% GST under the offer, and ₹3,74,999 + GST after it", () => {
+  it("charges ₹2,99,999 + 18% GST under the offer, and ₹5,99,998 + GST after it", () => {
     const on = siteQuote("enterprise", { offerOpen: true });
     const off = siteQuote("enterprise", { offerOpen: false });
     const gstOn = withGst(299_999);
-    const gstOff = withGst(374_999);
+    const gstOff = withGst(599_998);
     assert.ok(gstOn.total > 353_000 && gstOn.total < 354_100, String(gstOn.total));
-    assert.ok(gstOff.total > 442_000 && gstOff.total < 443_000, String(gstOff.total));
+    assert.ok(gstOff.total > 707_000 && gstOff.total < 709_000, String(gstOff.total));
     const planPart = (q: ReturnType<typeof siteQuote>) =>
       q.lines.filter((l) => l.kind === "plan" || l.kind === "offer").reduce((x, l) => x + l.amountInr, 0);
     assert.equal(planPart(on), 299_999);
-    assert.equal(planPart(off), 374_999);
+    assert.equal(planPart(off), 599_998);
   });
 });
 
