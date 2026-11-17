@@ -25,12 +25,27 @@ export const DEMO_TOUR_ID: string = process.env.NEXT_PUBLIC_DEMO_TOUR_ID ?? "";
  *  them inside the factory, looking around, the moment it loads. */
 export const KUULA_FIRST_SCENE = "5dmM7";
 
-/** The fallback: the site's existing Kuula demo collection, opened on its
- *  first real scene, with Kuula's own thumbnails and branding off so our
- *  frame is the only chrome. No auto-advance (`autop`): it would cycle the
- *  visitor back round to the index page. */
-export const KUULA_DEMO_URL =
-  `https://kuula.co/share/${KUULA_FIRST_SCENE}/collection/7cprp?logo=-1&info=0&fs=0&vr=0&sd=1&autorotate=0.6&thumbs=0&inst=0`;
+/** One scene of the fallback: the site's existing Kuula demo collection,
+ *  with Kuula's own thumbnails and branding off so our frame is the only
+ *  chrome. No auto-advance (`autop`): it would cycle the visitor back round
+ *  to the index page. */
+export const kuulaSceneUrl = (code: string): string =>
+  `https://kuula.co/share/${code}/collection/7cprp?logo=-1&info=0&fs=0&vr=0&sd=1&autorotate=0.6&thumbs=0&inst=0`;
+
+/** The fallback, opened on its first real scene. */
+export const KUULA_DEMO_URL = kuulaSceneUrl(KUULA_FIRST_SCENE);
+
+/** The home page's scroll story shows one scene per part, in this order
+ *  (exhibitions, conversion, international buyers, privacy, how VPV helps).
+ *  `code` is the scene's id in the Kuula collection. To change a scene,
+ *  swap its code; to add one, add a row (the story has five parts). */
+export const KUULA_STORY_SCENES: { code: string; name: string }[] = [
+  { code: KUULA_FIRST_SCENE, name: "Entrance" },
+  { code: "5dmTG", name: "Quality control" },
+  { code: "5Twl3", name: "Aerial" },
+  { code: "5dmT0", name: "Plasma machine" },
+  { code: "5dmHs", name: "Awards" },
+];
 
 export function experienceSource(): { kind: "vpv" | "kuula"; src: string } {
   const id = DEMO_TOUR_ID.trim();

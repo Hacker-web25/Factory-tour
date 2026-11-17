@@ -5,7 +5,8 @@
  * the left side moves through five parts as the visitor scrolls:
  *
  *   1  You are already investing in exhibitions and meeting buyers.
- *   2  Converting only 3% of your leads?   (a calculator: leads, value, conversion)
+ *   2  What's the cost of not giving buyers enough confidence to buy from you?
+ *      (a calculator: leads, value, conversion)
  *   3  Want to show your factory to international clients?
  *   4  Don't want to share your factory with your competition?
  *   5  How VPV helps: one answer to each of 2–4, then the call to action.
@@ -21,9 +22,9 @@ import CSS from "./story.css";
 const CONV = 3; // the conversion part 2 asks about, and the slider's start
 const VALUES = [5, 10, 25, 50, 100, 500]; // lakh
 const valueLabel = (v: number) => (v >= 100 ? `₹${v / 100}CR` : `₹${v}L`);
-const LEADS = { min: 100, max: 10_000, step: 50, start: 1_000 }; // over 5 years
+const LEADS = { min: 100, max: 5_000, step: 50, start: 1_000 }; // over 5 years
 const VALUE_START = 100; // lakh: ₹1 crore per lead to begin with
-const CONVS = { min: 1, max: 20 };
+const CONVS = { min: 1, max: 50 };
 /** Save the calculator once the sliders have rested this long. */
 const SAVE_AFTER_MS = 1500;
 /** ₹5.03 Crore, ₹48.50 Lakh — two decimals, Indian grouping. */
@@ -85,20 +86,20 @@ export function mount(host: HTMLElement): () => void {
       <div class="hs-stage">
         <article class="hs-part" data-i="0" data-testid="home-story-hero">
           <p class="hs-eyebrow">Real Factories. Real Confidence.</p>
-          <h1 class="hs-h1 hs-h1--hero" data-testid="landing-heading">${words("You spend lakhs meeting global buyers.")}<span class="hs-red">${words("How much business are you losing", 6)} <span class="hs-mark">${words("after they leave?", 12)}<svg class="hs-scribble" viewBox="0 0 300 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C 60 5, 140 4, 297 9"/></svg></span></span></h1>
-          <p class="hs-lede hs-in" style="--d:12">Meeting a buyer is just the beginning. You need to give them enough proof, confidence and reasons to choose you, even after the exhibition is over.</p>
-          <div class="hs-ctas hs-in" style="--d:14">
+          <h1 class="hs-h1 hs-h1--hero" data-testid="landing-heading">${words("You spend lakhs meeting global buyers in exhibitions.")}<span class="hs-red">${words("How much business are you losing", 8)} <span class="hs-mark">${words("after they leave?", 14)}<svg class="hs-scribble" viewBox="0 0 300 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C 60 5, 140 4, 297 9"/></svg></span></span></h1>
+          <p class="hs-lede hs-in" style="--d:14">Meeting a buyer is just the beginning. <strong>You need to give them enough proof, confidence and reasons to choose you</strong>, even after the exhibition is over.</p>
+          <div class="hs-ctas hs-in" style="--d:16">
             <a class="hs-btn" href="/why-vpv" data-testid="home-story-why-vpv">Why VPV? ${arrow}</a>
             <a class="hs-pill" href="/case-studies" data-testid="home-story-case-study"><span class="hs-play" aria-hidden="true"></span><span><b>80%+ conversion with VPV</b><small>Anuj Anand's story · See here</small></span></a>
           </div>
-          <p class="hs-cue hs-in" style="--d:16" aria-hidden="true"><span></span>Scroll</p>
+          <p class="hs-cue hs-in" style="--d:18" aria-hidden="true"><span></span>Scroll</p>
         </article>
 
         <article class="hs-part" data-i="1">
-          <h2 class="hs-h2">${words(`Converting only ${CONV}% of your leads?`)}</h2>
+          <h2 class="hs-h2 hs-h2--calc">${words("What's the cost of not giving buyers enough confidence to buy from you?")}</h2>
           <div class="hs-calc hs-in" style="--d:4">
             <div class="hs-cq">
-              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-leads">Total Qualified Leads in 5 Years</label><output class="hs-val hs-leads-out" for="hs-leads">0</output></div>
+              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-leads">Total Qualified Leads in 5 Years</label><input id="hs-leads-num" class="hs-val hs-leads-in" type="text" inputmode="numeric" autocomplete="off" maxlength="7" value="0" aria-label="Total qualified leads in 5 years: type a number from ${LEADS.min} to ${LEADS.max}"></div>
               <input id="hs-leads" class="hs-range hs-range--leads" type="range" min="${LEADS.min}" max="${LEADS.max}" step="${LEADS.step}" value="${LEADS.start}">
               <p class="hs-ends"><span>${LEADS.min.toLocaleString("en-IN")}</span><span>${LEADS.max.toLocaleString("en-IN")}</span></p>
             </div>
@@ -111,7 +112,7 @@ export function mount(host: HTMLElement): () => void {
               </div>
             </div>
             <div class="hs-cq">
-              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-conv">Your conversion ratio?<small>What % of leads turn into business?</small></label><output class="hs-val hs-conv-out" for="hs-conv">${CONV}%</output></div>
+              <div class="hs-cq-head"><label class="hs-cq-t" for="hs-conv">Your current conversion ratio?<small>What % of leads turn into business?</small></label><output class="hs-val hs-conv-out" for="hs-conv">${CONV}%</output></div>
               <div class="hs-conv-row"><span>${CONVS.min}%</span><input id="hs-conv" class="hs-range hs-range--conv" type="range" min="${CONVS.min}" max="${CONVS.max}" step="1" value="${CONV}"><span>${CONVS.max}%</span></div>
             </div>
             <div class="hs-res" aria-live="polite">
@@ -173,8 +174,9 @@ export function mount(host: HTMLElement): () => void {
       <div class="hs-demo" data-testid="home-story-demo">
         <div class="hs-frame">
           <iframe data-src="/experience" title="Live VPV: walk through a real factory in 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay" allowfullscreen></iframe>
-          <button type="button" class="hs-guard" aria-label="Explore the live factory tour"><span>Click to explore the live tour</span></button>
+          <button type="button" class="hs-guard" aria-label="Click to explore the live factory tour"></button>
         </div>
+        <p class="hs-hint">Drag to explore, click to experience</p>
       </div>
     </div>
     <div class="hs-steps" aria-hidden="true">${PARTS.map(() => "<i></i>").join("")}</div>
@@ -189,7 +191,7 @@ export function mount(host: HTMLElement): () => void {
   /* ---------- the calculator (part 2) ---------- */
   const range = $<HTMLInputElement>(".hs-range--leads");
   const convRange = $<HTMLInputElement>(".hs-range--conv");
-  const leadsOut = $<HTMLElement>(".hs-leads-out");
+  const leadsIn = $<HTMLInputElement>(".hs-leads-in");
   const convOut = $<HTMLElement>(".hs-conv-out");
   const lossNum = $<HTMLElement>(".hs-loss-num");
   const lossBox = $<HTMLElement>(".hs-loss");
@@ -226,7 +228,7 @@ export function mount(host: HTMLElement): () => void {
     const opportunity = calc.leads * calc.valueLakh * 1_00_000;
     const won = (opportunity * calc.conv) / 100;
     const lost = opportunity - won;
-    leadsOut.textContent = calc.leads.toLocaleString("en-IN");
+    if (document.activeElement !== leadsIn) leadsIn.value = calc.leads.toLocaleString("en-IN"); // never rewrite the box while they type in it
     convOut.textContent = `${calc.conv}%`;
     fill(range, calc.leads, LEADS.min, LEADS.max);
     fill(convRange, calc.conv, CONVS.min, CONVS.max);
@@ -253,6 +255,26 @@ export function mount(host: HTMLElement): () => void {
   };
   const changed = () => { touched = true; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), SAVE_AFTER_MS); recalc(); };
   range.addEventListener("input", () => { calc.leads = Number(range.value); lastField = "leads"; changed(); });
+  // The box beside the slider takes a typed number too. Once what is typed is
+  // inside the slider's range the figures follow it; on Enter or leaving the
+  // box it is tidied (commas) and held to the range, so 7000 becomes 5,000.
+  const typedLeads = () => parseInt(leadsIn.value.replace(/\D/g, ""), 10);
+  leadsIn.addEventListener("focus", () => leadsIn.select());
+  leadsIn.addEventListener("input", () => {
+    const digits = leadsIn.value.replace(/\D/g, "");
+    if (digits !== leadsIn.value) leadsIn.value = digits;
+    const n = parseInt(digits, 10);
+    if (!(n >= LEADS.min && n <= LEADS.max)) return;
+    calc.leads = n; range.value = String(n); lastField = "leads"; changed();
+  });
+  const settleLeads = () => {
+    const n = typedLeads();
+    const v = Number.isFinite(n) ? Math.min(LEADS.max, Math.max(LEADS.min, n)) : calc.leads;
+    if (v !== calc.leads) { calc.leads = v; range.value = String(v); lastField = "leads"; changed(); }
+    leadsIn.value = v.toLocaleString("en-IN");
+  };
+  leadsIn.addEventListener("blur", settleLeads);
+  leadsIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); leadsIn.blur(); } });
   convRange.addEventListener("input", () => { calc.conv = Number(convRange.value); lastField = "conv"; changed(); });
   chips.forEach((c) => c.addEventListener("click", () => { customOn = false; calc.valueLakh = Number(c.dataset.v); lastField = "valueLakh"; changed(); }));
   // "Custom": their own amount per lead, in lakh or crore. Until they type
@@ -301,6 +323,20 @@ export function mount(host: HTMLElement): () => void {
   if (document.readyState === "complete") idle(startTour);
   else addEventListener("load", () => idle(startTour), { once: true });
 
+  /* ---------- the tour changes scene as the story moves on ---------- */
+  // Each part of the story shows its own scene. The tour page (/experience)
+  // is on our own origin, so we simply tell it which part is showing; it
+  // does the swapping (components/site/HeroExperience.tsx). It says "ready"
+  // once it is listening, so a part reached before that is not lost.
+  const sendScene = (i: number) => {
+    try { iframe.contentWindow?.postMessage({ type: "vpv-hero-scene", index: i }, location.origin); } catch { /* the tour is not up yet */ }
+  };
+  const onTourMsg = (e: MessageEvent) => {
+    if (e.origin !== location.origin || e.source !== iframe.contentWindow) return;
+    if (e.data && e.data.type === "vpv-hero-ready") sendScene(Math.max(0, active));
+  };
+  addEventListener("message", onTourMsg);
+
   /* ---------- scroll → active part ---------- */
   // Each part sits at its own stop: part 0 when the story first pins, the
   // last part exactly where the pin lets go, about one screen apart.
@@ -326,6 +362,7 @@ export function mount(host: HTMLElement): () => void {
     steps.forEach((s, k) => s.classList.toggle("on", k <= i));
     if (i === 1 && active !== 1) { shown = 0; recalc(); } // the loss counts up each time part 2 arrives
     active = i;
+    sendScene(i);
   };
 
   /* ---------- one scroll = one part, with a magnetic settle ---------- */
@@ -450,6 +487,7 @@ export function mount(host: HTMLElement): () => void {
     removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove);
     removeEventListener("touchend", onTouchEnd); removeEventListener("keydown", onKey);
     document.removeEventListener("touchstart", outside);
+    removeEventListener("message", onTourMsg);
     document.removeEventListener("visibilitychange", onHidden);
   }
   return dispose;
