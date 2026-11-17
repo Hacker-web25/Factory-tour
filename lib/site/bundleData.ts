@@ -57,31 +57,40 @@ const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Custome
 /**
  * The feature list for one plan card.
  *
- * Only what the plan actually includes is listed. Until Nov 2026 a feature
- * a plan lacked was still emitted with a leading "~", which the card drew
- * invisible to keep every row at the same height — so Confidence and
- * Authority showed a block of white space where Control's extras would be.
- * The ticks now run unbroken and the list simply grows with the plan:
- * Confidence 7, Authority 9, Control 11, Enterprise 13.
+ * Since 17 Nov 2026 every card lists the SAME rows in the SAME order, so a
+ * feature sits on the same line across all four cards (the plans page lines
+ * the rows up with CSS subgrid, see PLAN_ROWS in lib/site/home.ts):
+ *
+ *   what every plan has  size, AOAs, shoot time, information icons,
+ *                        dashboard, custom domain, branding
+ *   then the extras      process videos, lab reports, the two sharing
+ *                        controls, and Enterprise's two personal lines last
+ *
+ * A row the plan does not include starts with "!": the card draws it grey
+ * with a cross (and "not included" for screen readers). The comparison table
+ * still finds included rows by their exact text.
  */
 function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const p = SITE_PLANS[id];
   const ent = id === "enterprise";
-  const rows: (string | false)[] = [
-    ent && ENTERPRISE_PERSONAL.discussion.short,
-    ent && ENTERPRISE_PERSONAL.shoot.short,
-    p.plot.label,
-    `${p.scenes} AOAs`,
-    `${hoursLabel(p.shootHours)} of shoot time`,
-    "Information icons",
-    p.videos > 0 && `${p.videos} process videos`,
-    p.pdfs > 0 && `${p.pdfs} lab reports & certifications`,
-    p.sharingControls && SHARING[0],
-    p.sharingControls && SHARING[1],
-    ...BASE_SECURITY,
+  const rows: [boolean, string][] = [
+    [true, p.plot.label],
+    [true, `${p.scenes} AOAs`],
+    [true, `${hoursLabel(p.shootHours)} of shoot time`],
+    [true, "Information icons"],
+    ...BASE_SECURITY.map((r): [boolean, string] => [true, r]),
+    [p.videos > 0, p.videos > 0 ? `${p.videos} process videos` : "Process videos"],
+    [p.pdfs > 0, p.pdfs > 0 ? `${p.pdfs} lab reports & certifications` : "Lab reports & certifications"],
+    [p.sharingControls, SHARING[0]],
+    [p.sharingControls, SHARING[1]],
+    [ent, ENTERPRISE_PERSONAL.discussion.short],
+    [ent, ENTERPRISE_PERSONAL.shoot.short],
   ];
-  return rows.filter((r): r is string => typeof r === "string");
+  return rows.map(([has, text]) => (has ? text : `!${text}`));
 }
+
+/** How many rows every plan card has (they all have the same number). */
+export const PLAN_ROWS = inclusions("confidence").length;
 
 /** `ln={…},sn=[…]` — the offer and the four plans, as the bundle names them. */
 export function bundlePlanData(): string {
@@ -278,20 +287,8 @@ export function bundleTextPatches(): [string, string][] {
       'className:"mt-1 text-sm text-slate-600",children:t.tagline}',
       'className:"mt-1 text-sm text-slate-600"+("enterprise"===t.id?" vpv-gold-tag":""),children:t.tagline}',
     ],
-    [
-      'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),e]}',
-      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
-    ],
-    // The first Enterprise gold pass wrapped the text in a span; carry it on.
-    [
-      'className:"flex gap-2",children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:e})]}',
-      'className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]}',
-    ],
-    // The gold line is keyed on "Gupta" now that the discussion line reads "Mr. Gupta".
-    [
-      'children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Nitin Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]',
-      'children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]',
-    ],
+    // (The row renderer's earlier versions are superseded by the PLAN CARDS
+    // patch further down, which replaces the whole row.)
     // The first Enterprise sync used a grid class the site's CSS does not ship.
     ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid"'],
     // Four cards in a row, rows aligned (see the CSS in lib/site/home.ts).
@@ -300,11 +297,10 @@ export function bundleTextPatches(): [string, string][] {
     ['"grid gap-4 md:grid-cols-2 xl:grid-cols-4"', '"grid gap-4 md:grid-cols-2"'],
     ['q:"What is the difference between Confidence, Authority and Control?"', 'q:"What is the difference between Confidence, Authority, Control and Enterprise?"'],
     ['${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} See the plans page', '${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page'],
-    // The sub-heading: one line, a size up, the promise in blue, and no GST
-    // note (every price on the page already carries "+ GST").
+    // PLANS: no sub-heading under the title (17 Nov 2026).
     [
-      '(0,Dt.jsx)("p",{className:"mt-3 max-w-2xl text-slate-600",children:"Not sure which fits? Our assessment recommends the lowest plan that covers everything you need. All prices exclude 18% GST."})',
-      '(0,Dt.jsxs)("p",{className:"mt-3 text-lg text-slate-600 sm:text-xl",children:["Not sure which fits? Our assessment recommends the lowest plan that ",(0,Dt.jsx)("span",{className:"font-semibold text-brand",children:"covers everything you need"}),"."]})',
+      '"Four VPV plans. One clear investment."}),(0,Dt.jsxs)("p",{className:"mt-3 text-lg text-slate-600 sm:text-xl",children:["Not sure which fits? Our assessment recommends the lowest plan that ",(0,Dt.jsx)("span",{className:"font-semibold text-brand",children:"covers everything you need"}),"."]}),',
+      '"Four VPV plans. One clear investment."}),',
     ],
     // CASE STUDIES: the client logo strip is a new image, and the page ends
     // on a nudge before the call to action.
@@ -360,6 +356,20 @@ export function bundleTextPatches(): [string, string][] {
     [
       '{to:"/assessment",className:"btn-primary mt-8","data-testid":"case-studies-cta"',
       '{to:"/plans",className:"btn-primary mt-8","data-testid":"case-studies-cta"',
+    ],
+    // PLAN CARDS (17 Nov 2026). Rows a plan lacks ("!" in inclusions())
+    // are drawn grey with a red cross instead of a tick.
+    [
+      't.inclusions.map(e=>(0,Dt.jsxs)("li",{className:"flex gap-2"+("~"===e[0]?" vpv-ph":""),"aria-hidden":"~"===e[0]||void 0,children:[(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsx)("span",{className:e.includes("Gupta")?"vpv-gold-line":void 0,children:"~"===e[0]?e.slice(1):e})]},e))',
+      't.inclusions.map(e=>{const x="!"===e[0],l=x?e.slice(1):e;return(0,Dt.jsxs)("li",{className:"flex gap-2"+(x?" vpv-no":""),children:[x?(0,Dt.jsx)("svg",{viewBox:"0 0 24 24",width:16,height:16,className:"vpv-no-ic",fill:"none",stroke:"currentColor",strokeWidth:3,strokeLinecap:"round","aria-hidden":"true",children:(0,Dt.jsx)("path",{d:"M6 6l12 12M18 6 6 18"})}):(0,Dt.jsx)(Zr,{className:"mt-0.5 h-4 w-4 shrink-0 text-brand",strokeWidth:3}),(0,Dt.jsxs)("span",{className:!x&&l.includes("Gupta")?"vpv-gold-line":void 0,children:[l,x&&(0,Dt.jsx)("span",{className:"sr-only",children:" (not included)"})]})]},e)})',
+    ],
+    // PLAN PRICES (17 Nov 2026). On the cards the regular price is the big
+    // figure, struck through in red with black digits; the offer price sits
+    // under it, smaller, with its "Special offer" tag. Elsewhere (the small
+    // comparison-table size) only the strike turns red.
+    [
+      'const ya=e=>{let{plan:t,testPrefix:n,size:r="lg"}=e;return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,children:[ln.active&&(0,Dt.jsxs)("p",{className:"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsx)("s",{"data-testid":`${n}-standard-price`,children:mn(t.price)}),(0,Dt.jsx)("span",{className:"rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700",children:ln.label})]}),(0,Dt.jsxs)("p",{className:("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-launch-price`,children:[mn(ga(t))," ",(0,Dt.jsx)("span",{className:"text-sm font-medium text-slate-500",children:"+ GST"})]})]})}',
+      'const ya=e=>{let{plan:t,testPrefix:n,size:r="lg"}=e;const L="lg"===r&&ln.active,b=(0,Dt.jsx)("span",{className:"rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700",children:ln.label}),p=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-launch-price`,children:[mn(ga(t))," ",(0,Dt.jsx)("span",{className:"text-sm font-medium text-slate-500",children:"+ GST"})]});return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,children:[ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsx)("s",{className:"vpv-strike","data-testid":`${n}-standard-price`,children:mn(t.price)}),!L&&b]}),L?(0,Dt.jsxs)("div",{className:"vpv-now-row",children:[p,b]}):p]})}',
     ],
     // The lower Kuula demo opens on the first real scene (Entrance), not the
     // collection's index image, and no longer auto-advances back to it.

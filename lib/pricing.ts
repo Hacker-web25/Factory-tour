@@ -475,14 +475,15 @@ export type SitePlanSpec = {
    *  cab travel became free for the first 50 customers. Control is unchanged.) */
   priceInr: number;
   /**
-   * The price once the special offer closes, GST excluded. Shown struck
-   * through beside priceInr while the offer runs, and charged after the
-   * hundredth buyer. It is a REAL future price, not a decoy — see
+   * The price once the special offer closes, GST excluded: twice priceInr
+   * since 17 Nov 2026 (the offer is 50% off; it was 20%). Shown struck
+   * through beside priceInr while the offer runs, and charged from the
+   * 51st buyer. It is a REAL future price, not a decoy — see
    * LAUNCH_OFFER for why that matters.
    */
   regularInr: number;
   /**
-   * How big a plant the plan is made for, in square yards (gaj). Shown on
+   * How big a plant the plan is made for, in square yards. Shown on
    * every plan card and in the Terms, and used to suggest a plan from the
    * plant size a buyer gives. `maxGaj` is null for Enterprise: it starts
    * where Control stops.
@@ -511,8 +512,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     name: "VPV Confidence",
     tagline: "Prove you're a trusted manufacturer.",
     priceInr: 39_000,
-    regularInr: 48_750,
-    plot: { label: "Recommended for factories up to 200 sq yards (gaj)", maxGaj: 200 },
+    regularInr: 78_000,
+    plot: { label: "Recommended for factories up to 200 sq yards", maxGaj: 200 },
     scenes: 4,
     videos: 0,
     pdfs: 0,
@@ -528,8 +529,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     name: "VPV Authority",
     tagline: "Show your systems, processes and capabilities.",
     priceInr: 59_000,
-    regularInr: 73_750,
-    plot: { label: "Recommended for factories up to 500–600 sq yards (gaj)", maxGaj: 600 },
+    regularInr: 118_000,
+    plot: { label: "Recommended for factories up to 500–600 sq yards", maxGaj: 600 },
     scenes: 8,
     videos: 3,
     pdfs: 20,
@@ -545,8 +546,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     name: "VPV Control",
     tagline: "Complete factory experience. Secure, controlled access and sharing.",
     priceInr: 90_000,
-    regularInr: 112_500,
-    plot: { label: "Recommended for factories up to 1,000 sq yards (gaj)", maxGaj: 1000 },
+    regularInr: 180_000,
+    plot: { label: "Recommended for factories up to 1,000 sq yards", maxGaj: 1000 },
     scenes: 15,
     videos: 8,
     pdfs: 50,
@@ -563,11 +564,11 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     name: "VPV Enterprise",
     tagline: "Your plant, guided and filmed personally by Mr. Nitin Gupta.",
     // ₹2,99,999 while the special offer is open. The regular price is what
-    // makes that a 20% saving, exactly as for the other plans: ₹2,99,999 is
-    // 80% of ₹3,74,999 (to the rupee, after rounding).
+    // makes that a 50% saving, exactly as for the other plans: ₹2,99,999 is
+    // half of ₹5,99,998, to the rupee.
     priceInr: 299_999,
-    regularInr: 374_999,
-    plot: { label: "Recommended for factories of 1,000+ sq yards (gaj)", maxGaj: null },
+    regularInr: 599_998,
+    plot: { label: "Recommended for factories of 1,000+ sq yards", maxGaj: null },
     scenes: 25,
     videos: 15,
     pdfs: 100,
@@ -617,10 +618,10 @@ export const ENTERPRISE_PERSONAL = {
 /** The size bands a buyer can pick, in the order of the plans that fit them. */
 export type PlotBand = "upto200" | "upto600" | "upto1000" | "above1000";
 export const PLOT_BANDS: { id: PlotBand; label: string; plan: SitePlanId }[] = [
-  { id: "upto200", label: "Up to 200 sq yards (gaj)", plan: "confidence" },
-  { id: "upto600", label: "201 to 600 sq yards (gaj)", plan: "authority" },
-  { id: "upto1000", label: "601 to 1,000 sq yards (gaj)", plan: "control" },
-  { id: "above1000", label: "More than 1,000 sq yards (gaj)", plan: "enterprise" },
+  { id: "upto200", label: "Up to 200 sq yards", plan: "confidence" },
+  { id: "upto600", label: "201 to 600 sq yards", plan: "authority" },
+  { id: "upto1000", label: "601 to 1,000 sq yards", plan: "control" },
+  { id: "above1000", label: "More than 1,000 sq yards", plan: "enterprise" },
 ];
 export function isPlotBand(v: unknown): v is PlotBand {
   return PLOT_BANDS.some((b) => b.id === v);
@@ -633,7 +634,7 @@ export function planForPlot(band: PlotBand | null | undefined): SitePlanId | nul
 /* ─────────────────────── Special offer ──────────────────────────── */
 
 /**
- * The special offer for our first 50 customers: 20% off the regular plan
+ * The special offer for our first 50 customers: 50% off the regular plan
  * price, and 50% off each sales-team login (see SALES_TEAM).
  *
  * ┌─ THIS IS A PROMISE, AND THE CODE KEEPS IT ────────────────────────┐
@@ -649,7 +650,7 @@ export function planForPlot(band: PlotBand | null | undefined): SitePlanId | nul
  */
 export const LAUNCH_OFFER = {
   active: true,
-  percent: 20,
+  percent: 50,
   limit: 50,
   label: "Special offer for our first 50 customers",
   short: "Special offer",

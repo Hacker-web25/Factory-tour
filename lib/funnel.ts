@@ -220,7 +220,7 @@ export type Recommendation = {
  * Three things must all be covered, and the answer is the cheapest plan
  * that covers every one of them:
  *
- *   1. THE PLANT. A plant of 1,000+ sq yards (gaj) is VPV Enterprise; 601 to
+ *   1. THE PLANT. A plant of 1,000+ sq yards is VPV Enterprise; 601 to
  *      1,000 is Control at least; 201 to 600 is Authority at least. A buyer
  *      who does not say ("not sure") is not held to a size.
  *   2. THE LINK. If they said they want to stop the link reaching a
