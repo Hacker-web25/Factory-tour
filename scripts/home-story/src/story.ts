@@ -81,7 +81,7 @@ export function mount(host: HTMLElement): () => void {
   sec.setAttribute("data-testid", "home-story");
   sec.innerHTML = `
   <div class="hs-pin">
-    <div class="hs-glow" aria-hidden="true"></div>
+    ${["base", "conversion", "international", "privacy"].map((g) => `<div class="hs-glow hs-glow--${g}" aria-hidden="true"></div>`).join("")}
     <div class="hs-grid">
       <div class="hs-stage">
         <article class="hs-part" data-i="0" data-testid="home-story-hero">
@@ -381,59 +381,95 @@ export function mount(host: HTMLElement): () => void {
     sendScene(i);
   };
 
-  /* ---------- one scroll = one part, with a magnetic settle ---------- */
-  let animating = false, sraf = 0, settleT = 0;
+  /* ---------- one scroll = one part, instantly ---------- */
+  // The text changes the MOMENT the visitor scrolls; the page then glides
+  // to that part's stop underneath it. Before Nov 2026 the text waited for
+  // a slow-starting 0.72 s scroll to pass its midpoint and then for long
+  // staggered fades: 2-3 s from a flick to the words, so people scrolled
+  // again thinking nothing had happened.
+  let animating = false, sraf = 0, settleT = 0, target = -1;
   const to = (y: number) => scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
   const animateTo = (y: number, dur: number, ease: (k: number) => number) => {
     cancelAnimationFrame(sraf);
     const y0 = scrollY, d = y - y0;
-    if (reduced || Math.abs(d) < 2) { to(y); animating = false; return; }
+    if (reduced || Math.abs(d) < 2) { to(y); animating = false; target = -1; return; }
     animating = true;
     const t0 = performance.now();
     const step = (t: number) => {
       const k = Math.min(1, (t - t0) / dur);
       to(y0 + d * ease(k));
-      if (k < 1) sraf = requestAnimationFrame(step); else animating = false;
+      if (k < 1) sraf = requestAnimationFrame(step); else { animating = false; target = -1; }
     };
     sraf = requestAnimationFrame(step);
   };
-  const inOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+  // Fast at the start (the page answers at once), soft at the end.
+  const outCubic = (k: number) => 1 - Math.pow(1 - k, 3);
   const outQuart = (k: number) => 1 - Math.pow(1 - k, 4);
-  const go = (i: number) => animateTo(stopY(i), 720, inOut);
+  const go = (i: number) => {
+    if (i < 0 || i >= N) return;
+    target = i;
+    setActive(i); // the words change now, not when the scroll arrives
+    animateTo(stopY(i), 480, outCubic);
+  };
 
-  // One wheel gesture moves exactly one part. A gesture is a run of wheel
-  // events less than 180ms apart, so a trackpad's momentum or a fast wheel
-  // spin can't skip parts. Leaving the story (down from the last part, up
-  // from the first) takes a fresh gesture, then the page scrolls normally.
-  let lastWheel = 0, acc = 0, fired = false, leaving = false;
+  // Wheel and trackpad: one push = one part.
+  // A trackpad keeps sending "momentum" events for a second or two after
+  // the fingers leave. Those must not move more parts, but a NEW push
+  // during that tail must: it shows up as the deltas suddenly growing
+  // again instead of fading. (Before, the whole tail counted as the same
+  // push, so a second swipe was swallowed.) A mouse wheel spun fast moves
+  // one part; notches with a pause between them move one part each.
+  let lastWheel = 0, lastFire = -1e9, armed = true, acc = 0, leaving = false;
+  // Since the last move: the biggest delta (the push), whether the deltas
+  // have since faded well below it (momentum), and the lowest since then.
+  let peak = 0, faded = false, trough = Infinity;
   const onWheel = (e: WheelEvent) => {
     if (e.ctrlKey || !engaged()) return;
     if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
-    const now = performance.now();
-    const fresh = now - lastWheel > 180;
+    // When the event HAPPENED, not when it is handled: a busy moment while
+    // a part changes must not make one swipe look like two.
+    const now = e.timeStamp;
+    const gap = now - lastWheel;
     lastWheel = now;
-    if (fresh) { acc = 0; fired = false; leaving = false; }
-    const dir = Math.sign(e.deltaY);
+    // Firefox can report lines or pages instead of pixels.
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+    const mag = Math.abs(dy);
+    if (gap > 160) {
+      armed = true; acc = 0; leaving = false;
+    } else if (!armed) {
+      if (!faded) {
+        if (mag > peak) peak = mag;
+        else if (mag < peak * 0.6) { faded = true; trough = mag; }
+      } else if (mag < trough) {
+        trough = mag;
+      } else if (mag > 8 && mag > trough * 1.8 + 2 && now - lastFire > 200) {
+        armed = true; acc = 0; // a new push during the momentum tail
+      }
+    }
+    const dir = Math.sign(dy);
     if (!dir) return;
-    const next = active + dir;
+    const from = target >= 0 ? target : active;
+    const next = from + dir;
     if (next < 0 || next >= N) {
-      if (fresh && !animating && Math.abs(scrollY - stopY(active)) < 4) leaving = true;
+      // Leaving the story (down from the last part, up from the first)
+      // takes a fresh push once the page has come to rest on that part.
+      if (armed && !animating && Math.abs(scrollY - stopY(active)) < 4) leaving = true;
       if (!leaving) e.preventDefault();
       return;
     }
     if (leaving) return;
     e.preventDefault();
-    if (fired || animating) return;
-    acc += e.deltaY;
-    if (Math.abs(acc) >= 18) { fired = true; go(next); }
+    if (!armed) return;
+    acc += dy;
+    if (Math.abs(acc) >= 4) { armed = false; lastFire = now; acc = 0; peak = mag; faded = false; trough = Infinity; go(next); }
   };
 
-  // Touch: a vertical swipe of 40px+ moves one part; the page itself only
-  // scrolls when leaving the story. The calculator's slider and chips keep
-  // their own touch handling.
-  let tY = 0, tX = 0, tMode: "" | "story" | "native" = "", touching = false;
+  // Touch: the part changes as soon as the finger has moved 28 px, not
+  // when it lifts. The page itself only scrolls when leaving the story.
+  // The calculator's slider and chips keep their own touch handling.
+  let tY = 0, tX = 0, tMode: "" | "story" | "native" = "", touching = false, tFired = false;
   const onTouchStart = (e: TouchEvent) => {
-    touching = true; tMode = "";
+    touching = true; tMode = ""; tFired = false;
     tY = e.touches[0].clientY; tX = e.touches[0].clientX;
     if (!engaged() || (e.target as Element).closest?.(".hs-calc")) tMode = "native";
   };
@@ -445,15 +481,13 @@ export function mount(host: HTMLElement): () => void {
       const next = active + Math.sign(dy);
       tMode = Math.abs(dx) > Math.abs(dy) || next < 0 || next >= N ? "native" : "story";
     }
-    if (tMode === "story") e.preventDefault();
+    if (tMode !== "story") return;
+    e.preventDefault();
+    if (!tFired && Math.abs(dy) > 28) { tFired = true; go(active + Math.sign(dy)); }
   };
-  const onTouchEnd = (e: TouchEvent) => {
+  const onTouchEnd = () => {
     touching = false;
-    if (tMode === "story" && !animating) {
-      const dy = tY - e.changedTouches[0].clientY;
-      const next = active + Math.sign(dy);
-      if (Math.abs(dy) > 40 && next >= 0 && next < N) go(next); else animateTo(stopY(active), 300, outQuart);
-    }
+    if (tMode === "story" && !tFired && !animating) animateTo(stopY(active), 260, outQuart);
     tMode = "";
   };
 
@@ -463,10 +497,10 @@ export function mount(host: HTMLElement): () => void {
     const t = e.target as HTMLElement;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
     const dir = ["ArrowDown", "PageDown"].includes(e.key) || (e.key === " " && !e.shiftKey) ? 1 : ["ArrowUp", "PageUp"].includes(e.key) || (e.key === " " && e.shiftKey) ? -1 : 0;
-    const next = active + dir;
+    const next = (target >= 0 ? target : active) + dir;
     if (!dir || next < 0 || next >= N) return;
     e.preventDefault();
-    if (!animating) go(next);
+    go(next);
   };
 
   // Magnetic settle: wherever a scroll comes to rest inside the story
@@ -475,13 +509,20 @@ export function mount(host: HTMLElement): () => void {
     if (animating || touching || leaving || !engaged()) return;
     const i = Math.round(progress() * (N - 1));
     const y = stopY(i);
-    if (Math.abs(scrollY - y) > 3) animateTo(y, 380, outQuart);
+    if (Math.abs(scrollY - y) > 3) animateTo(y, 320, outQuart);
   };
 
   const onScroll = () => {
     pin.style.setProperty("--hs-top", headerH() + "px");
-    setActive(Math.round(progress() * (N - 1)));
-    if (!animating) { clearTimeout(settleT); settleT = window.setTimeout(settle, 160); }
+    // While gliding to a part, that part stays shown (no flicker back to
+    // the one being left). Otherwise (scrollbar, keys, a resize) the part
+    // follows the scroll position; changing as early as a third of the way.
+    if (animating && target >= 0) return;
+    const f = progress() * (N - 1);
+    const i = active < 0 ? Math.round(f) : f > active ? (f - active > 0.33 ? Math.ceil(f - 0.33) : active) : (active - f > 0.33 ? Math.floor(f + 0.33) : active);
+    setActive(Math.min(N - 1, Math.max(0, i)));
+    clearTimeout(settleT);
+    settleT = window.setTimeout(settle, 140);
   };
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("resize", onScroll);
