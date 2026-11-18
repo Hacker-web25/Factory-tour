@@ -4,6 +4,7 @@
 // Next.js 14 App Router prerender rules.
 export const dynamic = "force-dynamic";
 
+import { ensurePreview } from "@/lib/scenePreview";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -128,6 +129,8 @@ function UploadPage() {
         continue;
       }
       updateItem(i, { progress: 70 });
+      // The small tile image, made from the file in hand (lib/scenePreview).
+      ensurePreview(path, file);
 
       const { data: newScene, error: sceneErr } = await supabase
         .from("scenes")

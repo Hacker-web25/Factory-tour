@@ -97,7 +97,9 @@ export default function OwnerHome() {
   const [filter, setFilter] = useState<"all" | "published" | "draft">("all");
   const [layout, setLayout] = useState<Layout>("grid");
   const [loading, setLoading] = useState(true);
-  const [storageBytes, setStorageBytes] = useState<number>(0);
+  // null while it is being counted (it can take a few seconds on a big
+  // workspace, so it never holds up the tour list).
+  const [storageBytes, setStorageBytes] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [creatingTour, setCreatingTour] = useState(false);
@@ -124,26 +126,36 @@ export default function OwnerHome() {
       .select("*")
       .order("updated_at", { ascending: false });
 
-    const list: TourWithCover[] = [];
-    for (const t of (tourRows ?? []) as Tour[]) {
-      const { data: scenes } = await supabase
-        .from("scenes")
-        .select("id, image_path")
-        .eq("tour_id", t.id)
-        .order("order_index");
-      const cover = t.thumbnail_path ?? scenes?.[0]?.image_path ?? null;
-      list.push({ ...t, cover_path: cover, scene_count: scenes?.length ?? 0 });
-    }
-    setTours(list);
-
-    const { data: files } = await supabase.storage
-      .from("panoramas")
-      .list("", { limit: 1000 });
-    const bytes = (files ?? []).reduce(
-      (s, f) => s + (f.metadata?.size ?? 0),
-      0
+    // Every tour's scenes in one request (100 tours at a time), not one
+    // request per tour one after another as before Nov 2026.
+    const tourList = (tourRows ?? []) as Tour[];
+    const byTour = new Map<string, { count: number; first: string | null; firstOrder: number }>();
+    const ids = tourList.map((t) => t.id);
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+    const sceneRows = await Promise.all(
+      chunks.map((c) =>
+        supabase.from("scenes").select("tour_id, image_path, order_index").in("tour_id", c)
+      )
     );
-    setStorageBytes(bytes);
+    for (const { data } of sceneRows) {
+      for (const r of (data ?? []) as { tour_id: string; image_path: string | null; order_index: number | null }[]) {
+        const e = byTour.get(r.tour_id) ?? { count: 0, first: null, firstOrder: Infinity };
+        e.count += 1;
+        const o = r.order_index ?? 0;
+        if (o < e.firstOrder) {
+          e.firstOrder = o;
+          e.first = r.image_path;
+        }
+        byTour.set(r.tour_id, e);
+      }
+    }
+    const list: TourWithCover[] = tourList.map((t) => {
+      const e = byTour.get(t.id);
+      return { ...t, cover_path: t.thumbnail_path ?? e?.first ?? null, scene_count: e?.count ?? 0 };
+    });
+    setTours(list);
+    void loadStorage();
 
     // Folders — swallow errors (missing table = folders feature unused).
     try {
@@ -154,6 +166,22 @@ export default function OwnerHome() {
     }
 
     setLoading(false);
+  }
+
+  /** Storage used, counted on the server across Supabase and R2
+   *  (app/api/storage-usage). Fetched after the tours are on screen. */
+  async function loadStorage() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/storage-usage", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const body = (await res.json()) as { bytes?: number };
+      if (typeof body.bytes === "number") setStorageBytes(body.bytes);
+    } catch {
+      /* the card keeps showing its placeholder */
+    }
   }
 
   useEffect(() => {
@@ -444,7 +472,7 @@ export default function OwnerHome() {
           />
           <StatCard
             label="Storage used"
-            value={formatBytes(storageBytes)}
+            value={storageBytes == null ? "Counting…" : formatBytes(storageBytes)}
             icon={<HardDrive size={14} />}
           />
         </div>

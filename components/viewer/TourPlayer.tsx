@@ -1,5 +1,6 @@
 "use client";
 
+import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useEntitlements } from "@/lib/useEntitlements";
 import { ROLLOUT } from "@/lib/entitlements";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1610,11 +1611,10 @@ function TourPlayerInner({
                   {/* The small thumbnail when the scene has one; and only the
                       tiles scrolled into view load, so a 70-scene strip no
                       longer downloads 70 full panoramas on open. */}
-                  <img
-                    src={publicUrl(s.thumbnail_path ?? s.image_path)}
+                  <ScenePreviewImg
+                    imagePath={s.image_path}
+                    thumbnailPath={s.thumbnail_path}
                     alt={s.name}
-                    loading="lazy"
-                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                   {/* Very translucent glass strip along the bottom carrying
