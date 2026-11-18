@@ -149,6 +149,8 @@ function buildInsert(
 /** How long a field this editor just changed keeps its local value against
  *  realtime echoes and re-fetches. Covers the debounce plus a slow save. */
 const LOCAL_GUARD_MS = 2500;
+/** A 360° picture narrower than this is flagged as low resolution. */
+const LOW_RES_WIDTH = 4000;
 /** Scene edits (typing, sliders) are saved this long after the last change. */
 const SCENE_SAVE_DEBOUNCE_MS = 350;
 
@@ -570,7 +572,11 @@ export default function TourEditPage() {
   // How big this tour's pictures are, in total and per scene (shown small in
   // the top bar and on each tile). Counted on the server across Supabase
   // and R2; asked again when scenes are added or removed.
-  const [tourSizes, setTourSizes] = useState<{ total: number; scenes: Record<string, number | null> } | null>(null);
+  const [tourSizes, setTourSizes] = useState<{
+    total: number;
+    scenes: Record<string, number | null>;
+    dims: Record<string, [number, number] | null>;
+  } | null>(null);
   useEffect(() => {
     if (!tourId || !sceneIdsKey) return;
     let cancelled = false;
@@ -582,8 +588,12 @@ export default function TourEditPage() {
         const n = sceneIdsKey.split(",").length;
         const res = await fetch(`/api/storage-usage?tour=${tourId}&n=${n}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
-        const body = (await res.json()) as { tours?: Record<string, number>; scenes?: Record<string, number | null> };
-        if (!cancelled) setTourSizes({ total: body.tours?.[tourId] ?? 0, scenes: body.scenes ?? {} });
+        const body = (await res.json()) as {
+          tours?: Record<string, number>;
+          scenes?: Record<string, number | null>;
+          dims?: Record<string, [number, number] | null>;
+        };
+        if (!cancelled) setTourSizes({ total: body.tours?.[tourId] ?? 0, scenes: body.scenes ?? {}, dims: body.dims ?? {} });
       } catch {
         /* sizes are a nicety; nothing to show */
       }
@@ -593,6 +603,18 @@ export default function TourEditPage() {
       window.clearTimeout(t);
     };
   }, [tourId, sceneIdsKey]);
+
+  // 360° scenes saved below full resolution (e.g. by the old Beautify save,
+  // which kept only a 2048-px copy). Flagged on their tiles so they can be
+  // replaced with the camera original.
+  const lowResIds = useMemo(() => {
+    const out: Record<string, [number, number]> = {};
+    for (const s of scenes) {
+      const d = tourSizes?.dims[s.id];
+      if (d && !s.is_flat && d[0] < LOW_RES_WIDTH) out[s.id] = d;
+    }
+    return out;
+  }, [scenes, tourSizes]);
 
   // Warm the scenes the editor is likely to open next: the neighbours in
   // the strip and the scenes this one's arrows lead to. Starts a moment
@@ -2114,6 +2136,14 @@ export default function TourEditPage() {
             {tourSizes && tourSizes.total > 0 && (
               <span title="Size of this tour's pictures"> · {formatBytes(tourSizes.total)}</span>
             )}
+            {Object.keys(lowResIds).length > 0 && (
+              <span
+                className="text-amber-400"
+                title="Scenes saved below full resolution. Replace them with the camera originals for full sharpness."
+              >
+                {" "}· {Object.keys(lowResIds).length} low-res
+              </span>
+            )}
           </div>
         </div>
 
@@ -2646,6 +2676,7 @@ export default function TourEditPage() {
         tourId={tour.id}
         basicSceneCap={orgPlan === "basic" ? orgSceneCap : undefined}
         sizes={tourSizes?.scenes}
+        lowRes={lowResIds}
       />
 
       {shareOpen && (

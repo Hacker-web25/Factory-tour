@@ -26,6 +26,9 @@ export type ImageAdjustments = {
   tint: number;
   /** 0–8 px. CSS blur() — for artistic softening. */
   blur: number;
+  /** 0–100, 0 = off. Unsharp mask done on the graphics chip, on the
+   *  panorama's own pixels (PanoramaViewer), so it costs no frame-rate. */
+  sharpness: number;
   /** 0–100. Darkened edges via radial gradient overlay. */
   vignette: number;
   /** Optional graduated colour wash (e.g. warm the sky, cool the floor). */
@@ -42,6 +45,7 @@ export const DEFAULT_ADJUSTMENTS: ImageAdjustments = {
   warmth: 0,
   tint: 0,
   blur: 0,
+  sharpness: 0,
   vignette: 0,
   gradientEnabled: false,
   gradientColor: "#000000",
@@ -68,6 +72,7 @@ export function hasAdjustments(a: ImageAdjustments): boolean {
     a.warmth !== 0 ||
     a.tint !== 0 ||
     a.blur !== 0 ||
+    a.sharpness !== 0 ||
     a.vignette !== 0 ||
     a.gradientEnabled
   );

@@ -15,7 +15,7 @@ import {
   PRESETS,
   type ImageAdjustments,
 } from "@/lib/imageAdjustments";
-import { Sparkles, RotateCcw, Sun, Contrast, Droplets, Copy, Check } from "lucide-react";
+import { Sparkles, Sparkle, RotateCcw, Sun, Contrast, Droplets, Copy, Check } from "lucide-react";
 
 export default function EditSceneTab({
   scene,
@@ -151,6 +151,20 @@ export default function EditSceneTab({
           neutral={1}
           format={(v) => `${Math.round((v - 1) * 100)}`}
           onChange={(v) => patch({ contrast: v })}
+        />
+      </Section>
+
+      {/* Detail */}
+      <Section title="Detail" icon={<Sparkle size={11} />}>
+        <Slider
+          label="Sharpness"
+          value={adj.sharpness}
+          min={0}
+          max={100}
+          step={1}
+          neutral={0}
+          format={(v) => `${Math.round(v)}`}
+          onChange={(v) => patch({ sharpness: v })}
         />
       </Section>
 

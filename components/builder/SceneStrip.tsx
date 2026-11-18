@@ -20,6 +20,7 @@ export default function SceneStrip({
    *  they're hidden from end-customers. Omit on PRO / ULTRA. */
   basicSceneCap,
   sizes,
+  lowRes,
 }: {
   scenes: Scene[];
   activeId: string | null;
@@ -31,6 +32,8 @@ export default function SceneStrip({
   basicSceneCap?: number;
   /** Bytes of each scene's panorama, by scene id (shown small on the tile). */
   sizes?: Record<string, number | null>;
+  /** Scenes saved below full resolution: [width, height]. */
+  lowRes?: Record<string, [number, number]>;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
@@ -161,6 +164,14 @@ export default function SceneStrip({
                     >
                       <Crown size={8} /> Extra
                     </div>
+                  )}
+                  {lowRes?.[s.id] && (
+                    <span
+                      className={`absolute ${hiddenFromBasic ? "top-5" : "top-1"} left-1 rounded bg-amber-400/95 px-1 text-[8.5px] font-bold leading-[14px] text-black shadow`}
+                      title={`Only ${lowRes[s.id][0]} × ${lowRes[s.id][1]} px, so it looks soft. Replace it with the camera original for full sharpness.`}
+                    >
+                      Low-res
+                    </span>
                   )}
                   {sizes?.[s.id] != null && (
                     <span

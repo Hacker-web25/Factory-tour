@@ -43,6 +43,8 @@ type Props = {
   /** A small copy of the same panorama (lib/scenePreview). Shown the
    *  moment it arrives, then replaced by imageUrl. Optional. */
   previewImageUrl?: string | null;
+  /** Internal: 0–100 sharpening, from the scene's adjustments. */
+  sharpness?: number;
   hotspots: Hotspot[];
   editable?: boolean;
   /** Tour-wide hotspot micro-interaction flags (breathing, hover magnify,
@@ -214,7 +216,7 @@ export default function PanoramaViewer({
           // to protect the frame-rate, then restores it when things settle.
           performance={{ min: 0.5 }}
         >
-          <Scene {...props} />
+          <Scene {...props} sharpness={adj.sharpness} />
         </Canvas>
       </div>
       {/* Grading overlay layers — sit above the canvas, blended.
@@ -229,6 +231,7 @@ export default function PanoramaViewer({
 function Scene({
   imageUrl,
   previewImageUrl = null,
+  sharpness = 0,
   hotspots,
   editable,
   hotspotFx,
@@ -278,6 +281,10 @@ function Scene({
   // on the sphere — until the new URL finishes loading. Then setRawTexture
   // swaps them in one frame. Zero black-frame window during scene changes.
   const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(null);
+  // Sharper floors and ceilings: they are seen at a steep angle, where
+  // plain filtering smears them. Anisotropic filtering is a free, built-in
+  // GPU feature that was left at its default (off).
+  const maxAniso = useThree((st) => st.gl.capabilities.getMaxAnisotropy());
   useEffect(() => {
     let cancelled = false;
     let fullShown = false;
@@ -286,6 +293,7 @@ function Scene({
     const prep = (t: THREE.Texture) => {
       t.mapping = THREE.EquirectangularReflectionMapping;
       t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = Math.min(8, maxAniso || 1);
     };
     // The small preview first (a few KB): the new scene is on screen at
     // once, slightly soft, and sharpens when the full picture lands. A
@@ -366,11 +374,59 @@ function Scene({
       const t = new THREE.CanvasTexture(c);
       t.mapping = THREE.EquirectangularReflectionMapping;
       t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = rawTexture.anisotropy;
       return t;
     } catch {
       return rawTexture;
     }
   }, [rawTexture, hideStitching]);
+  // The panorama's material: a plain MeshBasicMaterial whose texture read
+  // is patched with an optional unsharp mask (the scene's "Sharpness").
+  // It works on the panorama's own pixels on the GPU: each pixel's
+  // brightness minus a soft average of its eight neighbours, added back in
+  // proportion. Zero cost at 0; eight extra texture reads per pixel when on.
+  const sharpUniforms = useMemo(
+    () => ({ uSharpen: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 4096, 1 / 2048) } }),
+    []
+  );
+  const panoMaterial = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({ side: THREE.BackSide });
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uSharpen = sharpUniforms.uSharpen;
+      shader.uniforms.uTexel = sharpUniforms.uTexel;
+      shader.fragmentShader =
+        "uniform float uSharpen;\nuniform vec2 uTexel;\n" +
+        shader.fragmentShader.replace(
+          "#include <map_fragment>",
+          `#ifdef USE_MAP
+  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+  if ( uSharpen > 0.0 ) {
+    vec2 ox = vec2( uTexel.x * 1.5, 0.0 );
+    vec2 oy = vec2( 0.0, uTexel.y * 1.5 );
+    vec3 soft = ( texture2D( map, vMapUv + ox ).rgb + texture2D( map, vMapUv - ox ).rgb
+                + texture2D( map, vMapUv + oy ).rgb + texture2D( map, vMapUv - oy ).rgb ) * 0.15
+              + ( texture2D( map, vMapUv + ox + oy ).rgb + texture2D( map, vMapUv - ox - oy ).rgb
+                + texture2D( map, vMapUv + ox - oy ).rgb + texture2D( map, vMapUv - ox + oy ).rgb ) * 0.1;
+    // Brightness detail only, so edges do not pick up colour fringes.
+    float detail = dot( sampledDiffuseColor.rgb - soft, vec3( 0.2126, 0.7152, 0.0722 ) );
+    sampledDiffuseColor.rgb = clamp( sampledDiffuseColor.rgb + detail * uSharpen, 0.0, 1.0 );
+  }
+  diffuseColor *= sampledDiffuseColor;
+#endif`
+        );
+    };
+    return m;
+  }, [sharpUniforms]);
+  // The texture goes on before the first draw, so the shader is compiled
+  // with its map (see the note on the sphere below).
+  if (texture && panoMaterial.map !== texture) panoMaterial.map = texture;
+  useEffect(() => {
+    sharpUniforms.uSharpen.value = (Math.max(0, Math.min(100, sharpness)) / 100) * 3;
+    const img = texture?.image as { width?: number; height?: number } | undefined;
+    if (img?.width && img?.height) sharpUniforms.uTexel.value.set(1 / img.width, 1 / img.height);
+  }, [sharpness, texture, sharpUniforms]);
+  useEffect(() => () => panoMaterial.dispose(), [panoMaterial]);
+
   // The seam-blended copy is a texture of its own: free it when replaced.
   const shownBlendRef = useRef<THREE.Texture | null>(null);
   useEffect(() => {
@@ -647,7 +703,7 @@ function Scene({
         <group rotation={[0, 0, levelCorrection]}>
           <mesh ref={sphereRef}>
             <sphereGeometry args={[SPHERE_RADIUS, 64, 40]} />
-            <meshBasicMaterial map={texture} side={THREE.BackSide} />
+            <primitive object={panoMaterial} attach="material" />
           </mesh>
         </group>
       )}
