@@ -1,5 +1,6 @@
 "use client";
 
+import { previewUrl } from "@/lib/scenePreview";
 import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useEntitlements } from "@/lib/useEntitlements";
 import { ROLLOUT } from "@/lib/entitlements";
@@ -895,6 +896,8 @@ function TourPlayerInner({
       const target = scenes.find((s) => s.id === id);
       if (!target) continue;
       const img = new window.Image();
+      // Same request mode as the 3D viewer's loader, so it reuses this copy.
+      img.crossOrigin = "anonymous";
       img.src = publicUrl(target.image_path);
       preloadedRef.current.add(id);
     }
@@ -1320,6 +1323,7 @@ function TourPlayerInner({
         ) : (
         <PanoramaViewer
           imageUrl={publicUrl(active.image_path)}
+          previewImageUrl={previewUrl(active.image_path)}
           adjustments={activeAdjustments}
           hotspotFx={hotspotFx}
           idleSpin={tour.fx_idle_spin !== false}

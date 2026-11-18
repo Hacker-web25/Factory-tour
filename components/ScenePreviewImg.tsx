@@ -30,6 +30,8 @@ export default function ScenePreviewImg({
   const preview = thumbnailPath ? null : previewUrl(imagePath);
   const first = thumbnailPath ? publicUrl(thumbnailPath) : preview ?? publicUrl(imagePath);
   const [src, setSrc] = useState(first);
+  // The server would not allow reading the picture (CORS): show it plainly.
+  const [plain, setPlain] = useState(false);
   // A new scene picture (or thumbnail) starts over.
   useEffect(() => setSrc(first), [first]);
 
@@ -41,6 +43,9 @@ export default function ScenePreviewImg({
     });
   }, [imagePath, preview]);
 
+  // Showing the full panorama because the preview does not exist yet.
+  const full = !!preview && !src.startsWith(preview) && src.startsWith(publicUrl(imagePath));
+  const readable = full && generate && !plain;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -50,11 +55,28 @@ export default function ScenePreviewImg({
       decoding="async"
       draggable={draggable}
       className={className}
+      // Read with CORS so the picture already downloaded here can be shrunk
+      // into the preview (no second download of the panorama).
+      crossOrigin={readable ? "anonymous" : undefined}
+      onLoad={(e) => {
+        if (readable) ensurePreview(imagePath, e.currentTarget);
+      }}
       onError={() => {
-        // No preview yet: show the panorama now, and have one made.
-        if (preview && src.startsWith(preview) && !previewIsReady(imagePath)) {
-          setSrc(publicUrl(imagePath));
-          if (generate) ensurePreview(imagePath);
+        if (readable) {
+          setPlain(true);
+          setSrc(`${publicUrl(imagePath)}#plain`);
+          return;
+        }
+        if (preview && src.startsWith(preview)) {
+          if (!previewIsReady(imagePath)) {
+            // No preview yet: show the panorama now; it is made once that loads.
+            setSrc(publicUrl(imagePath));
+          } else {
+            // The preview was just made but cannot be read yet: never leave
+            // the tile blank, show the panorama (and do not make it again).
+            setPlain(true);
+            setSrc(`${publicUrl(imagePath)}#plain`);
+          }
         }
       }}
     />
