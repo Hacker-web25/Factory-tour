@@ -148,7 +148,11 @@ export async function GET(req: Request) {
   if (tourParam && !/^[0-9a-f-]{36}$/i.test(tourParam)) return json({ error: "bad_tour" }, 400);
   // n = how many scenes the caller sees: adding or removing one asks afresh.
   const n = new URL(req.url).searchParams.get("n") ?? "";
-  const key = `${auth.user.id}:${tourParam ?? "*"}:${n}`;
+  // v = a short fingerprint of the tour's picture paths: replacing a picture asks afresh.
+  const v = new URL(req.url).searchParams.get("v") ?? "";
+  if (!/^\d{0,6}$/.test(n) || !/^[0-9a-z]{0,12}$/.test(v)) return json({ error: "bad_query" }, 400);
+  const key = `${auth.user.id}:${tourParam ?? "*"}:${n}:${v}`;
+  if (cache.size > 500) for (const [k, e] of cache) if (Date.now() - e.at >= CACHE_MS) cache.delete(k);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return json(hit.usage);
 

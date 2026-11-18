@@ -577,6 +577,14 @@ export default function TourEditPage() {
     scenes: Record<string, number | null>;
     dims: Record<string, [number, number] | null>;
   } | null>(null);
+  // Changes when any scene's picture is replaced, so sizes and "Low-res"
+  // tags refresh straight away instead of after the 5-minute cache.
+  const picturesKey = useMemo(() => {
+    const all = scenes.map((s) => `${s.id}=${s.image_path ?? ""}`).sort().join("|");
+    let h = 5381;
+    for (let i = 0; i < all.length; i++) h = ((h * 33) ^ all.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }, [scenes]);
   useEffect(() => {
     if (!tourId || !sceneIdsKey) return;
     let cancelled = false;
@@ -586,7 +594,7 @@ export default function TourEditPage() {
         const token = data.session?.access_token;
         if (!token) return;
         const n = sceneIdsKey.split(",").length;
-        const res = await fetch(`/api/storage-usage?tour=${tourId}&n=${n}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`/api/storage-usage?tour=${tourId}&n=${n}&v=${picturesKey}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const body = (await res.json()) as {
           tours?: Record<string, number>;
@@ -602,7 +610,7 @@ export default function TourEditPage() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [tourId, sceneIdsKey]);
+  }, [tourId, sceneIdsKey, picturesKey]);
 
   // 360° scenes saved below full resolution (e.g. by the old Beautify save,
   // which kept only a 2048-px copy). Flagged on their tiles so they can be
