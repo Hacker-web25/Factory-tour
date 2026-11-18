@@ -40,6 +40,8 @@ type Usage = {
   tours: Record<string, number>;
   /** Bytes per scene's panorama (only with ?tour=) */
   scenes?: Record<string, number | null>;
+  /** Pixel size per scene's panorama, [width, height] (only with ?tour=) */
+  dims?: Record<string, [number, number] | null>;
 };
 const cache = new Map<string, { at: number; usage: Usage }>();
 
@@ -51,6 +53,43 @@ function json(body: unknown, status = 200) {
 }
 
 type SceneRow = { id: string; tour_id: string; image_path: string | null; thumbnail_path: string | null };
+
+/** Width and height from the start of a JPEG (its SOF marker), or null. */
+function jpegSize(b: Uint8Array): [number, number] | null {
+  let i = 2;
+  while (i + 9 < b.length) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const m = b[i + 1];
+    if (m === 0xff) { i++; continue; }
+    if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+    const len = (b[i + 2] << 8) | b[i + 3];
+    if (m >= 0xc0 && m <= 0xc3) return [(b[i + 7] << 8) | b[i + 8], (b[i + 5] << 8) | b[i + 6]];
+    i += 2 + len;
+  }
+  return null;
+}
+
+/** Pixel size of each picture, reading only its first 96 KB. */
+async function dimsOf(paths: string[]): Promise<Map<string, [number, number]>> {
+  const out = new Map<string, [number, number]>();
+  if (!MEDIA_BASE) return out;
+  let next = 0;
+  const worker = async () => {
+    while (next < paths.length) {
+      const p = paths[next++];
+      try {
+        const res = await fetch(mediaPublicUrl(BUCKET, p), { headers: { Range: "bytes=0-98303" }, signal: AbortSignal.timeout(HEAD_TIMEOUT_MS) });
+        if (!res.ok) continue;
+        const size = jpegSize(new Uint8Array(await res.arrayBuffer()));
+        if (size) out.set(p, size);
+      } catch {
+        /* unknown size */
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: HEAD_CONCURRENCY }, worker));
+  return out;
+}
 const isStored = (p: unknown): p is string => typeof p === "string" && p.length > 0 && !/^https?:/i.test(p) && !p.startsWith("/");
 
 /** Size of each path: Supabase folder listings first, then HEAD through
@@ -159,7 +198,13 @@ export async function GET(req: Request) {
     perScene[s.id] = isStored(s.image_path) ? sizes.get(s.image_path) ?? null : null;
   }
   const usage: Usage = { bytes, files: paths.size, unknown, tours };
-  if (tourParam) usage.scenes = perScene;
+  if (tourParam) {
+    usage.scenes = perScene;
+    const imgs = scenes.map((s) => s.image_path).filter(isStored);
+    const dims = await dimsOf(Array.from(new Set(imgs)));
+    usage.dims = {};
+    for (const s of scenes) usage.dims[s.id] = isStored(s.image_path) ? dims.get(s.image_path) ?? null : null;
+  }
   cache.set(key, { at: Date.now(), usage });
   return json(usage);
 }

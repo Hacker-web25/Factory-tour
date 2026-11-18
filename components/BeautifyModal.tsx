@@ -50,6 +50,9 @@ export default function BeautifyModal({
 
   // Snapshots for compare + undo.
   const originalRef = useRef<ImageData | null>(null);
+  // The panorama at its own full size, kept so Save can put the repairs
+  // back onto it (the editor itself works on a smaller copy).
+  const fullImgRef = useRef<HTMLImageElement | null>(null);
   const preHealRef = useRef<ImageData | null>(null);
 
   // Running bounding box of every brush stamp — no more full-image
@@ -126,6 +129,7 @@ export default function BeautifyModal({
     console.log("[beautify] loading", imageUrl);
 
     function drawInto(img: HTMLImageElement): boolean {
+      fullImgRef.current = img;
       // Cap at 2048 wide. 4096 was ~64 MB of pixel data across the
       // two hidden canvases + two GPU textures — big enough to freeze
       // a laptop during upload. 2048 is 4× less data and still very
@@ -449,13 +453,7 @@ export default function BeautifyModal({
     if (!imgC) return;
     setBusy("saving");
     try {
-      const blob: Blob = await new Promise((resolve, reject) =>
-        imgC.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("toBlob returned null"))),
-          "image/jpeg",
-          0.92
-        )
-      );
+      const blob = await fullResolutionResult(imgC, originalRef.current, fullImgRef.current);
       await onSave(blob);
       onClose();
     } catch (e: any) {
@@ -990,3 +988,105 @@ const errorStyle: React.CSSProperties = {
   textAlign: "center",
   zIndex: 10,
 };
+
+/**
+ * The repaired panorama at the ORIGINAL picture's full size.
+ *
+ * The editor works on a copy at most 2048 px wide so painting and healing
+ * stay fast. Until Nov 2026 Save uploaded that small copy as the scene's
+ * picture, so every repaired scene dropped from e.g. 6528 × 3264 to
+ * 2048 × 1024 (about a tenth of the pixels) and looked soft from then on.
+ *
+ * Now only what changed is taken from the small copy: the pixels that
+ * differ from the untouched small copy form a mask; the mask and the
+ * repaired pixels are scaled up to full size (the mask softened at its
+ * edge so the patch blends in) and laid over the full-size original.
+ * Everything that was not repaired keeps its original detail.
+ */
+export async function fullResolutionResult(
+  work: HTMLCanvasElement,
+  original: ImageData | null,
+  full: HTMLImageElement | null
+): Promise<Blob> {
+  const toJpeg = (c: HTMLCanvasElement, q: number) =>
+    new Promise<Blob>((resolve, reject) =>
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not encode the picture."))), "image/jpeg", q)
+    );
+  const W = full?.naturalWidth ?? 0;
+  const H = full?.naturalHeight ?? 0;
+  // Nothing was scaled down (small source): the working copy IS full size.
+  if (!full || !original || W <= work.width) return toJpeg(work, 0.95);
+
+  const w = work.width;
+  const h = work.height;
+  const cur = work.getContext("2d")!.getImageData(0, 0, w, h).data;
+  const org = original.data;
+
+  // 1. Where did the repair change anything (at the small size)?
+  const mask = new ImageData(w, h);
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (
+        Math.abs(cur[i] - org[i]) > 3 ||
+        Math.abs(cur[i + 1] - org[i + 1]) > 3 ||
+        Math.abs(cur[i + 2] - org[i + 2]) > 3
+      ) {
+        mask.data[i + 3] = 255;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  // 2. The original at full size.
+  const out = document.createElement("canvas");
+  out.width = W;
+  out.height = H;
+  const octx = out.getContext("2d");
+  if (!octx) throw new Error("This device cannot hold the picture at full size. Please save from a computer.");
+  octx.drawImage(full, 0, 0);
+  if (maxX < 0) return toJpeg(out, 0.95); // nothing repaired
+
+  // 3. The repaired area, scaled up, cut out by the softened mask.
+  const sx = W / w;
+  const sy = H / h;
+  const pad = 6; // small-size pixels around the change, for the soft edge
+  const bx = Math.max(0, minX - pad);
+  const by = Math.max(0, minY - pad);
+  const bw = Math.min(w, maxX + pad + 1) - bx;
+  const bh = Math.min(h, maxY + pad + 1) - by;
+  const X = Math.floor(bx * sx);
+  const Y = Math.floor(by * sy);
+  const PW = Math.ceil(bw * sx);
+  const PH = Math.ceil(bh * sy);
+
+  const smallMask = document.createElement("canvas");
+  smallMask.width = w;
+  smallMask.height = h;
+  smallMask.getContext("2d")!.putImageData(mask, 0, 0);
+
+  const patch = document.createElement("canvas");
+  patch.width = PW;
+  patch.height = PH;
+  const pctx = patch.getContext("2d")!;
+  pctx.imageSmoothingEnabled = true;
+  pctx.imageSmoothingQuality = "high";
+  pctx.drawImage(work, bx, by, bw, bh, 0, 0, PW, PH);
+
+  const bigMask = document.createElement("canvas");
+  bigMask.width = PW;
+  bigMask.height = PH;
+  const mctx = bigMask.getContext("2d")!;
+  mctx.imageSmoothingEnabled = true;
+  mctx.filter = `blur(${Math.max(1, Math.round(sx * 1.5))}px)`;
+  mctx.drawImage(smallMask, bx, by, bw, bh, 0, 0, PW, PH);
+
+  pctx.globalCompositeOperation = "destination-in";
+  pctx.drawImage(bigMask, 0, 0);
+  octx.drawImage(patch, X, Y);
+  return toJpeg(out, 0.95);
+}
