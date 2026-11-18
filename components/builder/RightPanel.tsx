@@ -1,5 +1,7 @@
 "use client";
 
+import DraftField from "@/components/builder/DraftField";
+import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { countOrgMedia, reportLimit, requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -703,6 +705,10 @@ function PhotoTab({
   getCurrentAim?: () => { yaw: number; pitch: number } | null;
   getSnapshot?: () => string | null;
 }) {
+  // The latest scene, for the text fields' delayed commits: they must not
+  // send back a copy of the scene from when typing started.
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
   return (
     <div className="space-y-5 text-sm">
       {/* Scene rename at the top so it's easy to find */}
@@ -710,9 +716,10 @@ function PhotoTab({
         <div className="text-xs uppercase text-neutral-400 mb-1">
           Scene name
         </div>
-        <input
+        <DraftField
+          key={`name-${scene.id}`}
           value={scene.name}
-          onChange={(e) => onSceneChange({ ...scene, name: e.target.value })}
+          onCommit={(v) => onSceneChange({ ...sceneRef.current, name: v })}
           placeholder="Give this scene a name"
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent"
         />
@@ -725,16 +732,15 @@ function PhotoTab({
         <div className="text-xs uppercase text-neutral-400 mb-1">
           Scene description
         </div>
-        <textarea
+        <DraftField
+          key={`desc-${scene.id}`}
+          multiline
+          rows={2}
           value={(scene as any).description ?? ""}
-          onChange={(e) =>
-            onSceneChange({
-              ...(scene as any),
-              description: e.target.value,
-            } as Scene)
+          onCommit={(v) =>
+            onSceneChange({ ...(sceneRef.current as any), description: v } as Scene)
           }
           placeholder="Short line about this scene (e.g. 'Where we do plating & finishing')"
-          rows={2}
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent resize-none"
         />
         <div className="text-[11px] text-neutral-500 mt-1">
@@ -4547,12 +4553,12 @@ function MasterScenePickerBody({
                       onChange={() => toggle(s.id)}
                       className="shrink-0"
                     />
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={publicUrl(s.thumbnail_path ?? s.image_path) ?? ""}
+                    <ScenePreviewImg
+                      imagePath={s.image_path}
+                      thumbnailPath={s.thumbnail_path}
                       alt=""
+                      generate
                       className="w-8 h-6 object-cover rounded bg-black shrink-0"
-                      onError={(e) => (e.currentTarget.style.display = "none")}
                     />
                     <span className="truncate flex-1">{s.name}</span>
                   </label>

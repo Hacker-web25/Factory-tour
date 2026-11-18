@@ -144,6 +144,52 @@ function buildInsert(
   return merged;
 }
 
+/** How long a field this editor just changed keeps its local value against
+ *  realtime echoes and re-fetches. Covers the debounce plus a slow save. */
+const LOCAL_GUARD_MS = 2500;
+/** Scene edits (typing, sliders) are saved this long after the last change. */
+const SCENE_SAVE_DEBOUNCE_MS = 350;
+
+function sortScenes(list: Scene[]): Scene[] {
+  return [...list].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+}
+
+/** The scene columns the editor saves. */
+function sceneSavePayload(s: Scene): Record<string, unknown> {
+  return {
+    name: s.name,
+    initial_yaw: s.initial_yaw,
+    initial_pitch: s.initial_pitch,
+    ambient_audio_url: s.ambient_audio_url ?? null,
+    ambient_audio_volume: s.ambient_audio_volume ?? 0.5,
+    ambient_audio_trim_start: (s as any).ambient_audio_trim_start ?? null,
+    ambient_audio_trim_end: (s as any).ambient_audio_trim_end ?? null,
+    auto_tour_duration: s.auto_tour_duration ?? null,
+    pitch_min: s.pitch_min,
+    pitch_max: s.pitch_max,
+    yaw_min: s.yaw_min,
+    yaw_max: s.yaw_max,
+    level_correction: s.level_correction ?? 0,
+    zoom_min_fov: s.zoom_min_fov ?? 30,
+    zoom_max_fov: s.zoom_max_fov ?? 90,
+    zoom_initial_fov: s.zoom_initial_fov ?? 75,
+    zoom_sensitivity: s.zoom_sensitivity ?? 1,
+    image_path: s.image_path,
+    thumbnail_path: s.thumbnail_path ?? null,
+    is_flat: s.is_flat ?? false,
+    hide_stitching: s.hide_stitching ?? false,
+    hide_tripod: s.hide_tripod ?? false,
+    tripod_size: s.tripod_size ?? 30,
+    camera_height: s.camera_height ?? 1.6,
+    folder: s.folder ?? null,
+    description: (s as any).description ?? null,
+    image_adjustments: (s as any).image_adjustments ?? null,
+  };
+}
+
+const sameValue = (a: unknown, b: unknown) =>
+  a === b || (typeof a === "object" && typeof b === "object" && JSON.stringify(a) === JSON.stringify(b));
+
 export default function TourEditPage() {
   const params = useParams<{ id: string }>();
   const tourId = params.id;
@@ -311,17 +357,28 @@ export default function TourEditPage() {
 
   // Load ALL hotspots for the tour at once so masters (which live on one scene
   // but render on every scene) are available across scene switches.
+  //
+  // Keyed on the SET of scene ids, not the scenes array: before Nov 2026
+  // every scene edit (each keystroke in a scene name, each slider tick,
+  // each live update from a colleague) re-downloaded every hotspot in the
+  // tour and replaced the list, wiping hotspot edits not yet saved.
+  const sceneIdsKey = useMemo(() => scenes.map((s) => s.id).sort().join(","), [scenes]);
   useEffect(() => {
-    if (!scenes.length) return;
-    const sceneIds = scenes.map((s) => s.id);
+    if (!sceneIdsKey) return;
+    let cancelled = false;
     supabase
       .from("hotspots")
       .select("*")
-      .in("scene_id", sceneIds)
-      .then(({ data }) =>
-        setAllHotspots((data ?? []) as Hotspot[])
-      );
-  }, [scenes]);
+      .in("scene_id", sceneIdsKey.split(","))
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setAllHotspots((cur) => mergeHotspotsFromServer(cur, data as Hotspot[]));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneIdsKey]);
 
   useEffect(() => {
     setSelectedHotspotId(null);
@@ -403,16 +460,24 @@ export default function TourEditPage() {
   // a row we're currently editing are skipped so our in-flight change
   // isn't overwritten by our own DB echo.
   useEffect(() => {
-    if (!tourId || scenes.length === 0) return;
-    const sceneIds = scenes.map((s) => s.id);
+    if (!tourId || !sceneIdsKey) return;
+    const sceneIds = sceneIdsKey.split(",");
     const teardown = subscribeToTour(tourId, sceneIds, {
+      onResync: () => {
+        // The page just loaded everything; skip only that very first join.
+        if (firstJoinRef.current) {
+          firstJoinRef.current = false;
+          return;
+        }
+        void resyncRef.current();
+      },
       shouldSkipHotspot: (row: any) => {
         // 1. Our own unsaved write? — pending queue is truth.
         if (pendingHotspotChangesRef.current.has(row.id)) return true;
         // 2. Our own very-recent saved write (< 800ms)? — the DB
         //    roundtrip often outraces the local setState.
         const recent = recentLocalWritesRef.current.get(row.id);
-        if (recent && Date.now() - recent < 800) return true;
+        if (recent && Date.now() - recent < LOCAL_GUARD_MS) return true;
         // 3. We just deleted this locally (< 5s)? — an INSERT/UPDATE
         //    echo would resurrect the ghost; drop it.
         const deletedAt = recentDeletesRef.current.get(row.id);
@@ -450,25 +515,55 @@ export default function TourEditPage() {
       },
       onSceneInsert: (row: any) => {
         setScenes((list) =>
-          list.some((s) => s.id === row.id) ? list : [...list, row]
+          list.some((s) => s.id === row.id) ? list : sortScenes([...list, row])
         );
       },
       onSceneUpdate: (row: any) => {
-        setScenes((list) =>
-          list.map((s) => (s.id === row.id ? { ...s, ...row } : s))
-        );
+        setScenes((list) => {
+          const local = list.find((s) => s.id === row.id);
+          if (!local) return list;
+          const next = list.map((s) => (s.id === row.id ? mergeSceneRow(s, row) : s));
+          // Someone else reordered: follow their order.
+          return local.order_index !== row.order_index ? sortScenes(next) : next;
+        });
       },
       onSceneDelete: (id: string) => {
         setScenes((list) => list.filter((s) => s.id !== id));
         setActiveSceneId((cur) => (cur === id ? null : cur));
       },
       onTourUpdate: (row: any) => {
-        setTour((cur) => (cur ? { ...cur, ...row } : row));
+        setTour((cur) => (cur ? mergeTourRow(cur, row) : row));
       },
     });
     return teardown;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourId, scenes.length]);
+  }, [tourId, sceneIdsKey]);
+
+  /** Catch up with the server after the live channel (re)joined, the tab
+   *  came back, or the network returned: re-fetch the tour, its scenes and
+   *  hotspots, and merge them over what is on screen (local edits in
+   *  flight win). */
+  const resyncBusyRef = useRef(false);
+  const resyncRef = useRef<() => Promise<void>>(async () => {});
+  resyncRef.current = async () => {
+    if (resyncBusyRef.current || !tourId) return;
+    resyncBusyRef.current = true;
+    try {
+      const [{ data: t }, { data: s }] = await Promise.all([
+        supabase.from("tours").select("*").eq("id", tourId).single(),
+        supabase.from("scenes").select("*").eq("tour_id", tourId).order("order_index"),
+      ]);
+      if (t) setTour((cur) => (cur ? mergeTourRow(cur, t as Record<string, unknown>) : (t as Tour)));
+      if (!s) return;
+      setScenes((cur) => mergeScenesFromServer(cur, s as Scene[]));
+      const ids = (s as Scene[]).map((x) => x.id);
+      if (!ids.length) return;
+      const { data: h } = await supabase.from("hotspots").select("*").in("scene_id", ids);
+      if (h) setAllHotspots((cur) => mergeHotspotsFromServer(cur, h as Hotspot[]));
+    } finally {
+      resyncBusyRef.current = false;
+    }
+  };
 
   // Lookup for hover-preview cards on nav hotspots in the editor viewer.
   const editScenesLookup = useMemo(() => {
@@ -663,6 +758,94 @@ export default function TourEditPage() {
   // close all call flushPendingHotspots() so the DB matches the visible
   // state before anyone reads it.
   const pendingHotspotChangesRef = useRef<Map<string, Hotspot>>(new Map());
+
+  /* ---- Scene and tour saves, and what other editors may overwrite ----
+   *
+   * Until Nov 2026 every keystroke in a scene field wrote the WHOLE scene
+   * row at once. Two things went wrong:
+   *   • the realtime echo of an earlier keystroke ("Seence") landed after
+   *     a later one ("Seencen") and put the old text back in the box;
+   *   • two people on one scene overwrote each other: renaming a scene
+   *     also re-sent the zoom someone else had just changed.
+   * Now a scene edit queues ONLY the fields that changed, saves them after
+   * a short pause, and each field this editor is writing is "guarded" for
+   * a few seconds: echoes and other editors' events do not touch it, but
+   * every other field of the same row still updates live. Tour fields
+   * (patchTour) are guarded the same way. */
+  const firstJoinRef = useRef(true);
+  const scenesRef = useRef<Scene[]>([]);
+  scenesRef.current = scenes;
+  const pendingSceneChangesRef = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const sceneFlushTimerRef = useRef<number | null>(null);
+  const sceneGuardRef = useRef<Map<string, Map<string, number>>>(new Map());
+  const tourGuardRef = useRef<Map<string, number>>(new Map());
+
+  function guardSceneFields(id: string, keys: string[]) {
+    const until = Date.now() + LOCAL_GUARD_MS;
+    let m = sceneGuardRef.current.get(id);
+    if (!m) sceneGuardRef.current.set(id, (m = new Map()));
+    for (const k of keys) m.set(k, until);
+  }
+  function guardTourFields(keys: string[]) {
+    const until = Date.now() + LOCAL_GUARD_MS;
+    for (const k of keys) tourGuardRef.current.set(k, until);
+  }
+  /** A scene row from the server, merged over ours: fields we are still
+   *  writing (queued or just written) keep our value. */
+  function mergeSceneRow(local: Scene, row: Record<string, unknown>): Scene {
+    const pend = pendingSceneChangesRef.current.get(local.id);
+    const guard = sceneGuardRef.current.get(local.id);
+    const now = Date.now();
+    const out: Record<string, unknown> = { ...(local as unknown as Record<string, unknown>) };
+    for (const k of Object.keys(row)) {
+      if (pend && k in pend) continue;
+      if (guard && (guard.get(k) ?? 0) > now) continue;
+      out[k] = row[k];
+    }
+    return out as unknown as Scene;
+  }
+  function mergeTourRow(local: Tour, row: Record<string, unknown>): Tour {
+    const now = Date.now();
+    const out: Record<string, unknown> = { ...(local as unknown as Record<string, unknown>) };
+    for (const k of Object.keys(row)) {
+      if ((tourGuardRef.current.get(k) ?? 0) > now) continue;
+      out[k] = row[k];
+    }
+    return out as unknown as Tour;
+  }
+  /** The server's list of scenes merged over ours, in the server's order
+   *  unless we are mid-reorder (order_index guarded). */
+  function mergeScenesFromServer(cur: Scene[], server: Scene[]): Scene[] {
+    const byId = new Map(cur.map((x) => [x.id, x]));
+    const merged = server.map((row) => {
+      const local = byId.get(row.id);
+      return local ? mergeSceneRow(local, row as unknown as Record<string, unknown>) : row;
+    });
+    return sortScenes(merged);
+  }
+  /** The server's hotspots merged over ours: rows we are still writing keep
+   *  our version, rows we just created stay even if the server does not
+   *  list them yet, rows we just deleted stay deleted. */
+  function mergeHotspotsFromServer(cur: Hotspot[], server: Hotspot[]): Hotspot[] {
+    const now = Date.now();
+    const local = new Map(cur.map((h) => [h.id, h]));
+    const isMine = (id: string) => {
+      if (pendingHotspotChangesRef.current.has(id)) return true;
+      const at = recentLocalWritesRef.current.get(id);
+      return at != null && now - at < LOCAL_GUARD_MS;
+    };
+    const out: Hotspot[] = [];
+    const seen = new Set<string>();
+    for (const h of server) {
+      const del = recentDeletesRef.current.get(h.id);
+      if (del && now - del < 5000) continue;
+      seen.add(h.id);
+      out.push(isMine(h.id) ? pendingHotspotChangesRef.current.get(h.id) ?? local.get(h.id) ?? h : h);
+      knownInsertIdsRef.current.add(h.id);
+    }
+    for (const h of cur) if (!seen.has(h.id) && isMine(h.id)) out.push(h);
+    return out;
+  }
   const hotspotFlushTimerRef = useRef<number | null>(null);
   // Timestamps of the most recent local write per hotspot. Realtime
   // echoes that land within ~800ms of our own write are ignored so
@@ -726,6 +909,7 @@ export default function TourEditPage() {
    *  delete doesn't blow up if the DB is behind on migrations. Silent
    *  on failure — undo is best-effort by design. */
   async function safeInsertHotspot(h: Hotspot) {
+    recentLocalWritesRef.current.set(h.id, Date.now());
     const working: Record<string, unknown> = { ...h };
     for (let attempt = 0; attempt < 20; attempt++) {
       const { error } = await supabase.from("hotspots").insert(working);
@@ -951,6 +1135,10 @@ export default function TourEditPage() {
 
     setSaveState("saving");
     setLastSaveError(null);
+    // Guard the rows while they are in flight, not only after: an echo of
+    // an EARLIER save landing mid-write would otherwise put old values back.
+    const flushStartedAt = Date.now();
+    for (const h of pending) recentLocalWritesRef.current.set(h.id, flushStartedAt);
 
     // Run all writes in parallel, capture per-row outcome. Each write
     // uses the same column-fallback retry loop as scene saves, so
@@ -1355,12 +1543,22 @@ export default function TourEditPage() {
   // wire so the request usually makes it.
   useEffect(() => {
     const handler = () => {
+      if (pendingSceneChangesRef.current.size > 0) {
+        void flushPendingScenes();
+      }
       if (pendingHotspotChangesRef.current.size > 0) {
         flushPendingHotspots();
       }
     };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") handler();
+    };
     window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      document.removeEventListener("visibilitychange", onHide);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1517,38 +1715,62 @@ export default function TourEditPage() {
     pushOp({ type: "insert", after: copy });
   }
 
-  async function onSceneChange(s: Scene) {
-    setScenes((list) => list.map((x) => (x.id === s.id ? s : x)));
-    const fullPayload: Record<string, unknown> = {
-      name: s.name,
-      initial_yaw: s.initial_yaw,
-      initial_pitch: s.initial_pitch,
-      ambient_audio_url: s.ambient_audio_url ?? null,
-      ambient_audio_volume: s.ambient_audio_volume ?? 0.5,
-      ambient_audio_trim_start: (s as any).ambient_audio_trim_start ?? null,
-      ambient_audio_trim_end: (s as any).ambient_audio_trim_end ?? null,
-      auto_tour_duration: s.auto_tour_duration ?? null,
-      pitch_min: s.pitch_min,
-      pitch_max: s.pitch_max,
-      yaw_min: s.yaw_min,
-      yaw_max: s.yaw_max,
-      level_correction: s.level_correction ?? 0,
-      zoom_min_fov: s.zoom_min_fov ?? 30,
-      zoom_max_fov: s.zoom_max_fov ?? 90,
-      zoom_initial_fov: s.zoom_initial_fov ?? 75,
-      zoom_sensitivity: s.zoom_sensitivity ?? 1,
-      image_path: s.image_path,
-      thumbnail_path: s.thumbnail_path ?? null,
-      is_flat: s.is_flat ?? false,
-      hide_stitching: s.hide_stitching ?? false,
-      hide_tripod: s.hide_tripod ?? false,
-      tripod_size: s.tripod_size ?? 30,
-      camera_height: s.camera_height ?? 1.6,
-      folder: s.folder ?? null,
-      description: (s as any).description ?? null,
-      image_adjustments: (s as any).image_adjustments ?? null,
-    };
-    await saveWithColumnFallback("scenes", fullPayload, s.id, "[scene save]");
+  /** A scene was edited (any field on any tab). Shows it at once, then
+   *  saves only the fields that changed, a moment after the edits stop. */
+  function onSceneChange(next: Scene) {
+    const prev = scenesRef.current.find((x) => x.id === next.id);
+    const after = sceneSavePayload(next);
+    const before = prev ? sceneSavePayload(prev) : null;
+    const diff: Record<string, unknown> = {};
+    for (const k of Object.keys(after)) {
+      if (!before || !sameValue(before[k], after[k])) diff[k] = after[k];
+    }
+    if (Object.keys(diff).length === 0) return;
+    const apply = (x: Scene) => (x.id === next.id ? ({ ...x, ...diff } as Scene) : x);
+    scenesRef.current = scenesRef.current.map(apply);
+    setScenes((list) => list.map(apply));
+    const q = pendingSceneChangesRef.current;
+    q.set(next.id, { ...(q.get(next.id) ?? {}), ...diff });
+    guardSceneFields(next.id, Object.keys(diff));
+    setSaveState("dirty");
+    if (sceneFlushTimerRef.current != null) window.clearTimeout(sceneFlushTimerRef.current);
+    sceneFlushTimerRef.current = window.setTimeout(() => {
+      sceneFlushTimerRef.current = null;
+      void flushPendingScenes();
+    }, SCENE_SAVE_DEBOUNCE_MS);
+  }
+
+  /** Write every queued scene change now (only the changed fields). */
+  async function flushPendingScenes(): Promise<boolean> {
+    if (sceneFlushTimerRef.current != null) {
+      window.clearTimeout(sceneFlushTimerRef.current);
+      sceneFlushTimerRef.current = null;
+    }
+    const batch = Array.from(pendingSceneChangesRef.current.entries());
+    pendingSceneChangesRef.current.clear();
+    if (batch.length === 0) return true;
+    setSaveState("saving");
+    for (const [id, fields] of batch) guardSceneFields(id, Object.keys(fields));
+    const results = await Promise.all(
+      batch.map(([id, fields]) => saveWithColumnFallback("scenes", fields, id, "[scene save]"))
+    );
+    // Hold the fields a little longer: the echo arrives after the write.
+    for (const [id, fields] of batch) guardSceneFields(id, Object.keys(fields));
+    const ok = results.every(Boolean);
+    if (ok && pendingSceneChangesRef.current.size === 0 && pendingHotspotChangesRef.current.size === 0) {
+      setSaveState("saved");
+      if (savedIndicatorTimerRef.current != null) window.clearTimeout(savedIndicatorTimerRef.current);
+      savedIndicatorTimerRef.current = window.setTimeout(() => {
+        setSaveState((st) => (st === "saved" ? "clean" : st));
+      }, 1800);
+    }
+    return ok;
+  }
+
+  /** Save / Open / Preview / leaving: scenes first, then hotspots. */
+  async function flushAllPending() {
+    await flushPendingScenes();
+    return flushPendingHotspots();
   }
 
   /** Apply one colour-grade to EVERY scene in the tour. Updates local state
@@ -1595,7 +1817,7 @@ export default function TourEditPage() {
         .eq("id", id);
       if (!error) {
         if (attempt > 0 && !opts.silent) setSaveState("saved");
-        return;
+        return true;
       }
       // Parse missing column from the Postgres / PostgREST message.
       const match = /Could not find the '([^']+)' column/i.exec(
@@ -1618,14 +1840,16 @@ export default function TourEditPage() {
         setSaveState("error");
         setLastSaveError(`Save failed: ${error.message}`);
       }
-      return;
+      return false;
     }
     // Ran out of retry attempts.
     console.error(tag, id, "gave up after 20 column-fallback retries");
+    return false;
   }
 
   async function onSceneDelete(id: string) {
     if (!confirm("Delete scene?")) return;
+    pendingSceneChangesRef.current.delete(id);
     await supabase.from("scenes").delete().eq("id", id);
     setScenes((list) => list.filter((s) => s.id !== id));
     if (activeSceneId === id) {
@@ -1639,7 +1863,9 @@ export default function TourEditPage() {
     const next = [...scenes];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    setScenes(next);
+    const ordered = next.map((s, i) => ({ ...s, order_index: i }));
+    for (const s of ordered) guardSceneFields(s.id, ["order_index"]);
+    setScenes(ordered);
     await Promise.all(
       next.map((s, i) =>
         supabase.from("scenes").update({ order_index: i }).eq("id", s.id)
@@ -1651,7 +1877,7 @@ export default function TourEditPage() {
     if (!tour) return;
     // Drain any pending debounced hotspot edits FIRST so the DB matches
     // what the user is looking at before we bump updated_at.
-    const result = await flushPendingHotspots();
+    const result = await flushAllPending();
     if (!result.ok) {
       alert(
         `Save failed.\n\n${result.error}\n\n` +
@@ -1766,6 +1992,7 @@ export default function TourEditPage() {
   // toggles) that a user's DB hasn't migrated yet are skipped gracefully
   // instead of failing the whole update.
   async function patchTour(fields: Partial<Tour>) {
+    guardTourFields(Object.keys(fields));
     setTour((t) => (t ? { ...t, ...fields } : t));
     await saveWithColumnFallback(
       "tours",
@@ -1801,11 +2028,7 @@ export default function TourEditPage() {
   // Hold the editor back until the role check above has passed, so a sales presenter
   // never sees the editor UI flash up before being redirected.
   if (!tour || !roleChecked) {
-    return (
-      <div className="min-h-screen grid place-items-center text-neutral-500">
-        Loading…
-      </div>
-    );
+    return <EditorSkeleton />;
   }
 
   const inPlacementMode = pendingHotspot != null || repositioningId != null;
@@ -1841,7 +2064,7 @@ export default function TourEditPage() {
             // Flush before toggling — Preview reads from local state so
             // this isn't strictly required, but doing it here means the
             // user can trust "Preview" as a definitive checkpoint.
-            await flushPendingHotspots();
+            await flushAllPending();
             setPreviewMode((v) => !v);
             setPendingHotspot(null);
             setRepositioningId(null);
@@ -1865,7 +2088,7 @@ export default function TourEditPage() {
             // Flush pending edits BEFORE opening the new tab. The viewer
             // fetches fresh from the DB, so if the debounce hasn't fired
             // yet the new tab would show a stale hotspot state.
-            const result = await flushPendingHotspots();
+            const result = await flushAllPending();
             if (!result.ok) {
               const proceed = confirm(
                 `Some changes couldn't be saved:\n\n${result.error}\n\n` +
@@ -2622,4 +2845,42 @@ function legacyAction(t: Hotspot["type"]) {
     case "pdf": return "pdf_popup";
     default: return "none";
   }
+}
+
+/** The editor's shape while the tour loads: top bar, picture area, side
+ *  panel and scene strip, with a soft shimmer. Replaces a bare "Loading…". */
+function EditorSkeleton() {
+  const bar = "rounded bg-white/[0.06] edsk-shim";
+  return (
+    <div className="h-screen flex flex-col bg-chrome" aria-busy="true" aria-label="Loading the editor">
+      <style>{`
+        @keyframes edsk { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+        .edsk-shim { background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.06) 50%, rgba(255,255,255,0) 100%); background-size: 200% 100%; animation: edsk 1.4s ease-in-out infinite }
+        @media (prefers-reduced-motion: reduce) { .edsk-shim { animation: none } }
+      `}</style>
+      <div className="h-12 border-b border-border flex items-center gap-3 px-3">
+        <div className={`${bar} h-4 w-4`} />
+        <div className={`${bar} h-4 w-48`} />
+        <div className="flex-1" />
+        {[72, 64, 72, 64, 72].map((w, i) => (
+          <div key={i} className={`${bar} h-7`} style={{ width: w }} />
+        ))}
+      </div>
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 bg-black/60 edsk-shim" />
+        <div className="w-[300px] border-l border-border p-4 space-y-4 hidden md:block">
+          <div className={`${bar} h-6 w-3/4`} />
+          <div className={`${bar} h-9 w-full`} />
+          <div className={`${bar} h-16 w-full`} />
+          <div className={`${bar} h-9 w-1/2`} />
+          <div className={`${bar} h-24 w-full`} />
+        </div>
+      </div>
+      <div className="h-[104px] border-t border-border flex items-center gap-2 px-3 overflow-hidden">
+        {Array.from({ length: 10 }, (_, i) => (
+          <div key={i} className={`${bar} h-[72px] w-[128px] shrink-0`} />
+        ))}
+      </div>
+    </div>
+  );
 }

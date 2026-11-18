@@ -1,8 +1,8 @@
 "use client";
 
+import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useState } from "react";
 import type { Scene } from "@/lib/types";
-import { publicUrl } from "@/lib/supabase";
 import { Plus, Trash2, LayoutGrid, Pencil, Crown } from "lucide-react";
 import Link from "next/link";
 
@@ -139,11 +139,12 @@ export default function SceneStrip({
                   }}
                   title={`Drag onto panorama to create a "go to ${s.name}" hotspot`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={publicUrl(s.thumbnail_path ?? s.image_path)}
+                  <ScenePreviewImg
+                    imagePath={s.image_path}
+                    thumbnailPath={s.thumbnail_path}
                     alt={s.name}
                     draggable={false}
+                    generate
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent text-[10px] px-1.5 py-0.5 truncate text-white">
@@ -299,10 +300,11 @@ function SceneGridModal({
                     : "ring-1 ring-border hover:ring-accent/60"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={publicUrl(s.thumbnail_path ?? s.image_path)}
+                <ScenePreviewImg
+                  imagePath={s.image_path}
+                  thumbnailPath={s.thumbnail_path}
                   alt={s.name}
+                  generate
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-2 py-1 text-[11px] text-white truncate text-left">
