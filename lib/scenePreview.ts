@@ -46,7 +46,9 @@ const ready = new Set<string>(); // image paths whose preview now exists
 const failed = new Set<string>(); // gave up this session
 const queued = new Set<string>();
 const queue: string[] = [];
-const localFiles = new Map<string, Blob>(); // the file itself, when we just uploaded it
+// The picture itself when we already have it: the file just uploaded, or
+// the full picture a tile has just loaded. Then nothing is downloaded twice.
+const localFiles = new Map<string, Blob | HTMLImageElement>();
 const listeners = new Set<(imagePath: string) => void>();
 let running = false;
 
@@ -64,7 +66,7 @@ export function onPreviewReady(fn: (imagePath: string) => void): () => void {
 
 /** Make the preview for this panorama if it is missing. Safe to call many
  *  times; work happens one picture at a time, when the browser is idle. */
-export function ensurePreview(imagePath: string, file?: Blob): void {
+export function ensurePreview(imagePath: string, file?: Blob | HTMLImageElement): void {
   if (file && previewPath(imagePath)) localFiles.set(imagePath, file);
   if (!previewPath(imagePath) || ready.has(imagePath) || failed.has(imagePath) || queued.has(imagePath)) return;
   queued.add(imagePath);
@@ -103,7 +105,7 @@ async function drain() {
 
 async function makePreview(imagePath: string) {
   const path = previewPath(imagePath)!;
-  let src = localFiles.get(imagePath);
+  let src: Blob | HTMLImageElement | undefined = localFiles.get(imagePath);
   localFiles.delete(imagePath);
   if (!src) {
     const res = await fetch(publicUrl(imagePath), { cache: "force-cache" });

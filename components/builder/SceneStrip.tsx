@@ -1,5 +1,6 @@
 "use client";
 
+import { formatBytes } from "@/lib/formatBytes";
 import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useState } from "react";
 import type { Scene } from "@/lib/types";
@@ -18,6 +19,7 @@ export default function SceneStrip({
    *  marked with a tasteful "Pro" chip and the banner above explains
    *  they're hidden from end-customers. Omit on PRO / ULTRA. */
   basicSceneCap,
+  sizes,
 }: {
   scenes: Scene[];
   activeId: string | null;
@@ -27,6 +29,8 @@ export default function SceneStrip({
   tourId: string;
   hidden?: boolean;
   basicSceneCap?: number;
+  /** Bytes of each scene's panorama, by scene id (shown small on the tile). */
+  sizes?: Record<string, number | null>;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
@@ -157,6 +161,14 @@ export default function SceneStrip({
                     >
                       <Crown size={8} /> Extra
                     </div>
+                  )}
+                  {sizes?.[s.id] != null && (
+                    <span
+                      className="absolute top-1 right-1 rounded bg-black/60 px-1 text-[8.5px] font-medium leading-[14px] text-white/85 tabular-nums transition-opacity group-hover:opacity-0"
+                      title="Size of this scene's picture"
+                    >
+                      {formatBytes(sizes[s.id] as number)}
+                    </span>
                   )}
                   <button
                     onClick={(e) => {

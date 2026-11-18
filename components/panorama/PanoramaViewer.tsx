@@ -40,6 +40,9 @@ import {
 
 type Props = {
   imageUrl: string;
+  /** A small copy of the same panorama (lib/scenePreview). Shown the
+   *  moment it arrives, then replaced by imageUrl. Optional. */
+  previewImageUrl?: string | null;
   hotspots: Hotspot[];
   editable?: boolean;
   /** Tour-wide hotspot micro-interaction flags (breathing, hover magnify,
@@ -225,6 +228,7 @@ export default function PanoramaViewer({
 
 function Scene({
   imageUrl,
+  previewImageUrl = null,
   hotspots,
   editable,
   hotspotFx,
@@ -276,21 +280,56 @@ function Scene({
   const [rawTexture, setRawTexture] = useState<THREE.Texture | null>(null);
   useEffect(() => {
     let cancelled = false;
+    let fullShown = false;
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin("anonymous");
+    const prep = (t: THREE.Texture) => {
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      t.colorSpace = THREE.SRGBColorSpace;
+    };
+    // The small preview first (a few KB): the new scene is on screen at
+    // once, slightly soft, and sharpens when the full picture lands. A
+    // missing preview is simply skipped.
+    if (previewImageUrl) {
+      loader.load(
+        previewImageUrl,
+        (t) => {
+          if (cancelled || fullShown) {
+            t.dispose();
+            return;
+          }
+          prep(t);
+          setRawTexture(t);
+        },
+        undefined,
+        () => {}
+      );
+    }
     loader.load(imageUrl, (t) => {
       if (cancelled) {
         t.dispose();
         return;
       }
-      t.mapping = THREE.EquirectangularReflectionMapping;
-      t.colorSpace = THREE.SRGBColorSpace;
+      fullShown = true;
+      prep(t);
       setRawTexture(t);
     });
     return () => {
       cancelled = true;
     };
-  }, [imageUrl]);
+  }, [imageUrl, previewImageUrl]);
+
+  // Free each picture's graphics memory once the next one is showing.
+  // Before Nov 2026 no panorama was ever released: every scene opened in a
+  // session (~75-100 MB of GPU memory each at full size) stayed allocated,
+  // so the editor grew heavier and laggier the longer it was used. The
+  // short wait lets anything still drawing the old picture finish.
+  const shownTexRef = useRef<THREE.Texture | null>(null);
+  useEffect(() => {
+    const prev = shownTexRef.current;
+    shownTexRef.current = rawTexture;
+    if (prev && prev !== rawTexture) window.setTimeout(() => prev.dispose(), 1500);
+  }, [rawTexture]);
 
   // Optional stitching-line blend — smooths the equirectangular seam.
   // Null-safe: returns null until rawTexture loads.
@@ -332,6 +371,13 @@ function Scene({
       return rawTexture;
     }
   }, [rawTexture, hideStitching]);
+  // The seam-blended copy is a texture of its own: free it when replaced.
+  const shownBlendRef = useRef<THREE.Texture | null>(null);
+  useEffect(() => {
+    const prev = shownBlendRef.current;
+    shownBlendRef.current = texture && texture !== rawTexture ? texture : null;
+    if (prev && prev !== texture) window.setTimeout(() => prev.dispose(), 1500);
+  }, [texture, rawTexture]);
 
   // Standard mode: horizontally flip the panorama texture UVs so text reads
   // correctly (compensates for BackSide sphere's built-in flip).

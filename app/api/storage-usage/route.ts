@@ -14,7 +14,8 @@
  * bucket in the browser, where there are folders and no files, so the card
  * showed almost nothing; and it could never see R2.
  *
- * Response { bytes, files, unknown } (unknown = files whose size could not
+ * Response { bytes, files, unknown, tours: {tourId: bytes} }, and with
+ * ?tour=<id> also scenes: {sceneId: bytes} (unknown = files whose size could not
  * be read). Cached for each caller for a few minutes.
  */
 
@@ -31,7 +32,15 @@ const HEAD_CONCURRENCY = 16;
 const HEAD_TIMEOUT_MS = 8_000;
 const MAX_HEADS = 3_000;
 
-type Usage = { bytes: number; files: number; unknown: number };
+type Usage = {
+  bytes: number;
+  files: number;
+  unknown: number;
+  /** Bytes per tour (whole workspace) */
+  tours: Record<string, number>;
+  /** Bytes per scene's panorama (only with ?tour=) */
+  scenes?: Record<string, number | null>;
+};
 const cache = new Map<string, { at: number; usage: Usage }>();
 
 function json(body: unknown, status = 200) {
@@ -41,33 +50,12 @@ function json(body: unknown, status = 200) {
   });
 }
 
-export async function GET(req: Request) {
-  const auth = await authenticateRequest(req);
-  if (!auth) return json({ error: "unauthorized" }, 401);
+type SceneRow = { id: string; tour_id: string; image_path: string | null; thumbnail_path: string | null };
+const isStored = (p: unknown): p is string => typeof p === "string" && p.length > 0 && !/^https?:/i.test(p) && !p.startsWith("/");
 
-  const hit = cache.get(auth.user.id);
-  if (hit && Date.now() - hit.at < CACHE_MS) return json(hit.usage);
-
-  // Every tour the caller can see, through their own row-level security.
-  const { data: tours, error: tErr } = await auth.sb.from("tours").select("id");
-  if (tErr) return json({ error: "temporarily_unavailable" }, 503);
-  const tourIds = (tours ?? []).map((t: { id: string }) => t.id);
-
-  const paths = new Set<string>();
-  for (let i = 0; i < tourIds.length; i += 100) {
-    const { data: scenes, error } = await auth.sb
-      .from("scenes")
-      .select("image_path, thumbnail_path")
-      .in("tour_id", tourIds.slice(i, i + 100));
-    if (error) return json({ error: "temporarily_unavailable" }, 503);
-    for (const s of scenes ?? []) {
-      for (const p of [s.image_path, s.thumbnail_path]) {
-        if (typeof p === "string" && p && !/^https?:/i.test(p)) paths.add(p);
-      }
-    }
-  }
-
-  // 1. Supabase: list each folder the files sit in (one call per 1,000).
+/** Size of each path: Supabase folder listings first, then HEAD through
+ *  the media Worker (R2) for the rest. */
+async function sizesOf(paths: Set<string>): Promise<{ sizes: Map<string, number>; unknown: number }> {
   const sizes = new Map<string, number>();
   const admin = supabaseAdmin();
   if (admin) {
@@ -86,8 +74,6 @@ export async function GET(req: Request) {
       })
     );
   }
-
-  // 2. R2: the rest, by HEAD through the media Worker.
   const missing = Array.from(paths).filter((p) => !sizes.has(p));
   let unknown = 0;
   if (MEDIA_BASE) {
@@ -111,10 +97,69 @@ export async function GET(req: Request) {
   } else {
     unknown += missing.length;
   }
+  return { sizes, unknown };
+}
 
+export async function GET(req: Request) {
+  const auth = await authenticateRequest(req);
+  if (!auth) return json({ error: "unauthorized" }, 401);
+
+  // ?tour=<id>: one tour, with each scene's picture size (the editor).
+  const tourParam = new URL(req.url).searchParams.get("tour");
+  if (tourParam && !/^[0-9a-f-]{36}$/i.test(tourParam)) return json({ error: "bad_tour" }, 400);
+  // n = how many scenes the caller sees: adding or removing one asks afresh.
+  const n = new URL(req.url).searchParams.get("n") ?? "";
+  const key = `${auth.user.id}:${tourParam ?? "*"}:${n}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return json(hit.usage);
+
+  // Every tour the caller can see, through their own row-level security.
+  let tourIds: string[];
+  if (tourParam) {
+    const { data, error } = await auth.sb.from("tours").select("id").eq("id", tourParam).maybeSingle();
+    if (error) return json({ error: "temporarily_unavailable" }, 503);
+    if (!data) return json({ error: "not_found" }, 404);
+    tourIds = [tourParam];
+  } else {
+    const { data: tours, error: tErr } = await auth.sb.from("tours").select("id");
+    if (tErr) return json({ error: "temporarily_unavailable" }, 503);
+    tourIds = (tours ?? []).map((t: { id: string }) => t.id);
+  }
+
+  const scenes: SceneRow[] = [];
+  for (let i = 0; i < tourIds.length; i += 100) {
+    const { data, error } = await auth.sb
+      .from("scenes")
+      .select("id, tour_id, image_path, thumbnail_path")
+      .in("tour_id", tourIds.slice(i, i + 100));
+    if (error) return json({ error: "temporarily_unavailable" }, 503);
+    scenes.push(...((data ?? []) as SceneRow[]));
+  }
+
+  const paths = new Set<string>();
+  for (const s of scenes) for (const p of [s.image_path, s.thumbnail_path]) if (isStored(p)) paths.add(p);
+  const { sizes, unknown } = await sizesOf(paths);
+
+  const tours: Record<string, number> = {};
+  const perScene: Record<string, number | null> = {};
+  const counted = new Set<string>();
   let bytes = 0;
-  for (const p of paths) bytes += sizes.get(p) ?? 0;
-  const usage: Usage = { bytes, files: paths.size, unknown };
-  cache.set(auth.user.id, { at: Date.now(), usage });
+  for (const s of scenes) {
+    let sceneBytes = 0;
+    for (const p of [s.image_path, s.thumbnail_path]) {
+      if (!isStored(p)) continue;
+      const n = sizes.get(p) ?? 0;
+      sceneBytes += n;
+      if (!counted.has(p)) {
+        counted.add(p);
+        bytes += n;
+      }
+    }
+    tours[s.tour_id] = (tours[s.tour_id] ?? 0) + sceneBytes;
+    perScene[s.id] = isStored(s.image_path) ? sizes.get(s.image_path) ?? null : null;
+  }
+  const usage: Usage = { bytes, files: paths.size, unknown, tours };
+  if (tourParam) usage.scenes = perScene;
+  cache.set(key, { at: Date.now(), usage });
   return json(usage);
 }

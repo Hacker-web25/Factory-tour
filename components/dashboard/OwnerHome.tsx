@@ -1,5 +1,6 @@
 "use client";
 
+import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -42,7 +43,14 @@ import {
   relockFolder,
 } from "@/lib/folders";
 
-type TourWithCover = Tour & { cover_path: string | null; scene_count: number };
+type TourWithCover = Tour & {
+  cover_path: string | null;
+  /** The first scene's panorama, drawn from its small preview. */
+  cover_image: string | null;
+  scene_count: number;
+  /** Bytes of the tour's pictures, once /api/storage-usage has counted. */
+  size_bytes?: number | null;
+};
 type Layout = "grid" | "list";
 
 export default function OwnerHome() {
@@ -152,7 +160,7 @@ export default function OwnerHome() {
     }
     const list: TourWithCover[] = tourList.map((t) => {
       const e = byTour.get(t.id);
-      return { ...t, cover_path: t.thumbnail_path ?? e?.first ?? null, scene_count: e?.count ?? 0 };
+      return { ...t, cover_path: t.thumbnail_path ?? e?.first ?? null, cover_image: e?.first ?? null, scene_count: e?.count ?? 0 };
     });
     setTours(list);
     void loadStorage();
@@ -177,8 +185,10 @@ export default function OwnerHome() {
       if (!token) return;
       const res = await fetch("/api/storage-usage", { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      const body = (await res.json()) as { bytes?: number };
+      const body = (await res.json()) as { bytes?: number; tours?: Record<string, number> };
       if (typeof body.bytes === "number") setStorageBytes(body.bytes);
+      const sizes = body.tours;
+      if (sizes) setTours((list) => list.map((t) => ({ ...t, size_bytes: sizes[t.id] ?? null })));
     } catch {
       /* the card keeps showing its placeholder */
     }
@@ -699,12 +709,25 @@ function TourCard({
         className="aspect-video bg-black relative overflow-hidden cursor-pointer"
       >
         {tour.cover_path ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={publicUrl(tour.cover_path)}
-            alt={tour.title}
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
-          />
+          tour.thumbnail_path ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={publicUrl(tour.thumbnail_path)}
+              alt={tour.title}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+            />
+          ) : (
+            // The first scene's small preview, not its full panorama (31
+            // full panoramas made the dashboard download ~50-150 MB).
+            <ScenePreviewImg
+              imagePath={tour.cover_image ?? tour.cover_path}
+              alt={tour.title}
+              generate
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+            />
+          )
         ) : (
           <div className="w-full h-full grid place-items-center text-neutral-600 text-xs">
             no image
@@ -764,6 +787,12 @@ function TourCard({
             <span>
               {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
             </span>
+            {tour.size_bytes != null && tour.size_bytes > 0 && (
+              <>
+                <span>·</span>
+                <span title="Size of this tour's pictures">{formatBytes(tour.size_bytes)}</span>
+              </>
+            )}
             <span>·</span>
             <span>{new Date(tour.updated_at).toLocaleDateString()}</span>
           </div>
@@ -851,12 +880,25 @@ function TourRow({
         className="w-24 h-14 bg-black rounded overflow-hidden shrink-0 cursor-pointer"
       >
         {tour.cover_path ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={publicUrl(tour.cover_path)}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          tour.thumbnail_path ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={publicUrl(tour.thumbnail_path)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            // The first scene's small preview, not its full panorama (31
+            // full panoramas made the dashboard download ~50-150 MB).
+            <ScenePreviewImg
+              imagePath={tour.cover_image ?? tour.cover_path}
+              alt=""
+              generate
+              className="w-full h-full object-cover"
+            />
+          )
         ) : (
           <div className="w-full h-full grid place-items-center text-neutral-600 text-3xs">
             no image
@@ -885,6 +927,12 @@ function TourRow({
           <span>
             {tour.scene_count} scene{tour.scene_count === 1 ? "" : "s"}
           </span>
+          {tour.size_bytes != null && tour.size_bytes > 0 && (
+            <>
+              <span>·</span>
+              <span title="Size of this tour's pictures">{formatBytes(tour.size_bytes)}</span>
+            </>
+          )}
           <span>·</span>
           <span>{new Date(tour.updated_at).toLocaleDateString()}</span>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatBytes } from "@/lib/formatBytes";
+import { previewUrl } from "@/lib/scenePreview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getMyProfile } from "@/lib/auth";
@@ -564,6 +566,62 @@ export default function TourEditPage() {
       resyncBusyRef.current = false;
     }
   };
+
+  // How big this tour's pictures are, in total and per scene (shown small in
+  // the top bar and on each tile). Counted on the server across Supabase
+  // and R2; asked again when scenes are added or removed.
+  const [tourSizes, setTourSizes] = useState<{ total: number; scenes: Record<string, number | null> } | null>(null);
+  useEffect(() => {
+    if (!tourId || !sceneIdsKey) return;
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const n = sceneIdsKey.split(",").length;
+        const res = await fetch(`/api/storage-usage?tour=${tourId}&n=${n}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const body = (await res.json()) as { tours?: Record<string, number>; scenes?: Record<string, number | null> };
+        if (!cancelled) setTourSizes({ total: body.tours?.[tourId] ?? 0, scenes: body.scenes ?? {} });
+      } catch {
+        /* sizes are a nicety; nothing to show */
+      }
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [tourId, sceneIdsKey]);
+
+  // Warm the scenes the editor is likely to open next: the neighbours in
+  // the strip and the scenes this one's arrows lead to. Starts a moment
+  // after a scene opens (so it never competes with it), at most four.
+  const warmedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeSceneId || scenes.length < 2) return;
+    const t = window.setTimeout(() => {
+      const idx = scenes.findIndex((s) => s.id === activeSceneId);
+      const ids = [scenes[idx + 1]?.id, scenes[idx - 1]?.id];
+      for (const h of allHotspots) {
+        if (h.scene_id === activeSceneId && h.target_scene_id) ids.push(h.target_scene_id);
+      }
+      let n = 0;
+      for (const id of ids) {
+        if (!id || id === activeSceneId || warmedRef.current.has(id) || n >= 4) continue;
+        const sc = scenes.find((s) => s.id === id);
+        if (!sc?.image_path) continue;
+        warmedRef.current.add(id);
+        n++;
+        const img = new window.Image();
+        img.crossOrigin = "anonymous"; // same request mode as the 3D viewer
+        img.decoding = "async";
+        img.src = publicUrl(sc.image_path);
+      }
+    }, 1200);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSceneId, sceneIdsKey]);
 
   // Lookup for hover-preview cards on nav hotspots in the editor viewer.
   const editScenesLookup = useMemo(() => {
@@ -2053,6 +2111,9 @@ export default function TourEditPage() {
           <div className="text-[13px] font-medium truncate">{tour.title}</div>
           <div className="text-3xs text-neutral-500 uppercase tracking-wider">
             {scenes.length} scene{scenes.length === 1 ? "" : "s"}
+            {tourSizes && tourSizes.total > 0 && (
+              <span title="Size of this tour's pictures"> · {formatBytes(tourSizes.total)}</span>
+            )}
           </div>
         </div>
 
@@ -2365,6 +2426,7 @@ export default function TourEditPage() {
           ) : activeScene ? (
             <PanoramaViewer
               imageUrl={publicUrl(activeScene.image_path)}
+              previewImageUrl={previewUrl(activeScene.image_path)}
               adjustments={(activeScene as any).image_adjustments ?? null}
               hotspotFx={resolveHotspotFx(tour)}
               hotspots={hotspots}
@@ -2583,6 +2645,7 @@ export default function TourEditPage() {
         onReorder={onReorder}
         tourId={tour.id}
         basicSceneCap={orgPlan === "basic" ? orgSceneCap : undefined}
+        sizes={tourSizes?.scenes}
       />
 
       {shareOpen && (
