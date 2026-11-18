@@ -258,3 +258,13 @@
   .hs-res-row{padding:5px 0}
   .hs-res-row b{font-size:calc(17px * var(--fit,1))}
 }
+/* phones: the calculator gets the room it needs (Nov 2026). Every part stops
+   above the progress bar; when one still does not fit, the tour gives up
+   height (fitPart in story.ts); the WhatsApp button steps aside while the
+   calculator shows, so it cannot cover the results. */
+@media (max-width:1023px){
+  .hs-part{bottom:22px}
+  .hs-part[data-i="1"]{padding-top:8px}
+  [data-testid=floating-whatsapp]{transition:opacity .2s ease,transform .2s ease}
+  html.hs-on:has(.hs[data-part=conversion]) [data-testid=floating-whatsapp]{opacity:0;transform:scale(.6);pointer-events:none}
+}

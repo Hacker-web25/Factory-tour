@@ -218,6 +218,9 @@ export default function HeroExperience() {
         .xp-nudge { animation: xp-nudge 1.1s ease-in-out infinite }
         .xp-fade { animation: xp-fade .45s ease-out both }
         @media (prefers-reduced-motion: reduce) { .xp-pulse, .xp-drag, .xp-nudge, .xp-fade { animation: none } }
+        /* a short strip (the home page on a small phone gives the tour less
+           height): keep the bars, drop the caption and the second line */
+        @media (max-height: 240px) { .xp-coach, .xp-sub { display: none } }
       `}</style>
 
       {/* The tour itself: two stacked frames, so a scene change can fade
@@ -263,7 +266,7 @@ export default function HeroExperience() {
           </span>
           <div className="min-w-0 leading-tight">
             <p className="truncate text-[13px] font-semibold">Live factory tour</p>
-            <p className="truncate text-[11px] text-white/70">A real plant, in 360°</p>
+            <p className="xp-sub truncate text-[11px] text-white/70">A real plant, in 360°</p>
           </div>
         </div>
         <div className="pointer-events-auto flex items-center gap-2">
@@ -284,7 +287,7 @@ export default function HeroExperience() {
       {/* Coach marks: a caption low on the stage, clear of the tour's own
           scene and its own navigation arrows, which sit mid-screen. */}
       {loaded && !touched && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[84px] z-10 flex justify-center px-4 sm:bottom-[96px]">
+        <div className="xp-coach pointer-events-none absolute inset-x-0 bottom-[84px] z-10 flex justify-center px-4 sm:bottom-[96px]">
           <div
             className="xp-fade flex items-center gap-2.5 rounded-full bg-black/60 py-2.5 pl-3 pr-4 shadow-lg backdrop-blur-sm"
           >

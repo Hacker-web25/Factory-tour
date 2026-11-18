@@ -247,7 +247,7 @@ export function mount(host: HTMLElement): () => void {
     chips.forEach((c) => c.setAttribute("aria-pressed", String(!customOn && Number(c.dataset.v) === calc.valueLakh)));
     customChip.setAttribute("aria-pressed", String(customOn));
     customChip.setAttribute("aria-expanded", String(customOn));
-    customBox.hidden = !customOn;
+    if (customBox.hidden === customOn) { customBox.hidden = !customOn; fitPart(); }
   };
   // Same event the Why VPV calculator sent, so the owner's calculator report,
   // journeys and interest scores keep working. Only after a real change.
@@ -379,6 +379,36 @@ export function mount(host: HTMLElement): () => void {
     if (i === 1 && active !== 1) { shown = 0; recalc(); } // the loss counts up each time part 2 arrives
     active = i;
     sendScene(i);
+  };
+  // A part that comes out taller than its space (a small phone, or a phone
+  // set to a larger text size) must not run under the progress bar or off
+  // the screen. On phones the tour above first gives up height (down to a
+  // quarter of the screen, the same height for every part so it does not
+  // jump about); a part that still does not fit is scaled down, never
+  // below 72%.
+  const phone = matchMedia("(max-width: 1023px)");
+  const overflow = (a: HTMLElement) => {
+    const vis = Array.from(a.children as HTMLCollectionOf<HTMLElement>).filter((c) => getComputedStyle(c).display !== "none");
+    const first = vis[0], last = vis[vis.length - 1];
+    if (!first || !last) return { need: 0, room: 1, by: 0 };
+    const cs = getComputedStyle(a), lf = getComputedStyle(first), ll = getComputedStyle(last);
+    const need = last.offsetTop + last.offsetHeight + parseFloat(ll.marginBottom) - (first.offsetTop - parseFloat(lf.marginTop));
+    const room = a.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 6;
+    return { need, room, by: need - room };
+  };
+  const fitPart = () => {
+    if (!host.isConnected) return;
+    parts.forEach((a) => a.style.removeProperty("zoom"));
+    frame.style.removeProperty("height");
+    const by = Math.max(...parts.map((a) => overflow(a).by));
+    if (by > 0 && phone.matches) {
+      const h = frame.offsetHeight, min = Math.round(pin.clientHeight * 0.25);
+      if (h > min) frame.style.height = `${Math.max(min, h - by - 2)}px`;
+    }
+    parts.forEach((a) => {
+      const m = overflow(a);
+      if (m.by > 0) a.style.setProperty("zoom", String(Math.max(0.72, Math.floor((m.room / m.need) * 100) / 100)));
+    });
   };
 
   /* ---------- one scroll = one part, instantly ---------- */
@@ -526,6 +556,7 @@ export function mount(host: HTMLElement): () => void {
   };
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("resize", onScroll);
+  addEventListener("resize", fitPart);
   addEventListener("wheel", onWheel, { passive: false });
   addEventListener("touchstart", onTouchStart, { passive: true });
   addEventListener("touchmove", onTouchMove, { passive: false });
@@ -533,6 +564,8 @@ export function mount(host: HTMLElement): () => void {
   addEventListener("keydown", onKey);
   recalc();
   onScroll();
+  fitPart();
+  document.fonts?.ready.then(fitPart);
 
   /* ---------- teardown when the site leaves the page ---------- */
   const gone = new MutationObserver(() => { if (!host.isConnected) dispose(); });
@@ -540,7 +573,7 @@ export function mount(host: HTMLElement): () => void {
   function dispose() {
     flush();
     gone.disconnect(); cancelAnimationFrame(raf); cancelAnimationFrame(sraf); clearTimeout(saveTimer); clearTimeout(settleT);
-    removeEventListener("scroll", onScroll); removeEventListener("resize", onScroll); removeEventListener("pagehide", flush);
+    removeEventListener("scroll", onScroll); removeEventListener("resize", onScroll); removeEventListener("resize", fitPart); removeEventListener("pagehide", flush);
     removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove);
     removeEventListener("touchend", onTouchEnd); removeEventListener("keydown", onKey);
     document.removeEventListener("touchstart", outside);
