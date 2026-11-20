@@ -20,34 +20,34 @@ import {
  * customer bought at.
  */
 describe("the new bill", () => {
-  it("Confidence for a Gurugram factory: ₹39,000 + GST and nothing else under the offer", () => {
-    const q = siteQuote("confidence", { city: "Gurugram", offerOpen: true });
-    assert.equal(q.taxableInr, 39_000);
+  it("Lite for a Gurugram factory: ₹34,999 + GST and nothing else under the offer", () => {
+    const q = siteQuote("lite", { city: "Gurugram", offerOpen: true });
+    assert.equal(q.taxableInr, 34_999);
     assert.equal(q.lines.find((l) => l.kind === "travel")!.amountInr, 0);
     assert.equal(q.lines.find((l) => l.kind === "support")!.amountInr, 0);
   });
 
   it("a 100% coupon still leaves ₹1 + GST, because Razorpay cannot take ₹0", () => {
-    const q = siteQuote("confidence", {
+    const q = siteQuote("lite", {
       city: "Gurugram",
       offerOpen: true,
       coupon: { code: "OWNERTEST", percentOff: 100, amountOffInr: null },
     });
     assert.equal(q.taxableInr, MIN_PAYABLE_INR);
     assert.equal(q.totalInr, withGst(1).total);
-    assert.equal(q.couponInr, 39_000 - 1);
+    assert.equal(q.couponInr, 34_999 - 1);
     // A smaller coupon is untouched by the floor.
-    const ten = siteQuote("confidence", { city: "Gurugram", offerOpen: true, coupon: { code: "TEN", percentOff: 10, amountOffInr: null } });
-    assert.equal(ten.couponInr, 3_900);
+    const ten = siteQuote("lite", { city: "Gurugram", offerOpen: true, coupon: { code: "TEN", percentOff: 10, amountOffInr: null } });
+    assert.equal(ten.couponInr, 3_500);
   });
 
   it("logins go on the order notes with their yearly price, and are read back", () => {
-    const d = priceFor("site_plan", { sitePlanId: "authority", city: "Manesar", offerOpen: true, salesSeats: 10 }).description;
+    const d = priceFor("site_plan", { sitePlanId: "pro", city: "Manesar", offerOpen: true, salesSeats: 10 }).description;
     assert.match(d, /sales team 10 logins at ₹199\/yr/);
     assert.match(d, /cab Manesar \(free\)/);
     assert.deepEqual(seatsFromOrderNotes(d), { seats: 10, seatInr: 199 });
     // after the offer
-    const late = priceFor("site_plan", { sitePlanId: "authority", city: "Manesar", offerOpen: false, salesSeats: 3 }).description;
+    const late = priceFor("site_plan", { sitePlanId: "pro", city: "Manesar", offerOpen: false, salesSeats: 3 }).description;
     assert.deepEqual(seatsFromOrderNotes(late), { seats: 3, seatInr: 999 });
     // orders from before logins were yearly were paid once: they renew at nothing
     assert.deepEqual(seatsFromOrderNotes("VPV Authority — 8 areas, sales team 4 logins, cab Manesar"), { seats: 4, seatInr: 0 });
@@ -76,12 +76,12 @@ describe("yearly logins through the real payment flow", () => {
     const res = await w.routes.order.POST(
       w.request("/api/billing/order", {
         ip: freshIp(),
-        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "confidence", city: "Gurugram", salesSeats: seats },
+        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "lite", city: "Gurugram", salesSeats: seats },
       })
     );
     const order = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(order));
-    assert.equal(order.amountPaise, toPaise(siteQuote("confidence", { city: "Gurugram", salesSeats: seats }).totalInr));
+    assert.equal(order.amountPaise, toPaise(siteQuote("lite", { city: "Gurugram", salesSeats: seats }).totalInr));
     await w.payInBrowser(order);
     assert.equal((await w.poll(order.orderId)).body.status, "ready");
     return order;
@@ -123,7 +123,7 @@ describe("yearly logins through the real payment flow", () => {
     const res = await w.routes.order.POST(
       w.request("/api/billing/order", {
         ip: freshIp(),
-        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "confidence", city: "Gurugram", coupon: "OWNERTEST" },
+        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "lite", city: "Gurugram", coupon: "OWNERTEST" },
       })
     );
     const body = await w.readJson(res);

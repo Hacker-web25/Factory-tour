@@ -7,7 +7,7 @@
  * lib/useEntitlements.ts.
  *
  * It only ever appears when someone clicks a locked feature. There are no
- * timed pop-ups and no banners, and on Control and Enterprise nothing is
+ * timed pop-ups and no banners, and from Ultra up nothing is
  * locked (except the Sales Team add-on, which they may not have bought), so
  * those customers never see it unless they reach for that.
  */

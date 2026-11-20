@@ -28,7 +28,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export type Purpose = "basic_licence" | "support_renewal" | "scene_topup" | "site_plan" | "plan_upgrade" | "seat_topup";
 
-export type SitePlanId = "confidence" | "authority" | "control" | "enterprise";
+export type { SitePlanId } from "@/lib/pricing";
+import type { SitePlanId } from "@/lib/pricing";
 export type TravelZone = "ncr" | "outside";
 export type PayPhase = "idle" | "creating" | "checkout" | "verifying" | "done";
 

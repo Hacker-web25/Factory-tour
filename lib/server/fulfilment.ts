@@ -49,6 +49,9 @@ import {
   clampScenes,
   fromPaise,
   seatsFromOrderNotes,
+  SITE_PLANS,
+  isKnownPlanId,
+  sitePlanFromNotes,
 } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
 import { RESERVED_SLUGS, slugProblem, slugify, workspaceSlug } from "@/lib/slugs";
@@ -257,7 +260,12 @@ async function slugOf(sb: SupabaseClient, orgId: string | null): Promise<string 
 /* ---- Basic: build the whole customer, start to finish --------------- */
 
 async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<FulfilResult> {
-  const scenes = clampScenes(row.scenes ?? SCENE_MIN);
+  // A plan from the site carries its own number of areas (up to 150 on
+  // Signature, plus extras), which the order route priced and checked; only
+  // the self-serve scene licence is held to the scene ladder's 2–20.
+  const scenes = isSitePlanOrder(row.notes)
+    ? Math.max(SCENE_MIN, Math.min(1_000, Math.round(row.scenes ?? SCENE_MIN)))
+    : clampScenes(row.scenes ?? SCENE_MIN);
 
   // 1. Organisation — created and linked to the order in ONE transaction.
   let orgId: string | null = row.org_id;
@@ -307,7 +315,7 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
   // columns yet (supabase/sales_seats.sql not run) only means the renewal
   // bills support alone, and a person is told.
   await rememberSalesSeats(sb, row, orgId);
-  // Which of the four plans this was: it decides the workspace's features.
+  // Which plan this was: it decides the workspace's features.
   await rememberSitePlan(sb, row, orgId);
 
   // 4. Done. Anything after this point is notification, retried separately.
@@ -316,9 +324,8 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
 }
 
 async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
-  const m = /^VPV (Confidence|Authority|Control|Enterprise) /.exec((row as { notes?: string | null }).notes ?? "");
-  if (!m) return;
-  const plan = m[1].toLowerCase();
+  const plan = sitePlanFromNotes((row as { notes?: string | null }).notes);
+  if (!plan) return;
   try {
     const { error } = await sb.from("organizations").update({ site_plan: plan }).eq("id", orgId).is("site_plan", null);
     if (error) throw new Error(error.message);
@@ -327,7 +334,7 @@ async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string
       kind: "site_plan_not_saved",
       severity: "warning",
       orderId: row.id,
-      detail: `${row.buyer_company} bought ${m[1]} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plan_features.sql; it fills the plan in from the order.`,
+      detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plan_features.sql; it fills the plan in from the order.`,
     });
   }
 }
@@ -647,10 +654,10 @@ async function finishEmail(sb: SupabaseClient, orderId: string, which: "welcome"
  * the ones where our crew comes and shoots — rather than the self-serve
  * scene licence? Site plans are stored as basic_licence like everything
  * else, so the description is the only thing that tells them apart.
- * Mirrors SITE_PLAN_NOTE in lib/server/launchOffer.ts.
+ * The same test lib/server/launchOffer.ts counts the special offer by.
  */
 function isSitePlanOrder(notes: string | null | undefined): boolean {
-  return /^VPV (Confidence|Authority|Control|Enterprise) /.test(notes ?? "");
+  return sitePlanFromNotes(notes) !== null;
 }
 
 async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<boolean> {
@@ -676,7 +683,7 @@ async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<bo
       .eq("id", order.org_id)
       .maybeSingle();
     const m = (more ?? {}) as { site_plan?: string | null; sales_seats?: number | null };
-    const planName = m.site_plan ? `VPV ${m.site_plan.charAt(0).toUpperCase()}${m.site_plan.slice(1)}` : "your new plan";
+    const planName = isKnownPlanId(m.site_plan) ? SITE_PLANS[m.site_plan].name : "your new plan";
     return sendConfirmationEmail({
       to: order.buyer_email,
       kind: order.purpose,

@@ -19,9 +19,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LAUNCH_OFFER, launchOfferOpen } from "@/lib/pricing";
-
-const SITE_PLAN_NOTE = /^VPV (Confidence|Authority|Control|Enterprise) /;
+import { LAUNCH_OFFER, launchOfferOpen, sitePlanFromNotes } from "@/lib/pricing";
 
 export type OfferState = {
   open: boolean;
@@ -55,8 +53,7 @@ export async function launchOfferState(sb: SupabaseClient | null): Promise<Offer
     console.warn("[launchOffer] count failed, treating offer as open:", error.message);
     return closed(0);
   }
-  const sold = (data ?? []).filter((r: { notes: string | null }) =>
-    SITE_PLAN_NOTE.test(r.notes ?? "")
-  ).length;
+  // Every plan counts, the seven on sale and the four sold before them.
+  const sold = (data ?? []).filter((r: { notes: string | null }) => sitePlanFromNotes(r.notes) !== null).length;
   return closed(sold);
 }

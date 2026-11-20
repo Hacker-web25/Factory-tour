@@ -36,45 +36,51 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
     ...extra,
   });
 
+  const ALL = ["lite", "plus", "pro", "premium", "ultra", "vpv", "signature", "confidence", "authority", "control", "enterprise"];
+
   it("every plan: tours, information icons, password login, own address, branding, links", () => {
-    for (const p of ["confidence", "authority", "control", "enterprise"]) {
+    for (const p of ALL) {
       for (const k of ["tours", "info_icons", "dashboard_password", "custom_domain", "branding", "share_links"] as const) {
         assert.equal(canUse(ws(p), k), true, `${p} / ${k}`);
       }
     }
   });
 
-  it("process videos and PDF reports: locked on Confidence (upgrade to Authority), open from Authority up", () => {
-    assert.deepEqual(accessTo(ws("confidence"), "process_videos"), { state: "locked", upgradeTo: "authority" });
-    assert.deepEqual(accessTo(ws("confidence"), "pdf_reports"), { state: "locked", upgradeTo: "authority" });
-    for (const p of ["authority", "control", "enterprise"]) {
+  it("process videos and lab reports: locked on Lite and Plus (upgrade to Pro), open from Pro up", () => {
+    for (const p of ["lite", "plus", "confidence"]) {
+      assert.deepEqual(accessTo(ws(p), "process_videos"), { state: "locked", upgradeTo: "pro" }, p);
+      assert.deepEqual(accessTo(ws(p), "pdf_reports"), { state: "locked", upgradeTo: "pro" }, p);
+    }
+    for (const p of ["pro", "premium", "ultra", "vpv", "signature", "authority", "control", "enterprise"]) {
       assert.equal(canUse(ws(p), "process_videos"), true, p);
       assert.equal(canUse(ws(p), "pdf_reports"), true, p);
     }
   });
 
-  it("sharing controls: locked below Control (upgrade to Control), open on Control and Enterprise", () => {
-    assert.deepEqual(accessTo(ws("confidence"), "sharing_controls"), { state: "locked", upgradeTo: "control" });
-    assert.deepEqual(accessTo(ws("authority"), "sharing_controls"), { state: "locked", upgradeTo: "control" });
-    assert.equal(canUse(ws("control"), "sharing_controls"), true);
-    assert.equal(canUse(ws("enterprise"), "sharing_controls"), true);
+  it("sharing controls: locked below Ultra (upgrade to Ultra), open on Ultra, VPV and Signature", () => {
+    for (const p of ["lite", "plus", "pro", "premium", "confidence", "authority"]) {
+      assert.deepEqual(accessTo(ws(p), "sharing_controls"), { state: "locked", upgradeTo: "ultra" }, p);
+    }
+    for (const p of ["ultra", "vpv", "signature", "control", "enterprise"]) {
+      assert.equal(canUse(ws(p), "sharing_controls"), true, p);
+    }
   });
 
   it("the plan's allowances are the website's numbers", () => {
-    for (const p of ["confidence", "authority", "control", "enterprise"] as const) {
+    for (const p of ALL as (keyof typeof SITE_PLANS)[]) {
       assert.deepEqual(planLimits(ws(p)), { videos: SITE_PLANS[p].videos, pdfs: SITE_PLANS[p].pdfs });
     }
   });
 
   it("the Sales Team features open with logins, on any plan, and are offered without them", () => {
-    assert.deepEqual(accessTo(ws("control"), "sales_team"), { state: "locked", upgradeTo: "sales_team" });
-    assert.equal(canUse(ws("confidence", { sales_seats: 2 }), "sales_team"), true);
+    assert.deepEqual(accessTo(ws("ultra"), "sales_team"), { state: "locked", upgradeTo: "sales_team" });
+    assert.equal(canUse(ws("lite", { sales_seats: 2 }), "sales_team"), true);
   });
 
   it("everything promised nowhere is hidden from every customer, on every plan", () => {
     const hidden = FEATURE_KEYS.filter((k) => ROLLOUT[k].tier === "hidden");
     assert.ok(hidden.includes("meeting_recording") && hidden.includes("ai_meeting_analysis") && hidden.includes("visitor_analytics"));
-    for (const p of ["confidence", "authority", "control", "enterprise"]) {
+    for (const p of ALL) {
       for (const k of hidden) {
         assert.equal(accessTo(ws(p, { sales_seats: 10 }), k).state, "hidden", `${p} / ${k}`);
         assert.equal(accessTo({ role: "presenter", site_plan: p, sales_seats: 10, plan: "basic" }, k).state, "hidden");
@@ -88,39 +94,52 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
     for (const k of FEATURE_KEYS) assert.equal(canUse({ role: "owner" }, k), true, k);
   });
 
-  it("no plan recorded = Confidence; the old monthly Pro and Ultra = Enterprise", () => {
+  it("no plan recorded = Confidence's features; the old monthly Pro and Ultra = the top features", () => {
     assert.equal(effectivePlan(ws(null)), "confidence");
     assert.equal(effectivePlan(ws("nonsense")), "confidence");
     assert.equal(effectivePlan({ plan: "pro" }), "enterprise");
     assert.equal(effectivePlan({ plan: "ultra" }), "enterprise");
+    // site_plan "pro" / "ultra" are the new plans, not the old monthly ones.
+    assert.equal(effectivePlan(ws("pro")), "pro");
+    assert.equal(effectivePlan(ws("ultra")), "ultra");
   });
 
-  it("only the NEXT plan is ever suggested; Control and Enterprise are never sold to", () => {
-    assert.equal(nextPlan(ws("confidence")), "authority");
-    assert.equal(nextPlan(ws("authority")), "control");
-    assert.equal(nextPlan(ws("control")), null);
-    assert.equal(nextPlan(ws("enterprise")), null);
-    assert.deepEqual(upgradeOptions(ws("confidence")), ["authority", "control"]);
-    assert.deepEqual(upgradeOptions(ws("authority")), ["control"]);
-    assert.deepEqual(upgradeOptions(ws("control")), []);
+  it("only the plan that opens new features is suggested; nothing is sold to Ultra and up", () => {
+    assert.equal(nextPlan(ws("lite")), "pro");
+    assert.equal(nextPlan(ws("plus")), "pro");
+    assert.equal(nextPlan(ws("pro")), "ultra");
+    assert.equal(nextPlan(ws("premium")), "ultra");
+    for (const p of ["ultra", "vpv", "signature", "control", "enterprise"]) assert.equal(nextPlan(ws(p)), null, p);
+    assert.deepEqual(upgradeOptions(ws("lite")), ["plus", "pro", "premium", "ultra"]);
+    assert.deepEqual(upgradeOptions(ws("pro")), ["premium", "ultra"]);
+    assert.deepEqual(upgradeOptions(ws("ultra")), []);
+    // The plans sold before keep a way up to a plan with at least their areas and features.
+    assert.equal(nextPlan(ws("confidence")), "pro");
+    assert.equal(nextPlan(ws("authority")), "ultra");
+    assert.deepEqual(upgradeOptions(ws("confidence")), ["plus", "pro", "premium", "ultra"]);
+    assert.deepEqual(upgradeOptions(ws("authority")), ["pro", "premium", "ultra"]);
+    assert.deepEqual(upgradeOptions(ws("control")), ["ultra"]);
+    assert.deepEqual(upgradeOptions(ws("enterprise")), []);
   });
 });
 
 describe("upgrade prices", () => {
   it("the difference at today's prices, with the areas the higher plan adds", () => {
-    assert.deepEqual(upgradeQuote("confidence", "authority", true), { amountInr: 20_000, addAreas: 4, addVideos: 3, addPdfs: 20 });
-    assert.deepEqual(upgradeQuote("confidence", "control", true), { amountInr: 51_000, addAreas: 11, addVideos: 8, addPdfs: 50 });
-    assert.deepEqual(upgradeQuote("authority", "control", true), { amountInr: 31_000, addAreas: 7, addVideos: 5, addPdfs: 30 });
+    assert.deepEqual(upgradeQuote("lite", "pro", true), { amountInr: 60_000, addAreas: 6, addVideos: 3, addPdfs: 20 });
+    assert.deepEqual(upgradeQuote("lite", "ultra", true), { amountInr: 1_65_000, addAreas: 38, addVideos: 8, addPdfs: 50 });
+    assert.deepEqual(upgradeQuote("control", "ultra", true), { amountInr: 1_09_999, addAreas: 25, addVideos: 0, addPdfs: 0 });
     // After the offer, both prices are the regular ones.
-    assert.equal(upgradeQuote("confidence", "control", false).amountInr, 180_000 - 78_000);
+    assert.equal(upgradeQuote("lite", "ultra", false).amountInr, 3_99_998 - 69_998);
   });
 
   it("the invoice line says what was bought", () => {
-    const q = priceFor("plan_upgrade", { fromPlan: "confidence", toPlan: "control", existingScenes: 6, offerOpen: true });
-    assert.equal(q.amountInr, 51_000);
-    assert.equal(q.scenes, 17, "extras already bought are kept");
-    assert.match(q.lines[0].title, /VPV Control/);
-    assert.match(q.lines[0].detail ?? "", /11 more areas.*sharing restrictions/);
+    const q = priceFor("plan_upgrade", { fromPlan: "lite", toPlan: "ultra", existingScenes: 4, offerOpen: true });
+    assert.equal(q.amountInr, 1_65_000);
+    assert.equal(q.scenes, 42, "extras already bought are kept");
+    assert.match(q.lines[0].title, /VPV Ultra/);
+    assert.match(q.lines[0].detail ?? "", /38 more areas.*sharing restrictions/);
+    // A plan no longer sold is priced from what it is, not as the smallest plan.
+    assert.equal(priceFor("plan_upgrade", { fromPlan: "control", toPlan: "ultra", existingScenes: 15, offerOpen: true }).amountInr, 1_09_999);
   });
 
   it("extra logins pay only for the whole months left until the logins renew", () => {
@@ -170,16 +189,18 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     const res = await w.routes.order.POST(
       w.request("/api/billing/order", {
         ip: freshIp(),
-        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "authority", city: "Gurugram" },
+        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "vpv", city: "Gurugram" },
       })
     );
     const o = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(o));
-    assert.equal(o.amountPaise, toPaise(siteQuote("authority", { city: "Gurugram" }).totalInr));
+    assert.equal(o.amountPaise, toPaise(siteQuote("vpv", { city: "Gurugram" }).totalInr));
     await w.payInBrowser(o);
     assert.equal((await w.poll(o.orderId)).body.status, "ready");
-    const [org] = await w.q(`select site_plan from public.organizations`);
-    assert.equal(org.site_plan, "authority");
+    // The plan called just "VPV", with all 100 of its areas (not held to the scene ladder's 20).
+    const [org] = await w.q(`select site_plan, scene_quota from public.organizations`);
+    assert.equal(org.site_plan, "vpv");
+    assert.equal(Number(org.scene_quota), 100);
   });
 
   it("the migration fills the plan in for workspaces built before it, from their paid order", async () => {
@@ -195,25 +216,25 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     assert.equal((await orgRow(org.id)).site_plan, "control");
   });
 
-  it("Confidence → Control: pays the difference, gets Control and 11 more areas at once, with an invoice", async () => {
-    const { org, admin } = await workspace({ plan: "confidence", quota: 6 });
-    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "control" });
+  it("Lite → Ultra: pays the difference, gets Ultra and 38 more areas at once, with an invoice", async () => {
+    const { org, admin } = await workspace({ plan: "lite", quota: 4 });
+    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "ultra" });
     assert.equal(o.status, 200, JSON.stringify(o.body));
-    assert.equal(o.body.amountPaise, toPaise(withGst(51_000).total));
+    assert.equal(o.body.amountPaise, toPaise(withGst(1_65_000).total));
     await w.payInBrowser(o.body);
     assert.equal((await w.poll(o.body.orderId)).body.status, "ready");
 
     const after = await orgRow(org.id);
-    assert.equal(after.site_plan, "control");
-    assert.equal(Number(after.scene_quota), 17, "6 (4 + 2 extra) + 11");
+    assert.equal(after.site_plan, "ultra");
+    assert.equal(Number(after.scene_quota), 42, "4 (2 + 2 extra) + 38");
     const [inv] = await w.q(`select description from public.billing_invoices where org_id = $1`, [org.id]);
-    assert.match(inv.description, /Upgrade to VPV Control/);
+    assert.match(inv.description, /Upgrade to VPV Ultra/);
     assert.ok(w.gw.emailsTo("md@acme.in").some((m) => /plan is upgraded/i.test(m.subject)));
   });
 
-  it("refuses a downgrade, the same plan, Enterprise and nonsense — before any money moves", async () => {
-    const { admin } = await workspace({ plan: "authority" });
-    for (const upgradeTo of ["confidence", "authority", "enterprise", "platinum", undefined]) {
+  it("refuses a downgrade, the same plan, VPV / Signature, an old plan and nonsense — before any money moves", async () => {
+    const { admin } = await workspace({ plan: "pro", quota: 8 });
+    for (const upgradeTo of ["lite", "plus", "pro", "vpv", "signature", "control", "enterprise", "platinum", undefined]) {
       const o = await order(admin, { purpose: "plan_upgrade", upgradeTo });
       assert.equal(o.status, 400, String(upgradeTo));
       assert.equal(o.body.error, "invalid_upgrade");
@@ -222,21 +243,21 @@ describe("plans in the workspace, upgrades and extra logins", () => {
   });
 
   it("the price is from the plan the DATABASE says they have, not what the browser claims", async () => {
-    const { admin } = await workspace({ plan: "authority" });
-    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "control", fromPlan: "confidence", sitePlanId: "confidence" });
-    assert.equal(o.body.amountPaise, toPaise(withGst(31_000).total));
+    const { admin } = await workspace({ plan: "pro", quota: 8 });
+    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "ultra", fromPlan: "lite", sitePlanId: "lite" });
+    assert.equal(o.body.amountPaise, toPaise(withGst(1_05_000).total));
   });
 
   it("a full refund of an upgrade puts the plan and the areas back", async () => {
-    const { org, admin } = await workspace({ plan: "confidence", quota: 4 });
-    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "authority" });
+    const { org, admin } = await workspace({ plan: "lite", quota: 2 });
+    const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "pro" });
     const paid = await w.payInBrowser(o.body);
     await w.poll(o.body.orderId);
-    assert.equal((await orgRow(org.id)).site_plan, "authority");
+    assert.equal((await orgRow(org.id)).site_plan, "pro");
     await w.deliver(w.gw.refundEvent("refund.processed", w.gw.makeRefund(paid.payment.id, Number(o.body.amountPaise))));
     const back = await orgRow(org.id);
-    assert.equal(back.site_plan, "confidence");
-    assert.equal(Number(back.scene_quota), 4);
+    assert.equal(back.site_plan, "lite");
+    assert.equal(Number(back.scene_quota), 2);
   });
 
   it("extra logins: priced for the months left, added to the workspace, the renewal date unchanged", async () => {
@@ -301,8 +322,8 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     assert.equal((await orgRow(org.id)).site_plan, "authority");
   });
 
-  it("sharing controls on a link need Control or Enterprise, whatever the browser sends", async () => {
-    const { org, admin } = await workspace({ plan: "authority" });
+  it("sharing controls on a link need Ultra and up, whatever the browser sends", async () => {
+    const { org, admin } = await workspace({ plan: "premium" });
     const tour = await w.seedTour(org.id, 2);
     const add = (cols: string, vals: string) =>
       w.sb.as("authenticated", admin).run(`insert into public.share_links (tour_id, token, ${cols}) values ($1, $2, ${vals}) returning id`, [tour, `t${Math.random()}`]);
@@ -328,8 +349,10 @@ describe("plans in the workspace, upgrades and extra logins", () => {
       /sharing_controls_need_control/
     );
 
-    // On Control it all works.
-    await w.q(`update public.organizations set site_plan = 'control' where id = $1`, [org.id]);
+    // On Ultra it all works, and on the old Control too.
+    await w.q(`update public.organizations set site_plan = 'ultra' where id = $1`, [org.id]);
     await add("expires_at, device_limit, view_limit", "now() + interval '1 day', 1, 1");
+    await w.q(`update public.organizations set site_plan = 'control' where id = $1`, [org.id]);
+    await add("expires_at", "now() + interval '1 day'");
   });
 });

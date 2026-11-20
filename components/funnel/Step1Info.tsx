@@ -301,10 +301,10 @@ export default function Step1Info() {
 
           <Card className="mt-5">
             <SectionTitle icon={Maximize2} title="How big is your plant?">
-              It helps us suggest the plan that fits, and plan the shoot.
+              Our plans are sized by your factory&apos;s covered area, so this picks the plan that fits.
             </SectionTitle>
             <div className="mt-5">
-              <Field label="Plant size">
+              <Field label="Factory covered area (sq ft)">
                 <SelectInput
                   value={s.plotBand}
                   onChange={(e) => set("plotBand", isPlotBand(e.target.value) ? e.target.value : "")}

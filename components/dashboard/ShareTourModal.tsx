@@ -84,7 +84,7 @@ export default function ShareTourModal({
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  // What this plan includes: sharing controls are VPV Control and Enterprise.
+  // What this plan includes: sharing controls are VPV Ultra and up (and the old Control and Enterprise).
   const ent = useEntitlements();
   const controls = ent.can("sharing_controls");
   const qrOk = ent.ready && !ent.hidden("qr_codes");
@@ -874,7 +874,7 @@ function LockedSharingControls() {
           Expiry, one-time links, passwords and device limits
         </span>
         <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
-          Stop links being forwarded to competitors. Part of VPV Control.
+          Stop links being forwarded to competitors. Part of VPV Ultra and up.
         </span>
       </span>
       <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1468D8", whiteSpace: "nowrap" }}>Upgrade</span>

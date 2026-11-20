@@ -34,10 +34,10 @@ export const dynamic = "force-static";
  */
 const PLANS = SITE_PLAN_ORDER.map((id) => {
   const p = SITE_PLANS[id];
-  const offer = Math.round((p.regularInr * (100 - LAUNCH_OFFER.percent)) / 100);
+  const offer = p.priceInr;
   const bits = [
     p.plot.label.toLowerCase().replace(/^plants/, "suits plants"),
-    ...(id === "enterprise"
+    ...(p.personal
       ? [`a personal, exclusive discussion with ${ENTERPRISE_PERSONAL.person}`, `a personal, exclusive shoot by ${ENTERPRISE_PERSONAL.person}`]
       : []),
     `${p.scenes} areas of the factory`,

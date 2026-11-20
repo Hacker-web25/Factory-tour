@@ -354,7 +354,7 @@ function NewViewerLinkModal({
   const [requireEmail, setRequireEmail] = useState(false);
   const [expiresDays, setExpiresDays] = useState<number | "">("");
   const [viewLimit, setViewLimit] = useState<number | "">("");
-  // Passwords, e-mail gates, expiry and view limits are sharing controls: VPV Control and Enterprise.
+  // Passwords, e-mail gates, expiry and view limits are sharing controls: VPV Ultra and up.
   const ent = useEntitlements();
   const controls = ent.can("sharing_controls");
   return (
@@ -451,7 +451,7 @@ function NewViewerLinkModal({
               onClick={() => requestUpgrade("sharing_controls")}
               className="w-full rounded border border-dashed border-border px-3 py-2.5 text-left text-xs text-neutral-400 hover:text-white"
             >
-              Passwords, expiry and view limits are part of VPV Control. <span className="text-accent">Upgrade</span>
+              Passwords, expiry and view limits are part of VPV Ultra and up. <span className="text-accent">Upgrade</span>
             </button>
           )}
         </div>

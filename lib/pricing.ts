@@ -418,30 +418,16 @@ export function fromPaise(paise: number): number {
 /* ═══════════════ SITE PLANS: the named packs on myvpv.com ═════════ */
 
 /**
- * The plans the marketing site sells (VPV Confidence, Authority, Control and
- * Enterprise). They are the SAME product as a Basic licence — a workspace
- * with a fixed number of areas — just sold as named packs at a flat
- * price instead of by the scene ladder. An "AOA" (Active Operational Area) is
- * a scene, so `scenes` below feeds the identical fulfilment path and
- * nothing downstream has to learn a new shape.
+ * The plans the marketing site sells (VPV Lite to VPV Signature, chosen by
+ * the factory's covered area). They are the SAME product as a Basic licence
+ * — a workspace with a fixed number of areas — just sold as named packs at
+ * a flat price instead of by the scene ladder. An "AOA" (Active Operational
+ * Area) is a scene, so `scenes` below feeds the identical fulfilment path
+ * and nothing downstream has to learn a new shape.
  *
- * ┌─ HOW THE LADDER IS MEANT TO FEEL ─────────────────────────────────┐
- * │ The price per area FALLS as the plan grows — ₹8,750 on Confidence, │
- * │ ₹6,875 on Authority, ₹6,000 on Control. That 31% fall is the       │
- * │ number to put in the largest type on the comparison, because it is │
- * │ what moves a buyer up a tier.                                      │
- * │                                                                    │
- * │ Extra areas are priced per plan, and cheaper the higher you are,   │
- * │ which is one more reason to climb. Both upgrade paths are checked  │
- * │ by tests/billing/12: a lower plan plus enough extras to match the  │
- * │ next plan's area count must always cost MORE than that next plan,  │
- * │ or the tier above it has no reason to exist.                        │
- * │                                                                    │
- * │ ENTERPRISE IS THE ONE EXCEPTION to both rules. It is priced for a   │
- * │ person's time (a private discussion and the shoot itself, both by   │
- * │ Mr. Nitin Gupta), not for the number of areas, so its price per     │
- * │ area is HIGHER than Control's and Control plus extras costs less.   │
- * └────────────────────────────────────────────────────────────────────┘
+ * The price per AOA FALLS as the plan grows (₹17,500 on Lite to ₹4,000 on
+ * Signature). That fall is printed large on every card, because it is what
+ * moves a buyer up a plan.
  *
  * Amounts are INR and EXCLUDE GST, exactly like the scene ladder.
  */
@@ -459,66 +445,176 @@ export function fromPaise(paise: number): number {
  */
 export const PLACEHOLDER_PRICES = false;
 
-export type SitePlanId = "confidence" | "authority" | "control" | "enterprise";
+/**
+ * Since 20 Nov 2026 the site sells SEVEN plans, chosen by the size of the
+ * factory (its covered area in square feet). The four plans before them
+ * (Confidence, Authority, Control, Enterprise) are no longer sold, but
+ * workspaces that bought one keep it: their ids stay valid here, marked
+ * `legacy`, so their features, limits and upgrades keep working.
+ */
+export type SoldPlanId = "lite" | "plus" | "pro" | "premium" | "ultra" | "vpv" | "signature";
+export type LegacyPlanId = "confidence" | "authority" | "control" | "enterprise";
+export type SitePlanId = SoldPlanId | LegacyPlanId;
 
 /** Marginal price of each EXTRA area beyond what the plan includes.
  *  Read as: extras 1..`upTo` cost `each`. Last band covers the rest. */
 export type ExtraAreaBand = { upTo: number; each: number };
 
+/**
+ * Which features a plan has, as a level. Every plan has the base features;
+ * the higher levels add, in order:
+ *   0  the base (tours, information icons, dashboard, address, branding)
+ *   1  + process videos and lab reports & certifications
+ *   2  + sharing controls (one-time links, expiry, restrictions)
+ *   3  + Mr. Nitin Gupta's personal discussion and shoot
+ */
+export type FeatureLevel = 0 | 1 | 2 | 3;
+
 export type SitePlanSpec = {
   id: SitePlanId;
   name: string;
   tagline: string;
-  /** What the buyer pays WHILE the special offer is open, GST excluded.
-   *  These are the decided prices: ₹39,000 / ₹59,000 / ₹90,000.
-   *  (26 Oct 2026: Confidence and Authority went up by ₹4,000 each, and
-   *  cab travel became free for the first 50 customers. Control is unchanged.) */
+  /** What the buyer pays WHILE the special offer is open, GST excluded. */
   priceInr: number;
   /**
    * The price once the special offer closes, GST excluded: twice priceInr
-   * since 17 Nov 2026 (the offer is 50% off; it was 20%). Shown struck
-   * through beside priceInr while the offer runs, and charged from the
-   * 51st buyer. It is a REAL future price, not a decoy — see
-   * LAUNCH_OFFER for why that matters.
+   * (the offer is 50% off). Shown struck through beside priceInr while the
+   * offer runs, and charged from the 51st buyer. It is a REAL future price,
+   * not a decoy — see LAUNCH_OFFER for why that matters.
    */
   regularInr: number;
   /**
-   * How big a plant the plan is made for, in square yards. Shown on
-   * every plan card and in the Terms, and used to suggest a plan from the
-   * plant size a buyer gives. `maxGaj` is null for Enterprise: it starts
-   * where Control stops.
+   * The factory size the plan is made for: its covered area, in square
+   * feet (`minSqft` inclusive, `maxSqft` exclusive; null = no upper limit).
+   * `area` is the big line on the plan card; `label` the sentence.
    */
-  plot: { label: string; maxGaj: number | null };
+  plot: { area: string; label: string; minSqft: number; maxSqft: number | null };
   /** AOAs — Active Operational Areas. These become the workspace's scenes. */
   scenes: number;
   videos: number;
   pdfs: number;
   /** Shoot time on site that the plan includes, in hours. */
   shootHours: number;
+  /** See FeatureLevel. */
+  level: FeatureLevel;
   /**
-   * One-time link expiry and share restrictions. Deliberately TRUE on
-   * Control alone and not buyable as an add-on anywhere: it is the only
-   * thing a big factory cannot get by buying a cheaper plan and adding
-   * areas to it, so it is what Control is actually for.
+   * One-time link expiry and share restrictions (level 2 and up). Not
+   * buyable as an add-on anywhere, so it is what Ultra and up are for.
    */
   sharingControls: boolean;
+  /** Mr. Nitin Gupta's personal discussion and shoot (level 3). */
+  personal: boolean;
+  /** No longer sold; kept so workspaces that bought it keep working. */
+  legacy?: boolean;
   /** This plan's price for each extra area. Cheaper on the higher plans. */
   extraAreaLadder: ExtraAreaBand[];
 };
 
+/*
+ * ┌─ THE SEVEN PLANS (20 Nov 2026) ────────────────────────────────────┐
+ * │ Priced just below a round figure where it moves the first digit or  │
+ * │ the lakh (₹1,99,999 reads as "1 lakh-something"), the left-digit    │
+ * │ effect; VPV and Signature, the gold plans, stay round because a     │
+ * │ round price reads as premium. The price per AOA falls all the way:  │
+ * │ ₹17,500 → 13,000 → 11,875 → 8,571 → 5,000 → 4,500 → 4,000.           │
+ * │                                                                     │
+ * │ Features are the old four tiers, spread: Lite and Plus have what    │
+ * │ Confidence had; Pro and Premium what Authority had; Ultra what      │
+ * │ Control had; VPV and Signature what Enterprise had.                 │
+ * │                                                                     │
+ * │ Extras: a plan plus enough extra areas to match the next plan must  │
+ * │ cost MORE than the next plan (tests/billing/12), except into VPV,   │
+ * │ which is priced for Mr. Gupta's time, not for areas.                │
+ * └─────────────────────────────────────────────────────────────────────┘
+ */
+const sold = (
+  id: SoldPlanId,
+  name: string,
+  tagline: string,
+  priceInr: number,
+  plot: SitePlanSpec["plot"],
+  scenes: number,
+  level: FeatureLevel,
+  media: { videos: number; pdfs: number },
+  shootHours: number,
+  extraAreaLadder: ExtraAreaBand[]
+): SitePlanSpec => ({
+  id,
+  name,
+  tagline,
+  priceInr,
+  regularInr: priceInr * 2,
+  plot,
+  scenes,
+  videos: media.videos,
+  pdfs: media.pdfs,
+  shootHours,
+  level,
+  sharingControls: level >= 2,
+  personal: level >= 3,
+  extraAreaLadder,
+});
+
+const sqft = (minSqft: number, maxSqft: number | null): SitePlanSpec["plot"] => {
+  const n = (v: number) => v.toLocaleString("en-IN");
+  const area =
+    maxSqft === null ? `${n(minSqft)}+ sq ft` : minSqft === 0 ? `Under ${n(maxSqft)} sq ft` : `${n(minSqft)}–${n(maxSqft)} sq ft`;
+  const label =
+    maxSqft === null
+      ? `Recommended for factories of ${n(minSqft)}+ sq ft`
+      : minSqft === 0
+        ? `Recommended for factories under ${n(maxSqft)} sq ft`
+        : `Recommended for factories of ${n(minSqft)}–${n(maxSqft)} sq ft`;
+  return { area, label, minSqft, maxSqft };
+};
+
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
+  lite: sold("lite", "VPV Lite", "Your plant, online and ready to show.", 34_999, sqft(0, 2_000), 2, 0, { videos: 0, pdfs: 0 }, 1, [
+    { upTo: 5, each: 11_000 },
+    { upTo: Infinity, each: 10_500 },
+  ]),
+  plus: sold("plus", "VPV Plus", "Prove you're a trusted manufacturer.", 64_999, sqft(2_000, 5_000), 5, 0, { videos: 0, pdfs: 0 }, 2, [
+    { upTo: 5, each: 10_500 },
+    { upTo: Infinity, each: 10_000 },
+  ]),
+  pro: sold("pro", "VPV Pro", "Show your systems, processes and capabilities.", 94_999, sqft(5_000, 10_000), 8, 1, { videos: 3, pdfs: 20 }, 4, [
+    { upTo: 5, each: 6_000 },
+    { upTo: Infinity, each: 5_500 },
+  ]),
+  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 1_19_999, sqft(10_000, 20_000), 14, 1, { videos: 5, pdfs: 30 }, 6, [
+    { upTo: 5, each: 5_500 },
+    { upTo: Infinity, each: 5_000 },
+  ]),
+  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 1_99_999, sqft(20_000, 40_000), 40, 2, { videos: 8, pdfs: 50 }, 12, [
+    { upTo: 5, each: 4_500 },
+    { upTo: Infinity, each: 4_000 },
+  ]),
+  vpv: sold("vpv", "VPV", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 4_50_000, sqft(40_000, 80_000), 100, 3, { videos: 15, pdfs: 100 }, 24, [
+    { upTo: 5, each: 4_000 },
+    { upTo: Infinity, each: 3_500 },
+  ]),
+  signature: sold("signature", "VPV Signature", "The flagship: a large plant, presented personally by Mr. Nitin Gupta.", 6_00_000, sqft(80_000, null), 150, 3, { videos: 20, pdfs: 150 }, 32, [
+    { upTo: 5, each: 3_500 },
+    { upTo: Infinity, each: 3_200 },
+  ]),
+
+  // ── No longer sold (before 20 Nov 2026). Kept for the workspaces that
+  //    bought them: what they paid, what they got, and their upgrades.
   confidence: {
     id: "confidence",
     name: "VPV Confidence",
     tagline: "Prove you're a trusted manufacturer.",
     priceInr: 39_000,
     regularInr: 78_000,
-    plot: { label: "Recommended for factories up to 200 sq yards", maxGaj: 200 },
+    plot: { area: "Up to 200 sq yards", label: "Recommended for factories up to 200 sq yards", minSqft: 0, maxSqft: 1_800 },
     scenes: 4,
     videos: 0,
     pdfs: 0,
     shootHours: 2,
+    level: 0,
     sharingControls: false,
+    personal: false,
+    legacy: true,
     extraAreaLadder: [
       { upTo: 3, each: 6_000 },
       { upTo: Infinity, each: 5_500 },
@@ -530,12 +626,15 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     tagline: "Show your systems, processes and capabilities.",
     priceInr: 59_000,
     regularInr: 118_000,
-    plot: { label: "Recommended for factories up to 500–600 sq yards", maxGaj: 600 },
+    plot: { area: "Up to 600 sq yards", label: "Recommended for factories up to 500–600 sq yards", minSqft: 1_800, maxSqft: 5_400 },
     scenes: 8,
     videos: 3,
     pdfs: 20,
     shootHours: 4,
+    level: 1,
     sharingControls: false,
+    personal: false,
+    legacy: true,
     extraAreaLadder: [
       { upTo: 3, each: 5_500 },
       { upTo: Infinity, each: 5_000 },
@@ -547,12 +646,15 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     tagline: "Complete factory experience. Secure, controlled access and sharing.",
     priceInr: 90_000,
     regularInr: 180_000,
-    plot: { label: "Recommended for factories up to 1,000 sq yards", maxGaj: 1000 },
+    plot: { area: "Up to 1,000 sq yards", label: "Recommended for factories up to 1,000 sq yards", minSqft: 5_400, maxSqft: 9_000 },
     scenes: 15,
     videos: 8,
     pdfs: 50,
     shootHours: 6,
+    level: 2,
     sharingControls: true,
+    personal: false,
+    legacy: true,
     extraAreaLadder: [
       { upTo: 5, each: 4_500 },
       { upTo: 10, each: 3_900 },
@@ -563,19 +665,17 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     id: "enterprise",
     name: "VPV Enterprise",
     tagline: "Your plant, guided and filmed personally by Mr. Nitin Gupta.",
-    // ₹2,99,999 while the special offer is open. The regular price is what
-    // makes that a 50% saving, exactly as for the other plans: ₹2,99,999 is
-    // half of ₹5,99,998, to the rupee.
     priceInr: 299_999,
     regularInr: 599_998,
-    plot: { label: "Recommended for factories of 1,000+ sq yards", maxGaj: null },
+    plot: { area: "1,000+ sq yards", label: "Recommended for factories of 1,000+ sq yards", minSqft: 9_000, maxSqft: null },
     scenes: 25,
     videos: 15,
     pdfs: 100,
     shootHours: 8,
+    level: 3,
     sharingControls: true,
-    // The same extras ladder as Control: extra areas cost the same whichever
-    // of the two large plans they are added to.
+    personal: true,
+    legacy: true,
     extraAreaLadder: [
       { upTo: 5, each: 4_500 },
       { upTo: 10, each: 3_900 },
@@ -584,15 +684,39 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   },
 };
 
-export const SITE_PLAN_ORDER: SitePlanId[] = ["confidence", "authority", "control", "enterprise"];
+/** The plans on sale, smallest first. */
+export const SITE_PLAN_ORDER: SoldPlanId[] = ["lite", "plus", "pro", "premium", "ultra", "vpv", "signature"];
+/** The plans no longer sold, kept for the workspaces that have them. */
+export const LEGACY_PLAN_ORDER: LegacyPlanId[] = ["confidence", "authority", "control", "enterprise"];
 
-export function isSitePlanId(v: unknown): v is SitePlanId {
-  return v === "confidence" || v === "authority" || v === "control" || v === "enterprise";
+/** A plan that can be BOUGHT today. */
+export function isSitePlanId(v: unknown): v is SoldPlanId {
+  return typeof v === "string" && (SITE_PLAN_ORDER as string[]).includes(v);
+}
+/** Any plan a workspace can have, sold or legacy. */
+export function isKnownPlanId(v: unknown): v is SitePlanId {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
+}
+
+/** What one AOA costs on a plan, at today's price: the figure that falls as plans grow. */
+export function costPerAoa(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
+  return Math.round(planPrice(planId, offerOpen) / SITE_PLANS[planId].scenes);
 }
 
 /**
- * What VPV Enterprise adds to everything in Control: two things that cannot
- * be bought any other way, because they are one person's time.
+ * Which plan an order was for, read from its description ("VPV Pro — 8
+ * areas, …", written by priceFor). The name must be followed by " — ", so
+ * the plan called just "VPV" is never read into "VPV Basic licence — …"
+ * (the scene licence) or "VPV Signature — …".
+ */
+export function sitePlanFromNotes(notes: string | null | undefined): SitePlanId | null {
+  const n = notes ?? "";
+  return (Object.keys(SITE_PLANS) as SitePlanId[]).find((id) => n.startsWith(`${SITE_PLANS[id].name} — `)) ?? null;
+}
+
+/**
+ * What VPV and VPV Signature add to everything in Ultra: two things that
+ * cannot be bought any other way, because they are one person's time.
  *
  * `short` is the line on a plan card; `long` is the sentence on the plan page
  * and in the Terms. The name is the founder's own, given for this use.
@@ -615,20 +739,31 @@ export const ENTERPRISE_PERSONAL = {
   },
 } as const;
 
-/** The size bands a buyer can pick, in the order of the plans that fit them. */
-export type PlotBand = "upto200" | "upto600" | "upto1000" | "above1000";
-export const PLOT_BANDS: { id: PlotBand; label: string; plan: SitePlanId }[] = [
-  { id: "upto200", label: "Up to 200 sq yards", plan: "confidence" },
-  { id: "upto600", label: "201 to 600 sq yards", plan: "authority" },
-  { id: "upto1000", label: "601 to 1,000 sq yards", plan: "control" },
-  { id: "above1000", label: "More than 1,000 sq yards", plan: "enterprise" },
+/** The size bands a buyer can pick: one per plan on sale, in order. */
+export type PlotBand = "lt2000" | "2000to5000" | "5000to10000" | "10000to20000" | "20000to40000" | "40000to80000" | "80000plus";
+export const PLOT_BANDS: { id: PlotBand; label: string; plan: SoldPlanId }[] = [
+  { id: "lt2000", label: "Under 2,000 sq ft", plan: "lite" },
+  { id: "2000to5000", label: "2,000 to 5,000 sq ft", plan: "plus" },
+  { id: "5000to10000", label: "5,000 to 10,000 sq ft", plan: "pro" },
+  { id: "10000to20000", label: "10,000 to 20,000 sq ft", plan: "premium" },
+  { id: "20000to40000", label: "20,000 to 40,000 sq ft", plan: "ultra" },
+  { id: "40000to80000", label: "40,000 to 80,000 sq ft", plan: "vpv" },
+  { id: "80000plus", label: "More than 80,000 sq ft", plan: "signature" },
 ];
 export function isPlotBand(v: unknown): v is PlotBand {
   return PLOT_BANDS.some((b) => b.id === v);
 }
-/** The smallest plan made for a plant this big. */
-export function planForPlot(band: PlotBand | null | undefined): SitePlanId | null {
+/** The plan made for a plant this big. */
+export function planForPlot(band: PlotBand | null | undefined): SoldPlanId | null {
   return PLOT_BANDS.find((b) => b.id === band)?.plan ?? null;
+}
+/** The plan made for a plant of this many square feet. */
+export function planForSqft(sqftArea: number): SoldPlanId {
+  const a = Math.max(0, sqftArea);
+  return SITE_PLAN_ORDER.find((id) => {
+    const { minSqft, maxSqft } = SITE_PLANS[id].plot;
+    return a >= minSqft && (maxSqft === null || a < maxSqft);
+  }) ?? "signature";
 }
 
 /* ─────────────────────── Special offer ──────────────────────────── */
@@ -1566,8 +1701,9 @@ export function priceFor(
 ): { amountInr: number; description: string; scenes: number | null; lines: InvoiceLine[] } {
   switch (purpose) {
     case "plan_upgrade": {
-      const from: SitePlanId = isSitePlanId(opts.fromPlan) ? opts.fromPlan : "confidence";
-      const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "control";
+      // The workspace's own plan may be one no longer sold; the target is always on sale.
+      const from: SitePlanId = isKnownPlanId(opts.fromPlan) ? opts.fromPlan : "confidence";
+      const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "ultra";
       const q = upgradeQuote(from, to, opts.offerOpen);
       const have = Math.max(0, Math.round(opts.existingScenes ?? 0));
       return {
@@ -1665,7 +1801,7 @@ export function priceFor(
       // plan or more areas, never a cheaper rate for them.
       const planId: SitePlanId = isSitePlanId(opts.sitePlanId)
         ? opts.sitePlanId
-        : "confidence";
+        : "lite";
       const q = siteQuote(planId, {
         extraAreas: opts.extraAreas,
         selfVideos: opts.selfVideos,

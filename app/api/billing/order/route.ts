@@ -401,7 +401,8 @@ export async function POST(req: Request) {
     }
     scenesWanted = target;
   } else if (purpose === "plan_upgrade") {
-    // Up to Authority or Control only; Enterprise is a conversation.
+    // Up to a larger plan on sale (lib/entitlements.ts isUpgrade); VPV and
+    // VPV Signature include Mr. Gupta's own time, so they are a conversation.
     fromPlan = effectivePlan({ plan: String(org?.plan ?? ""), site_plan: await orgSitePlan(sb, orgId) });
     const want = body.upgradeTo;
     if (!isSitePlanId(want) || !isUpgrade(fromPlan, want)) {

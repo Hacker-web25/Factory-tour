@@ -1,48 +1,108 @@
 /**
- * VPV Enterprise, plant sizes and the new PDF counts.
+ * The seven plans sold by factory size (20 Nov 2026), and the gold ones.
  *
- * What matters: the headline prices and PDF counts are pinned, Enterprise is
- * charged the right amount (₹2,99,999 + GST under the offer, ₹5,99,998 after
- * it), and the recommendation never pushes a small plant into Enterprise or
- * leaves a 1,000+ sq yard plant on a plan sized for less.
+ * What matters: the headline prices, sizes and AOAs are pinned; the cost
+ * per AOA falls plan by plan; VPV and VPV Signature (Mr. Gupta's own plans)
+ * are charged the right amount; and the recommendation never pushes a small
+ * plant into a gold plan or leaves a big plant on a plan sized for less.
+ * The four plans sold before stay known, so the workspaces that bought them
+ * keep working, but can no longer be bought.
  */
 
 import { describe, it, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import {
   ENTERPRISE_PERSONAL,
+  LEGACY_PLAN_ORDER,
   PLOT_BANDS,
   SITE_PLANS,
   SITE_PLAN_ORDER,
+  costPerAoa,
+  isKnownPlanId,
   isPlotBand,
   isSitePlanId,
   planForPlot,
+  planForSqft,
   siteQuote,
+  sitePlanFromNotes,
   toPaise,
   withGst,
 } from "@/lib/pricing";
 import { recommendPlan } from "@/lib/funnel";
 import { makeWorld, BUYER, freshIp, type World } from "./harness/world";
 
-describe("enterprise: the plan and its plot sizes", () => {
-  it("lists four plans in order, with the plot size each is for", () => {
-    assert.deepEqual([...SITE_PLAN_ORDER], ["confidence", "authority", "control", "enterprise"]);
-    assert.equal(SITE_PLANS.confidence.plot.maxGaj, 200);
-    assert.equal(SITE_PLANS.authority.plot.maxGaj, 600);
-    assert.equal(SITE_PLANS.control.plot.maxGaj, 1000);
-    assert.equal(SITE_PLANS.enterprise.plot.maxGaj, null);
-    assert.match(SITE_PLANS.enterprise.plot.label, /1,000\+/);
+describe("seven plans: sizes, prices and AOAs", () => {
+  it("lists the seven plans in order, each with its factory size", () => {
+    assert.deepEqual([...SITE_PLAN_ORDER], ["lite", "plus", "pro", "premium", "ultra", "vpv", "signature"]);
+    assert.deepEqual(
+      SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].plot.area),
+      [
+        "Under 2,000 sq ft",
+        "2,000–5,000 sq ft",
+        "5,000–10,000 sq ft",
+        "10,000–20,000 sq ft",
+        "20,000–40,000 sq ft",
+        "40,000–80,000 sq ft",
+        "80,000+ sq ft",
+      ]
+    );
+    // Each band starts where the one before it stops.
+    for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
+      assert.equal(SITE_PLANS[SITE_PLAN_ORDER[i]].plot.minSqft, SITE_PLANS[SITE_PLAN_ORDER[i - 1]].plot.maxSqft);
+    }
+    assert.equal(SITE_PLANS.signature.plot.maxSqft, null);
   });
 
-  it("pins the new PDF counts and the Enterprise price", () => {
-    assert.equal(SITE_PLANS.authority.pdfs, 20);
-    assert.equal(SITE_PLANS.control.pdfs, 50);
-    assert.equal(SITE_PLANS.enterprise.pdfs, 100);
-    assert.equal(SITE_PLANS.enterprise.priceInr, 299_999);
-    assert.equal(SITE_PLANS.enterprise.regularInr, 599_998);
-    assert.equal(SITE_PLANS.enterprise.sharingControls, true);
-    assert.ok(isSitePlanId("enterprise"));
+  it("pins the prices (just below a round figure; the gold plans round) and the AOAs", () => {
+    assert.deepEqual(
+      SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].priceInr),
+      [34_999, 64_999, 94_999, 1_19_999, 1_99_999, 4_50_000, 6_00_000]
+    );
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].scenes), [2, 5, 8, 14, 40, 100, 150]);
+    for (const id of SITE_PLAN_ORDER) assert.equal(SITE_PLANS[id].regularInr, SITE_PLANS[id].priceInr * 2, id);
+  });
+
+  it("makes the cost per AOA fall on every step up", () => {
+    assert.deepEqual(
+      SITE_PLAN_ORDER.map((id) => costPerAoa(id, true)),
+      [17_500, 13_000, 11_875, 8_571, 5_000, 4_500, 4_000]
+    );
+    for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
+      assert.ok(costPerAoa(SITE_PLAN_ORDER[i]) < costPerAoa(SITE_PLAN_ORDER[i - 1]), SITE_PLAN_ORDER[i]);
+    }
+  });
+
+  it("spreads the old features: Lite/Plus base, Pro/Premium media, Ultra sharing, VPV/Signature Mr. Gupta", () => {
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].level), [0, 0, 1, 1, 2, 3, 3]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].sharingControls), [false, false, false, false, true, true, true]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].personal), [false, false, false, false, false, true, true]);
+    for (const id of ["lite", "plus"] as const) {
+      assert.equal(SITE_PLANS[id].videos, 0);
+      assert.equal(SITE_PLANS[id].pdfs, 0);
+    }
+    for (const id of ["pro", "premium", "ultra", "vpv", "signature"] as const) {
+      assert.ok(SITE_PLANS[id].videos > 0 && SITE_PLANS[id].pdfs > 0, id);
+    }
+  });
+
+  it("sells only the seven; the four before them stay known for the workspaces that have them", () => {
+    for (const id of SITE_PLAN_ORDER) assert.ok(isSitePlanId(id), id);
+    for (const id of LEGACY_PLAN_ORDER) {
+      assert.ok(!isSitePlanId(id), id);
+      assert.ok(isKnownPlanId(id), id);
+      assert.equal(SITE_PLANS[id].legacy, true, id);
+    }
     assert.ok(!isSitePlanId("platinum"));
+    assert.ok(!isKnownPlanId("platinum"));
+  });
+
+  it("reads the plan back from an order's description, never confusing VPV with the scene licence", () => {
+    assert.equal(sitePlanFromNotes("VPV — 100 areas, Special offer, 24 hours shoot"), "vpv");
+    assert.equal(sitePlanFromNotes("VPV Signature — 150 areas"), "signature");
+    assert.equal(sitePlanFromNotes("VPV Pro — 8 areas"), "pro");
+    assert.equal(sitePlanFromNotes("VPV Control — 15 areas, 9 process videos"), "control");
+    assert.equal(sitePlanFromNotes("VPV Basic licence — 5 scenes (includes 1 year support and hosting)"), null);
+    assert.equal(sitePlanFromNotes(null), null);
   });
 
   it("names Mr. Nitin Gupta in both personal benefits", () => {
@@ -52,63 +112,67 @@ describe("enterprise: the plan and its plot sizes", () => {
     assert.match(ENTERPRISE_PERSONAL.shoot.long, /Nitin Gupta/);
   });
 
-  it("charges ₹2,99,999 + 18% GST under the offer, and ₹5,99,998 + GST after it", () => {
-    const on = siteQuote("enterprise", { offerOpen: true });
-    const off = siteQuote("enterprise", { offerOpen: false });
-    const gstOn = withGst(299_999);
-    const gstOff = withGst(599_998);
-    assert.ok(gstOn.total > 353_000 && gstOn.total < 354_100, String(gstOn.total));
-    assert.ok(gstOff.total > 707_000 && gstOff.total < 709_000, String(gstOff.total));
+  it("charges Signature ₹6,00,000 + 18% GST under the offer, and ₹12,00,000 + GST after it", () => {
+    const on = siteQuote("signature", { offerOpen: true });
+    const off = siteQuote("signature", { offerOpen: false });
+    assert.equal(withGst(6_00_000).total, 7_08_000);
+    assert.equal(withGst(12_00_000).total, 14_16_000);
     const planPart = (q: ReturnType<typeof siteQuote>) =>
       q.lines.filter((l) => l.kind === "plan" || l.kind === "offer").reduce((x, l) => x + l.amountInr, 0);
-    assert.equal(planPart(on), 299_999);
-    assert.equal(planPart(off), 599_998);
+    assert.equal(planPart(on), 6_00_000);
+    assert.equal(planPart(off), 12_00_000);
   });
 });
 
-describe("enterprise: plot band → plan", () => {
-  it("maps each band to its plan", () => {
-    assert.equal(planForPlot("upto200"), "confidence");
-    assert.equal(planForPlot("upto600"), "authority");
-    assert.equal(planForPlot("upto1000"), "control");
-    assert.equal(planForPlot("above1000"), "enterprise");
+describe("seven plans: factory size → plan", () => {
+  it("maps each band, and any square footage, to its plan", () => {
+    assert.deepEqual(PLOT_BANDS.map((b) => b.plan), [...SITE_PLAN_ORDER]);
+    assert.equal(planForPlot("lt2000"), "lite");
+    assert.equal(planForPlot("10000to20000"), "premium");
+    assert.equal(planForPlot("80000plus"), "signature");
     assert.equal(planForPlot(null), null);
-    assert.deepEqual(PLOT_BANDS.map((b) => b.id), ["upto200", "upto600", "upto1000", "above1000"]);
-    assert.ok(isPlotBand("above1000"));
-    assert.ok(!isPlotBand("huge"));
+    assert.ok(isPlotBand("40000to80000"));
+    assert.ok(!isPlotBand("upto200"), "the old square-yard bands are gone");
+    assert.equal(planForSqft(1_999), "lite");
+    assert.equal(planForSqft(2_000), "plus");
+    assert.equal(planForSqft(39_999), "ultra");
+    assert.equal(planForSqft(40_000), "vpv");
+    assert.equal(planForSqft(2_50_000), "signature");
   });
 
   it("recommends by the smallest plan that fits the scope, never below the plant's plan", () => {
-    assert.equal(recommendPlan({ aoaCount: 3 }).plan, "confidence");
-    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "upto200" }).plan, "confidence");
-    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "upto600" }).plan, "authority");
-    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "upto1000" }).plan, "control");
+    assert.equal(recommendPlan({ aoaCount: 2 }).plan, "lite");
+    assert.equal(recommendPlan({ aoaCount: 3 }).plan, "plus");
+    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "lt2000" }).plan, "plus");
+    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "5000to10000" }).plan, "pro");
+    assert.equal(recommendPlan({ aoaCount: 3, plotBand: "20000to40000" }).plan, "ultra");
+    assert.equal(recommendPlan({ aoaCount: 20 }).plan, "ultra");
   });
 
-  it("never recommends Enterprise to a smaller plant, however much they ask for", () => {
+  it("never recommends a gold plan to a smaller plant, however much they ask for", () => {
     const r = recommendPlan({ aoaCount: 60, pdfCount: 300 });
-    assert.notEqual(r.plan, "enterprise");
+    assert.equal(r.plan, "ultra");
     assert.equal(r.needsExtras, true);
-    const r2 = recommendPlan({ aoaCount: 60, plotBand: "upto1000" });
-    assert.equal(r2.plan, "control");
+    assert.equal(recommendPlan({ aoaCount: 60, plotBand: "10000to20000" }).plan, "ultra");
   });
 
-  it("recommends Enterprise for a 1,000+ sq yard plant, with extras if the scope is bigger", () => {
-    const small = recommendPlan({ aoaCount: 5, plotBand: "above1000" });
-    assert.equal(small.plan, "enterprise");
+  it("recommends VPV or Signature for a 40,000+ sq ft plant, with extras if the scope is bigger", () => {
+    const small = recommendPlan({ aoaCount: 5, plotBand: "40000to80000" });
+    assert.equal(small.plan, "vpv");
     assert.equal(small.needsExtras, false);
-    const big = recommendPlan({ aoaCount: 30, plotBand: "above1000" });
-    assert.equal(big.plan, "enterprise");
-    assert.equal(big.extraAreas, 30 - SITE_PLANS.enterprise.scenes);
+    assert.equal(recommendPlan({ aoaCount: 120, plotBand: "40000to80000" }).plan, "signature");
+    const big = recommendPlan({ aoaCount: 160, plotBand: "80000plus" });
+    assert.equal(big.plan, "signature");
+    assert.equal(big.extraAreas, 160 - SITE_PLANS.signature.scenes);
   });
 
-  it("keeps the sharing-controls filter: only Control and Enterprise have it", () => {
-    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true }).plan, "control");
-    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true, plotBand: "above1000" }).plan, "enterprise");
+  it("keeps the sharing-controls filter: only Ultra, VPV and Signature have it", () => {
+    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true }).plan, "ultra");
+    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true, plotBand: "80000plus" }).plan, "signature");
   });
 });
 
-describe("enterprise: the order route", () => {
+describe("seven plans: the order route", () => {
   let w: World;
   before(async () => {
     w = await makeWorld();
@@ -118,27 +182,25 @@ describe("enterprise: the order route", () => {
   });
   after(() => w.gw.uninstall());
 
-  it("opens an Enterprise order for the server-computed amount", async () => {
-    const res = await w.routes.order.POST(
+  const open = (sitePlanId: string) =>
+    w.routes.order.POST(
       w.request("/api/billing/order", {
         ip: freshIp(),
-        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "enterprise", travel: "ncr" },
+        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId, travel: "ncr" },
       })
     );
+
+  it("opens a Signature order (150 areas) for the server-computed amount", async () => {
+    const res = await open("signature");
     const body = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(body));
-    const expected = toPaise(withGst(siteQuote("enterprise", { travel: "ncr" }).lines.reduce((a, l) => a + l.amountInr, 0)).total);
+    const expected = toPaise(withGst(siteQuote("signature", { travel: "ncr" }).lines.reduce((a, l) => a + l.amountInr, 0)).total);
     assert.equal(body.amountPaise, expected);
-    assert.ok(body.amountPaise > 35_000_000, "about ₹3.5 lakh with GST");
+    assert.equal(body.amountPaise, 70_800_000, "₹7,08,000 with GST");
   });
 
-  it("refuses a plan that does not exist", async () => {
-    const res = await w.routes.order.POST(
-      w.request("/api/billing/order", {
-        ip: freshIp(),
-        body: { purpose: "site_plan", buyer: { ...BUYER }, sitePlanId: "platinum", travel: "ncr" },
-      })
-    );
-    assert.equal(res.status, 400);
+  it("refuses a plan that does not exist, and the plans no longer sold", async () => {
+    assert.equal((await open("platinum")).status, 400);
+    for (const id of LEGACY_PLAN_ORDER) assert.equal((await open(id)).status, 400, id);
   });
 });

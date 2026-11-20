@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 const COMPANY_BLURBS: Record<string, string> = {
-  "/plans": "VPV Confidence, Authority, Control and Enterprise: what each includes, the special offer, and what extras cost.",
+  "/plans": "The seven VPV plans, sized by factory area (Lite to Signature): what each includes, the special offer, and what extras cost.",
   "/assessment": "Five short questions that recommend your plan and show your full price, travel included.",
   "/about": "What VPV is, who builds it and what we stand for.",
   "/contact": "Who to write to for support, billing, legal and security.",
