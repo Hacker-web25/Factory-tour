@@ -493,8 +493,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
                 limit: async () => ({
                   data: [
                     ...Array.from({ length: n }, (_, i) => ({
-                      // The seven plans on sale, the plan called just "VPV", and the four sold before.
-                      notes: `${["VPV Lite", "VPV Pro", "VPV", "VPV Signature", "VPV Confidence", "VPV Control"][i % 6]} — 8 areas`,
+                      // The seven plans on sale, VPV VIP, and the four sold before.
+                      notes: `${["VPV Lite", "VPV Pro", "VPV VIP", "VPV Signature", "VPV Confidence", "VPV Control"][i % 6]} — 8 areas`,
                     })),
                     { notes: "VPV Basic licence — 7 scenes (includes 1 year support and hosting)" },
                   ],

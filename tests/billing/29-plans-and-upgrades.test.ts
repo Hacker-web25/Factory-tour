@@ -197,7 +197,7 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     assert.equal(o.amountPaise, toPaise(siteQuote("vpv", { city: "Gurugram" }).totalInr));
     await w.payInBrowser(o);
     assert.equal((await w.poll(o.orderId)).body.status, "ready");
-    // The plan called just "VPV", with all 100 of its areas (not held to the scene ladder's 20).
+    // VPV VIP, with all 100 of its areas (not held to the scene ladder's 20).
     const [org] = await w.q(`select site_plan, scene_quota from public.organizations`);
     assert.equal(org.site_plan, "vpv");
     assert.equal(Number(org.scene_quota), 100);

@@ -44,46 +44,63 @@ import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.a1dbed3d.js";
+const JS_SRC = "/static/js/main.c187d6a6.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
 
+/** The two faces used only on the plan cards: Fraunces for the plan names,
+ *  Allura (a script that stays readable, even in capitals) for the two gold plans. */
+const PLAN_FONT_HREF =
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Allura&display=swap";
+
 /**
- * The plan card (20 Nov 2026), top to bottom: the plan's name, the FACTORY
- * SIZE (the largest figure: plans are chosen by it), the AOAs (a step
- * smaller), the price (struck regular price large, the offer price under
- * it), and the COST PER AOA (about as large as the size, with how far it has
- * fallen against the smallest plan). VPV and VPV Signature get a gold
- * border, a cream wash and a thin gold bar on top: no shine across the
- * words, so they stay easy to read. Phones swipe through the plans.
+ * The plan card (20 Nov 2026), top to bottom: the plan's name (a serif, or
+ * a script on the gold plans), the factory size (the same size as the price
+ * they pay, so the eye does not stop there), the AOAs, the price (struck
+ * regular price, the offer price under it), and the COST PER AOA, with how
+ * far it has fallen against the smallest plan.
+ *
+ * All seven sit in ONE row on a laptop so they compare at a glance (the
+ * cards grow taller instead of wider; on a narrow laptop the row scrolls).
+ * Tablets and phones swipe through them, with size chips on phones.
+ *
+ * VPV VIP and VPV Signature: an ivory card in a fine double gold frame, the
+ * name in a deep, solid antique gold script. Nothing moves or shines.
  */
 const PLAN_CARD_CSS = [
   ".vpv-pc-tag{display:none}",
-  ".vpv-pc-name{margin:0;font-size:.8125rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:" + BRAND + "}",
-  ".vpv-pc-area{margin-top:.75rem}",
-  ".vpv-pc{container-type:inline-size}",
-  ".vpv-pc-area-v{margin:0;white-space:nowrap;font-size:clamp(1.3rem,9.6cqi,2rem);line-height:1.08;font-weight:800;letter-spacing:-.025em;color:#0b2a5b}",
-  ".vpv-pc-unit{font-size:.55em;font-weight:800;letter-spacing:0;color:#3b4f6b;white-space:nowrap}",
-  ".vpv-pc-k{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.3rem 0 0;font-size:.75rem;font-weight:600;color:#64748b}",
-  ".vpv-pc-aoa{margin-top:.7rem}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.375rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
+  ".vpv-pc-name{margin:0;font-family:Fraunces,Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-size:clamp(1.15rem,1.5vw,1.6rem);line-height:1.15;font-weight:700;letter-spacing:-.012em;color:#0b2a5b}",
+  ".vpv-pc-area{margin-top:.85rem}",
+  ".vpv-pc-area-v{margin:0;font-size:var(--vpv-pay,1.25rem);line-height:1.2;font-weight:800;letter-spacing:-.015em;color:#0b2a5b}",
+  ".vpv-pc-unit{display:inline-block;font-size:.7em;font-weight:700;letter-spacing:0;color:#3b4f6b;white-space:pre}",
+  ".vpv-pc-k{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.3rem 0 0;font-size:.75rem;line-height:1.35;font-weight:600;color:#64748b}",
+  ".vpv-pc-aoa{margin-top:.7rem}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.125rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
   ".vpv-pc-price{margin-top:1rem;padding-top:1rem;border-top:1px solid #e8eef6}",
-  ".vpv-pc-per{margin-top:1rem;padding:.75rem .9rem;border-radius:14px;background:#effaf3;border:1px solid #cdeedb}",
-  ".vpv-pc-per-v{margin:0;font-size:clamp(1.45rem,1.9vw,1.75rem);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#0d7a43;font-variant-numeric:tabular-nums}",
-  ".vpv-pc-per-v span{font-size:.875rem;font-weight:700;letter-spacing:0;color:#3f7a5a}",
-  ".vpv-pc-drop{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:#0d7a43;color:#fff;font-size:.6875rem;font-weight:800;letter-spacing:.01em}",
-  ".vpv-pc-gold{border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFF8E2 0%,#fff 40%)!important;box-shadow:0 18px 44px -22px rgba(170,120,10,.45)!important;overflow:hidden}",
-  ".vpv-pc-gold::before{content:\"\";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#B07A06,#E9BC3A,#F7DA7A,#E9BC3A,#B07A06);background-size:200% 100%;animation:vpvGoldBar 6s linear infinite}",
-  ".vpv-pc-gold .vpv-pc-name{color:#8A5A00}",
-  ".vpv-pc-gold .vpv-pc-per{background:#fff6dc;border-color:#f0dc9c}",
-  "@keyframes vpvGoldBar{to{background-position:-200% 0}}",
+  ".vpv-pc .vpv-was .vpv-strike{font-size:clamp(1.05rem,1.4vw,1.375rem)}",
+  ".vpv-pc{--vpv-pay:clamp(1rem,1.25vw,1.25rem)}.vpv-pc .vpv-now{font-size:var(--vpv-pay);line-height:1.25}",
+  ".vpv-pc-per{margin-top:1rem;padding:.7rem .8rem;border-radius:14px;background:#effaf3;border:1px solid #cdeedb}",
+  ".vpv-pc-per-v{margin:0;font-size:clamp(1.15rem,1.55vw,1.6rem);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#0d7a43;font-variant-numeric:tabular-nums}",
+  ".vpv-pc-per-v span{display:inline-block;white-space:pre;font-size:.8125rem;font-weight:700;letter-spacing:0;color:#3f7a5a}",
+  ".vpv-pc-drop{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:#0d7a43;color:#fff;font-size:.6875rem;font-weight:800;letter-spacing:.01em;white-space:nowrap}",
+  // the gold plans
+  ".vpv-pc-gold{border:1px solid #CDAA5C!important;background:linear-gradient(180deg,#FFFCF3 0%,#FFFDF8 45%,#fff 100%)!important;box-shadow:inset 0 0 0 4px #fff,inset 0 0 0 5px rgba(196,160,80,.45),0 24px 50px -30px rgba(110,80,20,.5)!important}",
+  ".vpv-pc-gold .vpv-pc-name{font-family:Allura,'Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.45rem,1.95vw,2.6rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
+  ".vpv-pc-gold .vpv-pc-price{border-top-color:#EFE3C4}",
+  ".vpv-pc-gold .vpv-pc-per{background:#FBF6EA;border-color:#EADBB4}",
+  ".vpv-pc-gold .vpv-pc-k{color:#7a6a4f}",
+  // one row of seven on a laptop
+  "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(7,minmax(168px,1fr))!important;gap:0 .75rem!important;margin-left:50%;transform:translateX(-50%);width:min(1760px,calc(100vw - 24px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.1rem 1rem!important}.vpv-plans-grid>*>ul{font-size:.8125rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.875rem}}",
+  "@media (min-width:1024px) and (max-width:1279px){.vpv-plans-grid{overflow-x:auto;padding:0 12px 10px}}",
+  // tablets and phones swipe
   ".vpv-pj{display:none}",
-  "@media (max-width:767px){.vpv-pj{display:flex;gap:.5rem;overflow-x:auto;margin:1.5rem -1rem -1.25rem;padding:.25rem 1rem .5rem;scrollbar-width:none}.vpv-pj::-webkit-scrollbar{display:none}" +
+  "@media (max-width:1023px){.vpv-pj{display:flex;gap:.5rem;overflow-x:auto;margin:1.5rem -1rem -1.25rem;padding:.25rem 1rem .5rem;scrollbar-width:none}.vpv-pj::-webkit-scrollbar{display:none}" +
     ".vpv-pj button{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:.45rem .8rem;border-radius:12px;border:1px solid #dbe4f0;background:#fff;font:inherit;color:#0b2a5b;cursor:pointer}" +
     ".vpv-pj button b{font-size:.8125rem;font-weight:800}.vpv-pj button span{font-size:.6875rem;font-weight:600;color:#64748b;white-space:nowrap}" +
     ".vpv-pj button[aria-current=true]{border-color:" + BRAND + ";background:#eef4ff;box-shadow:0 0 0 2px rgba(11,92,255,.15)}" +
-    ".vpv-pj button.gold{border-color:#E3B93C;background:#FFF8E2}.vpv-pj button.gold b{color:#8A5A00}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(227,185,60,.35)}}",
-  "@media (max-width:767px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}}",
+    ".vpv-pj button.gold{border-color:#CDAA5C;background:#FFFCF3}.vpv-pj button.gold b{color:#7E5A16}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(196,160,80,.35)}}",
+  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc{--vpv-pay:1.25rem}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.6rem}.vpv-pc .vpv-was .vpv-strike{font-size:1.375rem}.vpv-pc-per-v{font-size:1.6rem}}",
+  "@media (min-width:640px) and (max-width:1023px){.vpv-plans-grid>*{flex-basis:46%}}",
 ].join("");
 const OG_IMAGE = `${SITE}/vpv-icon-512.png`;
 
@@ -280,14 +297,12 @@ li:has(>.vpv-gold-line)>svg{color:#C8920F;width:1.15rem;height:1.15rem;margin-to
 .vpv-now-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}\
 .vpv-now{margin:0;font-size:1.125rem;line-height:1.3;font-weight:800;color:#0b2a5b}\
 .vpv-no{color:#94a3b8}.vpv-no-ic{flex:none;margin-top:.125rem;color:#e5484d}\
-@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(8,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:span 2;padding:1.25rem}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(3){grid-column:2/span 2}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(2){grid-column:3/span 2}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(1){grid-column:4/span 2}}\
 ${PLAN_CARD_CSS}\
 .vpv-aoa-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border:1px solid #94a3b8;border-radius:999px;font-size:11px;font-weight:700;line-height:1;color:#64748b;cursor:help;vertical-align:middle;-webkit-text-fill-color:currentColor}\
 .vpv-aoa-q:hover,.vpv-aoa-q:focus{border-color:#1468D8;color:#1468D8;outline:none;z-index:30}\
 .vpv-aoa-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;padding:10px 12px;border:1px solid #dbe4f0;border-radius:12px;background:#fff;color:#0b1b33;-webkit-text-fill-color:#0b1b33;font-size:12.5px;font-weight:400;line-height:1.5;text-align:left;letter-spacing:0;text-transform:none;white-space:normal;box-shadow:0 18px 40px -16px rgba(7,22,48,.45);opacity:0;pointer-events:none;transition:opacity .15s}\
 .vpv-aoa-q:hover>.vpv-aoa-tip,.vpv-aoa-q:focus>.vpv-aoa-tip{opacity:1}\
 @keyframes vpvGold{0%{background-position:0% center}100%{background-position:220% center}}\
-@media (prefers-reduced-motion:reduce){.vpv-pc-gold::before{animation:none}}\
 #vpv-focus{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,14,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:vpvFocusIn .35s ease-out both}\
 #vpv-focus .vf-card{position:relative;width:min(100%,calc((100vh - 170px) * 16 / 9),1100px)}\
 #vpv-focus .vf-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 30px 90px rgba(0,0,0,.5)}\
@@ -414,7 +429,7 @@ const PLAN_JUMP_SCRIPT = String.raw`(function(){
     var chips=cards.map(function(c,i){
       var b=document.createElement("button");b.type="button";
       var n=c.querySelector(".vpv-pc-name"),a=c.querySelector(".vpv-pc-area-v");
-      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"")||"VPV";b.lastChild.textContent=a?a.textContent:"";
+      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"")||"VIP";b.lastChild.textContent=a?a.textContent:"";
       if(c.classList.contains("vpv-pc-gold"))b.className="gold";
       b.addEventListener("click",function(){g.scrollTo({left:c.offsetLeft-g.offsetLeft-16,behavior:"smooth"})});
       row.appendChild(b);return b;
@@ -476,6 +491,7 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <script defer="defer" src="${JS_SRC}"></script>\
 <link href="${CSS_HREF}" rel="stylesheet"/>\
 <link href="${SITE_HEADER_FONT_HREF}" rel="stylesheet"/>\
+<link href="${PLAN_FONT_HREF}" rel="stylesheet"/>\
 <style id="vpv-site-header-style">${SITE_HEADER_CSS}header[data-testid="site-header"]{display:none!important}html,body{overflow-x:clip}</style>\
 <style id="vpv-home-style">${HOME_CSS}</style>\
 <style id="vpv-hiw-guide-style">${HIW_GUIDE_CSS}</style>\

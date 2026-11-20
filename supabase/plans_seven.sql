@@ -12,7 +12,7 @@
 --  2. funnel_leads: the recommended / chosen plan and the new plant-size bands
 --     (square feet: lt2000 … 80000plus).
 --  3. A dashboard upgrade can now be to plus, pro, premium or ultra.
---  4. Sharing controls on a link: Ultra, VPV and Signature have them, as
+--  4. Sharing controls on a link: Ultra, VPV VIP and Signature have them, as
 --     Control and Enterprise did.
 --
 -- Run once in the Supabase SQL editor, after plan_features.sql and
@@ -202,7 +202,7 @@ begin
     return new;
   end if;
   raise exception 'sharing_controls_need_control'
-    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV and VPV Signature.',
+    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV VIP and VPV Signature.',
           errcode = '42501';
 end;
 $$;

@@ -103,7 +103,7 @@ export function bundlePlanData(): string {
   const plans = SITE_PLAN_ORDER.map((id) => {
     const p = SITE_PLANS[id];
     return (
-      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},area:${js(p.plot.area)},areaNum:${js(p.plot.area.replace(/ sq ft$/, ""))},gold:${p.personal},price:${p.regularInr},placeholder:false,` +
+      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},area:${js(p.plot.area)},areaNum:${js(p.plot.area.replace(/ sq ft$/, "").replace("–", "–\u2060"))},gold:${p.personal},price:${p.regularInr},placeholder:false,` +
       `limits:{aoas:${p.scenes},videos:${p.videos},pdfs:${p.pdfs},infoIcons:true,sharingControls:${p.sharingControls}},` +
       `infoIconsLabel:"Information icons",inclusions:${js(inclusions(id))},` +
       `security:${js(p.sharingControls ? [...SHARING, ...BASE_SECURITY] : BASE_SECURITY)}}`
@@ -199,7 +199,7 @@ function NOV20_FIGURES(): [string, string][] {
 /**
  * 20 Nov 2026: the plan card leads with the factory size, then the AOAs,
  * the price and the cost per AOA (the figure that falls plan by plan). The
- * size and the AOAs left the feature list for it. VPV and VPV Signature get
+ * size and the AOAs left the feature list for it. VPV VIP and VPV Signature get
  * the gold card. Styles: the .vpv-pc rules in lib/site/home.ts.
  */
 const NOV20_CARD: [string, string][] = [
@@ -210,7 +210,7 @@ const NOV20_CARD: [string, string][] = [
   ['(0,Dt.jsx)("h3",{className:"text-xl font-bold text-brand-deep",children:t.name})', '(0,Dt.jsx)("h3",{className:"vpv-pc-name",children:t.name})'],
   [
     '(0,Dt.jsx)("div",{className:"mt-5",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})})',
-    '(0,Dt.jsxs)("div",{className:"vpv-pc-area",children:[(0,Dt.jsxs)("p",{className:"vpv-pc-area-v","data-testid":`${o}-${t.id}-area`,children:[t.areaNum,(0,Dt.jsx)("span",{className:"vpv-pc-unit",children:" sq ft"})]}),(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})]}),' +
+    '(0,Dt.jsxs)("div",{className:"vpv-pc-area",children:[(0,Dt.jsxs)("p",{className:"vpv-pc-area-v","data-testid":`${o}-${t.id}-area`,children:[t.areaNum,(0,Dt.jsx)("span",{className:"vpv-pc-unit",children:" sq ft"})]}),(0,Dt.jsx)("p",{className:"vpv-pc-k vpv-pc-area-k",children:"Recommended for factories with the above covered area"})]}),' +
       '(0,Dt.jsx)("div",{className:"vpv-pc-aoa",children:(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`})}),' +
       '(0,Dt.jsx)("div",{className:"vpv-pc-price",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})}),' +
       '(0,Dt.jsxs)("div",{className:"vpv-pc-per","data-testid":`${o}-${t.id}-per-aoa`,children:[(0,Dt.jsxs)("p",{className:"vpv-pc-per-v",children:[mn(Math.round(ga(t)/t.limits.aoas)),(0,Dt.jsx)("span",{children:" per AOA"})]}),' +
@@ -219,6 +219,10 @@ const NOV20_CARD: [string, string][] = [
   // The plan-difference answer leads each plan with its factory size.
   ['Dr=e=>`${e.name}: "${e.tagline}" ', 'Dr=e=>`${e.name} (${e.area}): "${e.tagline}" '],
 ];
+
+/** 20 Nov 2026, second round: the line under the factory size, as the
+ *  first round wrote it, to what it says now. */
+const NOV20_CARD_ROUND_TWO: [string, string][] = [['(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})', '(0,Dt.jsx)("p",{className:"vpv-pc-k vpv-pc-area-k",children:"Recommended for factories with the above covered area"})']];
 
 export function bundleTextPatches(): [string, string][] {
   const conf = SITE_PLANS.lite;
@@ -457,6 +461,6 @@ export function bundleTextPatches(): [string, string][] {
   }
   // The same pairs, at the plan figures the bundle was last synced with.
   for (const [before, after] of NOV20_FIGURES()) migrations.push([before, after]);
-  return [...out, ...migrations, ...NOV20_CARD];
+  return [...out, ...migrations, ...NOV20_CARD, ...NOV20_CARD_ROUND_TWO];
 }
 

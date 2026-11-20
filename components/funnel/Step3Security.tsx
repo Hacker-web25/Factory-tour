@@ -125,7 +125,7 @@ export default function Step3Security() {
 
         <Card className="mt-8">
           <SectionTitle icon={ShieldCheck} title="Do you want these controls on your VPV?">
-            They are part of VPV Ultra, VPV and VPV Signature and are not sold separately. Answer
+            They are part of VPV Ultra, VPV VIP and VPV Signature and are not sold separately. Answer
             honestly: if your tour is something you would happily put on your
             website, you do not need them and we will not recommend them.
           </SectionTitle>
