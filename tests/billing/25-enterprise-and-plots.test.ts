@@ -96,8 +96,9 @@ describe("seven plans: sizes, prices and AOAs", () => {
     assert.ok(!isKnownPlanId("platinum"));
   });
 
-  it("reads the plan back from an order's description, never confusing VPV with the scene licence", () => {
-    assert.equal(sitePlanFromNotes("VPV — 100 areas, Special offer, 24 hours shoot"), "vpv");
+  it("reads the plan back from an order's description, never confusing VPV VIP with the scene licence", () => {
+    assert.equal(sitePlanFromNotes("VPV VIP — 100 areas, Special offer, 24 hours shoot"), "vpv");
+    assert.equal(sitePlanFromNotes("VPV — 100 areas"), "vpv", "its name on its first day");
     assert.equal(sitePlanFromNotes("VPV Signature — 150 areas"), "signature");
     assert.equal(sitePlanFromNotes("VPV Pro — 8 areas"), "pro");
     assert.equal(sitePlanFromNotes("VPV Control — 15 areas, 9 process videos"), "control");

@@ -376,7 +376,7 @@ begin
     return new;
   end if;
   raise exception 'sharing_controls_need_control'
-    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV and VPV Signature.',
+    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV VIP and VPV Signature.',
           errcode = '42501';
 end;
 $$;

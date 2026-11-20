@@ -229,7 +229,7 @@ export type Recommendation = {
  *
  *   1. THE PLANT. Each size band has its own plan, and the recommendation
  *      is never below it. A buyer who does not say ("not sure") is not held
- *      to a size. VPV and VPV Signature (Mr. Gupta's own time) are offered
+ *      to a size. VPV VIP and VPV Signature (Mr. Gupta's own time) are offered
  *      only to plants of 40,000+ sq ft, never as a way round a smaller
  *      plan's limits.
  *   2. THE LINK. If they said they want to stop the link reaching a
@@ -283,7 +283,7 @@ export function recommendPlan(s: {
   }
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Ultra, VPV and VPV Signature."
+      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Ultra, VPV VIP and VPV Signature."
     );
   }
 

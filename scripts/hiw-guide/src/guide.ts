@@ -144,7 +144,7 @@ const GET: Deliverable[] = [
   { icon: I.file, tag: "Pro and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
   { icon: I.lock, tag: "Ultra and up", tagKind: "up", title: "Sharing controls", text: "Links that open only once, expire after a set time, ask for a password, or work on a set number of devices." },
   { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place." },
-  { icon: I.star, tag: "VPV & Signature", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
+  { icon: I.star, tag: "VIP & Signature", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
 ];
 
 const BUYER = [

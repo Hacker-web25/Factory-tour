@@ -589,7 +589,7 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     { upTo: 5, each: 4_500 },
     { upTo: Infinity, each: 4_000 },
   ]),
-  vpv: sold("vpv", "VPV", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 4_50_000, sqft(40_000, 80_000), 100, 3, { videos: 15, pdfs: 100 }, 24, [
+  vpv: sold("vpv", "VPV VIP", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 4_50_000, sqft(40_000, 80_000), 100, 3, { videos: 15, pdfs: 100 }, 24, [
     { upTo: 5, each: 4_000 },
     { upTo: Infinity, each: 3_500 },
   ]),
@@ -706,16 +706,17 @@ export function costPerAoa(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active):
 /**
  * Which plan an order was for, read from its description ("VPV Pro — 8
  * areas, …", written by priceFor). The name must be followed by " — ", so
- * the plan called just "VPV" is never read into "VPV Basic licence — …"
- * (the scene licence) or "VPV Signature — …".
+ * "VPV Basic licence — …" (the scene licence) is never read as a plan.
+ * "VPV — " is VPV VIP's name for its first day on sale (20 Nov 2026).
  */
 export function sitePlanFromNotes(notes: string | null | undefined): SitePlanId | null {
   const n = notes ?? "";
+  if (n.startsWith("VPV — ")) return "vpv";
   return (Object.keys(SITE_PLANS) as SitePlanId[]).find((id) => n.startsWith(`${SITE_PLANS[id].name} — `)) ?? null;
 }
 
 /**
- * What VPV and VPV Signature add to everything in Ultra: two things that
+ * What VPV VIP and VPV Signature add to everything in Ultra: two things that
  * cannot be bought any other way, because they are one person's time.
  *
  * `short` is the line on a plan card; `long` is the sentence on the plan page
