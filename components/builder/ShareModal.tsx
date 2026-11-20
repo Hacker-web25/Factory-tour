@@ -129,9 +129,9 @@ function PublicShare({
 }) {
   const [oneTimeUrl, setOneTimeUrl] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
-  // One-time links are a sharing control (VPV Ultra and up); QR codes are not released yet.
+  // One-time view links are a link control (VPV Premium and up); QR codes are not released yet.
   const ent = useEntitlements();
-  const controls = ent.can("sharing_controls");
+  const controls = ent.can("link_one_time");
   const qrOk = ent.ready && !ent.hidden("qr_codes");
   const [sessionMinutes, setSessionMinutes] = useState<number | null>(null);
 
@@ -244,10 +244,10 @@ function PublicShare({
       ) : (
         <button
           type="button"
-          onClick={() => requestUpgrade("sharing_controls")}
+          onClick={() => requestUpgrade("link_one_time")}
           className="w-full rounded border border-dashed border-border px-3 py-2.5 text-left text-xs text-neutral-400 hover:text-white"
         >
-          One-time links that stop working after one visit are part of VPV Ultra and up.{" "}
+          One-time links that stop working after one visit are part of VPV Premium and up.{" "}
           <span className="text-cyan-400">Upgrade</span>
         </button>
       )}

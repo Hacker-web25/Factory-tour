@@ -28,7 +28,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { SITE_PLANS, inr, priceForScenes, upgradeQuote, type SitePlanId } from "@/lib/pricing";
+import { SITE_PLANS, inr, linkControlLabels, priceForScenes, upgradeQuote, type SitePlanId } from "@/lib/pricing";
 import { useEntitlements } from "@/lib/useEntitlements";
 import {
   BASIC_SCENE_CAP,
@@ -521,7 +521,11 @@ function NextPlanCard({ from, to }: { from: SitePlanId; to: SitePlanId }) {
         {q.addAreas > 0 && <li>+{q.addAreas} areas</li>}
         {plan.videos > 0 && <li>{plan.videos} process videos</li>}
         {plan.pdfs > 0 && <li>{plan.pdfs} lab reports & certifications</li>}
-        {plan.sharingControls && <li>One-time links and sharing restrictions</li>}
+        {linkControlLabels(to)
+          .filter((l) => !linkControlLabels(from).includes(l))
+          .map((l) => (
+            <li key={l}>{l}</li>
+          ))}
       </ul>
       <div className="text-[22px] font-extrabold leading-none text-vpv-blue">{inr(q.amountInr)}</div>
       <div className="mb-3 text-[10.5px] text-vpv-muted">the difference, + GST</div>

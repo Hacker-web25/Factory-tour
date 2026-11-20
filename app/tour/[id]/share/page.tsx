@@ -354,9 +354,18 @@ function NewViewerLinkModal({
   const [requireEmail, setRequireEmail] = useState(false);
   const [expiresDays, setExpiresDays] = useState<number | "">("");
   const [viewLimit, setViewLimit] = useState<number | "">("");
-  // Passwords, e-mail gates, expiry and view limits are sharing controls: VPV Ultra and up.
+  // Each link control opens on its own plan: view limits (one-time links)
+  // from Premium, passwords from Ultra, expiry on VIP, the e-mail gate with
+  // device limits on Signature.
   const ent = useEntitlements();
-  const controls = ent.can("sharing_controls");
+  const can = {
+    oneTime: ent.can("link_one_time"),
+    password: ent.can("link_password"),
+    expiry: ent.can("link_expiry"),
+    email: ent.can("link_email_gate"),
+  };
+  const controls = can.oneTime || can.password || can.expiry || can.email;
+  const firstLocked = !can.oneTime ? "link_one_time" : !can.password ? "link_password" : !can.expiry ? "link_expiry" : !can.email ? "link_email_gate" : null;
   return (
     <div
       onClick={onCancel}
@@ -386,8 +395,9 @@ function NewViewerLinkModal({
               className="field w-full"
             />
           </div>
-          {controls ? (
+          {controls && (
             <>
+          {can.password && (
           <div>
             <div className="eyebrow mb-1">Password (optional)</div>
             <input
@@ -398,6 +408,8 @@ function NewViewerLinkModal({
               className="field w-full"
             />
           </div>
+          )}
+          {can.email && (
           <label className="flex items-start gap-2 text-xs cursor-pointer">
             <input
               type="checkbox"
@@ -412,7 +424,9 @@ function NewViewerLinkModal({
               </div>
             </span>
           </label>
+          )}
           <div className="grid grid-cols-2 gap-3">
+            {can.expiry && (
             <div>
               <div className="eyebrow mb-1">Expires in (days)</div>
               <input
@@ -428,6 +442,8 @@ function NewViewerLinkModal({
                 className="field w-full"
               />
             </div>
+            )}
+            {can.oneTime && (
             <div>
               <div className="eyebrow mb-1">Max views</div>
               <input
@@ -443,15 +459,20 @@ function NewViewerLinkModal({
                 className="field w-full"
               />
             </div>
+            )}
           </div>
             </>
-          ) : (
+          )}
+          {firstLocked && (
             <button
               type="button"
-              onClick={() => requestUpgrade("sharing_controls")}
+              onClick={() => requestUpgrade(firstLocked)}
               className="w-full rounded border border-dashed border-border px-3 py-2.5 text-left text-xs text-neutral-400 hover:text-white"
             >
-              Passwords, expiry and view limits are part of VPV Ultra and up. <span className="text-accent">Upgrade</span>
+              {controls
+                ? "More link controls (passwords, expiry, view limits, e-mail before viewing) come with larger VPV plans."
+                : "Passwords, expiry and view limits are part of larger VPV plans."}{" "}
+              <span className="text-accent">Upgrade</span>
             </button>
           )}
         </div>
@@ -465,11 +486,13 @@ function NewViewerLinkModal({
           </button>
           <button
             onClick={() =>
-              onCreate(
-                controls
-                  ? { label, password, requireEmail, expiresDays, viewLimit }
-                  : { label, password: "", requireEmail: false, expiresDays: "", viewLimit: "" }
-              )
+              onCreate({
+                label,
+                password: can.password ? password : "",
+                requireEmail: can.email ? requireEmail : false,
+                expiresDays: can.expiry ? expiresDays : "",
+                viewLimit: can.oneTime ? viewLimit : "",
+              })
             }
             className="bg-accent hover:bg-accentHover text-black text-xs font-medium px-3 py-1.5 rounded"
           >

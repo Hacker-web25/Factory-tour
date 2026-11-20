@@ -581,6 +581,17 @@ function AddonsTab({
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const ent = useEntitlements();
   const audioOk = ent.ready && !ent.hidden("audio_narration");
+  // VPV Lite and Plus include 10 and 20 information icons; the rest, unlimited.
+  async function infoIconRoom(): Promise<boolean> {
+    const max = ent.limits.infoIcons;
+    if (!Number.isFinite(max)) return true;
+    const used = (await countOrgMedia(ent.orgId)).infoIcons;
+    if (used >= max) {
+      reportLimit("info_icons", used, max);
+      return false;
+    }
+    return true;
+  }
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-2">
@@ -611,15 +622,16 @@ function AddonsTab({
         <AddonBtn
           icon={<Info size={16} />}
           label="Info"
-          onClick={() =>
+          onClick={async () => {
+            if (!(await infoIconRoom())) return;
             onStartAddHotspot({
               type: "info",
               action: "info_popup",
               icon_key: "info",
               info_title: "Info",
               info_body: "Add details here…",
-            })
-          }
+            });
+          }}
         />
         <AddonBtn
           icon={<UserCircle2 size={16} />}
@@ -2651,6 +2663,17 @@ function AddonTab({
   async function chooseAction(next: HotspotAction) {
     const media =
       next === "video_popup" ? ("process_videos" as const) : next === "pdf_popup" ? ("pdf_reports" as const) : null;
+    // Turning an icon into an information icon counts against the plan's allowance.
+    if (next === "info_popup" && hotspot.action !== next && hotspot.type !== "polygon") {
+      const max = ent.limits.infoIcons;
+      if (Number.isFinite(max)) {
+        const n = (await countOrgMedia(ent.orgId)).infoIcons;
+        if (n >= max) {
+          reportLimit("info_icons", n, max);
+          return;
+        }
+      }
+    }
     if (media && hotspot.action !== next) {
       const acc = media === "process_videos" ? videoAccess : pdfAccess;
       if (acc.state !== "open") {

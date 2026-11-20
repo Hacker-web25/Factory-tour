@@ -44,7 +44,7 @@ import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.a01b3b1e.js";
+const JS_SRC = "/static/js/main.a8bf99b8.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -399,18 +399,26 @@ const HIW_GUIDE_SCRIPT = String.raw`(function(){
  * row after the bundle has drawn it and adds a "?" that explains the term on
  * hover, on keyboard focus and on tap. It re-runs when the page redraws.
  */
+/** Behind the "?" beside "Custom domain" on the plan cards. */
+const DOMAIN_HINT = "Your VPV on its own web address, for example example.myvpv.com";
+
 const AOA_HINT_SCRIPT = String.raw`(function(){
-  var TIP=${JSON.stringify(AOA_HINT)};
-  var RE=/^\s*\d+\s+AOAs\s*$/;
+  // [text it follows, what the "?" says, how a screen reader asks]
+  var TIPS=[
+    [/^\s*\d+\s+AOAs\s*$/,${JSON.stringify(AOA_HINT)},"What is an AOA? "],
+    [/^\s*Custom domain\s*$/,${JSON.stringify(DOMAIN_HINT)},"What is a custom domain? "]
+  ];
+  function tipFor(v){for(var k=0;k<TIPS.length;k++)if(TIPS[k][0].test(v||""))return TIPS[k];return null}
   function fix(){try{
     var w=document.createTreeWalker(document.getElementById("root")||document.body,NodeFilter.SHOW_TEXT,null),n,hits=[];
-    while(n=w.nextNode()){if(RE.test(n.nodeValue||"")){var p=n.parentNode;if(p&&p.querySelector&&!p.querySelector(".vpv-aoa-q"))hits.push(n);}}
+    while(n=w.nextNode()){var m=tipFor(n.nodeValue);if(m){var p=n.parentNode;if(p&&p.querySelector&&!p.querySelector(".vpv-aoa-q"))hits.push([n,m]);}}
     for(var i=0;i<hits.length;i++){
-      var q=document.createElement("span");q.className="vpv-aoa-q";q.tabIndex=0;q.setAttribute("role","button");q.setAttribute("aria-label","What is an AOA? "+TIP);
+      var TIP=hits[i][1][1];
+      var q=document.createElement("span");q.className="vpv-aoa-q";q.tabIndex=0;q.setAttribute("role","button");q.setAttribute("aria-label",hits[i][1][2]+TIP);
       q.appendChild(document.createTextNode("?"));
       var t=document.createElement("span");t.className="vpv-aoa-tip";t.setAttribute("role","tooltip");t.textContent=TIP;q.appendChild(t);
       q.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();try{this.focus()}catch(x){}});
-      hits[i].parentNode.insertBefore(q,hits[i].nextSibling);
+      hits[i][0].parentNode.insertBefore(q,hits[i][0].nextSibling);
     }
   }catch(e){}}
   var due=false;function soon(){if(due)return;due=true;setTimeout(function(){due=false;fix()},60);}

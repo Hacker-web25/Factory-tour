@@ -50,6 +50,8 @@ import {
   SUPPORT_NAME,
   inr,
   inr2,
+  infoIconsLabel,
+  linkControlLabels,
 } from "@/lib/pricing";
 import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
@@ -195,9 +197,9 @@ const sections: LegalSection[] = [
               <li key={id}>
                 <B>{p.name}.</B> {p.plot.label}; {p.scenes} AOAs,{" "}
                 {p.videos > 0 ? `up to ${p.videos} process videos` : "no process videos"},{" "}
-                {p.pdfs > 0 ? `up to ${p.pdfs} PDF reports` : "no PDF reports"}, information icons,{" "}
+                {p.pdfs > 0 ? `up to ${p.pdfs} PDF reports` : "no PDF reports"}, {infoIconsLabel(id).toLowerCase()},{" "}
                 {hoursLabel(p.shootHours)} of shoot time on site
-                {p.sharingControls ? ", and sharing controls (link expiry, one-time links, passwords and view limits)" : ""}
+                {p.sharingControls ? `, and these link controls: ${linkControlLabels(id).join(", ").toLowerCase()}` : ""}
                 {p.personal
                   ? `, together with a private discussion with ${ENTERPRISE_PERSONAL.person} and a shoot led personally by ${ENTERPRISE_PERSONAL.person} (see below)`
                   : ""}
@@ -210,11 +212,11 @@ const sections: LegalSection[] = [
           Every Plan also includes a password-protected dashboard, your own VPV
           address and your branding. The factory sizes (covered area) are a guide
           to which Plan suits which plant; what we deliver is the number of
-          AOAs, videos, reports and shoot hours listed. Sharing controls come
-          only with {SITE_PLANS.ultra.name}, {SITE_PLANS.vpv.name} and{" "}
-          {SITE_PLANS.signature.name} (and, for customers who bought them
-          before 20 November 2026, {SITE_PLANS.control.name} and{" "}
-          {SITE_PLANS.enterprise.name}) and are not sold separately. No sharing control can stop a Viewer from taking a
+          AOAs, information icons, videos, reports and shoot hours listed. Each
+          link control comes only with the Plans listed above that include it
+          (and all of them with {SITE_PLANS.control.name} and{" "}
+          {SITE_PLANS.enterprise.name}, for customers who bought them before
+          20 November 2026), and none is sold separately. No sharing control can stop a Viewer from taking a
           screenshot or recording their own screen.
         </P>
         <P>

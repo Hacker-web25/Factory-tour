@@ -19,6 +19,8 @@ import {
   SUPPORT_MONTHLY_INR,
   hoursLabel,
   inr,
+  infoIconsLabel,
+  linkControlLabels,
 } from "@/lib/pricing";
 import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
@@ -45,7 +47,8 @@ const PLANS = SITE_PLAN_ORDER.map((id) => {
   ];
   if (p.videos > 0) bits.push(`${p.videos} process videos`);
   if (p.pdfs > 0) bits.push(`${p.pdfs} PDF documents`);
-  if (p.sharingControls) bits.push("one-time links and sharing restrictions");
+  bits.push(infoIconsLabel(id).toLowerCase());
+  if (p.sharingControls) bits.push(`link controls: ${linkControlLabels(id).join(", ").toLowerCase()}`);
   return `- **${p.name}** — ${inr(offer)} + 18% GST (regular ${inr(p.regularInr)}). ${p.tagline} Includes ${bits.join(", ")}.`;
 }).join("\n");
 

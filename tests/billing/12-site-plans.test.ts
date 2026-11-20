@@ -110,9 +110,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
       assert.ok(sitePerArea(SITE_PLAN_ORDER[i]) < sitePerArea(SITE_PLAN_ORDER[i - 1]), SITE_PLAN_ORDER[i]);
     }
 
-    // Sharing controls start at Ultra and are not sold as an add-on anywhere.
-    assert.equal(SITE_PLANS.premium.sharingControls, false);
-    assert.equal(SITE_PLANS.ultra.sharingControls, true);
+    // Link controls start at Premium (one-time view links) and are not sold as an add-on anywhere.
+    assert.equal(SITE_PLANS.pro.sharingControls, false);
+    assert.equal(SITE_PLANS.premium.sharingControls, true);
 
     // The special offer: 50% off the regular price for the first 50
     // customers, landing exactly on the decided prices. The regular prices

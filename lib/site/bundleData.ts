@@ -26,8 +26,10 @@ import {
   SUPPORT_MONTHLY_INR,
   SUPPORT_NAME,
   TRAVEL_FEES,
+  LINK_CONTROLS,
   discountBands,
-  hoursLabel,
+  infoIconsLabel,
+  linkControlLabels,
   inr,
   supportWorthLabel,
 } from "@/lib/pricing";
@@ -48,10 +50,6 @@ const OCT26_MIGRATIONS: [string, number][] = [
   ["\"Your whole sales team can present your VPV. Optional Sales Team logins (₹999 per salesperson, one time, for our first 50 customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.\"", 17],
 ];
 
-const SHARING = [
-  "One-time link expiry",
-  "Restrictions designed to prevent VPV links being shared with competitors",
-];
 const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Customer branding"];
 
 /**
@@ -63,10 +61,15 @@ const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Custome
  * 20 Nov 2026 the factory size and the AOAs are not rows: they are the big
  * figures at the top of the card.
  *
- *   what every plan has  shoot time, information icons, dashboard, custom
- *                        domain, branding
- *   then the extras      process videos, lab reports, the two sharing
- *                        controls, and the two Mr. Gupta lines last
+ *   what every plan has  information icons (10 on Lite, 20 on Plus,
+ *                        unlimited after), dashboard, custom domain (with a
+ *                        "?" showing example.myvpv.com), branding
+ *   then the extras      process videos, lab reports, the four link
+ *                        controls (LINK_CONTROLS), and the two Mr. Gupta
+ *                        lines last
+ *
+ * (20 Nov 2026, second round: shoot time left the cards; it is still in the
+ * quote, the Terms and llms.txt.)
  *
  * A row the plan does not include starts with "!": the card draws it grey
  * with a cross (and "not included" for screen readers). The comparison table
@@ -76,13 +79,11 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const p = SITE_PLANS[id];
   const ent = p.personal;
   const rows: [boolean, string][] = [
-    [true, `${hoursLabel(p.shootHours)} of shoot time`],
-    [true, "Information icons"],
+    [true, infoIconsLabel(id)],
     ...BASE_SECURITY.map((r): [boolean, string] => [true, r]),
     [p.videos > 0, p.videos > 0 ? `${p.videos} process videos` : "Process videos"],
     [p.pdfs > 0, p.pdfs > 0 ? `${p.pdfs} lab reports & certifications` : "Lab reports & certifications"],
-    [p.sharingControls, SHARING[0]],
-    [p.sharingControls, SHARING[1]],
+    ...LINK_CONTROLS.map((c): [boolean, string] => [p.linkControls[c.key], c.label]),
     [ent, ENTERPRISE_PERSONAL.discussion.short],
     [ent, ENTERPRISE_PERSONAL.shoot.short],
   ];
@@ -106,7 +107,7 @@ export function bundlePlanData(): string {
       `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},area:${js(p.plot.area)},areaNum:${js(p.plot.area.replace(/ sq ft$/, "").replace("–", "–\u2060"))},gold:${p.personal},price:${p.regularInr},placeholder:false,` +
       `limits:{aoas:${p.scenes},videos:${p.videos},pdfs:${p.pdfs},infoIcons:true,sharingControls:${p.sharingControls}},` +
       `infoIconsLabel:"Information icons",inclusions:${js(inclusions(id))},` +
-      `security:${js(p.sharingControls ? [...SHARING, ...BASE_SECURITY] : BASE_SECURITY)}}`
+      `security:${js([...linkControlLabels(id), ...BASE_SECURITY])}}`
     );
   });
   return `${ln},sn=[${plans.join(",")}]`;

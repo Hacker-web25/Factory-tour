@@ -233,8 +233,8 @@ export type Recommendation = {
  *      only to plants of 40,000+ sq ft, never as a way round a smaller
  *      plan's limits.
  *   2. THE LINK. If they said they want to stop the link reaching a
- *      competitor, the plan must have sharing controls (Ultra and up). They
- *      exist on no other plan and cannot be bought as an add-on.
+ *      competitor, the plan must have at least one link control (one-time
+ *      view links, Premium and up). None can be bought as an add-on.
  *   3. THE SCOPE. Its areas and lab reports must cover what they picked.
  *      Process videos are deliberately NOT part of this test: they are
  *      add-ons anyone can buy on any plan.
@@ -283,7 +283,7 @@ export function recommendPlan(s: {
   }
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Ultra, VPV VIP and VPV Signature."
+      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords, expiry and device limits come with the larger plans."
     );
   }
 

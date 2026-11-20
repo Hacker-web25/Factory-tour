@@ -35,6 +35,7 @@ import {
   upgradeQuote,
   withGst,
   type SitePlanId,
+  linkControlLabels,
 } from "@/lib/pricing";
 import { effectivePlan, upgradeOptions, type WorkspaceFacts } from "@/lib/entitlements";
 import { loadWorkspaceFacts } from "@/lib/useEntitlements";
@@ -238,7 +239,7 @@ function PlanUpgradeCard({
     q.addAreas > 0 ? `${q.addAreas} more areas — ${areasNow + q.addAreas} in all` : null,
     plan.videos > 0 ? `${plan.videos} process videos` : null,
     plan.pdfs > 0 ? `${plan.pdfs} lab reports & certifications` : null,
-    plan.sharingControls ? "One-time links and sharing restrictions" : null,
+    ...linkControlLabels(to).filter((l) => !linkControlLabels(from).includes(l)),
     `${plan.shootHours} hours of shoot time`,
   ].filter(Boolean) as string[];
 

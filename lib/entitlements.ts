@@ -18,15 +18,16 @@
  * browser cannot open them.
  */
 
-import { SITE_PLANS, SITE_PLAN_ORDER, isKnownPlanId, planPrice, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { SITE_PLANS, SITE_PLAN_ORDER, isKnownPlanId, planPrice, type LinkControl, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 
 /**
  * Where a feature starts. "all" = every plan; "media" = plans with process
  * videos and lab reports (Pro and up, and the old Authority and up);
- * "sharing" = plans with sharing controls (Ultra and up, and the old Control
- * and Enterprise); "sales" = the Sales Team add-on.
+ * "link" = one of the link controls, each on the plans whose
+ * `linkControls` include it (see lib/pricing.ts); "sales" = the Sales Team
+ * add-on.
  */
-export type Tier = "all" | "media" | "sharing" | "sales" | "hidden";
+export type Tier = "all" | "media" | "link" | "sales" | "hidden";
 
 export type FeatureKey =
   // promised on every plan
@@ -39,8 +40,12 @@ export type FeatureKey =
   // promised from Pro up (level 1)
   | "process_videos"
   | "pdf_reports"
-  // promised from Ultra up (level 2)
-  | "sharing_controls"
+  // the link controls, each from its own plan (lib/pricing.ts linkControls)
+  | "link_one_time"
+  | "link_password"
+  | "link_expiry"
+  | "link_devices"
+  | "link_email_gate"
   // the Sales Team add-on (any plan)
   | "sales_team"
   // promised nowhere yet — future rollouts
@@ -66,7 +71,7 @@ export type FeatureKey =
  * THE TABLE. Changing a line here is how a feature is released.
  * `label` is what the upgrade pop-up calls it.
  */
-export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string }> = {
+export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string; control?: LinkControl }> = {
   tours: { tier: "all", label: "Virtual tours of your plant" },
   info_icons: { tier: "all", label: "Information icons" },
   dashboard_password: { tier: "all", label: "Password-protected dashboard" },
@@ -77,7 +82,12 @@ export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string }> = {
   process_videos: { tier: "media", label: "Process videos" },
   pdf_reports: { tier: "media", label: "Lab reports & certifications" },
 
-  sharing_controls: { tier: "sharing", label: "One-time links and sharing restrictions" },
+  link_one_time: { tier: "link", control: "oneTime", label: "One-time view links" },
+  link_password: { tier: "link", control: "password", label: "Password-protected links" },
+  link_expiry: { tier: "link", control: "expiry", label: "Control link expiry time" },
+  link_devices: { tier: "link", control: "devices", label: "Limit device access" },
+  // Promised on no card; it comes with every control (Signature, and the old Control and Enterprise).
+  link_email_gate: { tier: "link", control: "devices", label: "E-mail before viewing" },
 
   sales_team: { tier: "sales", label: "Sales Team dashboard and logins" },
 
@@ -133,8 +143,6 @@ export type Access =
   | { state: "locked"; upgradeTo: SoldPlanId | "sales_team" }
   | { state: "hidden" };
 
-const LEVEL_FOR: Record<"media" | "sharing", number> = { media: 1, sharing: 2 };
-
 /** Can this workspace use this feature, and if not, what unlocks it? */
 export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   if (f.role === "owner") return { state: "open" };
@@ -142,21 +150,30 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   if (tier === "hidden") return { state: "hidden" };
   if (tier === "all") return { state: "open" };
   if (tier === "sales") return (f.sales_seats ?? 0) > 0 ? { state: "open" } : { state: "locked", upgradeTo: "sales_team" };
-  const need = LEVEL_FOR[tier];
-  if (SITE_PLANS[effectivePlan(f)].level >= need) return { state: "open" };
-  // The first plan this workspace can move up to that has it.
-  const to = upgradeOptions(f).find((p) => SITE_PLANS[p].level >= need) ?? (need >= 2 ? "ultra" : "pro");
+  const has = (p: SitePlanId) =>
+    tier === "media" ? SITE_PLANS[p].level >= 1 : SITE_PLANS[p].linkControls[ROLLOUT[key].control!];
+  if (has(effectivePlan(f))) return { state: "open" };
+  // The first plan this workspace can move up to that has it; failing that,
+  // the first plan on sale that has it (VPV VIP and Signature are arranged
+  // with our team, so the pop-up says so instead of linking to a payment).
+  const to = upgradeOptions(f).find(has) ?? SITE_PLAN_ORDER.find(has) ?? "signature";
   return { state: "locked", upgradeTo: to };
 }
 
 export const canUse = (f: WorkspaceFacts, key: FeatureKey) => accessTo(f, key).state === "open";
 export const isHidden = (f: WorkspaceFacts, key: FeatureKey) => accessTo(f, key).state === "hidden";
 
-/** How many process videos and lab reports & certifications the plan includes. */
-export function planLimits(f: WorkspaceFacts): { videos: number; pdfs: number } {
-  if (f.role === "owner") return { videos: Infinity, pdfs: Infinity };
+/** How many process videos, lab reports & certifications and information icons the plan includes. */
+export function planLimits(f: WorkspaceFacts): { videos: number; pdfs: number; infoIcons: number } {
+  if (f.role === "owner") return { videos: Infinity, pdfs: Infinity, infoIcons: Infinity };
   const p = SITE_PLANS[effectivePlan(f)];
-  return { videos: p.videos, pdfs: p.pdfs };
+  return { videos: p.videos, pdfs: p.pdfs, infoIcons: p.infoIcons };
+}
+
+/** The first plan this workspace can move up to that allows more of something. */
+export function upgradeForMore(f: WorkspaceFacts, what: "videos" | "pdfs" | "infoIcons"): SoldPlanId | null {
+  const now = SITE_PLANS[effectivePlan(f)][what];
+  return upgradeOptions(f).find((p) => SITE_PLANS[p][what] > now) ?? null;
 }
 
 /**

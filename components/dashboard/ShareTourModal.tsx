@@ -84,9 +84,17 @@ export default function ShareTourModal({
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
 
-  // What this plan includes: sharing controls are VPV Ultra and up (and the old Control and Enterprise).
+  // What this plan includes: each link control opens on its own plan
+  // (one-time links from Premium, passwords from Ultra, expiry on VIP,
+  // device limits on Signature; the old Control and Enterprise have all).
   const ent = useEntitlements();
-  const controls = ent.can("sharing_controls");
+  const can = {
+    oneTime: ent.can("link_one_time"),
+    password: ent.can("link_password"),
+    expiry: ent.can("link_expiry"),
+    devices: ent.can("link_devices"),
+  };
+  const controls = can.oneTime || can.password || can.expiry || can.devices;
   const qrOk = ent.ready && !ent.hidden("qr_codes");
 
   // Options
@@ -148,7 +156,7 @@ export default function ShareTourModal({
   const generate = async () => {
     // Guard: password enabled but blank — treat as user error, don't
     // silently create an unprotected link.
-    if (controls && passwordOn && !password.trim()) {
+    if (can.password && passwordOn && !password.trim()) {
       alert("Enter a password (or turn off password protection).");
       return;
     }
@@ -157,10 +165,10 @@ export default function ShareTourModal({
       const created = await createViewerLink({
         tourId,
         label: `${kind === "qr" ? "QR" : "Link"} · ${expiresLabel}${oneTime ? " · one-time" : ""}${passwordOn ? " · locked" : ""}${deviceLimitOn ? ` · ${deviceLimit} dev` : ""}`,
-        expiresAt: controls ? expiresAt : null,
-        viewLimit: controls && oneTime ? 1 : null,
-        password: controls && passwordOn ? password.trim() : undefined,
-        deviceLimit: controls && deviceLimitOn ? deviceLimit : undefined,
+        expiresAt: can.expiry ? expiresAt : null,
+        viewLimit: can.oneTime && oneTime ? 1 : null,
+        password: can.password && passwordOn ? password.trim() : undefined,
+        deviceLimit: can.devices && deviceLimitOn ? deviceLimit : undefined,
         sharedToEmail: sharedToEmail.trim() || undefined,
         sharedToPhone: sharedToPhone.trim() || undefined,
       });
@@ -324,6 +332,8 @@ export default function ShareTourModal({
 
               {controls ? (
                 <>
+              {can.expiry && (
+              <>
               {/* Time preset chips */}
               <div style={{ marginBottom: 14 }}>
                 <label className="vpv-label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -391,7 +401,11 @@ export default function ShareTourModal({
                   </span>
                 </div>
               </div>
+              </>
+              )}
 
+              {can.oneTime && (
+              <>
               {/* One-time toggle */}
               <div
                 style={{
@@ -432,7 +446,11 @@ export default function ShareTourModal({
                   label="One-time use"
                 />
               </div>
+              </>
+              )}
 
+              {can.password && (
+              <>
               {/* Password protection */}
               <div
                 style={{
@@ -524,7 +542,11 @@ export default function ShareTourModal({
                   </div>
                 )}
               </div>
+              </>
+              )}
 
+              {can.devices && (
+              <>
               {/* Device limit */}
               <div
                 style={{
@@ -583,10 +605,13 @@ export default function ShareTourModal({
                   </div>
                 )}
               </div>
+              </>
+              )}
 
+                {!(can.oneTime && can.password && can.expiry && can.devices) && <LockedSharingControls can={can} />}
                 </>
               ) : (
-                <LockedSharingControls />
+                <LockedSharingControls can={can} />
               )}
 
               {/* Screen-capture protection notice — always ON, no toggle. */}
@@ -848,12 +873,20 @@ function KindTile({
   );
 }
 
-/** What a plan without sharing controls sees in their place: one quiet row that opens the upgrade pop-up. */
-function LockedSharingControls() {
+/** The link controls this plan does not have, in one quiet row that opens the upgrade pop-up. */
+function LockedSharingControls({ can }: { can: { oneTime: boolean; password: boolean; expiry: boolean; devices: boolean } }) {
+  const missing = [
+    !can.oneTime && { key: "link_one_time" as const, text: "One-time view links" },
+    !can.expiry && { key: "link_expiry" as const, text: "link expiry time" },
+    !can.devices && { key: "link_devices" as const, text: "device limits" },
+    !can.password && { key: "link_password" as const, text: "passwords" },
+  ].filter(Boolean) as { key: "link_one_time" | "link_expiry" | "link_devices" | "link_password"; text: string }[];
+  if (missing.length === 0) return null;
+  const list = missing.map((m) => m.text).join(", ");
   return (
     <button
       type="button"
-      onClick={() => requestUpgrade("sharing_controls")}
+      onClick={() => requestUpgrade(missing[0].key)}
       style={{
         display: "flex",
         width: "100%",
@@ -871,10 +904,10 @@ function LockedSharingControls() {
       <Lock style={{ width: 16, height: 16, color: "#64748b", flexShrink: 0 }} />
       <span style={{ flex: 1 }}>
         <span style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>
-          Expiry, one-time links, passwords and device limits
+          {list.charAt(0).toUpperCase() + list.slice(1)}
         </span>
         <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 2 }}>
-          Stop links being forwarded to competitors. Part of VPV Ultra and up.
+          Stop links being forwarded to competitors. Part of a larger VPV plan.
         </span>
       </span>
       <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1468D8", whiteSpace: "nowrap" }}>Upgrade</span>
