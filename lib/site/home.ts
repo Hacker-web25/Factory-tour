@@ -44,15 +44,16 @@ import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.c187d6a6.js";
+const JS_SRC = "/static/js/main.a01b3b1e.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
 
 /** The two faces used only on the plan cards: Fraunces for the plan names,
- *  Allura (a script that stays readable, even in capitals) for the two gold plans. */
+ *  two brush scripts for the gold plans, chosen by the owner (20 Nov 2026):
+ *  Comforter for VPV VIP, Ms Madi for VPV Signature. */
 const PLAN_FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Allura&display=swap";
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Comforter&family=Ms+Madi&display=swap";
 
 /**
  * The plan card (20 Nov 2026), top to bottom: the plan's name (a serif, or
@@ -85,7 +86,8 @@ const PLAN_CARD_CSS = [
   ".vpv-pc-drop{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:#0d7a43;color:#fff;font-size:.6875rem;font-weight:800;letter-spacing:.01em;white-space:nowrap}",
   // the gold plans
   ".vpv-pc-gold{border:1px solid #CDAA5C!important;background:linear-gradient(180deg,#FFFCF3 0%,#FFFDF8 45%,#fff 100%)!important;box-shadow:inset 0 0 0 4px #fff,inset 0 0 0 5px rgba(196,160,80,.45),0 24px 50px -30px rgba(110,80,20,.5)!important}",
-  ".vpv-pc-gold .vpv-pc-name{font-family:Allura,'Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.45rem,1.95vw,2.6rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
+  ".vpv-pc-gold .vpv-pc-name{font-family:'Ms Madi','Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.45rem,1.95vw,2.6rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
+  "[data-testid$='-card-vpv'] .vpv-pc-name{font-family:Comforter,'Segoe Script','Apple Chancery',cursive;font-size:clamp(1.9rem,2.55vw,3.3rem);-webkit-text-stroke:0;letter-spacing:.02em}",
   ".vpv-pc-gold .vpv-pc-price{border-top-color:#EFE3C4}",
   ".vpv-pc-gold .vpv-pc-per{background:#FBF6EA;border-color:#EADBB4}",
   ".vpv-pc-gold .vpv-pc-k{color:#7a6a4f}",
@@ -99,7 +101,7 @@ const PLAN_CARD_CSS = [
     ".vpv-pj button b{font-size:.8125rem;font-weight:800}.vpv-pj button span{font-size:.6875rem;font-weight:600;color:#64748b;white-space:nowrap}" +
     ".vpv-pj button[aria-current=true]{border-color:" + BRAND + ";background:#eef4ff;box-shadow:0 0 0 2px rgba(11,92,255,.15)}" +
     ".vpv-pj button.gold{border-color:#CDAA5C;background:#FFFCF3}.vpv-pj button.gold b{color:#7E5A16}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(196,160,80,.35)}}",
-  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc{--vpv-pay:1.25rem}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.6rem}.vpv-pc .vpv-was .vpv-strike{font-size:1.375rem}.vpv-pc-per-v{font-size:1.6rem}}",
+  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc{--vpv-pay:1.25rem}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.6rem}[data-testid$='-card-vpv'] .vpv-pc-name{font-size:3.1rem}.vpv-pc .vpv-was .vpv-strike{font-size:1.375rem}.vpv-pc-per-v{font-size:1.6rem}}",
   "@media (min-width:640px) and (max-width:1023px){.vpv-plans-grid>*{flex-basis:46%}}",
 ].join("");
 const OG_IMAGE = `${SITE}/vpv-icon-512.png`;

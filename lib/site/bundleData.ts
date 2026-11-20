@@ -174,7 +174,7 @@ const PLANS_CTA =
  * bundleTextPatches().
  */
 const NOV20_REWORDING: [string, string][] = [
-  ['"Four VPV plans. One clear investment."', '"Seven VPV plans, sized to your factory."'],
+  ['"Four VPV plans. One clear investment."', '"One-time investment, lifetime trust."'],
   ['title:"Confidence, Authority, Control or Enterprise"', 'title:"Seven plans, sized to your factory"'],
   ['q:"What is the difference between Confidence, Authority, Control and Enterprise?"', 'q:"What is the difference between the plans?"'],
   ["${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page", '${sn.map(Dr).join(" ")} See the plans page'],
@@ -222,7 +222,9 @@ const NOV20_CARD: [string, string][] = [
 
 /** 20 Nov 2026, second round: the line under the factory size, as the
  *  first round wrote it, to what it says now. */
-const NOV20_CARD_ROUND_TWO: [string, string][] = [['(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})', '(0,Dt.jsx)("p",{className:"vpv-pc-k vpv-pc-area-k",children:"Recommended for factories with the above covered area"})']];
+const NOV20_CARD_ROUND_TWO: [string, string][] = [
+  // The plans page heading, as the first round wrote it, to the owner's line.
+  ['"Seven VPV plans, sized to your factory."', '"One-time investment, lifetime trust."'],['(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})', '(0,Dt.jsx)("p",{className:"vpv-pc-k vpv-pc-area-k",children:"Recommended for factories with the above covered area"})']];
 
 export function bundleTextPatches(): [string, string][] {
   const conf = SITE_PLANS.lite;
