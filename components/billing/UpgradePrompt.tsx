@@ -3,7 +3,7 @@
 /**
  * UpgradePrompt — the one pop-up a customer sees when they reach for a
  * feature their plan does not include. Mounted once in the root layout; any
- * page opens it with requestUpgrade("sharing_controls") from
+ * page opens it with requestUpgrade("link_password") (or any feature key) from
  * lib/useEntitlements.ts.
  *
  * It only ever appears when someone clicks a locked feature. There are no
@@ -14,9 +14,11 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, Crown, Users, X } from "lucide-react";
-import { ROLLOUT, accessTo, effectivePlan, nextPlan, type FeatureKey } from "@/lib/entitlements";
+import { ROLLOUT, accessTo, effectivePlan, upgradeForMore, type FeatureKey } from "@/lib/entitlements";
 import { loadWorkspaceFacts } from "@/lib/useEntitlements";
-import { LAUNCH_OFFER, SALES_TEAM, SITE_PLANS, inr, seatPrice, upgradeQuote, type SitePlanId } from "@/lib/pricing";
+import { LAUNCH_OFFER, LINK_CONTROLS, SALES_TEAM, SITE_PLANS, inr, seatPrice, upgradeQuote, type SitePlanId } from "@/lib/pricing";
+
+const LIMITED = { process_videos: "videos", pdf_reports: "pdfs", info_icons: "infoIcons" } as const;
 
 type Shown = {
   feature: FeatureKey;
@@ -41,7 +43,7 @@ export default function UpgradePrompt() {
       if (a.state === "open" && detail?.limit) {
         setShown({
           feature,
-          target: nextPlan(facts),
+          target: feature in LIMITED ? upgradeForMore(facts, LIMITED[feature as keyof typeof LIMITED]) : null,
           from: effectivePlan(facts),
           isAdmin: facts.role === "org_admin" || facts.role === "owner",
           limit: detail.limit,
@@ -100,8 +102,10 @@ export default function UpgradePrompt() {
         q && q.addAreas > 0 ? `${q.addAreas} more areas` : "",
         q && q.addVideos > 0 ? `${to!.videos} process videos` : "",
         q && q.addPdfs > 0 ? `${to!.pdfs} lab reports & certifications` : "",
-        to!.sharingControls && !from.sharingControls ? "One-time links and sharing restrictions" : "",
+        ...LINK_CONTROLS.filter((c) => to!.linkControls[c.key] && !from.linkControls[c.key]).map((c) => c.label),
       ].filter(Boolean);
+  // VPV VIP and Signature include Mr. Gupta's own time: arranged with our team, not paid here.
+  const personal = !sales && to!.personal;
 
   return (
     <div
@@ -132,12 +136,20 @@ export default function UpgradePrompt() {
           {shown.limit ? (
             <>
               You are using all {shown.limit.max} {label.toLowerCase()} in {from.name}. {to!.name} includes{" "}
-              {shown.feature === "process_videos" ? to!.videos : to!.pdfs}.
+              {(() => {
+                const n = shown.feature === "process_videos" ? to!.videos : shown.feature === "info_icons" ? to!.infoIcons : to!.pdfs;
+                return Number.isFinite(n) ? n : "unlimited";
+              })()}
+              .
             </>
           ) : (
             <>
               <strong className="text-slate-900">{label}</strong>{" "}
-              {sales ? "comes with Sales Team logins." : `is part of ${to!.name}. You are on ${from.name}.`}
+              {sales
+                ? "comes with Sales Team logins."
+                : personal
+                  ? `is part of ${to!.name}, which includes Mr. Nitin Gupta's personal involvement and is arranged with our team. You are on ${from.name}.`
+                  : `is part of ${to!.name}. You are on ${from.name}.`}
             </>
           )}
         </p>
@@ -153,15 +165,17 @@ export default function UpgradePrompt() {
         <p className="mt-4 text-[13px] text-slate-500">
           {sales
             ? `${inr(seatPrice())} per salesperson a year${LAUNCH_OFFER.active ? ` (normally ${inr(SALES_TEAM.regularInr)})` : ""} + GST.`
-            : `You pay only the difference: ${inr(q!.amountInr)} + GST. Everything opens the moment the payment is confirmed.`}
+            : personal
+              ? "Write to us and we will arrange it with you."
+              : `You pay only the difference: ${inr(q!.amountInr)} + GST. Everything opens the moment the payment is confirmed.`}
         </p>
         <div className="mt-6 flex flex-col gap-2.5 sm:flex-row-reverse">
           {shown.isAdmin ? (
             <a
-              href={href}
+              href={personal ? `mailto:support@myvpv.com?subject=${encodeURIComponent(to!.name)}` : href}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#0B3D91] via-[#1468D8] to-[#19B8F2] py-3 text-[14.5px] font-semibold text-white"
             >
-              {sales ? "Add logins" : "See the upgrade"} <ArrowRight size={15} />
+              {sales ? "Add logins" : personal ? "Write to us" : "See the upgrade"} <ArrowRight size={15} />
             </a>
           ) : (
             <p className="flex-1 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-600">

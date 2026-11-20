@@ -47,6 +47,7 @@ import {
   fromPaise,
   inr,
   priceForScenes,
+  linkControlLabels,
 } from "@/lib/pricing";
 
 type OrgRow = {
@@ -458,9 +459,9 @@ function PlanSummary({ isAdmin, quota }: { isAdmin: boolean; quota: number | nul
         {!legacy && plan.pdfs > 0 && (
           <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {plan.pdfs} lab reports & certifications</li>
         )}
-        {(legacy || plan.sharingControls) && (
-          <li className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> One-time links and sharing restrictions</li>
-        )}
+        {(legacy ? ["One-time links and sharing restrictions"] : linkControlLabels(ent.plan)).map((l) => (
+          <li key={l} className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-emerald-600" /> {l}</li>
+        ))}
       </ul>
       {isAdmin && ups.length > 0 && (
         <Link

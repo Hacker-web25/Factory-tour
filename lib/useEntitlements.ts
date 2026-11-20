@@ -27,7 +27,7 @@ export type Entitlements = {
   access: (key: FeatureKey) => Access;
   can: (key: FeatureKey) => boolean;
   hidden: (key: FeatureKey) => boolean;
-  limits: { videos: number; pdfs: number };
+  limits: { videos: number; pdfs: number; infoIcons: number };
   plan: ReturnType<typeof effectivePlan>;
   next: ReturnType<typeof nextPlan>;
   /** Opens the upgrade pop-up for this feature (mounted once in the root layout). */
@@ -111,31 +111,35 @@ export function useEntitlements(): Entitlements {
  * How many process videos and PDF reports the workspace already uses, across
  * all its tours: hotspots that open a video, and hotspots that open a PDF.
  */
-export async function countOrgMedia(orgId: string | null): Promise<{ videos: number; pdfs: number }> {
-  if (!orgId) return { videos: 0, pdfs: 0 };
+export async function countOrgMedia(orgId: string | null): Promise<{ videos: number; pdfs: number; infoIcons: number }> {
+  if (!orgId) return { videos: 0, pdfs: 0, infoIcons: 0 };
   try {
     const { data: tours } = await supabase.from("tours").select("id").eq("org_id", orgId);
     const tourIds = ((tours ?? []) as { id: string }[]).map((t) => t.id);
-    if (tourIds.length === 0) return { videos: 0, pdfs: 0 };
+    if (tourIds.length === 0) return { videos: 0, pdfs: 0, infoIcons: 0 };
     const { data: scenes } = await supabase.from("scenes").select("id").in("tour_id", tourIds);
     const sceneIds = ((scenes ?? []) as { id: string }[]).map((s) => s.id);
-    if (sceneIds.length === 0) return { videos: 0, pdfs: 0 };
-    const count = async (action: string) => {
-      const { count: n } = await supabase
+    if (sceneIds.length === 0) return { videos: 0, pdfs: 0, infoIcons: 0 };
+    const count = async (action: string, notPolygons = false) => {
+      let q = supabase
         .from("hotspots")
         .select("id", { count: "exact", head: true })
         .in("scene_id", sceneIds)
         .eq("action", action);
+      if (notPolygons) q = q.neq("type", "polygon");
+      const { count: n } = await q;
       return n ?? 0;
     };
-    return { videos: await count("video_popup"), pdfs: await count("pdf_popup") };
+    // An information icon is any icon that opens an information pop-up
+    // (a highlighted polygon area is not an icon).
+    return { videos: await count("video_popup"), pdfs: await count("pdf_popup"), infoIcons: await count("info_popup", true) };
   } catch {
-    return { videos: 0, pdfs: 0 };
+    return { videos: 0, pdfs: 0, infoIcons: 0 };
   }
 }
 
 /** The plan's allowance is used up: say so, and offer the next plan if there is one. */
-export function reportLimit(key: "process_videos" | "pdf_reports", used: number, max: number): void {
+export function reportLimit(key: "process_videos" | "pdf_reports" | "info_icons", used: number, max: number): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("vpv:upgrade", { detail: { feature: key, limit: { used, max } } }));
 }

@@ -66,6 +66,8 @@ import {
   sitePerArea,
   type SitePlanId,
   type SoldPlanId,
+  infoIconsLabel,
+  linkControlLabels,
 } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, recommendPlan, saveFunnel, type FunnelState } from "@/lib/funnel";
 
@@ -396,7 +398,7 @@ export default function Step4Plan() {
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${plan.sharingControls ? "bg-white text-vpv-navy" : "bg-white/10"}`}>
                     <Lock className="h-4 w-4" aria-hidden />
                   </span>
-                  {plan.sharingControls ? "One-time links and sharing restrictions" : "Sharing restrictions: VPV Ultra and up"}
+                  {plan.sharingControls ? linkControlLabels(planId).join(" · ") : "Link controls: VPV Premium and up"}
                 </li>
               </ul>
             </div>
@@ -632,8 +634,9 @@ export default function Step4Plan() {
                     </li>
                     <li>{p.videos} process videos, {p.pdfs} lab reports & certifications</li>
                     <li>{hoursLabel(p.shootHours)} shoot</li>
+                    <li>{infoIconsLabel(id)}</li>
                     <li className={p.sharingControls ? "font-medium text-vpv-blue" : "text-slate-400"}>
-                      {p.sharingControls ? "Sharing controls included" : "No sharing controls"}
+                      {p.sharingControls ? linkControlLabels(id).join(" · ") : "No link controls"}
                     </li>
                   </ul>
                   <button

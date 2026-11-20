@@ -18,6 +18,8 @@ import {
   SITE_PLANS,
   SITE_PLAN_ORDER,
   costPerAoa,
+  infoIconsLabel,
+  linkControlLabels,
   isKnownPlanId,
   isPlotBand,
   isSitePlanId,
@@ -72,9 +74,25 @@ describe("seven plans: sizes, prices and AOAs", () => {
     }
   });
 
-  it("spreads the old features: Lite/Plus base, Pro/Premium media, Ultra sharing, VPV/Signature Mr. Gupta", () => {
+  it("spreads the features: Lite/Plus base, Pro up media, link controls one by one, VIP/Signature Mr. Gupta", () => {
     assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].level), [0, 0, 1, 1, 2, 3, 3]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].sharingControls), [false, false, false, false, true, true, true]);
+    // The owner's split of the link controls (20 Nov 2026).
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => linkControlLabels(id)), [
+      [],
+      [],
+      [],
+      ["One-time view link"],
+      ["One-time view link", "Password-protected link"],
+      ["One-time view link", "Control link expiry time", "Password-protected link"],
+      ["One-time view link", "Control link expiry time", "Limit device access", "Password-protected link"],
+    ]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].sharingControls), [false, false, false, true, true, true, true]);
+    // Information icons: 10 and 20, then unlimited.
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => infoIconsLabel(id)), [
+      "10 information icons",
+      "20 information icons",
+      ...Array(5).fill("Unlimited information icons"),
+    ]);
     assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].personal), [false, false, false, false, false, true, true]);
     for (const id of ["lite", "plus"] as const) {
       assert.equal(SITE_PLANS[id].videos, 0);
@@ -167,8 +185,8 @@ describe("seven plans: factory size → plan", () => {
     assert.equal(big.extraAreas, 160 - SITE_PLANS.signature.scenes);
   });
 
-  it("keeps the sharing-controls filter: only Ultra, VPV and Signature have it", () => {
-    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true }).plan, "ultra");
+  it("keeps the link-controls filter: a buyer who wants the link protected gets Premium at least", () => {
+    assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true }).plan, "premium");
     assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true, plotBand: "80000plus" }).plan, "signature");
   });
 });

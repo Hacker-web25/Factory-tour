@@ -57,19 +57,30 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
     }
   });
 
-  it("sharing controls: locked below Ultra (upgrade to Ultra), open on Ultra, VPV and Signature", () => {
-    for (const p of ["lite", "plus", "pro", "premium", "confidence", "authority"]) {
-      assert.deepEqual(accessTo(ws(p), "sharing_controls"), { state: "locked", upgradeTo: "ultra" }, p);
-    }
-    for (const p of ["ultra", "vpv", "signature", "control", "enterprise"]) {
-      assert.equal(canUse(ws(p), "sharing_controls"), true, p);
-    }
+  it("link controls open one by one: one-time from Premium, passwords from Ultra, expiry on VIP, devices on Signature", () => {
+    const opens = (k: "link_one_time" | "link_password" | "link_expiry" | "link_devices" | "link_email_gate") =>
+      ALL.filter((p) => canUse(ws(p), k));
+    assert.deepEqual(opens("link_one_time"), ["premium", "ultra", "vpv", "signature", "control", "enterprise"]);
+    assert.deepEqual(opens("link_password"), ["ultra", "vpv", "signature", "control", "enterprise"]);
+    assert.deepEqual(opens("link_expiry"), ["vpv", "signature", "control", "enterprise"]);
+    assert.deepEqual(opens("link_devices"), ["signature", "control", "enterprise"]);
+    assert.deepEqual(opens("link_email_gate"), ["signature", "control", "enterprise"]);
+    // Locked: the pop-up offers the first plan this workspace can buy that has it…
+    assert.deepEqual(accessTo(ws("lite"), "link_one_time"), { state: "locked", upgradeTo: "premium" });
+    assert.deepEqual(accessTo(ws("premium"), "link_password"), { state: "locked", upgradeTo: "ultra" });
+    assert.deepEqual(accessTo(ws("confidence"), "link_password"), { state: "locked", upgradeTo: "ultra" });
+    // …and where only VPV VIP or Signature has it, names that plan (arranged with our team).
+    assert.deepEqual(accessTo(ws("ultra"), "link_expiry"), { state: "locked", upgradeTo: "vpv" });
+    assert.deepEqual(accessTo(ws("vpv"), "link_devices"), { state: "locked", upgradeTo: "signature" });
   });
 
   it("the plan's allowances are the website's numbers", () => {
     for (const p of ALL as (keyof typeof SITE_PLANS)[]) {
-      assert.deepEqual(planLimits(ws(p)), { videos: SITE_PLANS[p].videos, pdfs: SITE_PLANS[p].pdfs });
+      assert.deepEqual(planLimits(ws(p)), { videos: SITE_PLANS[p].videos, pdfs: SITE_PLANS[p].pdfs, infoIcons: SITE_PLANS[p].infoIcons });
     }
+    assert.equal(planLimits(ws("lite")).infoIcons, 10);
+    assert.equal(planLimits(ws("plus")).infoIcons, 20);
+    assert.equal(planLimits(ws("pro")).infoIcons, Infinity);
   });
 
   it("the Sales Team features open with logins, on any plan, and are offered without them", () => {
@@ -322,26 +333,38 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     assert.equal((await orgRow(org.id)).site_plan, "authority");
   });
 
-  it("sharing controls on a link need Ultra and up, whatever the browser sends", async () => {
-    const { org, admin } = await workspace({ plan: "premium" });
+  it("each link control needs the plan that includes it, whatever the browser sends", async () => {
+    const { org, admin } = await workspace({ plan: "pro" });
     const tour = await w.seedTour(org.id, 2);
     const add = (cols: string, vals: string) =>
       w.sb.as("authenticated", admin).run(`insert into public.share_links (tour_id, token, ${cols}) values ($1, $2, ${vals}) returning id`, [tour, `t${Math.random()}`]);
+    const CONTROLS: [string, string][] = [
+      ["view_limit", "1"],
+      ["session_minutes", "30"],
+      ["password_hash", "'abc'"],
+      ["expires_at", "now() + interval '1 day'"],
+      ["device_limit", "1"],
+      ["require_email", "true"],
+    ];
+    const allowed = async () => {
+      const ok: string[] = [];
+      for (const [cols, vals] of CONTROLS) {
+        try {
+          await add(cols, vals);
+          ok.push(cols);
+        } catch (e) {
+          assert.match(String((e as Error).message), /sharing_controls_need_control/, cols);
+        }
+      }
+      return ok;
+    };
 
+    // Pro: plain links only.
     await add("kind", "'viewer'");
     await add("kind", "'presenter'");
-    for (const [cols, vals] of [
-      ["expires_at", "now() + interval '1 day'"],
-      ["view_limit", "1"],
-      ["device_limit", "1"],
-      ["password_hash", "'abc'"],
-      ["require_email", "true"],
-      ["session_minutes", "30"],
-    ]) {
-      await assert.rejects(() => add(cols, vals), /sharing_controls_need_control/, cols);
-    }
+    assert.deepEqual(await allowed(), []);
 
-    // An existing plain link can still be revoked.
+    // An existing plain link can still be revoked, but not given a control.
     const [{ id }] = (await add("kind", "'viewer'")).rows as Array<{ id: string }>;
     await w.sb.as("authenticated", admin).run(`update public.share_links set revoked_at = now(), used = true where id = $1`, [id]);
     await assert.rejects(
@@ -349,10 +372,21 @@ describe("plans in the workspace, upgrades and extra logins", () => {
       /sharing_controls_need_control/
     );
 
-    // On Ultra it all works, and on the old Control too.
-    await w.q(`update public.organizations set site_plan = 'ultra' where id = $1`, [org.id]);
-    await add("expires_at, device_limit, view_limit", "now() + interval '1 day', 1, 1");
-    await w.q(`update public.organizations set site_plan = 'control' where id = $1`, [org.id]);
-    await add("expires_at", "now() + interval '1 day'");
+    const on = async (plan: string) => {
+      await w.q(`update public.organizations set site_plan = $2 where id = $1`, [org.id, plan]);
+      return allowed();
+    };
+    assert.deepEqual(await on("premium"), ["view_limit", "session_minutes"]);
+    assert.deepEqual(await on("ultra"), ["view_limit", "session_minutes", "password_hash"]);
+    assert.deepEqual(await on("vpv"), ["view_limit", "session_minutes", "password_hash", "expires_at"]);
+    const all = CONTROLS.map(([c]) => c);
+    assert.deepEqual(await on("signature"), all);
+    assert.deepEqual(await on("control"), all, "the old Control keeps every control");
+
+    // Turning a control OFF is always allowed, even on a plan without it.
+    await w.q(`update public.organizations set site_plan = 'signature' where id = $1`, [org.id]);
+    const [{ id: guarded }] = (await add("device_limit, password_hash", "2, 'x'")).rows as Array<{ id: string }>;
+    await w.q(`update public.organizations set site_plan = 'lite' where id = $1`, [org.id]);
+    await w.sb.as("authenticated", admin).run(`update public.share_links set device_limit = null, password_hash = null where id = $1`, [guarded]);
   });
 });

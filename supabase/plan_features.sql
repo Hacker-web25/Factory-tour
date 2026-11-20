@@ -306,20 +306,6 @@ create trigger plan_events_revert_upgrades
    4.  WHAT A WORKSPACE MAY DO, FOR THE DATABASE'S OWN CHECKS
    ─────────────────────────────────────────────────────────────────────── */
 
-create or replace function public.org_has_sharing_controls(p_org uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce((
-    select o.plan in ('pro', 'ultra') or o.site_plan in ('ultra', 'vpv', 'signature', 'control', 'enterprise')
-      from public.organizations o where o.id = p_org
-  ), false);
-$$;
-grant execute on function public.org_has_sharing_controls(uuid) to anon, authenticated;
-
 create or replace function public.tour_org_of(p_tour uuid)
 returns uuid
 language sql
@@ -329,9 +315,56 @@ set search_path = public
 as $$ select org_id from public.tours where id = p_tour $$;
 grant execute on function public.tour_org_of(uuid) to anon, authenticated;
 
--- Sharing controls on a link need Control or Enterprise. Read through
--- to_jsonb so a column that does not exist in an older database is simply
--- treated as unset.
+-- 20 Nov 2026: the link controls, each on its own plan. Kept identical to
+-- supabase/plans_seven.sql so running this file again changes nothing.
+-- Which link controls a workspace has (20 Nov 2026, the owner's split):
+--   oneTime   one-time view links (view_limit, session_minutes)   Premium and up
+--   password  password-protected links (password_hash)            Ultra and up
+--   expiry    link expiry time (expires_at)                       VPV VIP and Signature
+--   devices   device limits (device_limit) and the e-mail gate    Signature
+-- The old Control and Enterprise, and the old monthly Pro and Ultra, have all.
+-- Must match linkControls in lib/pricing.ts.
+create or replace function public.org_link_controls(p_org uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((
+    select case
+      when o.plan in ('pro', 'ultra') or o.site_plan in ('signature', 'control', 'enterprise')
+        then '{"oneTime": true, "password": true, "expiry": true, "devices": true}'::jsonb
+      when o.site_plan = 'vpv'
+        then '{"oneTime": true, "password": true, "expiry": true, "devices": false}'::jsonb
+      when o.site_plan = 'ultra'
+        then '{"oneTime": true, "password": true, "expiry": false, "devices": false}'::jsonb
+      when o.site_plan = 'premium'
+        then '{"oneTime": true, "password": false, "expiry": false, "devices": false}'::jsonb
+      else '{"oneTime": false, "password": false, "expiry": false, "devices": false}'::jsonb
+    end
+      from public.organizations o where o.id = p_org
+  ), '{"oneTime": false, "password": false, "expiry": false, "devices": false}'::jsonb);
+$$;
+grant execute on function public.org_link_controls(uuid) to anon, authenticated;
+
+-- Kept for anything that asks the old question: does it have ANY link control?
+create or replace function public.org_has_sharing_controls(p_org uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from jsonb_each_text(public.org_link_controls(p_org)) e where e.value = 'true');
+$$;
+grant execute on function public.org_has_sharing_controls(uuid) to anon, authenticated;
+
+-- Each control on a link needs the plan that includes it. Only a control
+-- that is being SET (on a new link, or changed on an existing one) is
+-- checked, so revoking a link, marking it used or counting a view is always
+-- fine, and turning a control off is always allowed. Read through to_jsonb
+-- so a column that does not exist in an older database is simply unset.
 create or replace function public.share_links_enforce_plan()
 returns trigger
 language plpgsql
@@ -340,7 +373,12 @@ set search_path = public
 as $$
 declare
   j     jsonb := to_jsonb(new);
+  o     jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
   v_org uuid;
+  have  jsonb;
+  need  text;
+  col   text;
+  setting boolean;
 begin
   if current_user not in ('anon', 'authenticated') then
     return new;
@@ -351,33 +389,36 @@ begin
   if coalesce(j->>'kind', 'viewer') = 'presenter' then
     return new;
   end if;
-  -- An update that leaves the controls as they were (revoking a link,
-  -- marking it used, counting a view) is always fine.
-  if tg_op = 'UPDATE' then
-    if to_jsonb(old)->>'password_hash' is not distinct from j->>'password_hash'
-       and to_jsonb(old)->>'require_email'   is not distinct from j->>'require_email'
-       and to_jsonb(old)->>'expires_at'      is not distinct from j->>'expires_at'
-       and to_jsonb(old)->>'view_limit'      is not distinct from j->>'view_limit'
-       and to_jsonb(old)->>'device_limit'    is not distinct from j->>'device_limit'
-       and to_jsonb(old)->>'session_minutes' is not distinct from j->>'session_minutes' then
-      return new;
-    end if;
-  end if;
-  if (j->>'password_hash') is null
-     and coalesce((j->>'require_email')::boolean, false) = false
-     and (j->>'expires_at') is null
-     and (j->>'view_limit') is null
-     and (j->>'device_limit') is null
-     and (j->>'session_minutes') is null then
-    return new;
-  end if;
   v_org := public.tour_org_of((j->>'tour_id')::uuid);
-  if v_org is null or public.org_has_sharing_controls(v_org) then
+  if v_org is null then
     return new;
   end if;
-  raise exception 'sharing_controls_need_control'
-    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV VIP and VPV Signature.',
+  have := public.org_link_controls(v_org);
+  foreach col in array array['view_limit', 'session_minutes', 'password_hash', 'expires_at', 'device_limit', 'require_email'] loop
+    setting := (j->>col) is not null
+               and not (col = 'require_email' and coalesce((j->>col)::boolean, false) = false)
+               and (j->>col) is distinct from (o->>col);
+    if setting then
+      need := case col
+        when 'view_limit' then 'oneTime'
+        when 'session_minutes' then 'oneTime'
+        when 'password_hash' then 'password'
+        when 'expires_at' then 'expiry'
+        else 'devices'
+      end;
+      if coalesce((have->>need)::boolean, false) = false then
+        raise exception 'sharing_controls_need_control'
+          using hint = case need
+            when 'oneTime' then 'One-time view links start with VPV Premium.'
+            when 'password' then 'Password-protected links start with VPV Ultra.'
+            when 'expiry' then 'Link expiry time comes with VPV VIP and VPV Signature.'
+            else 'Device limits and the e-mail gate come with VPV Signature.'
+          end,
           errcode = '42501';
+      end if;
+    end if;
+  end loop;
+  return new;
 end;
 $$;
 

@@ -470,6 +470,22 @@ export type ExtraAreaBand = { upTo: number; each: number };
  */
 export type FeatureLevel = 0 | 1 | 2 | 3;
 
+export type LinkControl = "oneTime" | "password" | "expiry" | "devices";
+export type LinkControls = Record<LinkControl, boolean>;
+const links = (...on: LinkControl[]): LinkControls => ({
+  oneTime: on.includes("oneTime"),
+  password: on.includes("password"),
+  expiry: on.includes("expiry"),
+  devices: on.includes("devices"),
+});
+/** The link controls in the order the plan cards list them. */
+export const LINK_CONTROLS: { key: LinkControl; label: string }[] = [
+  { key: "oneTime", label: "One-time view link" },
+  { key: "expiry", label: "Control link expiry time" },
+  { key: "devices", label: "Limit device access" },
+  { key: "password", label: "Password-protected link" },
+];
+
 export type SitePlanSpec = {
   id: SitePlanId;
   name: string;
@@ -498,10 +514,20 @@ export type SitePlanSpec = {
   /** See FeatureLevel. */
   level: FeatureLevel;
   /**
-   * One-time link expiry and share restrictions (level 2 and up). Not
-   * buyable as an add-on anywhere, so it is what Ultra and up are for.
+   * The link controls this plan has (20 Nov 2026, the owner's split):
+   *   oneTime   one-time view links          Premium and up
+   *   password  password-protected links     Ultra and up
+   *   expiry    control a link's expiry time VPV VIP and Signature
+   *   devices   limit device access          Signature only
+   * None is sold as an add-on. The e-mail gate before viewing, promised on
+   * no plan card, goes with `devices` (the plans that have every control).
    */
+  linkControls: LinkControls;
+  /** Has at least one link control (Premium and up): what the funnel's
+   *  "keep it from competitors" answer needs. */
   sharingControls: boolean;
+  /** Information icons the plan includes. Infinity = unlimited. */
+  infoIcons: number;
   /** Mr. Nitin Gupta's personal discussion and shoot (level 3). */
   personal: boolean;
   /** No longer sold; kept so workspaces that bought it keep working. */
@@ -537,7 +563,9 @@ const sold = (
   level: FeatureLevel,
   media: { videos: number; pdfs: number },
   shootHours: number,
-  extraAreaLadder: ExtraAreaBand[]
+  extraAreaLadder: ExtraAreaBand[],
+  linkControls: LinkControls,
+  infoIcons = Infinity
 ): SitePlanSpec => ({
   id,
   name,
@@ -550,7 +578,9 @@ const sold = (
   pdfs: media.pdfs,
   shootHours,
   level,
-  sharingControls: level >= 2,
+  linkControls,
+  sharingControls: Object.values(linkControls).some(Boolean),
+  infoIcons,
   personal: level >= 3,
   extraAreaLadder,
 });
@@ -572,31 +602,31 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   lite: sold("lite", "VPV Lite", "Your plant, online and ready to show.", 34_999, sqft(0, 2_000), 2, 0, { videos: 0, pdfs: 0 }, 1, [
     { upTo: 5, each: 11_000 },
     { upTo: Infinity, each: 10_500 },
-  ]),
+  ], links(), 10),
   plus: sold("plus", "VPV Plus", "Prove you're a trusted manufacturer.", 64_999, sqft(2_000, 5_000), 5, 0, { videos: 0, pdfs: 0 }, 2, [
     { upTo: 5, each: 10_500 },
     { upTo: Infinity, each: 10_000 },
-  ]),
+  ], links(), 20),
   pro: sold("pro", "VPV Pro", "Show your systems, processes and capabilities.", 94_999, sqft(5_000, 10_000), 8, 1, { videos: 3, pdfs: 20 }, 4, [
     { upTo: 5, each: 6_000 },
     { upTo: Infinity, each: 5_500 },
-  ]),
+  ], links()),
   premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 1_19_999, sqft(10_000, 20_000), 14, 1, { videos: 5, pdfs: 30 }, 6, [
     { upTo: 5, each: 5_500 },
     { upTo: Infinity, each: 5_000 },
-  ]),
+  ], links("oneTime")),
   ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 1_99_999, sqft(20_000, 40_000), 40, 2, { videos: 8, pdfs: 50 }, 12, [
     { upTo: 5, each: 4_500 },
     { upTo: Infinity, each: 4_000 },
-  ]),
+  ], links("oneTime", "password")),
   vpv: sold("vpv", "VPV VIP", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 4_50_000, sqft(40_000, 80_000), 100, 3, { videos: 15, pdfs: 100 }, 24, [
     { upTo: 5, each: 4_000 },
     { upTo: Infinity, each: 3_500 },
-  ]),
+  ], links("oneTime", "expiry", "password")),
   signature: sold("signature", "VPV Signature", "The flagship: a large plant, presented personally by Mr. Nitin Gupta.", 6_00_000, sqft(80_000, null), 150, 3, { videos: 20, pdfs: 150 }, 32, [
     { upTo: 5, each: 3_500 },
     { upTo: Infinity, each: 3_200 },
-  ]),
+  ], links("oneTime", "expiry", "devices", "password")),
 
   // ── No longer sold (before 20 Nov 2026). Kept for the workspaces that
   //    bought them: what they paid, what they got, and their upgrades.
@@ -612,6 +642,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     pdfs: 0,
     shootHours: 2,
     level: 0,
+    linkControls: { oneTime: false, password: false, expiry: false, devices: false },
+    infoIcons: Infinity,
     sharingControls: false,
     personal: false,
     legacy: true,
@@ -632,6 +664,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     pdfs: 20,
     shootHours: 4,
     level: 1,
+    linkControls: { oneTime: false, password: false, expiry: false, devices: false },
+    infoIcons: Infinity,
     sharingControls: false,
     personal: false,
     legacy: true,
@@ -652,6 +686,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     pdfs: 50,
     shootHours: 6,
     level: 2,
+    linkControls: { oneTime: true, password: true, expiry: true, devices: true },
+    infoIcons: Infinity,
     sharingControls: true,
     personal: false,
     legacy: true,
@@ -673,6 +709,8 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     pdfs: 100,
     shootHours: 8,
     level: 3,
+    linkControls: { oneTime: true, password: true, expiry: true, devices: true },
+    infoIcons: Infinity,
     sharingControls: true,
     personal: true,
     legacy: true,
@@ -696,6 +734,17 @@ export function isSitePlanId(v: unknown): v is SoldPlanId {
 /** Any plan a workspace can have, sold or legacy. */
 export function isKnownPlanId(v: unknown): v is SitePlanId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
+}
+
+/** The link controls a plan has, as the plan cards name them. */
+export function linkControlLabels(planId: SitePlanId): string[] {
+  return LINK_CONTROLS.filter((c) => SITE_PLANS[planId].linkControls[c.key]).map((c) => c.label);
+}
+
+/** "10 information icons" / "Unlimited information icons". */
+export function infoIconsLabel(planId: SitePlanId): string {
+  const n = SITE_PLANS[planId].infoIcons;
+  return Number.isFinite(n) ? `${n} information icons` : "Unlimited information icons";
 }
 
 /** What one AOA costs on a plan, at today's price: the figure that falls as plans grow. */
