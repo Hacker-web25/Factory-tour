@@ -58,13 +58,15 @@ const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Custome
  * The feature list for one plan card.
  *
  * Since 17 Nov 2026 every card lists the SAME rows in the SAME order, so a
- * feature sits on the same line across all four cards (the plans page lines
- * the rows up with CSS subgrid, see PLAN_ROWS in lib/site/home.ts):
+ * feature sits on the same line across all the cards (the plans page lines
+ * the rows up with CSS subgrid, see PLAN_ROWS in lib/site/home.ts). Since
+ * 20 Nov 2026 the factory size and the AOAs are not rows: they are the big
+ * figures at the top of the card.
  *
- *   what every plan has  size, AOAs, shoot time, information icons,
- *                        dashboard, custom domain, branding
+ *   what every plan has  shoot time, information icons, dashboard, custom
+ *                        domain, branding
  *   then the extras      process videos, lab reports, the two sharing
- *                        controls, and Enterprise's two personal lines last
+ *                        controls, and the two Mr. Gupta lines last
  *
  * A row the plan does not include starts with "!": the card draws it grey
  * with a cross (and "not included" for screen readers). The comparison table
@@ -72,10 +74,8 @@ const BASE_SECURITY = ["Password-protected dashboard", "Custom domain", "Custome
  */
 function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
   const p = SITE_PLANS[id];
-  const ent = id === "enterprise";
+  const ent = p.personal;
   const rows: [boolean, string][] = [
-    [true, p.plot.label],
-    [true, `${p.scenes} AOAs`],
     [true, `${hoursLabel(p.shootHours)} of shoot time`],
     [true, "Information icons"],
     ...BASE_SECURITY.map((r): [boolean, string] => [true, r]),
@@ -90,9 +90,11 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
 }
 
 /** How many rows every plan card has (they all have the same number). */
-export const PLAN_ROWS = inclusions("confidence").length;
+export const PLAN_ROWS = inclusions("lite").length;
 
-/** `ln={…},sn=[…]` — the offer and the four plans, as the bundle names them. */
+/** `ln={…},sn=[…]` — the offer and the plans on sale, as the bundle names them.
+ *  `area` is the factory size the card leads with; `gold` marks VPV and
+ *  VPV Signature (Mr. Gupta's own plans). */
 export function bundlePlanData(): string {
   const ln =
     `ln={active:${LAUNCH_OFFER.active},percent:${LAUNCH_OFFER.percent},` +
@@ -101,7 +103,7 @@ export function bundlePlanData(): string {
   const plans = SITE_PLAN_ORDER.map((id) => {
     const p = SITE_PLANS[id];
     return (
-      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},price:${p.regularInr},placeholder:false,` +
+      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},area:${js(p.plot.area)},areaNum:${js(p.plot.area.replace(/ sq ft$/, ""))},gold:${p.personal},price:${p.regularInr},placeholder:false,` +
       `limits:{aoas:${p.scenes},videos:${p.videos},pdfs:${p.pdfs},infoIcons:true,sharingControls:${p.sharingControls}},` +
       `infoIconsLabel:"Information icons",inclusions:${js(inclusions(id))},` +
       `security:${js(p.sharingControls ? [...SHARING, ...BASE_SECURITY] : BASE_SECURITY)}}`
@@ -166,10 +168,62 @@ function salesSentence(): string {
 const PLANS_CTA =
   '(0,Dt.jsxs)("div",{className:"vpv-plans-nudge","data-testid":"plans-cta-top",children:[(0,Dt.jsx)("p",{className:"vpv-pn-title",children:"Not sure which plan is right for your factory?"}),(0,Dt.jsxs)("p",{className:"vpv-pn-text",children:["Tell us what you produce and what your buyers need to see. We\\u2019ll match you to the VPV that covers ",(0,Dt.jsx)("b",{children:"everything you need, and nothing you don\\u2019t"}),"."]}),(0,Dt.jsx)("div",{className:"mt-5 flex flex-col gap-3 sm:flex-row",children:(0,Dt.jsx)(At,{to:"/assessment",className:"btn-primary","data-testid":"plans-find-vpv-btn",children:"Find the Right VPV for Your Factory"})})]}),';
 
+/**
+ * 20 Nov 2026: what the earlier patches wrote that no longer fits seven
+ * plans. Applied to the TEXT those patches put in, see the end of
+ * bundleTextPatches().
+ */
+const NOV20_REWORDING: [string, string][] = [
+  ['"Four VPV plans. One clear investment."', '"Seven VPV plans, sized to your factory."'],
+  ['title:"Confidence, Authority, Control or Enterprise"', 'title:"Seven plans, sized to your factory"'],
+  ['q:"What is the difference between Confidence, Authority, Control and Enterprise?"', 'q:"What is the difference between the plans?"'],
+  ["${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page", '${sn.map(Dr).join(" ")} See the plans page'],
+  // Mr. Gupta's tagline is no longer drawn on the card (see NOV20_CARD).
+  ['className:"mt-1 text-sm text-slate-600"+("enterprise"===t.id?" vpv-gold-tag":""),children:t.tagline}', 'className:"vpv-pc-tag",children:t.tagline}'],
+];
+
+/** Sentences that quote a plan's figures, as the last sync wrote them (the
+ *  four plans of 17 Nov 2026), paired with what they say now. */
+function NOV20_FIGURES(): [string, string][] {
+  const ultra = SITE_PLANS.ultra;
+  const bands = discountBands("ultra");
+  return [
+    [
+      "Every plan lets you add extra areas, and each one costs less than the last. On VPV Control, extra areas start at ₹4,500 and fall to ₹3,400. You see the price of every extra area, and the total, before you pay.",
+      `Every plan lets you add extra areas, and each one costs less than the last. On ${ultra.name}, extra areas start at ${inr(bands[0].each)} and fall to ${inr(bands[bands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
+    ],
+    ['(for example, "You selected 8 areas; ${Ir.name} includes 4")', `(for example, "You selected 8 areas; \${Ir.name} includes ${SITE_PLANS.lite.scenes}")`],
+  ];
+}
+
+/**
+ * 20 Nov 2026: the plan card leads with the factory size, then the AOAs,
+ * the price and the cost per AOA (the figure that falls plan by plan). The
+ * size and the AOAs left the feature list for it. VPV and VPV Signature get
+ * the gold card. Styles: the .vpv-pc rules in lib/site/home.ts.
+ */
+const NOV20_CARD: [string, string][] = [
+  [
+    'className:"relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm "+(r?"border-brand ring-2 ring-brand/20":"border-slate-200")',
+    'className:"vpv-pc relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm "+(t.gold?"vpv-pc-gold ":"")+(r?"border-brand ring-2 ring-brand/20":"border-slate-200")',
+  ],
+  ['(0,Dt.jsx)("h3",{className:"text-xl font-bold text-brand-deep",children:t.name})', '(0,Dt.jsx)("h3",{className:"vpv-pc-name",children:t.name})'],
+  [
+    '(0,Dt.jsx)("div",{className:"mt-5",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})})',
+    '(0,Dt.jsxs)("div",{className:"vpv-pc-area",children:[(0,Dt.jsxs)("p",{className:"vpv-pc-area-v","data-testid":`${o}-${t.id}-area`,children:[t.areaNum,(0,Dt.jsx)("span",{className:"vpv-pc-unit",children:" sq ft"})]}),(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})]}),' +
+      '(0,Dt.jsx)("div",{className:"vpv-pc-aoa",children:(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`})}),' +
+      '(0,Dt.jsx)("div",{className:"vpv-pc-price",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})}),' +
+      '(0,Dt.jsxs)("div",{className:"vpv-pc-per","data-testid":`${o}-${t.id}-per-aoa`,children:[(0,Dt.jsxs)("p",{className:"vpv-pc-per-v",children:[mn(Math.round(ga(t)/t.limits.aoas)),(0,Dt.jsx)("span",{children:" per AOA"})]}),' +
+      '(0,Dt.jsxs)("p",{className:"vpv-pc-k",children:["Cost per AOA",t.id!==sn[0].id&&(0,Dt.jsxs)("span",{className:"vpv-pc-drop",children:["\u2193 ",Math.round(100-100*(ga(t)/t.limits.aoas)/(ga(sn[0])/sn[0].limits.aoas)),"% vs ",sn[0].name.replace(/^VPV /,"")]})]})]})',
+  ],
+  // The plan-difference answer leads each plan with its factory size.
+  ['Dr=e=>`${e.name}: "${e.tagline}" ', 'Dr=e=>`${e.name} (${e.area}): "${e.tagline}" '],
+];
+
 export function bundleTextPatches(): [string, string][] {
-  const conf = SITE_PLANS.confidence;
-  const ctrl = SITE_PLANS.control;
-  const ctrlBands = discountBands("control");
+  const conf = SITE_PLANS.lite;
+  const ctrl = SITE_PLANS.ultra;
+  const ctrlBands = discountBands("ultra");
   const travelLong = `${travelSentence()} Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`;
   const travelShort = `is ${travelPrice()}, by cab, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
   const list: [string, string][] = [
@@ -389,6 +443,20 @@ export function bundleTextPatches(): [string, string][] {
   // Team logins. The bundle already carries the previous wording of these
   // sentences; each pair below carries it to the current one.
   for (const [before, at] of OCT26_MIGRATIONS) list.push([before, list[at][1]]);
-  return list;
+
+  // ── 20 November 2026: seven plans, sold by factory size. Wording the
+  // pairs above already put in the bundle is rewritten in place, and a
+  // migration pair carries the bundle from the old wording to the new.
+  const out: [string, string][] = [];
+  const migrations: [string, string][] = [];
+  for (const [from, to] of list) {
+    let next = to;
+    for (const [a, b] of NOV20_REWORDING) next = next.split(a).join(b);
+    out.push([from, next]);
+    if (next !== to && !migrations.some(([m]) => m === to)) migrations.push([to, next]);
+  }
+  // The same pairs, at the plan figures the bundle was last synced with.
+  for (const [before, after] of NOV20_FIGURES()) migrations.push([before, after]);
+  return [...out, ...migrations, ...NOV20_CARD];
 }
 

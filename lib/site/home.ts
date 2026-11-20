@@ -44,10 +44,47 @@ import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.e4f71ff3.js";
+const JS_SRC = "/static/js/main.a1dbed3d.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
+
+/**
+ * The plan card (20 Nov 2026), top to bottom: the plan's name, the FACTORY
+ * SIZE (the largest figure: plans are chosen by it), the AOAs (a step
+ * smaller), the price (struck regular price large, the offer price under
+ * it), and the COST PER AOA (about as large as the size, with how far it has
+ * fallen against the smallest plan). VPV and VPV Signature get a gold
+ * border, a cream wash and a thin gold bar on top: no shine across the
+ * words, so they stay easy to read. Phones swipe through the plans.
+ */
+const PLAN_CARD_CSS = [
+  ".vpv-pc-tag{display:none}",
+  ".vpv-pc-name{margin:0;font-size:.8125rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:" + BRAND + "}",
+  ".vpv-pc-area{margin-top:.75rem}",
+  ".vpv-pc{container-type:inline-size}",
+  ".vpv-pc-area-v{margin:0;white-space:nowrap;font-size:clamp(1.3rem,9.6cqi,2rem);line-height:1.08;font-weight:800;letter-spacing:-.025em;color:#0b2a5b}",
+  ".vpv-pc-unit{font-size:.55em;font-weight:800;letter-spacing:0;color:#3b4f6b;white-space:nowrap}",
+  ".vpv-pc-k{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.3rem 0 0;font-size:.75rem;font-weight:600;color:#64748b}",
+  ".vpv-pc-aoa{margin-top:.7rem}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.375rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
+  ".vpv-pc-price{margin-top:1rem;padding-top:1rem;border-top:1px solid #e8eef6}",
+  ".vpv-pc-per{margin-top:1rem;padding:.75rem .9rem;border-radius:14px;background:#effaf3;border:1px solid #cdeedb}",
+  ".vpv-pc-per-v{margin:0;font-size:clamp(1.45rem,1.9vw,1.75rem);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#0d7a43;font-variant-numeric:tabular-nums}",
+  ".vpv-pc-per-v span{font-size:.875rem;font-weight:700;letter-spacing:0;color:#3f7a5a}",
+  ".vpv-pc-drop{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:#0d7a43;color:#fff;font-size:.6875rem;font-weight:800;letter-spacing:.01em}",
+  ".vpv-pc-gold{border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFF8E2 0%,#fff 40%)!important;box-shadow:0 18px 44px -22px rgba(170,120,10,.45)!important;overflow:hidden}",
+  ".vpv-pc-gold::before{content:\"\";position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#B07A06,#E9BC3A,#F7DA7A,#E9BC3A,#B07A06);background-size:200% 100%;animation:vpvGoldBar 6s linear infinite}",
+  ".vpv-pc-gold .vpv-pc-name{color:#8A5A00}",
+  ".vpv-pc-gold .vpv-pc-per{background:#fff6dc;border-color:#f0dc9c}",
+  "@keyframes vpvGoldBar{to{background-position:-200% 0}}",
+  ".vpv-pj{display:none}",
+  "@media (max-width:767px){.vpv-pj{display:flex;gap:.5rem;overflow-x:auto;margin:1.5rem -1rem -1.25rem;padding:.25rem 1rem .5rem;scrollbar-width:none}.vpv-pj::-webkit-scrollbar{display:none}" +
+    ".vpv-pj button{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:.45rem .8rem;border-radius:12px;border:1px solid #dbe4f0;background:#fff;font:inherit;color:#0b2a5b;cursor:pointer}" +
+    ".vpv-pj button b{font-size:.8125rem;font-weight:800}.vpv-pj button span{font-size:.6875rem;font-weight:600;color:#64748b;white-space:nowrap}" +
+    ".vpv-pj button[aria-current=true]{border-color:" + BRAND + ";background:#eef4ff;box-shadow:0 0 0 2px rgba(11,92,255,.15)}" +
+    ".vpv-pj button.gold{border-color:#E3B93C;background:#FFF8E2}.vpv-pj button.gold b{color:#8A5A00}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(227,185,60,.35)}}",
+  "@media (max-width:767px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}}",
+].join("");
 const OG_IMAGE = `${SITE}/vpv-icon-512.png`;
 
 function esc(v: string): string {
@@ -233,26 +270,24 @@ const HOME_CSS = `[data-testid="hero-experience"]{position:relative;width:100%;h
 [data-testid="hero-ctas"]{grid-column:1;grid-row:2;align-self:start;flex-direction:row;flex-wrap:wrap;align-items:center}\
 [data-testid="hero-experience"]{grid-column:2;grid-row:1/span 2;height:clamp(520px,76vh,680px)}}\
 @media (max-width:639px){.vpv-tagline{font-size:8px;letter-spacing:.2em;white-space:nowrap}}\
-.vpv-gold-tag,.vpv-gold-line{font-weight:800;background:linear-gradient(100deg,#9A6A00 0%,#D9A21B 28%,#FFD95A 50%,#D9A21B 72%,#9A6A00 100%);background-size:220% auto;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:vpvGold 4.5s linear infinite;filter:drop-shadow(0 0 5px rgba(240,190,60,.35))}\
-.vpv-gold-tag{font-size:1.15rem;line-height:1.3;letter-spacing:.003em}\
-.vpv-gold-line{font-size:1rem;line-height:1.35}\
-li:has(>.vpv-gold-line)>svg{color:#D9A21B;width:1.15rem;height:1.15rem;margin-top:.2rem}\
-div:has(>.vpv-gold-tag){border:1.5px solid #E3B93C!important;background:linear-gradient(180deg,#FFFBEA 0%,#fff 38%)!important;box-shadow:0 18px 44px -18px rgba(217,162,27,.55)!important}\
+.vpv-gold-line{font-weight:800;color:#7A5200;font-size:1rem;line-height:1.35}\
+li:has(>.vpv-gold-line)>svg{color:#C8920F;width:1.15rem;height:1.15rem;margin-top:.2rem}\
 \
 \
-@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span ${3 + PLAN_ROWS};row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span ${PLAN_ROWS};margin-top:1.25rem}}\
+@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span ${5 + PLAN_ROWS};row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span ${PLAN_ROWS};margin-top:1.25rem}}\
 .vpv-strike{color:#0f172a;text-decoration:line-through;text-decoration-color:#e11d2e;text-decoration-thickness:2px}\
-.vpv-was{margin:0}.vpv-was .vpv-strike{font-size:1.875rem;line-height:1.15;font-weight:800;letter-spacing:-.02em;text-decoration-thickness:3px}\
+.vpv-was{margin:0}.vpv-was .vpv-strike{font-size:1.5rem;line-height:1.15;font-weight:800;letter-spacing:-.02em;text-decoration-thickness:3px}\
 .vpv-now-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}\
 .vpv-now{margin:0;font-size:1.125rem;line-height:1.3;font-weight:800;color:#0b2a5b}\
 .vpv-no{color:#94a3b8}.vpv-no-ic{flex:none;margin-top:.125rem;color:#e5484d}\
-@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{padding:1.25rem}}\
+@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(8,minmax(0,1fr));gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:span 2;padding:1.25rem}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(3){grid-column:2/span 2}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(2){grid-column:3/span 2}.vpv-plans-grid>:nth-child(4n+1):nth-last-child(1){grid-column:4/span 2}}\
+${PLAN_CARD_CSS}\
 .vpv-aoa-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border:1px solid #94a3b8;border-radius:999px;font-size:11px;font-weight:700;line-height:1;color:#64748b;cursor:help;vertical-align:middle;-webkit-text-fill-color:currentColor}\
 .vpv-aoa-q:hover,.vpv-aoa-q:focus{border-color:#1468D8;color:#1468D8;outline:none;z-index:30}\
 .vpv-aoa-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;padding:10px 12px;border:1px solid #dbe4f0;border-radius:12px;background:#fff;color:#0b1b33;-webkit-text-fill-color:#0b1b33;font-size:12.5px;font-weight:400;line-height:1.5;text-align:left;letter-spacing:0;text-transform:none;white-space:normal;box-shadow:0 18px 40px -16px rgba(7,22,48,.45);opacity:0;pointer-events:none;transition:opacity .15s}\
 .vpv-aoa-q:hover>.vpv-aoa-tip,.vpv-aoa-q:focus>.vpv-aoa-tip{opacity:1}\
 @keyframes vpvGold{0%{background-position:0% center}100%{background-position:220% center}}\
-@media (prefers-reduced-motion:reduce){.vpv-gold-tag,.vpv-gold-line{animation:none}}\
+@media (prefers-reduced-motion:reduce){.vpv-pc-gold::before{animation:none}}\
 #vpv-focus{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(6,14,30,.86);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:vpvFocusIn .35s ease-out both}\
 #vpv-focus .vf-card{position:relative;width:min(100%,calc((100vh - 170px) * 16 / 9),1100px)}\
 #vpv-focus .vf-frame{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#000;box-shadow:0 30px 90px rgba(0,0,0,.5)}\
@@ -366,6 +401,34 @@ const AOA_HINT_SCRIPT = String.raw`(function(){
   try{new MutationObserver(soon).observe(document.documentElement,{childList:true,subtree:true,characterData:true});}catch(e){}
 })();`;
 
+/**
+ * Phones swipe through the seven plan cards. Above them, a row of chips
+ * named by factory size jumps straight to the right card, and follows the
+ * swipe. Built from the cards themselves, so it can never list a plan the
+ * page does not show; re-runs when the page redraws.
+ */
+const PLAN_JUMP_SCRIPT = String.raw`(function(){
+  function build(g){
+    var cards=[].slice.call(g.children);if(cards.length<2)return;
+    var row=document.createElement("div");row.className="vpv-pj";row.setAttribute("aria-label","Jump to a plan by factory size");
+    var chips=cards.map(function(c,i){
+      var b=document.createElement("button");b.type="button";
+      var n=c.querySelector(".vpv-pc-name"),a=c.querySelector(".vpv-pc-area-v");
+      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"")||"VPV";b.lastChild.textContent=a?a.textContent:"";
+      if(c.classList.contains("vpv-pc-gold"))b.className="gold";
+      b.addEventListener("click",function(){g.scrollTo({left:c.offsetLeft-g.offsetLeft-16,behavior:"smooth"})});
+      row.appendChild(b);return b;
+    });
+    g.parentNode.insertBefore(row,g);
+    var on=-1;function mark(){var x=g.scrollLeft+g.clientWidth*0.3,k=0;for(var i=0;i<cards.length;i++)if(cards[i].offsetLeft-g.offsetLeft<=x)k=i;if(k===on)return;on=k;chips.forEach(function(b,i){b.setAttribute("aria-current",i===k?"true":"false")});var cb=chips[k];row.scrollTo({left:cb.offsetLeft-row.offsetLeft-24,behavior:"smooth"})}
+    g.addEventListener("scroll",function(){requestAnimationFrame(mark)},{passive:true});mark();
+  }
+  function fix(){try{[].forEach.call(document.querySelectorAll(".vpv-plans-grid"),function(g){var p=g.previousElementSibling;if(p&&p.className==="vpv-pj")return;build(g)})}catch(e){}}
+  var due=false;function soon(){if(due)return;due=true;setTimeout(function(){due=false;fix()},80);}
+  if(document.readyState!=="loading")fix();else document.addEventListener("DOMContentLoaded",fix);
+  try{new MutationObserver(soon).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+})();`;
+
 const CASE_STUDY_FOCUS_SCRIPT = String.raw`(function(){var ID="62asCfqRRbw",was=false;function on(){return location.pathname.replace(/\/+$/,"")==="/case-studies"}function src(m){return"https://www.youtube-nocookie.com/embed/"+ID+"?autoplay=1&mute="+(m?1:0)+"&playsinline=1&rel=0&modestbranding=1"}function key(e){if(e.key==="Escape")close()}function close(){var o=document.getElementById("vpv-focus");if(!o)return;o.parentNode.removeChild(o);document.documentElement.style.overflow="";document.removeEventListener("keydown",key)}function open(){if(document.getElementById("vpv-focus")||!document.body)return;var o=document.createElement("div");o.id="vpv-focus";o.setAttribute("role","dialog");o.setAttribute("aria-modal","true");o.setAttribute("aria-label","Anuj Anand's story");o.innerHTML='<div class="vf-card"><div class="vf-top"><div><b>80%+ conversion with VPV</b><span>Mr. Anuj Anand, Export Head, Kesaria Rubber Industries</span></div><button type="button" class="vf-x" aria-label="Close">✕</button></div><div class="vf-frame"><iframe title="Anuj Anand on VPV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen src="'+src(true)+'"></iframe></div><div class="vf-row"><button type="button" class="vf-sound">🔊 Turn on sound</button><button type="button" class="vf-skip">Browse all stories</button></div></div>';o.addEventListener("click",function(e){var t=e.target;if(t===o||t.closest(".vf-x")||t.closest(".vf-skip")){close();return}if(t.closest(".vf-sound")){o.querySelector("iframe").src=src(false);t.closest(".vf-sound").style.display="none"}});document.body.appendChild(o);document.documentElement.style.overflow="hidden";document.addEventListener("keydown",key);o.tabIndex=-1;o.focus()}function check(){var n=on();if(n&&!was)setTimeout(open,350);if(!n)close();was=n}["pushState","replaceState"].forEach(function(k){var f=history[k];history[k]=function(){var r=f.apply(this,arguments);setTimeout(check,0);return r}});window.addEventListener("popstate",check);if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",check);else check()})();`;
 
 /**
@@ -428,6 +491,7 @@ ${siteHeaderHtml(page.path)}\
 <script id="vpv-one-email-script">${ONE_EMAIL_SCRIPT}</script>\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
 <script id="vpv-aoa-hint-script">${AOA_HINT_SCRIPT}</script>\
+<script id="vpv-plan-jump-script">${PLAN_JUMP_SCRIPT}</script>\
 <script id="vpv-hiw-guide-script">${HIW_GUIDE_SCRIPT}</script>\
 <script id="vpv-home-story-script">${HOME_STORY_SCRIPT}</script>\
 ${measureScriptTag()}\

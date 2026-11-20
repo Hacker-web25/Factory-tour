@@ -30,7 +30,10 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'organizations_site_plan_check') then
     alter table public.organizations
       add constraint organizations_site_plan_check
-      check (site_plan is null or site_plan in ('confidence', 'authority', 'control', 'enterprise'));
+      check (site_plan is null or site_plan in (
+        'lite', 'plus', 'pro', 'premium', 'ultra', 'vpv', 'signature',
+        'confidence', 'authority', 'control', 'enterprise'
+      ));
   end if;
 end $$;
 
@@ -146,7 +149,9 @@ begin
   if not found then raise exception 'order_not_found'; end if;
   if o.status <> 'paid' or o.revoked_at is not null then raise exception 'order_not_payable'; end if;
   if o.org_id is null then raise exception 'upgrade_without_org'; end if;
-  if o.upgrade_to is null or o.upgrade_to not in ('authority', 'control', 'enterprise') then
+  -- 20 Nov 2026: the seven plans (see plans_seven.sql). Kept in step here so
+  -- running this file again never takes them away.
+  if o.upgrade_to is null or o.upgrade_to not in ('plus', 'pro', 'premium', 'ultra', 'authority', 'control', 'enterprise') then
     raise exception 'upgrade_target_missing';
   end if;
 
@@ -309,7 +314,7 @@ security definer
 set search_path = public
 as $$
   select coalesce((
-    select o.plan in ('pro', 'ultra') or o.site_plan in ('control', 'enterprise')
+    select o.plan in ('pro', 'ultra') or o.site_plan in ('ultra', 'vpv', 'signature', 'control', 'enterprise')
       from public.organizations o where o.id = p_org
   ), false);
 $$;
@@ -371,7 +376,7 @@ begin
     return new;
   end if;
   raise exception 'sharing_controls_need_control'
-    using hint = 'One-time links and sharing restrictions are part of VPV Control and Enterprise.',
+    using hint = 'One-time links and sharing restrictions are part of VPV Ultra, VPV and VPV Signature.',
           errcode = '42501';
 end;
 $$;

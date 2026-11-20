@@ -3665,11 +3665,11 @@ function AddonTab({
           <option value="info_popup">Open info popup</option>
           <option value="image_popup">Show image</option>
           <option value="video_popup">
-            Open process video{videoAccess.state === "locked" ? " · VPV Authority" : ""}
+            Open process video{videoAccess.state === "locked" ? " · VPV Pro and up" : ""}
           </option>
           {audioActionOk && <option value="audio_popup">Play audio / voice note</option>}
           <option value="pdf_popup">
-            Open PDF report{pdfAccess.state === "locked" ? " · VPV Authority" : ""}
+            Open PDF report{pdfAccess.state === "locked" ? " · VPV Pro and up" : ""}
           </option>
           <option value="url">Open URL</option>
         </select>

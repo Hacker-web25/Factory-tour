@@ -191,7 +191,7 @@ export default function ContactPage() {
                 Razorpay payment ID so we can find it at once.
               </li>
               <li>
-                Considering VPV Enterprise, or have several plants? Tell us
+                Considering VPV or VPV Signature, or have several plants? Tell us
                 about them below and we will reply with a short call invite and
                 a written proposal.
               </li>

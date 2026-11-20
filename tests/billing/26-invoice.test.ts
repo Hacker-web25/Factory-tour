@@ -85,7 +85,7 @@ describe("invoice: the printed rows", () => {
   });
 
   it("shows the special offer as its own negative row, never as a quietly smaller price", () => {
-    const q = siteQuote("control", { city: "Gurugram", offerOpen: true });
+    const q = siteQuote("ultra", { city: "Gurugram", offerOpen: true });
     const lines = invoiceLinesFromQuote(q);
     const plan = lines.find((l) => l.title === q.plan.name);
     const discount = lines.find((l) => (l.amountInr ?? 0) < 0);
@@ -96,7 +96,7 @@ describe("invoice: the printed rows", () => {
   });
 
   it("explains what the plan price covers without charging for it twice", () => {
-    const lines = invoiceLinesFromQuote(siteQuote("authority", { city: "Gurugram" }));
+    const lines = invoiceLinesFromQuote(siteQuote("pro", { city: "Gurugram" }));
     const included = lines.filter((l) => l.amountInr === null);
     assert.ok(included.length >= 2, "the shoot and the setup are listed");
     for (const l of included) assert.equal(l.unitInr, null, `${l.title} is marked Included`);
@@ -107,7 +107,7 @@ describe("invoice: the printed rows", () => {
       priceFor("basic_licence", { scenes: 7 }),
       priceFor("scene_topup", { existingScenes: 5, scenes: 9 }),
       priceFor("support_renewal", { salesSeats: 2, seatInr: 999 }),
-      priceFor("site_plan", { sitePlanId: "enterprise", city: "Gurugram" }),
+      priceFor("site_plan", { sitePlanId: "signature", city: "Gurugram" }),
     ];
     for (const c of cases) {
       assert.ok(c.lines.length > 0, c.description);
@@ -233,7 +233,7 @@ describe("invoice: end to end, from a real payment", () => {
 /* ───────────────────────────── fixtures ───────────────────────────── */
 
 function baseDoc(over: Partial<InvoiceDoc> = {}): InvoiceDoc {
-  const q = siteQuote("control", { city: "Noida", extraAreas: 2 });
+  const q = siteQuote("ultra", { city: "Noida", extraAreas: 2 });
   const g = withGst(q.taxableInr);
   return {
     invoiceNo: "VPV/2026-27/0007",

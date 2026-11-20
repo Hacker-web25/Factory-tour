@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { SITE_PLAN_ORDER, SITE_PLANS, planForPlot, type PlotBand, type SitePlanId } from "@/lib/pricing";
+import { SITE_PLAN_ORDER, SITE_PLANS, isPlotBand, isSitePlanId, planForPlot, type PlotBand, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -68,7 +68,7 @@ export type FunnelState = {
   wantsSharingControls: boolean | null;
 
   /* Step 4 — the plan and the add-ons. */
-  chosenPlan: SitePlanId | null;
+  chosenPlan: SoldPlanId | null;
   extraAreas: number;
   /** Process videos the customer uploads to their own YouTube channel.
    *  Free up to the plan's allowance, then VIDEO_SELF_INR each. */
@@ -155,7 +155,13 @@ export function loadFunnel(): FunnelState {
     if (!raw) return { ...EMPTY_FUNNEL };
     const parsed = JSON.parse(raw) as Partial<FunnelState>;
     // Spread over the defaults so a field added later is never undefined.
-    return { ...EMPTY_FUNNEL, ...parsed };
+    const state = { ...EMPTY_FUNNEL, ...parsed };
+    // A visit saved before the seven plans (20 Nov 2026) may name a plan or
+    // a plant size that no longer exists: drop them, so the visitor is
+    // matched again instead of being sent to a plan we do not sell.
+    if (state.chosenPlan !== null && !isSitePlanId(state.chosenPlan)) state.chosenPlan = null;
+    if (state.plotBand !== "" && !isPlotBand(state.plotBand)) state.plotBand = "";
+    return state;
   } catch {
     /* intentional — storage can be blocked or hold stale JSON; a blank
        funnel is always a safe answer and the visitor just re-answers. */
@@ -205,7 +211,7 @@ export function clearFunnel(): void {
 /* ───────────────────────── The recommendation ────────────────────── */
 
 export type Recommendation = {
-  plan: SitePlanId;
+  plan: SoldPlanId;
   /** Why this one, in the buyer's own terms. */
   reasons: string[];
   /** Extras the plan does not cover, pre-set on the slider. */
@@ -217,29 +223,28 @@ export type Recommendation = {
 /**
  * The lowest plan that covers everything the visitor asked for.
  *
- * Three things must all be covered, and the answer is the cheapest plan
- * that covers every one of them:
+ * Since 20 Nov 2026 the plans are sold by the size of the factory, so the
+ * plant decides first. Three things must all be covered, and the answer is
+ * the cheapest plan that covers every one of them:
  *
- *   1. THE PLANT. A plant of 1,000+ sq yards is VPV Enterprise; 601 to
- *      1,000 is Control at least; 201 to 600 is Authority at least. A buyer
- *      who does not say ("not sure") is not held to a size.
+ *   1. THE PLANT. Each size band has its own plan, and the recommendation
+ *      is never below it. A buyer who does not say ("not sure") is not held
+ *      to a size. VPV and VPV Signature (Mr. Gupta's own time) are offered
+ *      only to plants of 40,000+ sq ft, never as a way round a smaller
+ *      plan's limits.
  *   2. THE LINK. If they said they want to stop the link reaching a
- *      competitor, the plan must have sharing controls: Control or
- *      Enterprise. One-time link expiry and share restrictions exist on no
- *      other plan and cannot be bought as an add-on, so no amount of extra
- *      areas on a cheaper plan gets them what they just said they need.
- *   3. THE SCOPE. Its areas and PDFs must cover what they picked. Process
- *      videos are deliberately NOT part of this test: since Nov 2026 they
- *      are add-ons anyone can buy on any plan (upload your own, or we shoot
- *      it), so wanting ten of them is no longer a reason to sell a dearer
- *      plan — only the plant, the link and the areas are.
+ *      competitor, the plan must have sharing controls (Ultra and up). They
+ *      exist on no other plan and cannot be bought as an add-on.
+ *   3. THE SCOPE. Its areas and lab reports must cover what they picked.
+ *      Process videos are deliberately NOT part of this test: they are
+ *      add-ons anyone can buy on any plan.
  *
- * If no plan covers the scope on its own, it is the plan their plant and
- * link need, with the shortfall added as extras.
+ * If no plan covers the scope on its own, it is the largest plan the plant
+ * and link allow, with the shortfall added as extras.
  *
  * Deliberately the LOWEST qualifying plan, not the dearest: a buyer who
  * later finds they were sold more than they needed does not renew, and the
- * annual Digital Care is where this product makes its money.
+ * annual support is where this product makes its money.
  */
 export function recommendPlan(s: {
   aoaCount?: number | null;
@@ -254,14 +259,12 @@ export function recommendPlan(s: {
   const floorId = planForPlot(s.plotBand || null);
   const floor = floorId ? SITE_PLAN_ORDER.indexOf(floorId) : 0;
   const wantsLink = s.wantsSharingControls === true;
+  const bigPlant = floorId !== null && SITE_PLANS[floorId].personal;
 
-  // Enterprise is for a big PLANT, never a way round the limits of a smaller
-  // plan: it is offered only when the plant is 1,000+ sq yards, and then it
-  // is the only plan that fits.
   const allowed = SITE_PLAN_ORDER.filter(
     (id, i) =>
       i >= floor &&
-      (floorId === "enterprise" ? id === "enterprise" : id !== "enterprise") &&
+      (bigPlant ? SITE_PLANS[id].personal : !SITE_PLANS[id].personal) &&
       (!wantsLink || SITE_PLANS[id].sharingControls)
   );
   const covers = (id: SitePlanId) => {
@@ -272,15 +275,15 @@ export function recommendPlan(s: {
   const fit = allowed.find(covers);
   // Nothing covers the scope outright: the largest plan the plant and the
   // link allow, with the shortfall added as extras.
-  const chosen: SitePlanId = fit ?? allowed[allowed.length - 1];
+  const chosen: SoldPlanId = fit ?? allowed[allowed.length - 1];
   const p = SITE_PLANS[chosen];
 
-  if (floorId && floorId !== "confidence") {
-    reasons.push(`${p.plot.label} — which matches the plant size you gave.`);
+  if (floorId && floorId !== "lite") {
+    reasons.push(`${p.plot.label}, which matches the plant size you gave.`);
   }
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Control and VPV Enterprise."
+      "You asked to stop your VPV link being shared with competitors. One-time link expiry and share restrictions are part of VPV Ultra, VPV and VPV Signature."
     );
   }
 

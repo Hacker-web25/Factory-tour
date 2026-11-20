@@ -320,7 +320,7 @@ export default function PaymentWelcome() {
                 slug={slug}
                 review={server === "review"}
                 stillSettingUp={server === "processing"}
-                enterprise={funnel?.chosenPlan === "enterprise"}
+                enterprise={!!funnel?.chosenPlan && SITE_PLANS[funnel.chosenPlan].personal}
               />
             )}
           </div>
@@ -593,8 +593,8 @@ function NextSteps({
       icon: Camera,
       title: "Shoot day",
       body: enterprise
-        ? `${ENTERPRISE_PERSONAL.person} leads the shoot of your plant himself, in a single visit.`
-        : "Our crew captures your plant in a single visit.",
+        ? `${ENTERPRISE_PERSONAL.person} leads the shoot of your plant himself.`
+        : "Our crew captures your plant on site.",
     },
     {
       icon: Rocket,

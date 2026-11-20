@@ -438,7 +438,7 @@ export default function BillingPage() {
 
 /* ───────────────────────────── pieces ────────────────────────────── */
 
-/** Which of the four plans this is, what it includes, and the way up. */
+/** Which plan this is, what it includes, and the way up. */
 function PlanSummary({ isAdmin, quota }: { isAdmin: boolean; quota: number | null }) {
   const ent = useEntitlements();
   if (!ent.ready) return <div className="mt-4 h-24 animate-pulse rounded-xl bg-vpv-tint/50" />;

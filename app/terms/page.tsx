@@ -1,8 +1,9 @@
 /**
  * /terms — VPV Terms & Conditions.
  *
- * Covers the commercial model as sold today: the four VPV plans
- * (Confidence, Authority, Control, Enterprise), each a one-time fee that
+ * Covers the commercial model as sold today: the seven VPV plans, sized
+ * by the factory's covered area (Lite, Plus, Pro, Premium, Ultra, VPV,
+ * Signature), each a one-time fee that
  * includes the factory shoot, plus a yearly Support, hosting & security fee
  * and optional yearly Sales Team logins. Every number and window comes from
  * lib/pricing.ts and lib/company.ts, so this page can never disagree with
@@ -52,15 +53,15 @@ import {
 } from "@/lib/pricing";
 import { CAB_TRAVEL, SERVICE_CITY_LIST } from "@/lib/logistics";
 
-/* Worked example for the GST paragraph: VPV Authority, factory in Manesar. */
-const EXAMPLE = siteQuote("authority", { city: "Manesar" });
+/* Worked example for the GST paragraph: VPV Pro, factory in Manesar. */
+const EXAMPLE = siteQuote("pro", { city: "Manesar" });
 
 const support = SUPPORT_NAME.toLowerCase();
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
   description:
-    "The terms for VPV (Virtual Plant Visit): the four plans and what each includes, every fee and GST, the factory shoot and rescheduling, yearly support and renewals, price changes with prior notice, and how to complain.",
+    "The terms for VPV (Virtual Plant Visit): the seven plans and what each includes, every fee and GST, the factory shoot and rescheduling, yearly support and renewals, price changes with prior notice, and how to complain.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/terms" },
 };
@@ -95,7 +96,7 @@ const sections: LegalSection[] = [
           <L href="/disclaimer">Disclaimer</L> and the{" "}
           <L href="/plans">Plans</L> page, which all form part of the agreement.
           If a written proposal we have signed with you (for example for{" "}
-          {SITE_PLANS.enterprise.name}) says something different, the proposal
+          {SITE_PLANS.signature.name}) says something different, the proposal
           wins for that order.
         </P>
       </>
@@ -197,7 +198,7 @@ const sections: LegalSection[] = [
                 {p.pdfs > 0 ? `up to ${p.pdfs} PDF reports` : "no PDF reports"}, information icons,{" "}
                 {hoursLabel(p.shootHours)} of shoot time on site
                 {p.sharingControls ? ", and sharing controls (link expiry, one-time links, passwords and view limits)" : ""}
-                {id === "enterprise"
+                {p.personal
                   ? `, together with a private discussion with ${ENTERPRISE_PERSONAL.person} and a shoot led personally by ${ENTERPRISE_PERSONAL.person} (see below)`
                   : ""}
                 .
@@ -207,11 +208,13 @@ const sections: LegalSection[] = [
         </UL>
         <P>
           Every Plan also includes a password-protected dashboard, your own VPV
-          address and your branding. The plant sizes are a guide to which Plan
-          suits which plant; what we deliver is the number of AOAs, videos,
-          reports and shoot hours listed. Sharing controls come only with{" "}
-          {SITE_PLANS.control.name} and {SITE_PLANS.enterprise.name} and are not
-          sold separately. No sharing control can stop a Viewer from taking a
+          address and your branding. The factory sizes (covered area) are a guide
+          to which Plan suits which plant; what we deliver is the number of
+          AOAs, videos, reports and shoot hours listed. Sharing controls come
+          only with {SITE_PLANS.ultra.name}, {SITE_PLANS.vpv.name} and{" "}
+          {SITE_PLANS.signature.name} (and, for customers who bought them
+          before 20 November 2026, {SITE_PLANS.control.name} and{" "}
+          {SITE_PLANS.enterprise.name}) and are not sold separately. No sharing control can stop a Viewer from taking a
           screenshot or recording their own screen.
         </P>
         <P>
@@ -230,8 +233,11 @@ const sections: LegalSection[] = [
           dashboard at any time by paying the difference between the two Plans
           at that day&rsquo;s prices, plus GST. The higher Plan&rsquo;s features
           open as soon as payment is confirmed, and we agree a date to shoot any
-          extra AOAs it includes. {SITE_PLANS.enterprise.name} is arranged by
-          speaking with us.
+          extra AOAs it includes. {SITE_PLANS.vpv.name} and{" "}
+          {SITE_PLANS.signature.name} are arranged by speaking with us. A Plan
+          bought before 20 November 2026 (Confidence, Authority, Control or
+          Enterprise) keeps everything it included, and can move up to a
+          current Plan that has at least as many AOAs and features.
         </P>
         <P>
           <B>Your Workspace address.</B> You choose your address (
@@ -246,8 +252,12 @@ const sections: LegalSection[] = [
           will agree a date with you.
         </P>
         <P>
-          <B>{SITE_PLANS.enterprise.name}: personal attention.</B>{" "}
-          {SITE_PLANS.enterprise.name} includes (a) one private discussion with{" "}
+          <B>
+            {SITE_PLANS.vpv.name} and {SITE_PLANS.signature.name}: personal attention.
+          </B>{" "}
+          {SITE_PLANS.vpv.name} and {SITE_PLANS.signature.name} (and{" "}
+          {SITE_PLANS.enterprise.name}, for customers who bought it) include (a)
+          one private discussion with{" "}
           {ENTERPRISE_PERSONAL.person} before your shoot, to plan how your plant
           is presented, and (b) your shoot led personally by{" "}
           {ENTERPRISE_PERSONAL.person}. Dates are agreed with you and depend on
@@ -333,12 +343,12 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Extra AOAs</B> (optional): priced per Plan, and cheaper the more
-            you add; on {SITE_PLANS.control.name}, for example, from{" "}
-            {inr(discountBands("control")[0].each)} down to{" "}
-            {inr(discountBands("control").slice(-1)[0].each)} each.
+            you add; on {SITE_PLANS.ultra.name}, for example, from{" "}
+            {inr(discountBands("ultra")[0].each)} down to{" "}
+            {inr(discountBands("ultra").slice(-1)[0].each)} each.
           </li>
           <li>
-            <B>Process videos</B> (optional, {SITE_PLANS.authority.name} and
+            <B>Process videos</B> (optional, {SITE_PLANS.pro.name} and
             above). A video you already have, which you upload to your own
             YouTube channel and send us the link for, is included up to your
             Plan&rsquo;s number and {inr(VIDEO_SELF_INR)} each after that. A video{" "}
@@ -1027,7 +1037,7 @@ export default function TermsPage() {
       <div className="mt-4">
         <Callout title={`What changed on ${POLICY.updated}`} tone="notice">
           <UL>
-            <li>The four VPV Plans are now the only plans described; Basic, Pro and Ultra moved to &ldquo;Older plans&rdquo;.</li>
+            <li>The VPV Plans are now the only plans described (since 20 November 2026, the seven Plans sized by your factory&rsquo;s covered area; Plans bought before then keep everything they included); Basic, Pro and Ultra moved to &ldquo;Older plans&rdquo;.</li>
             <li>Changing the shoot date: the first change is free, later ones are {inr(POLICY.rescheduleFeeInr)} each.</li>
             <li>Delivery: usually {POLICY.vpvDeliveryTypical} after the shoot, and never later than {POLICY.vpvDeliveryWorkingDays} working days.</li>
             <li>Recording and AI features are described as what they are: switched off.</li>

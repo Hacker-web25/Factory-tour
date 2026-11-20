@@ -34,7 +34,7 @@ import { supabase } from "@/lib/supabase";
 import { INDIAN_STATES } from "@/lib/indianStates";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
-import { SCENE_MAX, SCENE_MIN, fromPaise, inr, type PlanId } from "@/lib/pricing";
+import { LEGACY_PLAN_ORDER, SCENE_MAX, SCENE_MIN, SITE_PLANS, SITE_PLAN_ORDER, fromPaise, inr, type PlanId } from "@/lib/pricing";
 
 type Customer = {
   org_id: string;
@@ -91,7 +91,7 @@ export default function AdminCustomersPage() {
     }
     const { data, error } = await supabase.rpc("admin_customer_overview");
     if (!error && data) setRows(data as Customer[]);
-    // Which of the four plans each one bought (supabase/plan_features.sql).
+    // Which plan each one bought (supabase/plan_features.sql, plans_seven.sql).
     const { data: sp } = await supabase.from("organizations").select("id, site_plan");
     if (Array.isArray(sp)) {
       setSitePlans(Object.fromEntries((sp as { id: string; site_plan: string | null }[]).map((r) => [r.id, r.site_plan])));
@@ -243,10 +243,18 @@ export default function AdminCustomersPage() {
                         className="mt-1 block rounded-lg border border-vpv-line bg-white px-2 py-1 text-[12px]"
                       >
                         <option value="">Not recorded (Confidence)</option>
-                        <option value="confidence">Confidence</option>
-                        <option value="authority">Authority</option>
-                        <option value="control">Control</option>
-                        <option value="enterprise">Enterprise</option>
+                        {SITE_PLAN_ORDER.map((id) => (
+                          <option key={id} value={id}>
+                            {SITE_PLANS[id].name}
+                          </option>
+                        ))}
+                        <optgroup label="Sold before 20 Nov 2026">
+                          {LEGACY_PLAN_ORDER.map((id) => (
+                            <option key={id} value={id}>
+                              {SITE_PLANS[id].name}
+                            </option>
+                          ))}
+                        </optgroup>
                       </select>
                     )}
                   </td>

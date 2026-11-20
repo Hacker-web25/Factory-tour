@@ -7,7 +7,7 @@
  * on this page are for display; the server prices every order itself
  * (lib/pricing.ts priceFor), from the plan the workspace really has.
  *
- *   ?to=authority|control   highlights that plan
+ *   ?to=plus|pro|premium|ultra   highlights that plan
  *   #logins                 scrolls to the Sales Team logins
  */
 
@@ -26,6 +26,7 @@ import {
   LAUNCH_OFFER,
   SALES_TEAM,
   SITE_PLANS,
+  isSitePlanId,
   inr,
   inr2,
   monthsUntil,
@@ -96,7 +97,7 @@ export default function UpgradePage() {
   useEffect(() => {
     void load();
     const to = new URLSearchParams(window.location.search).get("to");
-    if (to === "authority" || to === "control") setFocus(to);
+    if (isSitePlanId(to)) setFocus(to);
   }, [load]);
 
   useEffect(() => {
@@ -161,14 +162,14 @@ export default function UpgradePage() {
           </h2>
           {options.length === 0 ? (
             <p className="mt-3 rounded-2xl border border-vpv-line bg-white p-5 text-[14px] text-slate-600">
-              {current === "enterprise" || legacyMonthly
+              {SITE_PLANS[current].personal || legacyMonthly
                 ? "You have every feature we offer today."
                 : `You are on ${SITE_PLANS[current].name}, which has every feature we offer today. `}
-              {current === "control" && !legacyMonthly && (
+              {!SITE_PLANS[current].personal && !legacyMonthly && (
                 <>
                   {" "}
-                  {SITE_PLANS.enterprise.name} adds {ENTERPRISE_PERSONAL.person}&apos;s personal involvement;{" "}
-                  <a className="text-vpv-blue underline underline-offset-2" href="mailto:support@myvpv.com?subject=VPV%20Enterprise">
+                  {SITE_PLANS.vpv.name} and {SITE_PLANS.signature.name} add {ENTERPRISE_PERSONAL.person}&apos;s personal involvement;{" "}
+                  <a className="text-vpv-blue underline underline-offset-2" href="mailto:support@myvpv.com?subject=VPV%20Signature">
                     write to us
                   </a>{" "}
                   if you would like it.

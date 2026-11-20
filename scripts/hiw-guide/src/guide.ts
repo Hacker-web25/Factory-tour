@@ -140,11 +140,11 @@ const GET: Deliverable[] = [
   { icon: I.brand, tag: "Every plan", tagKind: "all", title: "Your brand on it", text: "Your logo and company name, so every buyer knows whose factory they are walking through." },
   { icon: I.dash, tag: "Every plan", tagKind: "all", title: "Your VPV dashboard", text: "A password-protected login for your company. Pick the areas to show and send links from one place." },
   { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: "Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours." },
-  { icon: I.video, tag: "Authority and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
-  { icon: I.file, tag: "Authority and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
-  { icon: I.lock, tag: "Control and up", tagKind: "up", title: "Sharing controls", text: "Links that open only once, expire after a set time, ask for a password, or work on a set number of devices." },
+  { icon: I.video, tag: "Pro and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
+  { icon: I.file, tag: "Pro and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
+  { icon: I.lock, tag: "Ultra and up", tagKind: "up", title: "Sharing controls", text: "Links that open only once, expire after a set time, ask for a password, or work on a set number of devices." },
   { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place." },
-  { icon: I.star, tag: "Enterprise", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
+  { icon: I.star, tag: "VPV & Signature", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
 ];
 
 const BUYER = [
@@ -169,7 +169,7 @@ const DONT = [
 ];
 
 const AFTER = [
-  { icon: I.share, title: "Share it", text: "Send your link on WhatsApp or e-mail, and add it to your website, proposals and e-mail signature. On Control and Enterprise, protect each link the way you want." },
+  { icon: I.share, title: "Share it", text: "Send your link on WhatsApp or e-mail, and add it to your website, proposals and e-mail signature. On Ultra and up, protect each link the way you want." },
   { icon: I.monitor, title: "Present it", text: "Share your screen on a Zoom call and walk a buyer through your plant, open it on an iPad in meetings, or play it on a TV at your exhibition stand." },
   { icon: I.refresh, title: "Keep it fresh", text: "Add videos and reports from your dashboard whenever you like. New machine or a new line? We can capture it and add it, quoted separately." },
 ];

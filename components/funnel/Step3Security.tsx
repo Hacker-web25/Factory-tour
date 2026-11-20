@@ -1,6 +1,6 @@
 /**
  * Step 3 of the funnel — the question that decides whether somebody buys
- * VPV Control.
+ * a plan with sharing controls (VPV Ultra and up).
  *
  * Every manufacturer who has ever sent a factory video to a buyer has the
  * same worry: that it gets forwarded to a competitor. So that worry is the
@@ -11,9 +11,9 @@
  * Both answers are styled identically (see YesNo) — the point is to ask the
  * question plainly where it is relevant, not to shame anyone into "yes".
  *
- * One-time link expiry and share restrictions exist on Control alone and
+ * One-time link expiry and share restrictions exist from Ultra up and
  * cannot be bought as an add-on, so a "yes" here sends the recommendation
- * straight to Control in recommendPlan().
+ * to Ultra (or larger) in recommendPlan().
  */
 
 "use client";
@@ -125,7 +125,7 @@ export default function Step3Security() {
 
         <Card className="mt-8">
           <SectionTitle icon={ShieldCheck} title="Do you want these controls on your VPV?">
-            They are part of VPV Control and VPV Enterprise and are not sold separately. Answer
+            They are part of VPV Ultra, VPV and VPV Signature and are not sold separately. Answer
             honestly: if your tour is something you would happily put on your
             website, you do not need them and we will not recommend them.
           </SectionTitle>

@@ -449,7 +449,7 @@ export function usePresentGate(orgId: string | null | undefined) {
       totalScenes: number | null;
     }
   ) {
-    // The four plans have no "Present" pop-up: a customer pays for a plan,
+    // The site plans have no "Present" pop-up: a customer pays for a plan,
     // not for being reminded of one. Kept wired so it can return if wanted.
     if (PRESENT_POPUP_ENABLED && plan === "basic") {
       setPending({
@@ -488,13 +488,13 @@ export function usePresentGate(orgId: string | null | undefined) {
   return { element, openWithGate, plan };
 }
 
-/* ---------- Sidebar card: the next plan up (Confidence, Authority only) --- */
+/* ---------- Sidebar card: the next plan up (below Ultra only) ------------ */
 
 const PRESENT_POPUP_ENABLED = false;
 
 /**
- * A quiet card in the sidebar suggesting the NEXT plan up — Confidence sees
- * Authority, Authority sees Control. Control, Enterprise and the old monthly
+ * A quiet card in the sidebar suggesting the NEXT plan up — Lite and Plus
+ * see Pro, Pro and Premium see Ultra. Ultra, VPV, Signature and the old monthly
  * plans see nothing; salespeople see nothing (they cannot buy).
  */
 export function UpgradeCounter({

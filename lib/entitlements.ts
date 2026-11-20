@@ -18,10 +18,15 @@
  * browser cannot open them.
  */
 
-import { SITE_PLANS, SITE_PLAN_ORDER, type SitePlanId } from "@/lib/pricing";
+import { SITE_PLANS, SITE_PLAN_ORDER, isKnownPlanId, planPrice, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 
-/** Where a feature starts. "all" = every plan; "sales" = the Sales Team add-on. */
-export type Tier = "all" | "authority" | "control" | "sales" | "hidden";
+/**
+ * Where a feature starts. "all" = every plan; "media" = plans with process
+ * videos and lab reports (Pro and up, and the old Authority and up);
+ * "sharing" = plans with sharing controls (Ultra and up, and the old Control
+ * and Enterprise); "sales" = the Sales Team add-on.
+ */
+export type Tier = "all" | "media" | "sharing" | "sales" | "hidden";
 
 export type FeatureKey =
   // promised on every plan
@@ -31,10 +36,10 @@ export type FeatureKey =
   | "custom_domain"
   | "branding"
   | "share_links"
-  // promised from Authority up
+  // promised from Pro up (level 1)
   | "process_videos"
   | "pdf_reports"
-  // promised on Control and Enterprise only
+  // promised from Ultra up (level 2)
   | "sharing_controls"
   // the Sales Team add-on (any plan)
   | "sales_team"
@@ -69,10 +74,10 @@ export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string }> = {
   branding: { tier: "all", label: "Your logo and colours" },
   share_links: { tier: "all", label: "Share a tour by link" },
 
-  process_videos: { tier: "authority", label: "Process videos" },
-  pdf_reports: { tier: "authority", label: "Lab reports & certifications" },
+  process_videos: { tier: "media", label: "Process videos" },
+  pdf_reports: { tier: "media", label: "Lab reports & certifications" },
 
-  sharing_controls: { tier: "control", label: "One-time links and sharing restrictions" },
+  sharing_controls: { tier: "sharing", label: "One-time links and sharing restrictions" },
 
   sales_team: { tier: "sales", label: "Sales Team dashboard and logins" },
 
@@ -97,13 +102,11 @@ export const ROLLOUT: Record<FeatureKey, { tier: Tier; label: string }> = {
 
 export const FEATURE_KEYS = Object.keys(ROLLOUT) as FeatureKey[];
 
-const RANK: Record<SitePlanId, number> = { confidence: 0, authority: 1, control: 2, enterprise: 3 };
-
 /** What the workspace has, as the entitlement rules need it. */
 export type WorkspaceFacts = {
   /** organizations.plan — basic (every site plan), or the old pro / ultra. */
   plan?: string | null;
-  /** organizations.site_plan — which of the four plans was bought. */
+  /** organizations.site_plan — which plan was bought (one of the seven, or an older one). */
   site_plan?: string | null;
   /** Sales Team logins paid for. */
   sales_seats?: number | null;
@@ -112,21 +115,25 @@ export type WorkspaceFacts = {
 };
 
 /**
- * The plan the rules apply. Pro and Ultra (monthly plans agreed by
- * conversation, before the four plans existed) get Enterprise's features.
- * A Basic workspace with no plan recorded was bought on the old scene
- * ladder and gets Confidence's; /admin/customers can set it.
+ * The plan the rules apply. Pro and Ultra in organizations.PLAN (monthly
+ * plans agreed by conversation, before any of the site plans existed) get
+ * the top features, as the old Enterprise did. A Basic workspace with no
+ * plan recorded was bought on the old scene ladder and gets the base
+ * features; /admin/customers can set it. A plan no longer sold (Confidence,
+ * Authority, Control, Enterprise) keeps exactly what it had.
  */
 export function effectivePlan(f: WorkspaceFacts): SitePlanId {
   if (f.plan === "pro" || f.plan === "ultra") return "enterprise";
   const sp = String(f.site_plan ?? "");
-  return (SITE_PLAN_ORDER as string[]).includes(sp) ? (sp as SitePlanId) : "confidence";
+  return isKnownPlanId(sp) ? sp : "confidence";
 }
 
 export type Access =
   | { state: "open" }
-  | { state: "locked"; upgradeTo: SitePlanId | "sales_team" }
+  | { state: "locked"; upgradeTo: SoldPlanId | "sales_team" }
   | { state: "hidden" };
+
+const LEVEL_FOR: Record<"media" | "sharing", number> = { media: 1, sharing: 2 };
 
 /** Can this workspace use this feature, and if not, what unlocks it? */
 export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
@@ -135,9 +142,11 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   if (tier === "hidden") return { state: "hidden" };
   if (tier === "all") return { state: "open" };
   if (tier === "sales") return (f.sales_seats ?? 0) > 0 ? { state: "open" } : { state: "locked", upgradeTo: "sales_team" };
-  const plan = effectivePlan(f);
-  const need: SitePlanId = tier === "authority" ? "authority" : "control";
-  return RANK[plan] >= RANK[need] ? { state: "open" } : { state: "locked", upgradeTo: need };
+  const need = LEVEL_FOR[tier];
+  if (SITE_PLANS[effectivePlan(f)].level >= need) return { state: "open" };
+  // The first plan this workspace can move up to that has it.
+  const to = upgradeOptions(f).find((p) => SITE_PLANS[p].level >= need) ?? (need >= 2 ? "ultra" : "pro");
+  return { state: "locked", upgradeTo: to };
 }
 
 export const canUse = (f: WorkspaceFacts, key: FeatureKey) => accessTo(f, key).state === "open";
@@ -150,22 +159,38 @@ export function planLimits(f: WorkspaceFacts): { videos: number; pdfs: number } 
   return { videos: p.videos, pdfs: p.pdfs };
 }
 
-/** The next plan up, which is the only one the dashboard ever suggests. Null on Control and Enterprise. */
-export function nextPlan(f: WorkspaceFacts): SitePlanId | null {
-  const p = effectivePlan(f);
-  if (p === "confidence") return "authority";
-  if (p === "authority") return "control";
-  return null;
-}
-
-/** Plans this workspace can upgrade to from its own page (never Enterprise: it is a conversation). */
-export function upgradeOptions(f: WorkspaceFacts): SitePlanId[] {
-  const from = RANK[effectivePlan(f)];
-  return (["authority", "control"] as SitePlanId[]).filter((p) => RANK[p] > from);
-}
-
+/**
+ * Can a workspace on `from` move up to `to` from its own dashboard? Only to
+ * a plan on sale that costs more, has at least as many areas and at least
+ * the same features. Never to VPV or Signature: those include Mr. Gupta's
+ * own time, so they are a conversation, not a button.
+ */
 export function isUpgrade(from: SitePlanId, to: SitePlanId): boolean {
-  return RANK[to] > RANK[from] && to !== "enterprise";
+  const a = SITE_PLANS[from];
+  const b = SITE_PLANS[to];
+  return (
+    !b.legacy &&
+    !b.personal &&
+    b.level >= a.level &&
+    b.scenes >= a.scenes &&
+    planPrice(to) > planPrice(from)
+  );
+}
+
+/** Plans this workspace can upgrade to from its own page, smallest first. */
+export function upgradeOptions(f: WorkspaceFacts): SoldPlanId[] {
+  const from = effectivePlan(f);
+  return SITE_PLAN_ORDER.filter((p) => isUpgrade(from, p));
+}
+
+/**
+ * The one plan the dashboard ever suggests: the first that opens features
+ * this workspace does not have (Lite and Plus → Pro; Pro and Premium →
+ * Ultra). Null from Ultra up, where nothing more is sold from the dashboard.
+ */
+export function nextPlan(f: WorkspaceFacts): SoldPlanId | null {
+  const level = SITE_PLANS[effectivePlan(f)].level;
+  return upgradeOptions(f).find((p) => SITE_PLANS[p].level > level) ?? null;
 }
 
 /** "VPV Control" etc. */

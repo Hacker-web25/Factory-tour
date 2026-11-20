@@ -65,6 +65,7 @@ import {
   siteQuote,
   sitePerArea,
   type SitePlanId,
+  type SoldPlanId,
 } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, recommendPlan, saveFunnel, type FunnelState } from "@/lib/funnel";
 
@@ -242,7 +243,7 @@ export default function Step4Plan() {
   }, []);
 
   const rec = useMemo(() => (s ? recommendPlan(s) : null), [s]);
-  const planId: SitePlanId = s?.chosenPlan ?? "authority";
+  const planId: SoldPlanId = s?.chosenPlan ?? "pro";
   const offerOpen = offer.open && LAUNCH_OFFER.active;
   const quote = useMemo(
     () =>
@@ -260,7 +261,7 @@ export default function Step4Plan() {
     [s, planId, offerOpen]
   );
 
-  function pick(id: SitePlanId) {
+  function pick(id: SoldPlanId) {
     if (!s) return;
     // Extra areas are priced per plan, so carrying a count across would
     // silently change what it costs: that slider starts again. Videos cost
@@ -318,7 +319,7 @@ export default function Step4Plan() {
   const basePerArea = sitePerArea(planId, 0, offerOpen);
 
   const inclusions: { icon: typeof Layers; text: string; strong?: boolean; hint?: string }[] = [
-    ...(planId === "enterprise"
+    ...(SITE_PLANS[planId].personal
       ? [{ icon: Star, text: ENTERPRISE_PERSONAL.discussion.short, strong: true }]
       : []),
     { icon: Maximize2, text: plan.plot.label },
@@ -395,14 +396,14 @@ export default function Step4Plan() {
                   <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${plan.sharingControls ? "bg-white text-vpv-navy" : "bg-white/10"}`}>
                     <Lock className="h-4 w-4" aria-hidden />
                   </span>
-                  {plan.sharingControls ? "One-time links and sharing restrictions" : "Sharing restrictions: VPV Control and Enterprise"}
+                  {plan.sharingControls ? "One-time links and sharing restrictions" : "Sharing restrictions: VPV Ultra and up"}
                 </li>
               </ul>
             </div>
           </div>
         </div>
 
-        {planId === "enterprise" && (
+        {SITE_PLANS[planId].personal && (
           <div
             className="mt-5 grid gap-4 rounded-2xl border border-[#E9D49A] bg-[#FFF9E8] p-5 sm:grid-cols-2 sm:p-6"
             data-testid="enterprise-personal"
@@ -446,7 +447,7 @@ export default function Step4Plan() {
               </p>
               <p className="mt-2.5 text-[13px] text-slate-600">
                 across {quote.totalAreas} areas
-                {planId !== "enterprise" && quote.perAreaInr < basePerArea && (
+                {!SITE_PLANS[planId].personal && quote.perAreaInr < basePerArea && (
                   <span className="mt-1 block font-semibold text-vpv-blue">down from {inr(basePerArea)}</span>
                 )}
               </p>
@@ -514,7 +515,7 @@ export default function Step4Plan() {
             </div>
           </div>
 
-          {planId !== "enterprise" && (
+          {!SITE_PLANS[planId].personal && (
             <div className="mt-7">
               <DiscountBanner planId={planId} extraAreas={s.extraAreas} offerOpen={offerOpen} />
             </div>
@@ -598,7 +599,7 @@ export default function Step4Plan() {
             aria-expanded={compare}
             className="text-[14px] font-medium text-vpv-blue underline underline-offset-2"
           >
-            {compare ? "Hide plan comparison" : "Compare all four plans"}
+            {compare ? "Hide plan comparison" : "Compare all seven plans"}
           </button>
         </div>
         {compare && (
@@ -621,7 +622,7 @@ export default function Step4Plan() {
                   </div>
                   <ul className="mt-5 flex-1 space-y-2 text-[13.5px] text-slate-600">
                     <li className="font-medium text-slate-700">{p.plot.label}</li>
-                    {id === "enterprise" && (
+                    {p.personal && (
                       <li className="font-medium text-[#8A6100]">
                         Private discussion and personal shoot by {ENTERPRISE_PERSONAL.person}
                       </li>

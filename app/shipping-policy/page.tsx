@@ -67,7 +67,7 @@ const sections: LegalSection[] = [
     title: "When your VPV is ready",
     body: (
       <>
-        <P>For a VPV plan (Confidence, Authority, Control or Enterprise):</P>
+        <P>For a VPV plan (Lite, Plus, Pro, Premium, Ultra, VPV or Signature, or one of the plans sold before 20 November 2026):</P>
         <OL>
           <li>
             Your Workspace and sign-in are created as soon as payment is

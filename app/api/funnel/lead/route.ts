@@ -164,7 +164,7 @@ export async function POST(req: Request) {
   }
 
   const aoa = intOrNull(body.aoaCount, 200);
-  const pdfs = intOrNull(body.pdfCount, 100);
+  const pdfs = intOrNull(body.pdfCount, 200);
   if (aoa !== null) patch.aoa_count = aoa;
   if (pdfs !== null) patch.pdf_count = pdfs;
 
@@ -221,16 +221,17 @@ export async function POST(req: Request) {
     patch.marketing_consent_at = body.marketingConsent ? new Date().toISOString() : null;
   }
 
-  // Until supabase/enterprise_plan.sql has been run, the database does not
-  // know the plot_size column or the "enterprise" plan. Rather than lose the
-  // whole note, write it again without those two things.
+  // Until supabase/plans_seven.sql (and enterprise_plan.sql before it) has
+  // been run, the database does not know the plot_size column, the new size
+  // bands or the seven plans. Rather than lose the whole note, write it
+  // again without those things.
   const olderDatabase = (message: string) =>
     /plot_size|funnel_leads_(recommended|chosen)_plan_check|violates check constraint/i.test(message);
   const withoutNewFields = (p: Record<string, unknown>) => {
     const { plot_size: _plot, ...rest } = p;
     void _plot;
     for (const k of ["recommended_plan", "chosen_plan"] as const) {
-      if (rest[k] === "enterprise") delete rest[k];
+      if (!["confidence", "authority", "control"].includes(String(rest[k]))) delete rest[k];
     }
     return rest;
   };
