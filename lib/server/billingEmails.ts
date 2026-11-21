@@ -235,7 +235,7 @@ export function reminderMail(args: {
   seats: number;
   seatInr: number;
   /** A yearly plan ("VPV Light"): `supportInr` is then the plan's yearly
-   *  amount, and the e-mail talks about the plan, not a support fee. */
+   *  amount plus support, and the e-mail talks about the plan. */
   planName?: string | null;
 }): ReminderMail | null {
   const st = parseReminderKind(args.kind);
@@ -263,8 +263,8 @@ export function reminderMail(args: {
   const lines = loginsOnly
     ? `${salespeople}: ${esc(inr(loginsInr))} + GST a year`
     : withLogins
-      ? `${plan ? `${plan} (support, hosting &amp; security included)` : "Support, hosting &amp; security"}: ${esc(inr(args.supportInr))} · ${esc(salespeople)}: ${esc(inr(loginsInr))} — ${esc(inr(total))} + GST a year`
-      : `${plan ? `${plan}: ` : ""}${esc(inr(args.supportInr))} + GST a year`;
+      ? `${plan ? `${plan} with support, hosting &amp; security` : "Support, hosting &amp; security"}: ${esc(inr(args.supportInr))} · ${esc(salespeople)}: ${esc(inr(loginsInr))} — ${esc(inr(total))} + GST a year`
+      : `${plan ? `${plan} with support, hosting &amp; security: ` : ""}${esc(inr(args.supportInr))} + GST a year`;
 
   const consequence = loginsOnly
     ? `On <strong>${locks}</strong> your salespeople are switched off. You, your tours and your data keep working, and renewing switches them back on.`

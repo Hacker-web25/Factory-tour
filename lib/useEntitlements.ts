@@ -59,6 +59,10 @@ export async function loadWorkspaceFacts(force = false): Promise<{ orgId: string
     // sales_seats.sql still loads (as Confidence, no logins).
     const { data: sp } = await supabase.from("organizations").select("site_plan").eq("id", orgId).maybeSingle();
     facts.site_plan = (sp as { site_plan?: string | null } | null)?.site_plan ?? null;
+    // Bought yearly or for life (supabase/plans_yearly.sql); read on its own
+    // so an older database still loads.
+    const { data: pb } = await supabase.from("organizations").select("plan_billing").eq("id", orgId).maybeSingle();
+    facts.plan_billing = (pb as { plan_billing?: string | null } | null)?.plan_billing ?? null;
     const { data: seats } = await supabase.from("organizations").select("sales_seats").eq("id", orgId).maybeSingle();
     facts.sales_seats = Number((seats as { sales_seats?: number } | null)?.sales_seats ?? 0) || 0;
   }

@@ -294,6 +294,8 @@ export function useRazorpayPayment(
       purpose: Purpose;
       scenes?: number;
       sitePlanId?: SitePlanId;
+      /** Paid every year (default) or once for life. */
+      billing?: "annual" | "lifetime";
       travel?: TravelZone;
       /** The factory's city. Prices travel by its logistics tier, and is
        *  what the funnel sends instead of the older two-zone answer. */

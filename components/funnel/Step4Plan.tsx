@@ -61,6 +61,9 @@ import {
   nextExtraAreaPrice,
   planMonthly,
   planPrice,
+  regularPlanPrice,
+  SUPPORT_MONTHLY_INR,
+  type PurchaseBilling,
   siteQuote,
   sitePerArea,
   type SitePlanId,
@@ -69,6 +72,7 @@ import {
   linkControlLabels,
 } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, recommendPlan, saveFunnel, type FunnelState } from "@/lib/funnel";
+import BillingSwitch from "@/components/funnel/BillingSwitch";
 
 function Slider({
   value,
@@ -114,13 +118,15 @@ function DiscountBanner({
   planId,
   extraAreas,
   offerOpen,
+  billing,
 }: {
   planId: SitePlanId;
   extraAreas: number;
   offerOpen: boolean;
+  billing: PurchaseBilling;
 }) {
-  const bands = discountBands(planId, offerOpen);
-  const saving = extrasSaving(planId, extraAreas, offerOpen);
+  const bands = discountBands(planId, offerOpen, billing);
+  const saving = extrasSaving(planId, extraAreas, offerOpen, billing);
   const next = bands.find((b) => extraAreas < b.from);
   return (
     <div className="overflow-hidden rounded-2xl bg-vpv-grad-soft text-white">
@@ -132,7 +138,8 @@ function DiscountBanner({
           <div>
             <p className="text-[15.5px] font-semibold">The more areas you add, the less each one costs</p>
             <p className="text-[12.5px] text-white/75">
-              Compared with {inr(sitePerArea(planId, 0, offerOpen))} per area on the plan itself
+              Compared with {inr(sitePerArea(planId, 0, offerOpen, billing))} per area on the plan itself
+              {billing === "annual" ? ", a year" : ", once"}
             </p>
           </div>
         </div>
@@ -246,6 +253,8 @@ export default function Step4Plan() {
   const rec = useMemo(() => (s ? recommendPlan(s) : null), [s]);
   const planId: SoldPlanId = s?.chosenPlan ?? "premium";
   const offerOpen = offer.open && LAUNCH_OFFER.active;
+  const founding = offer.founding && offerOpen;
+  const billing: PurchaseBilling = s?.billing ?? "annual";
   const quote = useMemo(
     () =>
       s
@@ -255,11 +264,13 @@ export default function Step4Plan() {
             shotVideos: s.shotVideos,
             city: s.factoryCity,
             offerOpen,
+            founding,
+            billing,
             // Asked on the step before this one, so the total is the real one.
             salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
           })
         : null,
-    [s, planId, offerOpen]
+    [s, planId, offerOpen, founding, billing]
   );
 
   function pick(id: SoldPlanId) {
@@ -274,7 +285,7 @@ export default function Step4Plan() {
   async function onSubmit() {
     if (!s || !quote) return;
     setBusy(true);
-    const saved = saveFunnel({ chosenPlan: planId, extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos });
+    const saved = saveFunnel({ chosenPlan: planId, billing, extraAreas: s.extraAreas, selfVideos: s.selfVideos, shotVideos: s.shotVideos });
     await mirrorLead("plan", saved, { recommendedPlan: rec?.plan });
     router.push("/assessment/billing");
   }
@@ -312,13 +323,15 @@ export default function Step4Plan() {
 
   const plan = SITE_PLANS[planId];
   const isRecommended = planId === rec.plan;
-  const price = planPrice(planId, offerOpen);
+  const life = billing === "lifetime";
+  const price = planPrice(planId, offerOpen, billing);
+  const regular = regularPlanPrice(planId, billing);
   const monthly = planMonthly(planId, offerOpen);
   const extrasCost =
-    extraAreaCost(planId, s.extraAreas) +
+    extraAreaCost(planId, s.extraAreas, billing) +
     Math.max(0, s.selfVideos - plan.videos) * VIDEO_SELF_INR +
     s.shotVideos * VIDEO_SHOT_INR;
-  const basePerArea = sitePerArea(planId, 0, offerOpen);
+  const basePerArea = sitePerArea(planId, 0, offerOpen, billing);
 
   const inclusions: { icon: typeof Layers; text: string; strong?: boolean; hint?: string }[] = [
     ...(SITE_PLANS[planId].personal
@@ -341,7 +354,9 @@ export default function Step4Plan() {
     { icon: Clock, text: `${hoursLabel(plan.shootHours)} of shoot time on site` },
     { icon: Check, text: "Information icons on every hotspot" },
     { icon: Check, text: "Your own branded workspace and domain" },
-    { icon: Check, text: "Support, hosting & security included" },
+    founding
+      ? { icon: Check, text: `Support, hosting & security free for ${quote.firstMonths} months`, strong: true }
+      : { icon: Check, text: `Support, hosting & security: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly` },
   ];
 
   return (
@@ -366,20 +381,48 @@ export default function Step4Plan() {
                 <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-white/80">{plan.tagline}</p>
 
                 <div className="mt-8">
+                  <div className="mb-5 inline-flex rounded-full bg-white px-4 py-2 shadow-[0_10px_24px_-14px_rgba(0,0,0,0.6)]">
+                    <BillingSwitch
+                      value={billing}
+                      onChange={(v) => {
+                        // Saved straight away, so a reload or the back button keeps the choice.
+                        setS({ ...s, billing: v });
+                        saveFunnel({ billing: v });
+                      }}
+                    />
+                  </div>
                   {offerOpen && (
-                    <p className="text-[17px] text-white/55 line-through decoration-white/50">{inr(plan.regularMonthlyInr)}/month</p>
+                    <p className="text-[17px] text-white/55 line-through decoration-white/50">
+                      {life ? inr(regular) : `${inr(plan.regularMonthlyInr)}/month`}
+                    </p>
                   )}
                   <p className="text-[52px] font-semibold leading-none tracking-[-0.03em] tabular-nums">
-                    {inr(monthly)}
-                    <span className="ml-1 text-[18px] font-medium tracking-normal text-white/75">/month</span>
+                    {life ? inr(price) : inr(monthly)}
+                    <span className="ml-1 text-[18px] font-medium tracking-normal text-white/75">{life ? " once" : "/month"}</span>
                   </p>
                   <p className="mt-2 text-[13px] text-white/70">
-                    Billed yearly: {inr(price)} + 18% GST. Renews every year at the same price.
+                    {life
+                      ? "One payment + 18% GST. Your plan is yours for life."
+                      : `Billed yearly: ${inr(price)} + 18% GST. Renews every year at the same price.`}
                   </p>
                   {offerOpen && (
                     <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#FFF2C4] px-4 py-1.5 text-[13.5px] font-semibold text-[#5A3D00]">
-                      You save {inr(plan.regularInr - price)} a year, every year, as one of our first {LAUNCH_OFFER.limit} customers
+                      {life
+                        ? `You save ${inr(regular - price)} as one of our first ${LAUNCH_OFFER.limit} customers`
+                        : `You save ${inr(regular - price)} a year, every year, as one of our first ${LAUNCH_OFFER.limit} customers`}
                     </p>
+                  )}
+                  {founding && (
+                    <ul className="mt-3 space-y-1.5 text-[13px] text-[#FFE7A0]">
+                      <li>
+                        ★ Founding {LAUNCH_OFFER.foundingLimit}:{" "}
+                        {life
+                          ? `support, hosting & security free for your first ${quote.firstMonths} months`
+                          : `${LAUNCH_OFFER.freeMonths} months free (your first year runs ${quote.firstMonths} months), and support free for them`}
+                        , plus a free cab to your plant
+                        {offer.foundingRemaining != null ? ` · ${offer.foundingRemaining} of ${LAUNCH_OFFER.foundingLimit} places left` : ""}
+                      </li>
+                    </ul>
                   )}
                 </div>
               </div>
@@ -465,7 +508,10 @@ export default function Step4Plan() {
                   max={EXTRA_AREA_MAX}
                   onChange={(n) => setS({ ...s, extraAreas: n })}
                 />
-                <p className="mt-2 text-[12.5px] text-slate-500">Next area: {inr(nextExtraAreaPrice(planId, s.extraAreas))}</p>
+                <p className="mt-2 text-[12.5px] text-slate-500">
+                  Next area: {inr(nextExtraAreaPrice(planId, s.extraAreas, billing))}
+                  {life ? " once" : " a year"}
+                </p>
               </div>
               {/* Two ways to get a process video, priced apart: footage the
                   buyer already owns costs us nothing but hosting, a shoot
@@ -521,7 +567,7 @@ export default function Step4Plan() {
 
           {!SITE_PLANS[planId].personal && (
             <div className="mt-7">
-              <DiscountBanner planId={planId} extraAreas={s.extraAreas} offerOpen={offerOpen} />
+              <DiscountBanner planId={planId} extraAreas={s.extraAreas} offerOpen={offerOpen} billing={billing} />
             </div>
           )}
 
@@ -620,12 +666,18 @@ export default function Step4Plan() {
                   )}
                   <h3 className="text-[17px] font-semibold text-vpv-ink">{p.name}</h3>
                   <div className="mt-3">
-                    {offerOpen && <p className="text-[13px] text-slate-400 line-through">{inr(p.regularMonthlyInr)}/month</p>}
+                    {offerOpen && (
+                      <p className="text-[13px] text-slate-400 line-through">
+                        {life ? inr(regularPlanPrice(id, "lifetime")) : `${inr(p.regularMonthlyInr)}/month`}
+                      </p>
+                    )}
                     <p className="text-[26px] font-semibold tabular-nums text-vpv-ink">
-                      {inr(planMonthly(id, offerOpen))}
-                      <span className="ml-0.5 text-[13px] font-medium text-slate-500">/month</span>
+                      {life ? inr(planPrice(id, offerOpen, "lifetime")) : inr(planMonthly(id, offerOpen))}
+                      <span className="ml-0.5 text-[13px] font-medium text-slate-500">{life ? " once" : "/month"}</span>
                     </p>
-                    <p className="text-[12px] text-slate-500">Billed yearly: {inr(planPrice(id, offerOpen))} + GST</p>
+                    <p className="text-[12px] text-slate-500">
+                      {life ? "One payment + GST, for life" : `Billed yearly: ${inr(planPrice(id, offerOpen))} + GST`}
+                    </p>
                   </div>
                   <ul className="mt-5 flex-1 space-y-2 text-[13.5px] text-slate-600">
                     {p.personal && (

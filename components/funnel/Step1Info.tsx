@@ -81,7 +81,7 @@ export default function Step1Info() {
   const quote = resolvedCity.trim() ? logisticsFor(resolvedCity) : null;
   // Travel is free while the special offer is open (the server decides for real at payment).
   const offer = useOfferState();
-  const travelFree = offer.open && LAUNCH_OFFER.active;
+  const travelFree = offer.founding && LAUNCH_OFFER.active;
 
   function validate(state: FunnelState): Errors {
     const e: Errors = {};
@@ -289,7 +289,7 @@ export default function Step1Info() {
                   )}
                 </div>
                 <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">
-                  {travelFree ? `Free for our first ${LAUNCH_OFFER.limit} customers. ` : ""}
+                  {travelFree ? `Free for our first ${LAUNCH_OFFER.foundingLimit} customers. ` : ""}
                   {quote.mode}
                 </p>
               </div>

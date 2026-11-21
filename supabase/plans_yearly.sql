@@ -11,10 +11,12 @@
 --
 --  1. organizations.site_plan accepts the four yearly plans; an order may
 --     carry up to 1,000 areas (it was 100; White Glove alone has 100).
---  2. organizations.plan_yearly_inr: what the workspace renews at every year
---     (the plan plus its extra areas, at the price it bought at, GST
---     excluded), and plan_offer_locked: it bought on the special offer and
---     keeps it every year it renews. Only the billing system can set them.
+--  2. organizations.plan_billing: 'annual' (the plan paid every year) or
+--     'lifetime' (the plan bought once, for life); plan_yearly_inr: what a
+--     yearly plan renews at every year (the plan plus its extra areas, at the
+--     price it bought at, GST excluded); plan_offer_locked: it bought on the
+--     special offer and keeps it. Support, hosting & security renews on top,
+--     on both. Only the billing system can set them.
 --  3. funnel_leads: the recommended / chosen plan. The plant size is no
 --     longer asked; the column stays for the answers already given.
 --  4. A dashboard upgrade (premium or ultra) moves the renewal amount with
@@ -23,6 +25,10 @@
 --     passwords from Ultra, expiry, device limits and the e-mail gate on
 --     White Glove. The old Control and Enterprise keep all.
 --  6. /admin/payments shows what each workspace renews at.
+--
+-- Support, hosting & security (₹999/month, billed yearly as ₹11,988) is
+-- charged on every plan, yearly or lifetime; the founding 20 get their first
+-- 15 months free (3 months free on top of the first year).
 --
 -- Run once in the Supabase SQL editor, after plan_features.sql and
 -- enterprise_plan.sql. Safe to run again. Run it BEFORE deploying the code
@@ -69,8 +75,12 @@ end $$;
 /* 2.  WHAT A YEARLY PLAN RENEWS AT */
 
 alter table public.organizations
+  add column if not exists plan_billing      text check (plan_billing is null or plan_billing in ('annual', 'lifetime')),
   add column if not exists plan_yearly_inr   integer check (plan_yearly_inr is null or plan_yearly_inr >= 0),
   add column if not exists plan_offer_locked boolean;
+
+comment on column public.organizations.plan_billing is
+  'How a plan on sale was paid for: annual (the plan every year) or lifetime (once). NULL = a plan from before 21 Nov 2026. Support, hosting & security renews yearly on both.';
 
 comment on column public.organizations.plan_yearly_inr is
   'Yearly plans: what the workspace renews at every year, GST excluded (the plan plus its extra areas, at the price it bought at; Sales Team logins renew on their own). NULL = a one-time plan from before 21 Nov 2026, which renews support alone.';
@@ -97,7 +107,9 @@ update public.organizations o
            when b.notes like 'VPV Ultra — %'   then 'ultra'
            when b.notes like 'White Glove — %' then 'white_glove'
          end),
-       plan_yearly_inr   = replace(substring(b.notes from 'renews yearly at ₹([0-9,]+)'), ',', '')::integer,
+       plan_billing      = case when b.notes ~ '^[^,]+ areas, lifetime(,| \()' then 'lifetime' else 'annual' end,
+       plan_yearly_inr   = case when b.notes ~ '^[^,]+ areas, lifetime(,| \()' then null
+                                else replace(substring(b.notes from 'renews yearly at ₹([0-9,]+)'), ',', '')::integer end,
        plan_offer_locked = b.notes like '%Special offer%'
   from (
     select distinct on (org_id) org_id, notes
@@ -106,11 +118,11 @@ update public.organizations o
        and status = 'paid'
        and revoked_at is null
        and org_id is not null
-       and notes ~ 'renews yearly at ₹[0-9,]+'
+       and (notes ~ 'renews yearly at ₹[0-9,]+' or notes ~ '^(VPV Light|VPV Premium|VPV Ultra|White Glove) — [^,]+ areas, lifetime(,| \()')
      order by org_id, created_at desc
   ) b
  where b.org_id = o.id
-   and o.plan_yearly_inr is null;
+   and o.plan_billing is null;
 
 -- The plan, the renewal amount and the logins can only be changed by the
 -- billing system or our team.
@@ -133,6 +145,7 @@ begin
     new.sales_seats_until := null;
     new.plan_yearly_inr := null;
     new.plan_offer_locked := null;
+    new.plan_billing := null;
     return new;
   end if;
   if new.site_plan         is distinct from old.site_plan
@@ -140,7 +153,8 @@ begin
   or new.sales_seat_inr    is distinct from old.sales_seat_inr
   or new.sales_seats_until is distinct from old.sales_seats_until
   or new.plan_yearly_inr   is distinct from old.plan_yearly_inr
-  or new.plan_offer_locked is distinct from old.plan_offer_locked then
+  or new.plan_offer_locked is distinct from old.plan_offer_locked
+  or new.plan_billing      is distinct from old.plan_billing then
     raise exception 'The plan and Sales Team logins can only be changed by the billing system'
       using errcode = '42501';
   end if;

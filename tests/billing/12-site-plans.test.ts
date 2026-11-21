@@ -121,12 +121,16 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(SITE_PLANS.light.sharingControls, false);
     assert.equal(SITE_PLANS.premium.sharingControls, true);
 
-    // The special offer: 50% off the regular price for the first 50
-    // customers, landing exactly on the decided prices. The regular prices
-    // are what is charged from the 51st buyer, so they are pinned too.
+    // The special offer: 50% off the regular price for the first 30
+    // customers, landing exactly on the decided prices; the first 20 are the
+    // founding customers (3 months free, free cab, 15 months of support
+    // free). The regular prices are what is charged from the 31st buyer, so
+    // they are pinned too.
     assert.equal(LAUNCH_OFFER.active, true);
     assert.equal(LAUNCH_OFFER.percent, 50);
-    assert.equal(LAUNCH_OFFER.limit, 50);
+    assert.equal(LAUNCH_OFFER.limit, 30);
+    assert.equal(LAUNCH_OFFER.foundingLimit, 20);
+    assert.equal(LAUNCH_OFFER.freeMonths, 3);
     assert.equal(SITE_PLANS.light.regularInr, 85_440);
     assert.equal(SITE_PLANS.ultra.regularInr, 3_25_008);
     assert.equal(SITE_PLANS.white_glove.regularInr, 4_90_848);
@@ -199,11 +203,14 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(ncr.logistics?.amountInr, 4_000);
     const cab = ncr.lines.find((l) => l.kind === "travel");
     assert.ok(cab && /cab/i.test(cab.label), "the travel line is the cab");
-    // Free for the first 50, shown at its real price struck out (like support)…
+    // Free for the founding 20, shown at its real price struck out (like support)…
     assert.equal(cab!.amountInr, 0);
     assert.equal(cab!.regularInr, 4_000);
-    assert.match(cab!.note ?? "", /Free for our first 50 customers/);
-    // …and charged once the offer has closed.
+    assert.match(cab!.note ?? "", /Free for our first 20 customers/);
+    // …charged to customers 21 to 30 (who still get the 50%)…
+    const midCab = siteQuote("premium", { city: "Manesar", founding: false }).lines.find((l) => l.kind === "travel");
+    assert.equal(midCab!.amountInr, 4_000);
+    // …and once the offer has closed.
     const closedCab = siteQuote("premium", { city: "Manesar", offerOpen: false }).lines.find((l) => l.kind === "travel");
     assert.equal(closedCab!.amountInr, 4_000);
     assert.ok(!ncr.lines.some((l) => /air|flight|airport|train/i.test(`${l.label} ${l.note ?? ""}`)));
@@ -219,14 +226,27 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(logisticsFor("gurgaon").inServiceArea, true);
   });
 
-  it("bills a yearly plan with support included: no separate support line, offer or not", () => {
-    for (const offerOpen of [true, false]) {
-      const q = siteQuote("premium", { city: "Manesar", offerOpen });
-      assert.ok(!q.lines.some((l) => l.kind === "support"), String(offerOpen));
-      assert.equal(q.supportInr, 0);
+  it("bills support, hosting & security on every plan: free for 15 months for the founding 20", () => {
+    // Founding customer: a 15-month first period, support free for it.
+    const founding = siteQuote("premium", { city: "Manesar" });
+    assert.equal(founding.founding, true);
+    assert.equal(founding.firstMonths, 15);
+    assert.match(founding.lines[0].label, /first 15 months/);
+    const fSupport = founding.lines.find((l) => l.kind === "support");
+    assert.ok(fSupport, "the support line is shown");
+    assert.equal(fSupport!.amountInr, 0);
+    assert.equal(founding.supportInr, 0);
+    assert.ok(founding.lines.some((l) => l.kind === "bonus" && /3 months free/.test(l.label)));
+    // Customers 21 to 30, and everyone once the offer closes: one year, support charged.
+    for (const opts of [{ founding: false }, { offerOpen: false }]) {
+      const q = siteQuote("premium", { city: "Manesar", ...opts });
+      assert.equal(q.founding, false, JSON.stringify(opts));
+      assert.equal(q.firstMonths, 12);
       assert.match(q.lines[0].label, /first year/);
       assert.match(q.lines[0].note ?? "", /billed yearly/);
-      assert.match(q.lines[0].note ?? "", /Support, hosting & security included/);
+      assert.equal(q.lines.find((l) => l.kind === "support")!.amountInr, SUPPORT_ANNUAL_INR);
+      assert.equal(q.supportInr, SUPPORT_ANNUAL_INR);
+      assert.ok(!q.lines.some((l) => l.kind === "bonus"));
     }
     // What renews every year: the plan at today's price plus the extra areas.
     assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 1_20_000);
@@ -258,7 +278,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
       offerOpen: false,
       coupon: { code: "ALL", percentOff: null, amountOffInr: 10_000_000 },
     });
-    assert.equal(huge.taxableInr, 4_000);
+    assert.equal(huge.taxableInr, 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("includes 2 to 24 hours of shoot time by plan, and charges extra time by the hour", () => {
@@ -434,7 +454,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.match(row.notes, /Special offer/);
   });
 
-  it("paying builds the workspace, with the plan's areas and a free first year", async () => {
+  it("paying builds the workspace, with the plan's areas and a free first 15 months (founding)", async () => {
     const r = await open({ sitePlanId: "premium", travel: "ncr" });
     const paid = await w.payInBrowser(r.body);
     assert.equal(paid.res.status, 200, JSON.stringify(paid.body));
@@ -448,7 +468,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(org.scene_quota, SITE_PLANS.premium.scenes);
     assert.equal(org.plan_status, "active");
     const months = (new Date(org.support_until).getTime() - Date.now()) / (30.4 * 86_400_000);
-    assert.ok(months > 11.8 && months < 12.2, `first year free, got ${months} months`);
+    assert.ok(months > 14.8 && months < 15.2, `first 15 months free, got ${months} months`);
 
     assert.equal(await w.count("billing_invoices"), 1);
     assert.equal(await w.count("billing_payments", "status = 'captured'"), 1);
@@ -493,7 +513,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(paid.body.status, "ready");
   });
 
-  it("keeps the first-50 promise: the offer closes on its own after 50 buyers", async () => {
+  it("keeps the first-20 and first-30 promises: each offer closes on its own", async () => {
     // A fake client returning N paid site-plan orders, plus noise that must
     // NOT count: a scene-ladder licence, and a refunded plan (filtered by
     // the status query, so it is simply never returned).
@@ -519,26 +539,38 @@ describe("site plans: the named packs sold by the marketing site", () => {
         }),
       }) as never;
 
-    const at49 = await launchOfferState(fake(49));
-    assert.equal(at49.sold, 49);
-    assert.equal(at49.open, true);
-    assert.equal(at49.remaining, 1);
+    const at19 = await launchOfferState(fake(19));
+    assert.equal(at19.sold, 19);
+    assert.equal(at19.open, true);
+    assert.equal(at19.founding, true);
+    assert.equal(at19.foundingRemaining, 1);
 
-    const at50 = await launchOfferState(fake(50));
-    assert.equal(at50.open, false);
-    assert.equal(at50.remaining, 0);
-    assert.equal(launchOfferOpen(50), false);
+    const at20 = await launchOfferState(fake(20));
+    assert.equal(at20.open, true, "customers 21 to 30 still get the 50%");
+    assert.equal(at20.founding, false);
+    assert.equal(at20.foundingRemaining, 0);
+    assert.equal(at20.remaining, 10);
+
+    const at29 = await launchOfferState(fake(29));
+    assert.equal(at29.open, true);
+    assert.equal(at29.remaining, 1);
+
+    const at30 = await launchOfferState(fake(30));
+    assert.equal(at30.open, false);
+    assert.equal(at30.founding, false);
+    assert.equal(at30.remaining, 0);
+    assert.equal(launchOfferOpen(30), false);
 
     // Once closed, the quote charges the regular price and shows no saving.
     const closed = siteQuote("premium", { city: "Manesar", offerOpen: false });
     assert.equal(closed.savingInr, 0);
     assert.ok(!closed.lines.some((l) => l.kind === "offer"));
-    assert.equal(closed.taxableInr, 2_40_000 + 4_000);
+    assert.equal(closed.taxableInr, 2_40_000 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
-  it("charges the regular price for real once 50 customers have paid", async () => {
+  it("charges the regular price for real once 30 customers have paid", async () => {
     await w.reset();
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 30; i++) {
       await w.q(
         `insert into public.billing_orders (purpose, scenes, amount_paise, status, buyer_name, buyer_email, buyer_company, notes)
          values ('basic_licence', 8, 100, 'paid', 'Earlier buyer', $1, 'Co', 'VPV Authority — 8 areas')`,

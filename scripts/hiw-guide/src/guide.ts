@@ -22,6 +22,8 @@ import {
   EXTRA_HOUR_INR,
   LAUNCH_OFFER,
   SALES_TEAM,
+  SUPPORT_ANNUAL_INR,
+  SUPPORT_MONTHLY_INR,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   VIDEO_SELF_INR,
@@ -98,7 +100,7 @@ const STEPS: Step[] = [
     title: "Confirm & pay online",
     who: "you",
     when: "A few minutes, online",
-    text: "Every charge sits on one screen before you pay: your yearly plan (support, hosting & security included), cab travel and GST. Pay online and your order is confirmed.",
+    text: "Every charge sits on one screen before you pay: your plan (yearly or lifetime), support, hosting & security, cab travel and GST. Pay online and your order is confirmed.",
     ticks: ["Your GST invoice arrives by e-mail", "Your VPV dashboard and login are ready within 24 hours"],
   },
   {
@@ -137,7 +139,7 @@ const GET: Deliverable[] = [
   { icon: I.info, tag: "Every plan", tagKind: "all", title: "Information icons", text: "Small icons placed inside the tour. Tap one to read about a machine, a line or a capacity. 20 on Light, unlimited on every other plan." },
   { icon: I.brand, tag: "Every plan", tagKind: "all", title: "Your brand on it", text: "Your logo and company name, so every buyer knows whose factory they are walking through." },
   { icon: I.dash, tag: "Every plan", tagKind: "all", title: "Your VPV dashboard", text: "A password-protected login for your company. Pick the areas to show and send links from one place." },
-  { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: "Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours. Included in your yearly plan." },
+  { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: `Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours. ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan.` },
   { icon: I.video, tag: "Premium and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
   { icon: I.file, tag: "Premium and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
   { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium, password-protected links from Ultra, and link expiry time and limits on devices with White Glove." },
@@ -178,13 +180,28 @@ const COSTS: CostRow[] = [
     what: "Your plan, billed yearly",
     price: plans.map((p) => `${shortName(p.name)} ${inr(LAUNCH_OFFER.active ? p.monthlyInr : p.regularMonthlyInr)}/month`).join(" · "),
     note: LAUNCH_OFFER.active
-      ? `${LAUNCH_OFFER.percent}% off the regular price for our first ${LAUNCH_OFFER.limit} customers, every year they renew. Support, hosting & security included.`
-      : "Support, hosting & security included.",
+      ? `${LAUNCH_OFFER.percent}% off the regular price for our first ${LAUNCH_OFFER.limit} customers, every year they renew. Our first ${LAUNCH_OFFER.foundingLimit} also get ${LAUNCH_OFFER.freeMonths} months free.`
+      : "Renews every year at the price you bought at.",
   },
-  { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.limit} customers.` },
+  {
+    what: "Or your plan for life, paid once",
+    price: plans.map((p) => `${shortName(p.name)} ${inr(LAUNCH_OFFER.active ? p.lifetimeInr : p.regularLifetimeInr)}`).join(" · "),
+    note: LAUNCH_OFFER.active
+      ? `${LAUNCH_OFFER.percent}% off for our first ${LAUNCH_OFFER.limit} customers. No plan renewal, ever.`
+      : "No plan renewal, ever.",
+  },
+  {
+    what: "Support, hosting & security",
+    price: LAUNCH_OFFER.active ? `Free for ${12 + LAUNCH_OFFER.freeMonths} months` : `${inr(SUPPORT_MONTHLY_INR)}/month`,
+    was: LAUNCH_OFFER.active ? inr(SUPPORT_ANNUAL_INR) : undefined,
+    note: LAUNCH_OFFER.active
+      ? `On every plan, yearly or lifetime: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.foundingLimit} customers.`
+      : `On every plan, yearly or lifetime, billed yearly as ${inr(SUPPORT_ANNUAL_INR)}.`,
+  },
+  { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.foundingLimit} customers.` },
   { what: "Sales Team logins (optional)", price: `${inr(SALES_TEAM.offerInr)} per login, a year`, was: inr(SALES_TEAM.regularInr), note: "Only if your salespeople will present it." },
   { what: "Extra process videos (optional)", price: `${inr(VIDEO_SELF_INR)} or ${inr(VIDEO_SHOT_INR)} each`, note: `${inr(VIDEO_SELF_INR)} if you send us the video, ${inr(VIDEO_SHOT_INR)} if we film it.` },
-  { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with your plan. The bigger your plan, the less each extra area costs." },
+  { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with a yearly plan (on a lifetime plan, paid once). The bigger your plan, the less each extra area costs." },
   { what: "Extra shoot time (only if needed)", price: `${inr(EXTRA_HOUR_INR)} an hour`, note: `Plans include ${hoursList} hours. Extra areas or videos can add time, and it shows on your bill before you pay.` },
   { what: "Rescheduling your shoot", price: "First change free", note: `${inr(RESCHEDULE_INR)} for each change after that.` },
 ];
@@ -251,7 +268,7 @@ const afterHtml = `<div class="hg-after">${AFTER.map(
 <div class="hg-renew hg-rv">
   <span class="hg-ic">${svg(I.bell, 20)}</span>
   <div><h3 class="hg-h3">Renewing is just as simple</h3>
-  <p class="hg-p">Your plan renews once a year at the price you bought at, with support, hosting & security included, and so do Sales Team logins. We e-mail you 30 days, 1 week and 1 day before it's due. If it isn't renewed, you still get 7 more days; after that your VPV pauses until you renew. Your tours and data are kept, and renewing switches everything back on straight away.</p></div>
+  <p class="hg-p">A yearly plan renews once a year at the price you bought at, together with support, hosting & security, and so do Sales Team logins. On a lifetime plan only support, hosting & security renews. We e-mail you 30 days, 1 week and 1 day before it's due. If it isn't renewed, you still get 7 more days; after that your VPV pauses until you renew. Your tours and data are kept, and renewing switches everything back on straight away.</p></div>
 </div>`;
 
 const costHtml = `<div class="hg-cost hg-rv">${COSTS.map(

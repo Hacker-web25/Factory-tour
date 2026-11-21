@@ -429,7 +429,15 @@ export function OfferSeal({
   );
 }
 
-export type OfferInfo = { open: boolean; remaining: number | null; loaded: boolean };
+export type OfferInfo = {
+  /** 50% off and ₹199 logins: the first 30. */
+  open: boolean;
+  /** A founding place: 3 months free, free cab, free first period of support (the first 20). */
+  founding: boolean;
+  remaining: number | null;
+  foundingRemaining: number | null;
+  loaded: boolean;
+};
 
 /**
  * Whether the special offer is still open, from the server's real count.
@@ -438,15 +446,27 @@ export type OfferInfo = { open: boolean; remaining: number | null; loaded: boole
  * request if the 50 places have gone.
  */
 export function useOfferState(): OfferInfo {
-  const [info, setInfo] = useState<OfferInfo>({ open: LAUNCH_OFFER.active, remaining: null, loaded: false });
+  const [info, setInfo] = useState<OfferInfo>({
+    open: LAUNCH_OFFER.active,
+    founding: LAUNCH_OFFER.active,
+    remaining: null,
+    foundingRemaining: null,
+    loaded: false,
+  });
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/funnel/offer");
-        const data = (await res.json()) as { open?: boolean; remaining?: number };
+        const data = (await res.json()) as { open?: boolean; founding?: boolean; remaining?: number; foundingRemaining?: number };
         if (!cancelled && typeof data.open === "boolean") {
-          setInfo({ open: data.open, remaining: data.remaining ?? null, loaded: true });
+          setInfo({
+            open: data.open,
+            founding: typeof data.founding === "boolean" ? data.founding && data.open : data.open,
+            remaining: data.remaining ?? null,
+            foundingRemaining: data.foundingRemaining ?? null,
+            loaded: true,
+          });
         }
       } catch {
         /* intentional — on a network error keep the default; the order route

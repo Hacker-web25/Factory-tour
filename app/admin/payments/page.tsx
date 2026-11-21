@@ -1010,7 +1010,7 @@ function RenewalsSection({ rows }: { rows: Renewal[] }) {
                   {r.last_reminder_at && <div>{when(r.last_reminder_at)}</div>}
                 </td>
                 <td className="px-4 py-3 tabular-nums">
-                  {inr((r.plan_yearly_inr ?? 0) > 0 ? (r.plan_yearly_inr as number) + billed : SUPPORT_ANNUAL_INR + billed)}
+                  {inr((r.plan_yearly_inr ?? 0) + SUPPORT_ANNUAL_INR + billed)}
                   <div className="text-[12px] text-vpv-muted">+ GST</div>
                 </td>
               </tr>

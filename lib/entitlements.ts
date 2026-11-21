@@ -116,8 +116,10 @@ export const FEATURE_KEYS = Object.keys(ROLLOUT) as FeatureKey[];
 export type WorkspaceFacts = {
   /** organizations.plan — basic (every site plan), or the old pro / ultra. */
   plan?: string | null;
-  /** organizations.site_plan — which plan was bought (one of the seven, or an older one). */
+  /** organizations.site_plan — which plan was bought (one of the four, or an older one). */
   site_plan?: string | null;
+  /** organizations.plan_billing — "annual" or "lifetime" (plans on sale only). */
+  plan_billing?: string | null;
   /** Sales Team logins paid for. */
   sales_seats?: number | null;
   /** The signed-in person's role. The platform owner (our team) sees everything. */
@@ -201,13 +203,16 @@ export function isUpgrade(from: SitePlanId, to: SitePlanId): boolean {
 
 /** Plans this workspace can upgrade to from its own page, smallest first. */
 export function upgradeOptions(f: WorkspaceFacts): SoldPlanId[] {
+  // A plan bought for life has no yearly price to prorate: moving it up is
+  // arranged with our team.
+  if (f.plan_billing === "lifetime") return [];
   const from = effectivePlan(f);
   return SITE_PLAN_ORDER.filter((p) => isUpgrade(from, p));
 }
 
 /** Can this workspace pay for a move to `to` online? (Else: write to us.) */
 export function canBuyUpgrade(f: WorkspaceFacts, to: SitePlanId): boolean {
-  return isUpgrade(effectivePlan(f), to);
+  return f.plan_billing !== "lifetime" && isUpgrade(effectivePlan(f), to);
 }
 
 /**

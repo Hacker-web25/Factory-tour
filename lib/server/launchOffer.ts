@@ -2,7 +2,8 @@
  * lib/server/launchOffer.ts — how many customers have taken the special
  * offer, and so whether it is still open.
  *
- * "Our first 50 customers" is printed on the site. This is
+ * "Our first 30 customers" (50% off) and "our first 20" (the founding
+ * offer) are printed on the site. This is
  * what makes it true: the order route asks here before pricing a plan, and
  * from the 51st paid site-plan order onwards the plan is charged at its
  * regular price. Nobody has to remember to switch the offer off.
@@ -19,23 +20,32 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { LAUNCH_OFFER, launchOfferOpen, sitePlanFromNotes } from "@/lib/pricing";
+import { LAUNCH_OFFER, foundingOfferOpen, launchOfferOpen, sitePlanFromNotes } from "@/lib/pricing";
 
 export type OfferState = {
+  /** 50% off (and ₹199 logins): the first 30. */
   open: boolean;
+  /** A founding place (3 months free, free cab, free first period of
+   *  support): the first 20. */
+  founding: boolean;
   sold: number;
   remaining: number;
   limit: number;
+  foundingRemaining: number;
+  foundingLimit: number;
 };
 
 export async function launchOfferState(sb: SupabaseClient | null): Promise<OfferState> {
   const closed = (sold: number): OfferState => ({
     open: launchOfferOpen(sold),
+    founding: foundingOfferOpen(sold),
     sold,
     remaining: Math.max(0, LAUNCH_OFFER.limit - sold),
     limit: LAUNCH_OFFER.limit,
+    foundingRemaining: Math.max(0, LAUNCH_OFFER.foundingLimit - sold),
+    foundingLimit: LAUNCH_OFFER.foundingLimit,
   });
-  if (!LAUNCH_OFFER.active) return { ...closed(LAUNCH_OFFER.limit), open: false };
+  if (!LAUNCH_OFFER.active) return { ...closed(LAUNCH_OFFER.limit), open: false, founding: false };
   if (!sb) return closed(0);
 
   const { data, error } = await sb

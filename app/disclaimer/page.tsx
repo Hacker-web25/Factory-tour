@@ -149,12 +149,14 @@ const sections: LegalSection[] = [
         </li>
         <li>
           Our crew travels by cab, and the cab line on your bill (free for our
-          first {LAUNCH_OFFER.limit} customers) is the whole travel cost. There is nothing else for you to book or pay for.
+          first {LAUNCH_OFFER.foundingLimit} customers) is the whole travel cost. There is nothing else for you to book or pay for.
         </li>
         <li>
-          The special offer is limited to our first {LAUNCH_OFFER.limit} customers and ends on
-          its own once they have bought. The regular price shown beside it is
-          the price from customer {LAUNCH_OFFER.limit + 1} onwards. See the{" "}
+          The special offers are limited: the founding offer to our first{" "}
+          {LAUNCH_OFFER.foundingLimit} customers and the {LAUNCH_OFFER.percent}% off to our first{" "}
+          {LAUNCH_OFFER.limit}, and each ends on its own once they have bought. The regular price shown
+          beside an offer price is the price from customer {LAUNCH_OFFER.limit + 1} onwards. The places
+          left that we show are the real count of paid orders. See the{" "}
           <L href="/terms#special-offer">Terms</L>.
         </li>
         <li>

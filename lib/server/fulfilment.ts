@@ -51,6 +51,9 @@ import {
   fromPaise,
   seatsFromOrderNotes,
   planYearlyFromNotes,
+  planBillingFromNotes,
+  foundingFromNotes,
+  firstPeriodMonths,
   LAUNCH_OFFER,
   SITE_PLANS,
   isKnownPlanId,
@@ -289,7 +292,10 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
           p_order: row.id,
           p_slug: candidate,
           p_scenes: scenes,
-          p_support_months: SUPPORT_FREE_MONTHS,
+          // A founding customer's first period runs 15 months (3 free).
+          p_support_months: sitePlanFromNotes((row as { notes?: string | null }).notes)
+            ? firstPeriodMonths(foundingFromNotes((row as { notes?: string | null }).notes))
+            : SUPPORT_FREE_MONTHS,
         });
         orgId = out.org_id;
         slug = out.slug;
@@ -308,12 +314,17 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
 
   // 3. The GST invoice (number + row in one transaction).
   const boughtPlan = sitePlanFromNotes((row as { notes?: string | null }).notes);
+  const boughtNotes = (row as { notes?: string | null }).notes;
+  const months = firstPeriodMonths(foundingFromNotes(boughtNotes));
+  const how = planBillingFromNotes(boughtNotes);
   const invoiceNo = await issueInvoice(
     sb,
     row.id,
-    boughtPlan && SITE_PLANS[boughtPlan].billing === "yearly"
-      ? `${SITE_PLANS[boughtPlan].name} — yearly plan, ${scenes} area${scenes === 1 ? "" : "s"}, first year, support, hosting & security included`
-      : `VPV Basic licence — ${scenes} scene${scenes === 1 ? "" : "s"}, including 1 year of technical support and hosting`
+    boughtPlan && how === "lifetime"
+      ? `${SITE_PLANS[boughtPlan].name} — lifetime plan, ${scenes} area${scenes === 1 ? "" : "s"}, with the first ${months} months of support, hosting & security`
+      : boughtPlan && SITE_PLANS[boughtPlan].billing === "yearly"
+        ? `${SITE_PLANS[boughtPlan].name} — yearly plan, ${scenes} area${scenes === 1 ? "" : "s"}, first ${months === 12 ? "year" : `${months} months`}, with support, hosting & security`
+        : `VPV Basic licence — ${scenes} scene${scenes === 1 ? "" : "s"}, including 1 year of technical support and hosting`
   );
 
   // 3b. Sales Team logins are yearly: remember how many, and at what price,
@@ -344,16 +355,21 @@ async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string
       detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql; it fills the plan in from the order.`,
     });
   }
-  // A yearly plan: what it renews at every year, and whether it keeps the
-  // special offer when it does (the owner's rule: our first 50 customers
-  // keep 50% off for as long as they renew).
+  // How it was paid for (yearly or for life), what a yearly plan renews at
+  // every year, and whether it keeps the special offer when it does (the
+  // owner's rule: our first 30 customers keep 50% off as long as they renew).
+  const billing = planBillingFromNotes(notes);
   const yearlyInr = planYearlyFromNotes(notes);
-  if (yearlyInr <= 0) return;
+  if (!billing) return;
   const offerLocked = (notes ?? "").includes(LAUNCH_OFFER.short);
   try {
     const { error } = await sb
       .from("organizations")
-      .update({ plan_yearly_inr: yearlyInr, plan_offer_locked: offerLocked })
+      .update(
+        billing === "lifetime"
+          ? { plan_billing: "lifetime", plan_yearly_inr: null, plan_offer_locked: offerLocked }
+          : { plan_billing: "annual", plan_yearly_inr: yearlyInr, plan_offer_locked: offerLocked }
+      )
       .eq("id", orgId);
     if (error) throw new Error(error.message);
   } catch (e) {
@@ -361,7 +377,10 @@ async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string
       kind: "plan_yearly_not_saved",
       severity: "critical",
       orderId: row.id,
-      detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} (renews yearly at ₹${yearlyInr.toLocaleString("en-IN")}) but the renewal amount could not be saved (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_yearly_inr = ${yearlyInr}, plan_offer_locked = ${offerLocked} for this workspace; until then its renewal is refused.`,
+      detail:
+        billing === "lifetime"
+          ? `${row.buyer_company} bought ${SITE_PLANS[plan].name} for life, but that could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_billing = 'lifetime' for this workspace.`
+          : `${row.buyer_company} bought ${SITE_PLANS[plan].name} (renews yearly at ₹${yearlyInr.toLocaleString("en-IN")}) but the renewal amount could not be saved (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_billing = 'annual', plan_yearly_inr = ${yearlyInr}, plan_offer_locked = ${offerLocked} for this workspace; until then its renewal is refused.`,
     }).catch(() => undefined);
   }
 }

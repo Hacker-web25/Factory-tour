@@ -319,11 +319,11 @@ export async function GET(req: Request) {
       try {
         const seats = await orgSalesSeats(sb, r.org_id);
         const billed = seats.seatInr > 0 ? seats.seats : 0;
-        // A yearly plan renews at its own stored amount; a plan from before
-        // 21 Nov 2026 renews support alone.
+        // Support, hosting & security, plus a yearly plan's own stored amount
+        // (none on a lifetime plan or a plan from before 21 Nov 2026).
         const yearly = await orgPlanYearly(sb, r.org_id);
         sent = await sendSupportReminder({
-          supportInr: yearly.inr > 0 ? yearly.inr : SUPPORT_ANNUAL_INR,
+          supportInr: yearly.inr + SUPPORT_ANNUAL_INR,
           planName: yearly.inr > 0 ? yearly.name : null,
           seats: billed,
           seatInr: seats.seatInr,

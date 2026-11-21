@@ -12,6 +12,9 @@ import {
   EXTRA_HOUR_INR,
   LAUNCH_OFFER,
   SALES_TEAM,
+  SUPPORT_ANNUAL_INR,
+  SUPPORT_MONTHLY_INR,
+  SUPPORT_NAME,
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
   SITE_PLAN_ORDER,
@@ -46,9 +49,9 @@ const PLANS = SITE_PLAN_ORDER.map((id) => {
   bits.push(infoIconsLabel(id).toLowerCase());
   if (p.sharingControls) bits.push(`link controls: ${linkControlLabels(id).join(", ").toLowerCase()}`);
   const price = LAUNCH_OFFER.active
-    ? `${inr(p.monthlyInr)}/month, billed yearly as ${inr(p.priceInr)} + 18% GST for the first ${LAUNCH_OFFER.limit} customers, every year they renew (regular ${inr(p.regularMonthlyInr)}/month, ${inr(p.regularInr)} a year)`
-    : `${inr(p.regularMonthlyInr)}/month, billed yearly as ${inr(p.regularInr)} + 18% GST`;
-  return `- **${p.name}** — ${price}. ${p.tagline} Includes ${bits.join(", ")}, and support, hosting and security every year.`;
+    ? `yearly ${inr(p.monthlyInr)}/month, billed yearly as ${inr(p.priceInr)}, or lifetime ${inr(p.lifetimeInr)} once, + 18% GST, for the first ${LAUNCH_OFFER.limit} customers (regular ${inr(p.regularMonthlyInr)}/month, ${inr(p.regularInr)} a year, or ${inr(p.regularLifetimeInr)} lifetime)`
+    : `yearly ${inr(p.regularMonthlyInr)}/month, billed yearly as ${inr(p.regularInr)}, or lifetime ${inr(p.regularLifetimeInr)} once, + 18% GST`;
+  return `- **${p.name}** — ${price}. ${p.tagline} Includes ${bits.join(", ")}.`;
 }).join("\n");
 
 const BODY = `# VPV — Virtual Plant Visit
@@ -88,14 +91,20 @@ quality checks — before any visit is arranged. It is sold to Indian
 manufacturers and exporters who need overseas buyers to trust what they have
 built without flying them in.
 
-## Plans and prices (yearly plans, shown per month, GST extra)
+## Plans and prices (yearly, shown per month, or lifetime; GST extra)
 ${PLANS}
 
-Every plan is billed yearly in advance and renews every year; the first year
-includes the factory shoot. Extra areas renew with the plan.
+Each plan is bought yearly (billed yearly in advance, renewing every year,
+extra areas renewing with it) or once for life. The first payment includes the
+factory shoot.
 
+Every plan, yearly or lifetime, also carries ${SUPPORT_NAME.toLowerCase()} at
+${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly as ${inr(SUPPORT_ANNUAL_INR)} + GST.
+${LAUNCH_OFFER.active ? `
+Offers, counted in the order payments reach us: the first ${LAUNCH_OFFER.limit} customers get ${LAUNCH_OFFER.percent}% off the plan (kept every year a yearly plan renews). The first ${LAUNCH_OFFER.foundingLimit} also get ${LAUNCH_OFFER.freeMonths} months free (a ${12 + LAUNCH_OFFER.freeMonths}-month first year), free cab travel, and their first ${12 + LAUNCH_OFFER.freeMonths} months of support, hosting & security free. Places left are shown live on https://myvpv.com/plans.
+` : ""}
 Also payable with the order:
-- Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
+- Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.foundingLimit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
 - Sales Team logins (optional): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with the plan.
 - Extra shoot time beyond the plan: ${inr(EXTRA_HOUR_INR)} an hour.
 

@@ -51,7 +51,9 @@ import { validGstin } from "@/lib/gstin";
 import { SLUG_MAX_WORDS, slugProblem, workspaceHost, workspaceSlug } from "@/lib/slugs";
 import {
   LAUNCH_OFFER,
+  SUPPORT_ANNUAL_INR,
   SUPPORT_INCLUDES,
+  SUPPORT_MONTHLY_INR,
   SUPPORT_NAME,
   couponLabel,
   hoursLabel,
@@ -98,6 +100,10 @@ export default function Step5Billing() {
   const offer = useOfferState();
   const [offerClosedNotice, setOfferClosedNotice] = useState(false);
   const offerOpen = offer.open && LAUNCH_OFFER.active && !offerClosedNotice;
+  // A founding place (the first 20): 3 months free, free cab, free first
+  // period of support. Re-checked before paying, like the 50%.
+  const [foundingClosedNotice, setFoundingClosedNotice] = useState(false);
+  const founding = offer.founding && offerOpen && !foundingClosedNotice;
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -140,11 +146,13 @@ export default function Step5Billing() {
             shotVideos: s.shotVideos,
             city: s.factoryCity,
             offerOpen,
+            founding,
+            billing: s.billing,
             salesSeats: s.hasSalesTeam ? s.salesSeats : 0,
             coupon,
           })
         : null,
-    [s, offerOpen, coupon]
+    [s, offerOpen, founding, coupon]
   );
 
   // Mark the lead as paid once, so /admin/cities counts the order against
@@ -264,17 +272,23 @@ export default function Step5Billing() {
 
   async function onPay() {
     if (!s || !s.chosenPlan || !quote) return;
-    // The special offer is for the first 50 customers. If the last place
-    // went while this page was open, show the new total HERE, before
-    // Razorpay opens — never let the first sight of it be the payment sheet.
+    // The special offer is for the first 30 customers, and the founding
+    // offer for the first 20. If the last place went while this page was
+    // open, show the new total HERE, before Razorpay opens — never let the
+    // first sight of it be the payment sheet.
     if (offerOpen) {
       try {
         const res = await fetch("/api/funnel/offer", { cache: "no-store" });
-        const data = (await res.json()) as { open?: boolean };
+        const data = (await res.json()) as { open?: boolean; founding?: boolean };
         if (data.open === false) {
           // Re-prices the bill on this screen and says why; the buyer
           // presses Pay again once they have seen the new total.
           setOfferClosedNotice(true);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        if (founding && data.founding === false) {
+          setFoundingClosedNotice(true);
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         }
@@ -316,6 +330,7 @@ export default function Step5Billing() {
     void pay.start({
       purpose: "site_plan",
       sitePlanId: s.chosenPlan,
+      billing: s.billing,
       city: s.factoryCity,
       extraAreas: s.extraAreas,
       selfVideos: s.selfVideos,
@@ -435,6 +450,8 @@ export default function Step5Billing() {
     s.addressLine.trim().length >= 6 &&
     /^[1-9][0-9]{5}$/.test(s.pincode.trim());
   const billLines = quote.lines.filter((l) => l.kind !== "support" && l.kind !== "travel");
+  const support = quote.lines.find((l) => l.kind === "support") ?? null;
+  const supportFree = support !== null && support.amountInr === 0;
   const travel = quote.lines.find((l) => l.kind === "travel") ?? null;
   const travelFree = travel !== null && travel.amountInr === 0;
 
@@ -462,7 +479,7 @@ export default function Step5Billing() {
               />
               <dl className="mt-5 divide-y divide-vpv-line text-[14.5px]">
                 {billLines.map((l) => {
-                  const deal = l.kind === "offer" || l.kind === "coupon";
+                  const deal = l.kind === "offer" || l.kind === "coupon" || l.kind === "bonus";
                   return (
                     <div
                       key={l.label}
@@ -472,15 +489,15 @@ export default function Step5Billing() {
                         {l.label}
                         {l.note && <span className="mt-0.5 block text-[12.5px] font-normal text-slate-500">{l.note}</span>}
                       </dt>
-                      <dd className={`shrink-0 tabular-nums font-semibold ${deal ? "text-[#7A5600]" : "text-vpv-ink"}`}>
-                        {l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
+                      <dd className={`shrink-0 tabular-nums font-semibold ${deal || l.kind === "bonus" ? "text-[#7A5600]" : "text-vpv-ink"}`}>
+                        {l.kind === "bonus" ? "Free" : l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
                       </dd>
                     </div>
                   );
                 })}
               </dl>
 
-              {/* Travel: its own block, like the support year — free for the first 50. */}
+              {/* Travel: its own block, like the support year — free for the first 20. */}
               {travel && (
                 <div
                   className={`mt-4 rounded-2xl border p-4 sm:p-5 ${travelFree ? "border-[#BFE6CD] bg-[#F1FBF4]" : "border-vpv-line bg-vpv-canvas"}`}
@@ -504,37 +521,67 @@ export default function Step5Billing() {
                   </div>
                   {travelFree && (
                     <p className="mt-3 text-[12.5px] leading-relaxed text-[#1D5E37]">
-                      <strong className="font-semibold">Travel is free</strong> for our first {LAUNCH_OFFER.limit} customers.
+                      <strong className="font-semibold">Travel is free</strong> for our first {LAUNCH_OFFER.foundingLimit} customers.
                     </p>
                   )}
                 </div>
               )}
 
-              {/* Support, hosting & security: part of the yearly plan, with a "?",
-                  and what the plan renews at every year. */}
-              <div className="mt-4 rounded-2xl border border-[#BFE6CD] bg-[#F1FBF4] p-4 sm:p-5" data-testid="bill-yearly">
+              {/* Support, hosting & security: billed yearly on every plan, yearly
+                  or lifetime; its own block, in big type, with a "?". Free for
+                  the first period for our founding customers. */}
+              <div
+                className={`mt-4 rounded-2xl border p-4 sm:p-5 ${supportFree ? "border-[#BFE6CD] bg-[#F1FBF4]" : "border-vpv-line bg-vpv-canvas"}`}
+                data-testid="bill-support"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-[16.5px] font-semibold leading-snug text-vpv-ink">
-                      {SUPPORT_NAME}
+                      {support?.label ?? SUPPORT_NAME}
                       <HelpButton
                         label={`What ${SUPPORT_NAME.toLowerCase()} pays for`}
                         open={supportOpen}
                         onToggle={() => setSupportOpen((v) => !v)}
                       />
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-slate-600">Part of your yearly plan, every year</p>
+                    <p className="mt-0.5 text-[12.5px] text-slate-600">{SUPPORT_NAME} · {inr(SUPPORT_MONTHLY_INR)}/month, billed yearly</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-[20px] font-bold leading-none tracking-[-0.01em] text-[#1F8A4C]">Included</p>
+                    {supportFree ? (
+                      <>
+                        <p className="text-[15px] font-semibold tabular-nums text-slate-400 line-through">{inr(SUPPORT_ANNUAL_INR)}</p>
+                        <p className="text-[24px] font-bold leading-none tracking-[-0.01em] text-[#1F8A4C]">FREE</p>
+                      </>
+                    ) : (
+                      <p className="text-[24px] font-bold leading-none tabular-nums text-vpv-ink">{inr(support?.amountInr ?? SUPPORT_ANNUAL_INR)}</p>
+                    )}
                   </div>
                 </div>
-                <p className="mt-3 text-[12.5px] leading-relaxed text-[#1D5E37]">
-                  This order pays for your <strong className="font-semibold">first year</strong>. Your plan
-                  {quote.extraAreas > 0 ? " and its extra areas renew" : " renews"} every year at{" "}
-                  <strong className="font-semibold">{inr(quote.yearlyInr)} + 18% GST</strong>
-                  {quote.offerOpen ? `, keeping your ${LAUNCH_OFFER.percent}% offer` : ""}, and we remind you before it is due.
-                  Cab travel, shoot time and process videos are one-off.
+                <p className={`mt-3 text-[12.5px] leading-relaxed ${supportFree ? "text-[#1D5E37]" : "text-slate-600"}`}>
+                  {supportFree ? (
+                    <>
+                      <strong className="font-semibold">Free for your first {quote.firstMonths} months</strong> as one of our first{" "}
+                      {LAUNCH_OFFER.foundingLimit} customers.{" "}
+                    </>
+                  ) : (
+                    <>Charged with this order for your first year. </>
+                  )}
+                  {quote.billing === "lifetime" ? (
+                    <>
+                      Your plan is yours for life; from then on only {SUPPORT_NAME.toLowerCase()} renews, at{" "}
+                      <strong className="font-semibold">{inr(SUPPORT_ANNUAL_INR)} + 18% GST a year</strong>.
+                    </>
+                  ) : (
+                    <>
+                      From then on your plan{quote.extraAreas > 0 ? " and its extra areas" : ""} and {SUPPORT_NAME.toLowerCase()} renew
+                      together every year:{" "}
+                      <strong className="font-semibold">
+                        {inr(quote.yearlyInr)} + {inr(SUPPORT_ANNUAL_INR)} + 18% GST
+                      </strong>
+                      {quote.offerOpen ? `, keeping your ${LAUNCH_OFFER.percent}% offer` : ""}.
+                    </>
+                  )}{" "}
+                  We remind you before anything is due. Cab travel, shoot time and process videos are one-off.
                 </p>
                 {supportOpen && (
                   <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-vpv-line">
@@ -849,6 +896,13 @@ export default function Step5Billing() {
                       <p className="mb-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] text-slate-700">
                         The special offer has just been taken by our {LAUNCH_OFFER.limit}th customer, so your total has
                         been updated to the regular price. Please check it before you pay.
+                      </p>
+                    )}
+                    {foundingClosedNotice && !offerClosedNotice && (
+                      <p className="mb-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] text-slate-700">
+                        The last of our {LAUNCH_OFFER.foundingLimit} founding places has just been taken, so the 3 free
+                        months, the free cab and the free first year of support are no longer on your bill. You still get{" "}
+                        {LAUNCH_OFFER.percent}% off. Please check the new total before you pay.
                       </p>
                     )}
                     {pay.testMode && (

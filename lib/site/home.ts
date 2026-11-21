@@ -42,9 +42,10 @@ import { measureScriptTag } from "@/lib/site/measure";
 import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderHtml } from "@/lib/site/header";
 import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
+import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.e1697044.js";
+const JS_SRC = "/static/js/main.9e420716.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -307,6 +308,7 @@ li:has(>.vpv-gold-line)>svg{color:#C8920F;width:1.15rem;height:1.15rem;margin-to
 .vpv-now{margin:0;font-size:1.125rem;line-height:1.3;font-weight:800;color:#0b2a5b}\
 .vpv-no{color:#94a3b8}.vpv-no-ic{flex:none;margin-top:.125rem;color:#e5484d}\
 ${PLAN_CARD_CSS}\
+${PLAN_BILLING_CSS}\
 .vpv-aoa-q{position:relative;display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:6px;border:1px solid #94a3b8;border-radius:999px;font-size:11px;font-weight:700;line-height:1;color:#64748b;cursor:help;vertical-align:middle;-webkit-text-fill-color:currentColor}\
 .vpv-aoa-q:hover,.vpv-aoa-q:focus{border-color:#1468D8;color:#1468D8;outline:none;z-index:30}\
 .vpv-aoa-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:230px;padding:10px 12px;border:1px solid #dbe4f0;border-radius:12px;background:#fff;color:#0b1b33;-webkit-text-fill-color:#0b1b33;font-size:12.5px;font-weight:400;line-height:1.5;text-align:left;letter-spacing:0;text-transform:none;white-space:normal;box-shadow:0 18px 40px -16px rgba(7,22,48,.45);opacity:0;pointer-events:none;transition:opacity .15s}\
@@ -440,13 +442,17 @@ const AOA_HINT_SCRIPT = String.raw`(function(){
  * page does not show; re-runs when the page redraws.
  */
 const PLAN_JUMP_SCRIPT = String.raw`(function(){
+  // The price the card shows right now: per month, or once for life (the
+  // billing toggle, lib/site/planBilling.ts).
+  function priceOf(c){var a=c.querySelector(document.documentElement.classList.contains("vpv-life")?".vpv-pl .vpv-now":".vpv-pa .vpv-now")||c.querySelector(".vpv-now");return a?a.textContent:""}
+  window.addEventListener("vpv:billing",function(){[].forEach.call(document.querySelectorAll(".vpv-plans-grid"),function(g){var row=g.previousElementSibling;if(!row||row.className!=="vpv-pj")return;[].forEach.call(g.children,function(c,i){var b=row.children[i];if(b&&b.lastChild){var t=priceOf(c);if(b.lastChild.textContent!==t)b.lastChild.textContent=t}})})});
   function build(g){
     var cards=[].slice.call(g.children);if(cards.length<2)return;
     var row=document.createElement("div");row.className="vpv-pj";row.setAttribute("aria-label","Jump to a plan");
     var chips=cards.map(function(c,i){
       var b=document.createElement("button");b.type="button";
-      var n=c.querySelector(".vpv-pc-name"),a=c.querySelector(".vpv-now");
-      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"");b.lastChild.textContent=a?a.textContent:"";
+      var n=c.querySelector(".vpv-pc-name");
+      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"");b.lastChild.textContent=priceOf(c);
       if(c.classList.contains("vpv-pc-gold"))b.className="gold";
       b.addEventListener("click",function(){g.scrollTo({left:c.offsetLeft-g.offsetLeft-16,behavior:"smooth"})});
       row.appendChild(b);return b;
@@ -525,6 +531,7 @@ ${siteHeaderHtml(page.path)}\
 <script id="vpv-case-study-focus">${CASE_STUDY_FOCUS_SCRIPT}</script>\
 <script id="vpv-aoa-hint-script">${AOA_HINT_SCRIPT}</script>\
 <script id="vpv-plan-jump-script">${PLAN_JUMP_SCRIPT}</script>\
+<script id="vpv-plan-billing-script">${PLAN_BILLING_SCRIPT}</script>\
 <script id="vpv-hiw-guide-script">${HIW_GUIDE_SCRIPT}</script>\
 <script id="vpv-home-story-script">${HOME_STORY_SCRIPT}</script>\
 ${measureScriptTag()}\
