@@ -76,6 +76,7 @@ import {
   SCENE_MAX,
   SUPPORT_RENEW_WINDOW_DAYS,
   isRequestPurpose,
+  isPurchaseBilling,
   OLD_SCENE_LADDER,
   planYearlyFromNotes,
   isKnownPlanId,
@@ -94,6 +95,7 @@ import {
   storedPurpose,
   withGst,
   toPaise,
+  type PurchaseBilling,
   type PurchasePurpose,
   type RequestPurpose,
   type SitePlanId,
@@ -369,6 +371,9 @@ export async function POST(req: Request) {
   const renewLogins = body.renewLogins !== false;
   let fromPlan: SitePlanId | undefined;
   let toPlan: SitePlanId | undefined;
+  // Paid every year (the default) or once for life: the toggle on the plans
+  // page and the funnel. Anything else is read as yearly.
+  const billing: PurchaseBilling = isPurchaseBilling(body.billing) ? body.billing : "annual";
 
   if (purpose === "site_plan") {
     // The browser names a plan, a city and how many extras it wants. Not one
@@ -427,6 +432,11 @@ export async function POST(req: Request) {
       return fail(400, "invalid_upgrade", "Please choose a plan above the one you have.");
     }
     toPlan = want;
+    // A plan bought for life has no yearly price to prorate: moving it up is
+    // arranged with our team.
+    if ((await orgYearly(sb, orgId)).billing === "lifetime") {
+      return fail(400, "invalid_upgrade", "Your plan is a lifetime plan. Please write to support@myvpv.com and we will arrange the move with you.");
+    }
   } else if (purpose === "seat_topup") {
     salesSeats = clampSalesSeats(body.salesSeats);
     if (salesSeats < 1) return fail(400, "invalid_seats", "Please choose how many logins to add.");
@@ -441,7 +451,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // The special offer is "for our first 50 customers", so whether it still
+  // The special offers are "for our first 30 / first 20 customers", so whether they still
   // applies is decided HERE, from the real count of paid site-plan orders —
   // never from anything the browser says.
   const offer =
@@ -465,8 +475,11 @@ export async function POST(req: Request) {
   const yearly =
     purpose === "support_renewal" || purpose === "plan_upgrade"
       ? await orgYearly(sb, orgId)
-      : { inr: 0, locked: null as boolean | null, sitePlan: null as string | null };
-  if (purpose === "support_renewal" && isYearlyPlan(yearly.sitePlan as SitePlanId) && yearly.inr <= 0) {
+      : { inr: 0, locked: null as boolean | null, sitePlan: null as string | null, billing: null as string | null };
+  // A plan paid yearly must have its yearly amount stored; a lifetime plan
+  // (or a one-time plan from before) renews support alone.
+  const paysYearly = yearly.billing === "annual" || (yearly.billing === null && isYearlyPlan(yearly.sitePlan as SitePlanId));
+  if (purpose === "support_renewal" && paysYearly && yearly.inr <= 0) {
     // A yearly plan with no stored amount would renew at the support fee
     // alone: far too little. Stop, and let a person look (never undercharge
     // silently, never guess a bigger number).
@@ -495,6 +508,8 @@ export async function POST(req: Request) {
     selfVideos,
     shotVideos,
     offerOpen: offer ? offer.open : undefined,
+    founding: offer ? offer.founding : undefined,
+    billing,
     salesSeats: purpose === "support_renewal" ? (renewLogins ? renewalSeats.seats : 0) : salesSeats,
     seatInr: purpose === "seat_topup" ? topupSeatInr : renewalSeats.seatInr,
     fromPlan,
@@ -505,7 +520,7 @@ export async function POST(req: Request) {
         ? monthsUntil((org?.support_until as string | null | undefined) ?? null)
         : topupMonths,
     rate: purpose === "plan_upgrade" ? rateFor(yearly.locked) : undefined,
-    planYearlyInr: yearly.inr > 0 ? yearly.inr : undefined,
+    planYearlyInr: yearly.inr > 0 && yearly.billing !== "lifetime" ? yearly.inr : undefined,
     planId: isKnownPlanId(yearly.sitePlan) ? yearly.sitePlan : null,
     coupon,
   });
@@ -923,13 +938,22 @@ async function orgSitePlan(sb: SupabaseClient, orgId: string | null): Promise<st
 async function orgYearly(
   sb: SupabaseClient,
   orgId: string | null
-): Promise<{ inr: number; locked: boolean | null; sitePlan: string | null }> {
+): Promise<{ inr: number; locked: boolean | null; sitePlan: string | null; billing: string | null }> {
   const sitePlan = await orgSitePlan(sb, orgId);
-  if (!orgId) return { inr: 0, locked: null, sitePlan };
-  const { data, error } = await sb.from("organizations").select("plan_yearly_inr, plan_offer_locked").eq("id", orgId).maybeSingle();
-  if (error || !data) return { inr: 0, locked: null, sitePlan };
-  const row = data as { plan_yearly_inr?: number | null; plan_offer_locked?: boolean | null };
-  return { inr: Math.max(0, Number(row.plan_yearly_inr ?? 0) || 0), locked: row.plan_offer_locked ?? null, sitePlan };
+  if (!orgId) return { inr: 0, locked: null, sitePlan, billing: null };
+  const { data, error } = await sb
+    .from("organizations")
+    .select("plan_yearly_inr, plan_offer_locked, plan_billing")
+    .eq("id", orgId)
+    .maybeSingle();
+  if (error || !data) return { inr: 0, locked: null, sitePlan, billing: null };
+  const row = data as { plan_yearly_inr?: number | null; plan_offer_locked?: boolean | null; plan_billing?: string | null };
+  return {
+    inr: Math.max(0, Number(row.plan_yearly_inr ?? 0) || 0),
+    locked: row.plan_offer_locked ?? null,
+    sitePlan,
+    billing: row.plan_billing ?? null,
+  };
 }
 
 /** When the workspace's Sales Team logins renew: their own date, else the support date. */

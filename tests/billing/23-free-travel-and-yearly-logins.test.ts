@@ -15,7 +15,8 @@ import {
 } from "@/lib/pricing";
 
 /**
- * 26 Oct 2026: cab travel is free for our first 50 customers, Confidence and
+ * 26 Oct 2026 (updated 22 Nov 2026 for the founding 20 / first 30 offers):
+ * cab travel is free for our first 20 customers, Confidence and
  * Authority went up by ₹4,000, and Sales Team logins became YEARLY (₹199 per
  * login for the first 50, ₹999 after), renewed with support at the price the
  * customer bought at.
@@ -26,8 +27,11 @@ describe("the new bill", () => {
     assert.equal(q.taxableInr, 42_720);
     assert.equal(q.monthlyInr, 3_560);
     assert.equal(q.lines.find((l) => l.kind === "travel")!.amountInr, 0);
-    // Support, hosting & security is part of the yearly plan, not a line.
-    assert.ok(!q.lines.some((l) => l.kind === "support"));
+    // Support, hosting & security is its own line, free for a founding customer…
+    assert.equal(q.lines.find((l) => l.kind === "support")!.amountInr, 0);
+    // …and ₹11,988 for customers 21 to 30.
+    const later = siteQuote("light", { city: "Gurugram", offerOpen: true, founding: false });
+    assert.equal(later.taxableInr, 42_720 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("a 100% coupon still leaves ₹1 + GST, because Razorpay cannot take ₹0", () => {
@@ -57,16 +61,16 @@ describe("the new bill", () => {
     assert.deepEqual(seatsFromOrderNotes(null), { seats: 0, seatInr: 0 });
   });
 
-  it("a renewal is the yearly plan (or, on an old one-time plan, support) plus each login at its locked price", () => {
-    // A yearly plan renews at what the workspace pays for it.
-    assert.equal(renewalAmount(0, 0, 42_720), 42_720);
-    assert.equal(renewalAmount(10, 199, 42_720), 42_720 + 1_990);
+  it("a renewal is the yearly plan plus support, plus each login at its locked price", () => {
+    // A yearly plan renews at what the workspace pays for it, with support.
+    assert.equal(renewalAmount(0, 0, 42_720), 42_720 + SUPPORT_ANNUAL_INR);
+    assert.equal(renewalAmount(10, 199, 42_720), 42_720 + SUPPORT_ANNUAL_INR + 1_990);
     const y = priceFor("support_renewal", { salesSeats: 10, seatInr: 199, planYearlyInr: 42_720, planId: "light" });
-    assert.equal(y.amountInr, 42_720 + 1_990);
+    assert.equal(y.amountInr, 42_720 + SUPPORT_ANNUAL_INR + 1_990);
     assert.match(y.description, /^Yearly renewal of VPV Light — 1 year/);
     // …never shaped like a new plan order, which the special offer counts.
     assert.equal(sitePlanFromNotes(y.description), null);
-    // An old one-time plan has no stored amount and renews support alone.
+    // A lifetime plan, or an old one-time plan, has no yearly plan amount and renews support alone.
     assert.equal(renewalAmount(0, 0), SUPPORT_ANNUAL_INR);
     assert.equal(renewalAmount(10, 199), SUPPORT_ANNUAL_INR + 1_990);
     const r = priceFor("support_renewal", { salesSeats: 10, seatInr: 199 });
@@ -120,17 +124,17 @@ describe("yearly logins through the real payment flow", () => {
     );
     const body = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(body));
-    assert.equal(body.amountPaise, toPaise(withGst(42_720 + 1_990).total));
+    assert.equal(body.amountPaise, toPaise(withGst(42_720 + SUPPORT_ANNUAL_INR + 1_990).total));
   });
 
-  it("a plan without logins renews at the plan alone", async () => {
+  it("a plan without logins renews at the plan and support alone", async () => {
     await buyPlan(0);
     const [org] = await w.q(`select id, sales_seats from public.organizations`);
     assert.equal(Number(org.sales_seats), 0);
     await w.q(`update public.organizations set support_until = now() + interval '5 days' where id = $1`, [org.id]);
     const [admin] = await w.q(`select id from public.profiles where org_id = $1`, [org.id]);
     const res = await w.routes.order.POST(w.request("/api/billing/order", { as: admin.id, body: { purpose: "support_renewal", buyer: {} } }));
-    assert.equal((await w.readJson(res)).amountPaise, toPaise(withGst(42_720).total));
+    assert.equal((await w.readJson(res)).amountPaise, toPaise(withGst(42_720 + SUPPORT_ANNUAL_INR).total));
   });
 
   it("a yearly plan with no stored renewal amount is refused, never undercharged at the support fee", async () => {

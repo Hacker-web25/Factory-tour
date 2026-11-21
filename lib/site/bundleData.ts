@@ -101,7 +101,9 @@ export const PLAN_ROWS = inclusions("light").length;
  * bundle's `price` is the regular price per month: its own offer maths
  * (ga = price − 50%) then gives the offer price per month, the big figure on
  * the card. `billed` is what one year costs today (offer or regular), the
- * "Billed yearly" line under it. `gold` marks White Glove (Mr. Gupta's own
+ * "Billed yearly" line under it. `lifeWas` / `lifeNow` are the same plan
+ * bought once, for life (regular, and today's price): the "Lifetime" side of
+ * the toggle above the cards. `gold` marks White Glove (Mr. Gupta's own
  * plan). There is no factory area any more.
  */
 export function bundlePlanData(): string {
@@ -112,7 +114,8 @@ export function bundlePlanData(): string {
   const plans = SITE_PLAN_ORDER.map((id) => {
     const p = SITE_PLANS[id];
     return (
-      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},gold:${p.personal},price:${p.regularMonthlyInr},billed:${planPrice(id)},period:"month",placeholder:false,` +
+      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},gold:${p.personal},price:${p.regularMonthlyInr},billed:${planPrice(id)},period:"month",` +
+      `lifeWas:${p.regularLifetimeInr},lifeNow:${planPrice(id, LAUNCH_OFFER.active, "lifetime")},placeholder:false,` +
       `limits:{aoas:${p.scenes},videos:${p.videos},pdfs:${p.pdfs},infoIcons:true,sharingControls:${p.sharingControls}},` +
       `infoIconsLabel:"Information icons",inclusions:${js(inclusions(id))},` +
       `security:${js([...linkControlLabels(id), ...BASE_SECURITY])}}`
@@ -127,7 +130,7 @@ export function bundleTravelData(): string {
   // Free for our first 50 customers (the bundle cannot count buyers, so it
   // follows LAUNCH_OFFER.active, exactly as it does for the plan prices).
   const free = LAUNCH_OFFER.active;
-  const label = free ? `Travel (free for our first ${LAUNCH_OFFER.limit} customers)` : "Travel & logistics";
+  const label = free ? `Travel (free for our first ${LAUNCH_OFFER.foundingLimit} customers)` : "Travel & logistics";
   return (
     `un={question:"Where is your factory?",label:${js(label)},gstApplies:true,payableNow:true,` +
     `options:{ncr:{label:"Delhi NCR",amount:${free ? 0 : TRAVEL_FEES.ncr.amountInr}},` +
@@ -142,7 +145,11 @@ export function bundleCareData(): string {
     `cn={name:${js(SUPPORT_NAME)},amount:${SUPPORT_ANNUAL_INR},period:"year",mandatory:!0,gstApplies:!0,payableNow:!1,` +
     `includes:${js(SUPPORT_INCLUDES.map((i) => i.title.toLowerCase()))},billingStart:"year_2",` +
     `billingStartLabels:{go_live:"Billed annually, starting from go-live",` +
-    `year_2:"Your plan renews every year at the price you bought at"}}`
+    `year_2:${js(
+      LAUNCH_OFFER.active
+        ? `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan, yearly or lifetime. Free for the first ${LAUNCH_OFFER.freeMonths + 12} months for our first ${LAUNCH_OFFER.foundingLimit} customers`
+        : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan, yearly or lifetime`
+    )}}}`
   );
 }
 
@@ -154,13 +161,17 @@ function travelSentence(): string {
 /** "free for our first 50 customers (normally ₹4,000 + GST)", or "₹4,000 + GST" once the offer ends. */
 function travelPrice(): string {
   return LAUNCH_OFFER.active
-    ? `free for our first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST)`
+    ? `free for our first ${LAUNCH_OFFER.foundingLimit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST)`
     : `${inr(CAB_TRAVEL.amountInr)} + GST`;
 }
 
 /** What the special offer gives, in one sentence, for the bundle's FAQ. */
 function offerSentence(): string {
-  return `The \${ln.percent}% applies to the yearly plan price, and you keep it every year you renew. Sales Team logins are ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, and cab travel is free. Extra areas, process videos and shoot time are not discounted.`;
+  return (
+    `Our first ${LAUNCH_OFFER.limit} customers get \${ln.percent}% off their plan, yearly (kept every year they renew) or lifetime, and Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}. ` +
+    `Our first ${LAUNCH_OFFER.foundingLimit} customers also get ${LAUNCH_OFFER.freeMonths} months free, free cab travel for the shoot, and their first ${LAUNCH_OFFER.freeMonths + 12} months of support, hosting & security free. ` +
+    `Places are counted in the order payments reach us. Extra areas, process videos and shoot time are not discounted.`
+  );
 }
 /** offerSentence() as it read before the yearly plans (21 Nov 2026). */
 const OFFER_SENTENCE_NOV20 =
@@ -254,12 +265,12 @@ function NOV21_REWORDING(list: [string, string][]): [string, string][] {
     [oldYa, NOV21_PRICE],
     ['Dr=e=>`${e.name} (${e.area}): "${e.tagline}" ', 'Dr=e=>`${e.name}: "${e.tagline}" '],
     ['"One-time investment, lifetime trust."', JSON.stringify(PLANS_HEADING)],
-    ['title:"Seven plans, sized to your factory"', 'title:"Four yearly plans for your factory"'],
+    ['title:"Seven plans, sized to your factory"', 'title:"Four plans for your factory"'],
   ];
 }
 
 /** The plans page heading (21 Nov 2026): the plans are no longer one-time. */
-export const PLANS_HEADING = "Simple yearly plans. Lifetime trust.";
+export const PLANS_HEADING = "Simple plans. Lifetime trust.";
 
 /** Under the plan's name: the price block, then the AOAs. */
 const NOV21_CARD_TOP =
@@ -276,25 +287,23 @@ const NOV21_PRICE =
   'const ya=e=>{let{plan:t,testPrefix:n,size:r="lg"}=e;const L="lg"===r&&ln.active,' +
   'b=(0,Dt.jsx)("span",{className:"rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700"+(L?" vpv-off":""),children:ln.label}),' +
   'm=(0,Dt.jsx)("span",{className:"vpv-pm",children:"/month"}),' +
-  'p=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-launch-price`,children:[mn(ga(t)),m]});' +
-  'return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,children:[' +
+  'p=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-launch-price`,children:[mn(ga(t)),m]}),' +
+  // the same plan, bought once for life (the Lifetime side of the toggle)
+  'q=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-lifetime-price`,children:[mn(t.lifeNow),(0,Dt.jsx)("span",{className:"vpv-pm",children:" once"})]});' +
+  'return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,className:"vpv-pr",children:[' +
+  '(0,Dt.jsxs)("div",{className:"vpv-pa",children:[' +
   'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsxs)("s",{className:"vpv-strike","data-testid":`${n}-standard-price`,children:[mn(t.price),"/month"]}),b]}),' +
-  'p,(0,Dt.jsxs)("p",{className:"vpv-billed","data-testid":`${n}-billed`,children:["Billed yearly: ",mn(t.billed)," + GST"]})]})}';
+  'p,(0,Dt.jsxs)("p",{className:"vpv-billed","data-testid":`${n}-billed`,children:["Billed yearly: ",mn(t.billed)," + GST"]})]}),' +
+  '(0,Dt.jsxs)("div",{className:"vpv-pl","aria-hidden":"true",children:[' +
+  'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsx)("s",{className:"vpv-strike",children:mn(t.lifeWas)}),b]}),' +
+  'q,(0,Dt.jsx)("p",{className:"vpv-billed",children:"One payment, yours for life + GST"})]})]})}';
 
 /** Sentences of the original bundle that quoted the separate yearly support
- *  fee, and what they say now that it is part of every yearly plan. */
-const NOV21_SUPPORT: [string, string][] = [
-  [
-    "${cn.name} is mandatory at ${mn(cn.amount)} + GST per year and includes ${pn(cn.includes)}. It keeps your VPV hosted, live and technically maintained. It is not a per-user fee, and your sales team does not pay separately to use the VPV. If not renewed, the VPV goes offline. ${cn.billingStartLabels[cn.billingStart]}.",
-    "${cn.name} is included in every yearly plan and covers ${pn(cn.includes)}. It keeps your VPV hosted, live and technically maintained. It is not a per-user fee, and your sales team does not pay separately to use the VPV. If your plan is not renewed, the VPV goes offline.",
-  ],
-  ["${cn.name}: ${mn(cn.amount)} + GST per year (mandatory). Includes ${pn(cn.includes)}", "${cn.name}: included in every yearly plan. Covers ${pn(cn.includes)}"],
-  ["${cn.name} (${mn(cn.amount)} + GST per year) is recurring.", "Every plan is billed yearly, with ${cn.name} included, and renews every year at the price you bought at."],
-  ["The plan price covers the plan you choose", "The yearly plan price covers the plan you choose"],
-  ['q:"Is annual digital maintenance mandatory?"', 'q:"Are support, hosting and security included?"'],
-];
+ *  fee. Since 21 Nov 2026 (second round) the fee is back on every plan, so
+ *  the original sentences are true again and nothing is rewritten. */
+const NOV21_SUPPORT: [string, string][] = [];
 
-export function bundleTextPatches(): [string, string][] {
+function buildPatches(): [string, string][] {
   const conf = SITE_PLANS.light;
   const ctrl = SITE_PLANS.ultra;
   const ctrlBands = discountBands("ultra");
@@ -559,3 +568,35 @@ export function bundleTextPatches(): [string, string][] {
   return [...final, ...nov21, ...NOV21_SUPPORT].filter(([from, to]) => from !== to);
 }
 
+/**
+ * Every [old, new] text pair the sync applies to the bundle.
+ *
+ * 21 Nov 2026 (second round): the offer went from "our first 50 customers"
+ * to the first 30 (50% off) and the first 20 (the founding offer). The
+ * bundle on main carries the sentences as they were written with 50, so the
+ * pairs are worked out a second time at 50 and every sentence that changed
+ * gets a migration pair from its 50 wording to its current one.
+ */
+export function bundleTextPatches(): [string, string][] {
+  const now = buildPatches();
+  const saved = { limit: LAUNCH_OFFER.limit, foundingLimit: LAUNCH_OFFER.foundingLimit };
+  let before: [string, string][] = [];
+  try {
+    LAUNCH_OFFER.limit = 50;
+    LAUNCH_OFFER.foundingLimit = 50;
+    before = buildPatches();
+  } finally {
+    LAUNCH_OFFER.limit = saved.limit;
+    LAUNCH_OFFER.foundingLimit = saved.foundingLimit;
+  }
+  const migrations: [string, string][] = [];
+  const nowTo = new Set(now.map(([, to]) => to));
+  for (const [, oldTo] of before) {
+    if (nowTo.has(oldTo)) continue;
+    // The pair at the same place in the current list.
+    const i = before.findIndex(([, t]) => t === oldTo);
+    const newTo = now[i]?.[1];
+    if (newTo && newTo !== oldTo && !migrations.some(([m]) => m === oldTo)) migrations.push([oldTo, newTo]);
+  }
+  return [...now, ...migrations].filter(([from, to]) => from !== to);
+}

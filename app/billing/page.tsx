@@ -307,7 +307,7 @@ export default function BillingPage() {
           )}
           {planYearly > 0 && (
             <p className="mt-2 text-[12px] leading-relaxed text-slate-500">
-              Your plan renews every year at the price you bought at, with support, hosting &amp; security included.
+              Your plan renews every year at the price you bought at, together with support, hosting &amp; security.
             </p>
           )}
           {org.plan !== "basic" && (
@@ -355,7 +355,7 @@ export default function BillingPage() {
           <CheckoutFlow
             purpose="support_renewal"
             renewalInr={renewInr}
-            renewalLabel={planYearly > 0 ? "Your yearly plan · one more year" : undefined}
+            renewalLabel={planYearly > 0 ? "Your yearly plan + support, hosting & security · one more year" : undefined}
             renewal={{ seats: logins.seats, seatInr: logins.seatInr, salespeople: logins.salespeople, loginsEnd: logins.until }}
             accessToken={token}
             onComplete={() => {

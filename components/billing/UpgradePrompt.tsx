@@ -25,6 +25,8 @@ type Shown = {
   /** null = nothing to sell above this plan (the allowance is the most we offer online). */
   target: SitePlanId | "sales_team" | null;
   from: SitePlanId;
+  /** Bought for life: moving up is arranged with our team. */
+  lifetime?: boolean;
   isAdmin: boolean;
   /** Set when the plan HAS the feature but its allowance is used up. */
   limit?: { used: number; max: number };
@@ -45,6 +47,7 @@ export default function UpgradePrompt() {
           feature,
           target: feature in LIMITED ? upgradeForMore(facts, LIMITED[feature as keyof typeof LIMITED]) : null,
           from: effectivePlan(facts),
+          lifetime: facts.plan_billing === "lifetime",
           isAdmin: facts.role === "org_admin" || facts.role === "owner",
           limit: detail.limit,
         });
@@ -55,6 +58,7 @@ export default function UpgradePrompt() {
         feature,
         target: a.upgradeTo,
         from: effectivePlan(facts),
+        lifetime: facts.plan_billing === "lifetime",
         isAdmin: facts.role === "org_admin" || facts.role === "owner",
       });
     };
@@ -108,7 +112,7 @@ export default function UpgradePrompt() {
   // yearly billing (21 Nov 2026) cannot be prorated: both are arranged with
   // our team, not paid here.
   const personal = !sales && to!.personal;
-  const talk = !sales && (personal || !isUpgrade(shown.from, shown.target as SitePlanId));
+  const talk = !sales && (personal || !!shown.lifetime || !isUpgrade(shown.from, shown.target as SitePlanId));
 
   return (
     <div
@@ -153,7 +157,9 @@ export default function UpgradePrompt() {
                 : personal
                   ? `is part of ${to!.name}, which includes Mr. Nitin Gupta's personal involvement and is arranged with our team. You are on ${from.name}.`
                   : talk
-                    ? `is part of ${to!.name}. You are on ${from.name}, bought before our yearly plans, so we arrange the move with you.`
+                    ? shown.lifetime
+                      ? `is part of ${to!.name}. You are on ${from.name} for life, so we arrange the move with you.`
+                      : `is part of ${to!.name}. You are on ${from.name}, bought before our yearly plans, so we arrange the move with you.`
                     : `is part of ${to!.name}. You are on ${from.name}.`}
             </>
           )}

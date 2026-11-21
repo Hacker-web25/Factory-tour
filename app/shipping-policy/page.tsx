@@ -30,7 +30,7 @@ const sections: LegalSection[] = [
           no shipping charges, couriers or delivery addresses. The only
           physical part of an order is our crew visiting your factory to shoot
           it, by cab. The cab travel is shown on your bill before you pay
-          (it is free for our first {LAUNCH_OFFER.limit} customers).
+          (it is free for our first {LAUNCH_OFFER.foundingLimit} customers).
         </Callout>
       </>
     ),

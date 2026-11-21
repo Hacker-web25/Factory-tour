@@ -22,7 +22,7 @@ import { cityDemand } from "@/lib/cityDemand";
 import { makeWorld, BUYER, freshIp, type World } from "./harness/world";
 
 describe("sales team logins", () => {
-  it("are ₹999 per login per year, ₹199 for our first 50 customers (26 Oct 2026)", () => {
+  it("are ₹999 per login per year, ₹199 for our first 30 customers (26 Oct 2026; 30 since 22 Nov)", () => {
     assert.equal(SALES_TEAM.regularInr, 999);
     assert.equal(SALES_TEAM.offerInr, 199);
     assert.equal(SALES_TEAM.percentOff, 80);
@@ -160,6 +160,6 @@ describe("the order route", () => {
     );
     const bigBody = await w.readJson(big);
     assert.equal(bigBody.amountPaise, toPaise(siteQuote("premium", { city: "Manesar", salesSeats: SALES_TEAM.maxSeats }).totalInr));
-    assert.equal(LAUNCH_OFFER.limit, 50);
+    assert.equal(LAUNCH_OFFER.limit, 30);
   });
 });

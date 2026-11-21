@@ -2,10 +2,12 @@
  * /terms — VPV Terms & Conditions.
  *
  * Covers the commercial model as sold today (21 Nov 2026): the four VPV
- * plans (Light, Premium, Ultra, White Glove), each a YEARLY Plan Fee, shown
- * per month and billed yearly in advance, that includes support, hosting &
- * security every year and the factory shoot in the first year, plus optional
- * yearly Sales Team logins. Plans bought before (a one-time fee plus a
+ * plans (Light, Premium, Ultra, White Glove), each bought either yearly (a
+ * Plan Fee shown per month and billed yearly in advance) or once, for life;
+ * plus the yearly Support Fee for support, hosting & security on every plan,
+ * and optional yearly Sales Team logins. The special offers: 50% off for the
+ * first 30 customers, and for the first 20 also 3 months free, free cab
+ * travel and their first 15 months of support free. Plans bought before (a one-time fee plus a
  * yearly support fee) keep their terms: see "Older plans". Every number and window comes from
  * lib/pricing.ts and lib/company.ts, so this page can never disagree with
  * /plans, the checkout, the invoice or the other policies.
@@ -50,6 +52,8 @@ import {
   SUPPORT_MONTHLY_INR,
   SUPPORT_NAME,
   planMonthly,
+  planPrice,
+  LIFETIME_EXTRA_AREA_MULTIPLE,
   inr,
   inr2,
   infoIconsLabel,
@@ -66,7 +70,7 @@ const support = SUPPORT_NAME.toLowerCase();
 export const metadata: Metadata = {
   title: "Terms & Conditions",
   description:
-    "The terms for VPV (Virtual Plant Visit): the four yearly plans and what each includes, every fee and GST, the factory shoot and rescheduling, yearly renewal, price changes with prior notice, and how to complain.",
+    "The terms for VPV (Virtual Plant Visit): the four plans, yearly or lifetime, and what each includes, every fee and GST, the founding and special offers, the factory shoot and rescheduling, yearly renewal, price changes with prior notice, and how to complain.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/terms" },
 };
@@ -121,15 +125,14 @@ const sections: LegalSection[] = [
           Viewer can explore in 360°. Each AOA becomes one scene in your tour.
         </li>
         <li>
-          <B>Plan Fee</B>: the yearly fee for a Plan, shown per month and billed
-          yearly in advance. Every year it includes {support}, which keeps your
-          Workspace and tours online; the first year also includes the factory
-          shoot and building your VPV.
+          <B>Plan Fee</B>: what you pay for a Plan, in one of two ways you
+          choose when you buy: <B>yearly</B> (shown per month and billed yearly
+          in advance, every year) or <B>lifetime</B> (paid once). Either way the
+          first payment includes the factory shoot and building your VPV.
         </li>
         <li>
-          <B>Support Fee</B>: the separate yearly fee for {support}, paid only on
-          a Plan bought before 21 November 2026 (see{" "}
-          <L href="#older-plans">Older plans</L>).
+          <B>Support Fee</B>: the yearly fee for {support}, which keeps your
+          Workspace and tours online, on every Plan, yearly or lifetime.
         </li>
         <li>
           <B>Sales Team login</B>: an optional yearly login for one of your
@@ -192,10 +195,10 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Each Plan is a done-for-you Virtual Plant Visit, paid for yearly: our
-          crew shoots your factory, we build the VPV in your own Workspace, and
-          we keep it hosted, secure and supported for every year you renew. The
-          Plans are:
+          Each Plan is a done-for-you Virtual Plant Visit: our crew shoots your
+          factory, we build the VPV in your own Workspace, and we keep it hosted,
+          secure and supported for as long as the Support Fee is paid. Each Plan
+          can be bought yearly or for life. The Plans are:
         </P>
         <UL>
           {SITE_PLAN_ORDER.map((id) => {
@@ -217,7 +220,7 @@ const sections: LegalSection[] = [
         </UL>
         <P>
           Every Plan also includes a password-protected dashboard, your own VPV
-          address, your branding and {support}. What we deliver is the number of
+          address and your branding. What we deliver is the number of
           AOAs, information icons, videos, reports and shoot hours listed. Each
           link control comes only with the Plans listed above that include it
           (and all of them with {SITE_PLANS.control.name} and{" "}
@@ -226,9 +229,12 @@ const sections: LegalSection[] = [
           screenshot or recording their own screen.
         </P>
         <P>
-          <B>Your right to use VPV.</B> Once the Plan Fee for a year is paid, you
-          may use the Service for your own business and show your tours to your
-          Viewers, for as long as your Plan is paid up. This right is yours alone:
+          <B>Your right to use VPV.</B> Once the Plan Fee is paid (for the year,
+          or for life), you may use the Service for your own business and show
+          your tours to your Viewers, for as long as your Plan and the Support
+          Fee are paid up. &ldquo;For life&rdquo; means for as long as we
+          provide the Service and you keep the Support Fee paid; it does not
+          mean the Support Fee stops. This right is yours alone:
           you may not resell, white-label or sub-license the Service, copy or
           reverse-engineer it, or use it to build a competing product, except
           where the law allows this despite these Terms. If we ever decide to
@@ -237,12 +243,12 @@ const sections: LegalSection[] = [
           to export your Content.
         </P>
         <P>
-          <B>Moving up a plan.</B> You can move up to a higher Plan from your
-          dashboard at any time. You pay the difference between the two
-          Plans&rsquo; yearly prices (at your own rate: the special-offer rate
-          if you have it) for the whole months left until your Plan renews, plus
-          GST, and from then on your Plan renews at the higher Plan&rsquo;s
-          price. The higher Plan&rsquo;s features open as soon as payment is
+          <B>Moving up a plan.</B> On a yearly Plan you can move up to a higher
+          Plan from your dashboard at any time. You pay the difference between
+          the two Plans&rsquo; yearly prices (at your own rate: the special-offer
+          rate if you have it) for the whole months left until your Plan renews,
+          plus GST, and from then on your Plan renews at the higher Plan&rsquo;s
+          price. A lifetime Plan moves up by speaking with us. The higher Plan&rsquo;s features open as soon as payment is
           confirmed, and we agree a date to shoot any extra AOAs it includes.{" "}
           {WHITE_GLOVE} is arranged by speaking with us. A Plan bought before 21
           November 2026 (Confidence, Authority, Control or Enterprise) keeps
@@ -275,8 +281,10 @@ const sections: LegalSection[] = [
         </P>
         <P>
           <B>Add-ons.</B> On any Plan you may add extra AOAs and extra process
-          videos when you order or later. Extra AOAs become part of your Plan:
-          their yearly price is added to your Plan Fee and renews with it.{" "}
+          videos when you order or later. Extra AOAs become part of your Plan: on
+          a yearly Plan their yearly price is added to your Plan Fee and renews
+          with it; on a lifetime Plan they are paid once, at{" "}
+          {LIFETIME_EXTRA_AREA_MULTIPLE} times their yearly price.{" "}
           {VIDEO_SHOT_NOTE} Process videos, extra shoot time and cab travel are
           one-off charges; extra shoot time is charged by the hour, as set out
           under <L href="#shoot">The factory shoot</L>.
@@ -322,20 +330,23 @@ const sections: LegalSection[] = [
             const p = SITE_PLANS[id];
             return (
               <li key={id}>
-                <B>{p.name}</B>: {inr(p.regularMonthlyInr)} a month, billed yearly
-                as {inr(p.regularInr)}
+                <B>{p.name}</B>: yearly, {inr(p.regularMonthlyInr)} a month, billed
+                yearly as {inr(p.regularInr)}; or for life, {inr(p.regularLifetimeInr)} once
                 {LAUNCH_OFFER.active
-                  ? `, or ${inr(p.monthlyInr)} a month, billed yearly as ${inr(p.priceInr)}, under the special offer for our first ${LAUNCH_OFFER.limit} customers, kept every year they renew (see Special offer)`
+                  ? `. Under the special offer for our first ${LAUNCH_OFFER.limit} customers: ${inr(p.monthlyInr)} a month, billed yearly as ${inr(p.priceInr)} (kept every year they renew), or ${inr(p.lifetimeInr)} once (see Special offer)`
                   : ""}
-                . It includes {support}.
+                .
               </li>
             );
           })}
           <li>
-            <B>{SUPPORT_NAME}</B>: included in every Plan Fee. (On a Plan bought
-            before 21 November 2026 it is the separate Support Fee of{" "}
-            {inr(SUPPORT_MONTHLY_INR)} a month, billed yearly as{" "}
-            {inr(SUPPORT_ANNUAL_INR)}.)
+            <B>{SUPPORT_NAME}</B> (the Support Fee, every Plan, yearly or
+            lifetime): {inr(SUPPORT_MONTHLY_INR)} a month, billed yearly as{" "}
+            {inr(SUPPORT_ANNUAL_INR)}
+            {LAUNCH_OFFER.active
+              ? `. Our first ${LAUNCH_OFFER.foundingLimit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free; for later customers the first year is charged with the order`
+              : "; the first year is charged with your order"}
+            .
           </li>
           <li>
             <B>Sales Team logins</B> (optional): {inr(SALES_TEAM.regularInr)}{" "}
@@ -347,16 +358,17 @@ const sections: LegalSection[] = [
             whole months left until your logins renew.
           </li>
           <li>
-            <B>Moving up a plan</B> (optional): the difference between the two
-            Plans&rsquo; yearly prices, for the whole months left until your Plan
-            renews.
+            <B>Moving up a plan</B> (optional, yearly Plans): the difference
+            between the two Plans&rsquo; yearly prices, for the whole months left
+            until your Plan renews.
           </li>
           <li>
             <B>Extra AOAs</B> (optional): a yearly price per Plan, cheaper the
             more you add, added to your Plan Fee and renewed with it; on{" "}
             {SITE_PLANS.ultra.name}, for example, from{" "}
             {inr(discountBands("ultra")[0].each)} down to{" "}
-            {inr(discountBands("ultra").slice(-1)[0].each)} each a year.
+            {inr(discountBands("ultra").slice(-1)[0].each)} each a year. On a
+            lifetime Plan, {LIFETIME_EXTRA_AREA_MULTIPLE} times that, once.
           </li>
           <li>
             <B>Process videos</B> (optional, one-off). A video you already have, which you upload to your own
@@ -372,7 +384,7 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Cab travel</B> for our crew: {inr(CAB_TRAVEL.amountInr)} per shoot
-            {LAUNCH_OFFER.active ? `, free for our first ${LAUNCH_OFFER.limit} customers` : ""}.
+            {LAUNCH_OFFER.active ? `, free for our first ${LAUNCH_OFFER.foundingLimit} customers` : ""}.
           </li>
           <li>
             <B>Changing the shoot date</B>: the first change is free; each change
@@ -425,8 +437,10 @@ const sections: LegalSection[] = [
       <>
         <P>
           {LAUNCH_OFFER.active
-            ? `Our first ${LAUNCH_OFFER.limit} customers get the Plans at ${LAUNCH_OFFER.percent}% off their regular yearly price, every year they renew; Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}; and free cab travel for the shoot.`
-            : "The special offer has ended; the Plans are sold at their regular price."}
+            ? `There are two offers, by the order in which payments reach us. ` +
+              `The founding offer, for our first ${LAUNCH_OFFER.foundingLimit} customers: ${LAUNCH_OFFER.freeMonths} months free (a yearly Plan's first year runs ${12 + LAUNCH_OFFER.freeMonths} months for the price of 12), free cab travel for the shoot, and the first ${12 + LAUNCH_OFFER.freeMonths} months of ${support} free; together with the special offer. ` +
+              `The special offer, for our first ${LAUNCH_OFFER.limit} customers: the Plans at ${LAUNCH_OFFER.percent}% off their regular price (yearly, every year they renew, or lifetime), and Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}.`
+            : "The special offers have ended; the Plans are sold at their regular price."}
         </P>
         <UL>
           <li>
@@ -438,23 +452,28 @@ const sections: LegalSection[] = [
           <li>
             <B>Who counts.</B> A customer is counted once their payment for a
             Plan reaches us. Refunded orders do not count and free up their
-            place.
+            place. The places left that we show on the website are this count,
+            updated at least every minute.
           </li>
           <li>
-            <B>It ends on its own.</B> From the {LAUNCH_OFFER.limit + 1}st paid
-            Plan, the regular price applies. The checkout counts this
-            automatically. If the last place is taken while you are on the
-            billing page, you see the regular-price total before you pay, never
+            <B>It ends on its own.</B> From the {LAUNCH_OFFER.foundingLimit + 1}st paid
+            Plan the founding offer no longer applies, and from the{" "}
+            {LAUNCH_OFFER.limit + 1}st the regular price applies. The checkout
+            counts this automatically. If the last place is taken while you are
+            on the billing page, you see the new total before you pay, never
             after.
           </li>
           <li>
-            <B>What it covers.</B> The Plan Fee, in the first year and at every
-            renewal for as long as you keep renewing (your Plan renews at the
-            price you bought at, and moving up a Plan is priced at the offer
-            rate too); Sales Team logins bought with it, at the offer price in
-            the first year and at each renewal; and cab travel for the shoot. It
-            does not cover extra AOAs, process videos, extra shoot time or date
-            changes. If a Workspace is closed and you buy again later, the price
+            <B>What it covers.</B> The {LAUNCH_OFFER.percent}% applies to the Plan
+            Fee: on a yearly Plan in the first year and at every renewal for as
+            long as you keep renewing (your Plan renews at the price you bought
+            at, and moving up a Plan is priced at the offer rate too), and on a
+            lifetime Plan to the one payment. Sales Team logins bought with it
+            stay at the offer price at each renewal. The founding offer&rsquo;s
+            free months and free first period of {support} are given once, at
+            the start. Neither offer covers extra AOAs, process videos, extra
+            shoot time, date changes or the Support Fee after the free first
+            period. If a Workspace is closed and you buy again later, the price
             of that day applies.
           </li>
           <li>
@@ -543,7 +562,7 @@ const sections: LegalSection[] = [
           <B>{inr(CAB_TRAVEL.amountInr)}</B> plus GST per shoot
           {LAUNCH_OFFER.active ? (
             <>
-              , and <B>free for our first {LAUNCH_OFFER.limit} customers</B>
+              , and <B>free for our first {LAUNCH_OFFER.foundingLimit} customers</B>
             </>
           ) : null}
           . It is shown on your bill before you pay. There are no flights,
@@ -579,8 +598,9 @@ const sections: LegalSection[] = [
             proposal, when you order is the price you pay.
           </li>
           <li>
-            <B>Yearly fees.</B> If we change a yearly price (a Plan Fee, the
-            Support Fee on an older Plan, or a Sales Team login), we e-mail the administrator and billing contact on
+            <B>Yearly fees.</B> If we change a yearly price (a yearly Plan
+            Fee, the Support Fee, or a Sales Team login; a lifetime Plan Fee
+            already paid never changes), we e-mail the administrator and billing contact on
             record <B>at least {POLICY.priceChangeNoticeDays} days before the new
             price applies to you</B>, stating the new price and the date it
             starts.
@@ -610,19 +630,24 @@ const sections: LegalSection[] = [
     body: (
       <>
         <P>
-          Every Plan is billed <B>yearly, in advance</B>. Your first year is paid
-          with your order and starts on the day your Workspace is created. Each
-          later year is renewed by you, from the Plan and billing page in your
-          dashboard, at the yearly price of your Plan and any extra AOAs, at the
-          price you bought at (unless it has changed with notice, as set out
-          under <L href="#price-changes">Price changes</L>), plus GST. Your
+          Your first period starts on the day your Workspace is created and
+          lasts a year ({12 + LAUNCH_OFFER.freeMonths} months for a founding
+          customer). Each later year is renewed by you, from the Plan and billing
+          page in your dashboard. On a <B>yearly Plan</B> you renew the Plan and
+          any extra AOAs, at the price you bought at, together with the Support
+          Fee. On a <B>lifetime Plan</B> you renew the Support Fee alone. Prices
+          renew as they were unless they have changed with notice, as set out
+          under <L href="#price-changes">Price changes</L>; GST is added. Your
           renewal date is on your order confirmation and tax invoice.
         </P>
         <P>
-          {SUPPORT_NAME} is <B>included in every Plan Fee</B>, every year. (On a
-          Plan bought before 21 November 2026 it is the separate Support Fee of{" "}
-          {inr(SUPPORT_MONTHLY_INR)} a month, billed yearly as{" "}
-          {inr(SUPPORT_ANNUAL_INR)} plus GST.) It covers:
+          {SUPPORT_NAME} (the Support Fee) is <B>{inr(SUPPORT_MONTHLY_INR)} a
+          month, billed yearly as {inr(SUPPORT_ANNUAL_INR)} plus GST</B>, on
+          every Plan, yearly or lifetime
+          {LAUNCH_OFFER.active
+            ? `; our first ${LAUNCH_OFFER.foundingLimit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free`
+            : ""}
+          . It covers:
         </P>
         <UL>
           <li><B>Hosting</B> of your Workspace and tours.</li>
@@ -641,8 +666,8 @@ const sections: LegalSection[] = [
           </li>
         </UL>
         <P>
-          <B>What it does not cover.</B> {SUPPORT_NAME} keeps VPV running; it is
-          not new work on your tour. These are paid work, quoted
+          <B>What it does not cover.</B> The Support Fee pays for keeping VPV
+          running, not for new work on your tour. These are paid work, quoted
           before we start, or things you can do yourself in the editor:
         </P>
         <UL>
@@ -1044,9 +1069,11 @@ export default function TermsPage() {
         You pay for a Plan yearly, in advance (
         {SITE_PLAN_ORDER.map((id) => `${SITE_PLANS[id].name.replace("VPV ", "")} ${inr(planMonthly(id))} a month`).join(", ")}
         {LAUNCH_OFFER.active ? ` for our first ${LAUNCH_OFFER.limit} customers, every year they renew` : ""}; billed
-        yearly, plus GST). The first year includes the shoot and building your
-        VPV, usually live {POLICY.vpvDeliveryTypical} after the shoot, and every
-        year includes {support}.
+        yearly), or once, for life ({SITE_PLAN_ORDER.map((id) => inr(planPrice(id, LAUNCH_OFFER.active, "lifetime"))).join(", ")}
+        {LAUNCH_OFFER.active ? " under the same offer" : ""}), plus GST. The first payment includes the shoot and building your
+        VPV, usually live {POLICY.vpvDeliveryTypical} after the shoot. {SUPPORT_NAME} is{" "}
+        {inr(SUPPORT_ANNUAL_INR)} a year on every Plan
+        {LAUNCH_OFFER.active ? `, free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.foundingLimit} customers` : ""}.
         We never charge you automatically: you renew yourself, after reminders,
         and a Workspace not renewed within {POLICY.supportGraceDays} days is
         locked (never deleted without {POLICY.deletionNoticeDays} days&rsquo;
@@ -1059,13 +1086,16 @@ export default function TermsPage() {
         <Callout title={`What changed on ${POLICY.updated}`} tone="notice">
           <UL>
             <li>
-              The Plans are now four <B>yearly</B> Plans ({SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name).join(", ")}),
-              shown per month and billed yearly in advance, with {support} included every year and extra AOAs
-              renewing with the Plan. Plans are no longer matched to your factory&rsquo;s covered area.
+              The Plans are now four Plans ({SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name).join(", ")}), each
+              bought <B>yearly</B> (shown per month, billed yearly in advance, extra AOAs renewing with the Plan) or{" "}
+              <B>for life</B> (paid once), with the yearly Support Fee on both. Plans are no longer matched to your
+              factory&rsquo;s covered area.
             </li>
             <li>
-              The special offer for our first {LAUNCH_OFFER.limit} customers is kept every year they renew, and on
-              upgrades.
+              The special offer is now for our first {LAUNCH_OFFER.limit} customers ({LAUNCH_OFFER.percent}% off, kept
+              every year a yearly Plan renews), and our first {LAUNCH_OFFER.foundingLimit} also get{" "}
+              {LAUNCH_OFFER.freeMonths} months free, free cab travel and their first {12 + LAUNCH_OFFER.freeMonths}{" "}
+              months of support free.
             </li>
             <li>Moving up a Plan: the yearly difference, for the months left until your Plan renews.</li>
           </UL>

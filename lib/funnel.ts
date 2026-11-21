@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { EXTRA_AREA_MAX, SITE_PLAN_ORDER, SITE_PLANS, isSitePlanId, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { EXTRA_AREA_MAX, SITE_PLAN_ORDER, SITE_PLANS, isPurchaseBilling, isSitePlanId, type PurchaseBilling, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -67,6 +67,9 @@ export type FunnelState = {
 
   /* Step 4 — the plan and the add-ons. */
   chosenPlan: SoldPlanId | null;
+  /** Paid every year, or once for life (the toggle on the plans page opens
+   *  the funnel on the same one). */
+  billing: PurchaseBilling;
   extraAreas: number;
   /** Process videos the customer uploads to their own YouTube channel.
    *  Free up to the plan's allowance, then VIDEO_SELF_INR each. */
@@ -125,6 +128,7 @@ export const EMPTY_FUNNEL: FunnelState = {
   pdfCount: null,
   wantsSharingControls: null,
   chosenPlan: null,
+  billing: "annual",
   extraAreas: 0,
   selfVideos: 0,
   shotVideos: 0,
@@ -145,19 +149,29 @@ const KEY = "vpv.funnel.v1";
 
 /** The visitor's answers so far. Returns a blank state on the server, in a
  *  private window, or when the stored shape is from an older version. */
+/** The billing the visitor chose on the plans page's toggle this visit. */
+function toggledBilling(): PurchaseBilling {
+  try {
+    return window.sessionStorage.getItem("vpv.billing") === "lifetime" ? "lifetime" : "annual";
+  } catch {
+    return "annual";
+  }
+}
+
 export function loadFunnel(): FunnelState {
   if (typeof window === "undefined") return { ...EMPTY_FUNNEL };
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (!raw) return { ...EMPTY_FUNNEL };
+    if (!raw) return { ...EMPTY_FUNNEL, billing: toggledBilling() };
     const parsed = JSON.parse(raw) as Partial<FunnelState>;
     // Spread over the defaults so a field added later is never undefined.
-    const state = { ...EMPTY_FUNNEL, ...parsed } as FunnelState & { plotBand?: unknown };
+    const state = { ...EMPTY_FUNNEL, billing: toggledBilling(), ...parsed } as FunnelState & { plotBand?: unknown };
     // A visit saved before the four yearly plans (21 Nov 2026) may name a
     // plan that no longer exists: drop it, so the visitor is matched again
     // instead of being sent to a plan we do not sell. The plant size it may
     // carry is no longer asked or used.
     if (state.chosenPlan !== null && !isSitePlanId(state.chosenPlan)) state.chosenPlan = null;
+    if (!isPurchaseBilling(state.billing)) state.billing = "annual";
     delete state.plotBand;
     return state;
   } catch {
@@ -354,6 +368,7 @@ export async function mirrorLead(
         pdfCount: state.pdfCount,
         wantsSharingControls: state.wantsSharingControls,
         chosenPlan: state.chosenPlan,
+        billing: state.billing,
         extraAreas: state.extraAreas,
         selfVideos: state.selfVideos,
         shotVideos: state.shotVideos,

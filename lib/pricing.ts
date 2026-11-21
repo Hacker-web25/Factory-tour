@@ -15,8 +15,9 @@
  * │ ULTRA  ₹15,000 / month. Everything, incl. AI meeting review.       │
  * │                                                                   │
  * │ SUPPORT, HOSTING & SECURITY  ₹999 a month, billed yearly as       │
- * │        ₹11,988 + GST. FREE for the first year for our first 50     │
- * │        customers; payable with the order after that. Renewed every │
+ * │        ₹11,988 + GST, on every plan. FREE for the first 15 months │
+ * │        for our first 20 customers; payable with the order after.  │
+ * │        Renewed every                                              │
  * │        year; if not, pop-ups start, then the workspace locks.      │
  * └───────────────────────────────────────────────────────────────────┘
  *
@@ -513,6 +514,17 @@ export const LINK_CONTROLS: { key: LinkControl; label: string }[] = [
 /** How a plan is charged. */
 export type PlanBilling = "yearly" | "one_time";
 
+/**
+ * How a buyer pays for one of the plans on sale (the toggle on the plans
+ * page): "annual" = the plan's yearly price every year; "lifetime" = the
+ * plan once, for life. Support, hosting & security is billed yearly on top
+ * in both (21 Nov 2026).
+ */
+export type PurchaseBilling = "annual" | "lifetime";
+export function isPurchaseBilling(v: unknown): v is PurchaseBilling {
+  return v === "annual" || v === "lifetime";
+}
+
 export type SitePlanSpec = {
   id: SitePlanId;
   name: string;
@@ -529,6 +541,15 @@ export type SitePlanSpec = {
   monthlyInr: number;
   /** Yearly plans: the per-month price once the offer closes (2× monthlyInr). */
   regularMonthlyInr: number;
+  /**
+   * The same plan bought ONCE, for life (the "Lifetime" side of the plans
+   * page toggle, 21 Nov 2026): what the buyer pays while the special offer
+   * is open, and the regular price after it (2×). GST excluded. 0 on the
+   * plans no longer sold. Support, hosting & security is billed yearly on
+   * top, exactly as on the yearly plans.
+   */
+  lifetimeInr: number;
+  regularLifetimeInr: number;
   /** What the buyer pays WHILE the special offer is open, GST excluded:
    *  one year (monthlyInr × 12) on a yearly plan. */
   priceInr: number;
@@ -574,9 +595,13 @@ export type SitePlanSpec = {
 /*
  * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026) ──────────────────────────────┐
  * │ The owner's per-month prices: ₹3,560, ₹10,000, ₹13,542, ₹20,452.    │
+ * │ Bought for life instead (the toggle on the plans page): about 4.7×  │
+ * │ a year, just below a round figure — ₹1,99,999, ₹5,49,999,           │
+ * │ ₹7,49,999, ₹11,99,999. Either way support, hosting & security is    │
+ * │ billed yearly on top (SUPPORT_ANNUAL_INR).                          │
  * │ The yearly charge is exactly 12 of them, so the card's per-month    │
  * │ figure and the bill always agree. The struck regular price is 2×    │
- * │ (the 50% special offer for the first 50 customers, kept for as long │
+ * │ (the 50% special offer for the first 30 customers, kept for as long │
  * │ as they renew).                                                     │
  * │                                                                     │
  * │ Features follow the seven-plan spread: Light has what Plus had;     │
@@ -598,7 +623,8 @@ const sold = (
   shootHours: number,
   extraAreaLadder: ExtraAreaBand[],
   linkControls: LinkControls,
-  infoIcons = Infinity
+  infoIcons = Infinity,
+  lifetimeInr = 0
 ): SitePlanSpec => ({
   id,
   name,
@@ -606,6 +632,8 @@ const sold = (
   billing: "yearly",
   monthlyInr,
   regularMonthlyInr: monthlyInr * 2,
+  lifetimeInr,
+  regularLifetimeInr: lifetimeInr * 2,
   priceInr: monthlyInr * 12,
   regularInr: monthlyInr * 12 * 2,
   scenes,
@@ -622,12 +650,17 @@ const sold = (
 
 /** A plan sold before 21 Nov 2026: a one-time fee, support renewed separately. */
 const legacy = (
-  spec: Omit<SitePlanSpec, "billing" | "monthlyInr" | "regularMonthlyInr" | "legacy" | "sharingControls" | "infoIcons">
+  spec: Omit<
+    SitePlanSpec,
+    "billing" | "monthlyInr" | "regularMonthlyInr" | "lifetimeInr" | "regularLifetimeInr" | "legacy" | "sharingControls" | "infoIcons"
+  >
 ): SitePlanSpec => ({
   ...spec,
   billing: "one_time",
   monthlyInr: 0,
   regularMonthlyInr: 0,
+  lifetimeInr: 0,
+  regularLifetimeInr: 0,
   sharingControls: Object.values(spec.linkControls).some(Boolean),
   infoIcons: Infinity,
   legacy: true,
@@ -637,19 +670,19 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   light: sold("light", "VPV Light", "Your plant, online and ready to show.", 3_560, 5, 0, { videos: 0, pdfs: 0 }, 2, [
     { upTo: 5, each: 6_000 },
     { upTo: Infinity, each: 5_500 },
-  ], links(), 20),
+  ], links(), 20, 1_99_999),
   premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 10_000, 20, 1, { videos: 5, pdfs: 30 }, 7, [
     { upTo: 5, each: 4_500 },
     { upTo: Infinity, each: 4_000 },
-  ], links("oneTime")),
+  ], links("oneTime"), Infinity, 5_49_999),
   ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 13_542, 45, 2, { videos: 8, pdfs: 50 }, 13, [
     { upTo: 5, each: 3_200 },
     { upTo: Infinity, each: 3_000 },
-  ], links("oneTime", "password")),
+  ], links("oneTime", "password"), Infinity, 7_49_999),
   white_glove: sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, [
     { upTo: 5, each: 2_000 },
     { upTo: Infinity, each: 1_800 },
-  ], links("oneTime", "password", "expiry", "devices")),
+  ], links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
 
   // ── No longer sold (one-time fees, before 21 Nov 2026). Kept for the
   //    workspaces that bought them: what they paid, what they got.
@@ -796,11 +829,11 @@ export const ENTERPRISE_PERSONAL = {
 /* ─────────────────────── Special offer ──────────────────────────── */
 
 /**
- * The special offer for our first 50 customers: 50% off the regular plan
+ * The special offer for our first 30 customers: 50% off the regular plan
  * price, and 50% off each sales-team login (see SALES_TEAM).
  *
  * ┌─ THIS IS A PROMISE, AND THE CODE KEEPS IT ────────────────────────┐
- * │ "First 50 customers" is printed on the site, so it has to be       │
+ * │ "First 30 customers" is printed on the site, so it has to be       │
  * │ true. An offer that never ends is a false-urgency claim under the  │
  * │ CCPA's dark-pattern guidelines. So the order route COUNTS paid     │
  * │ site-plan orders (lib/server/launchOffer.ts) and, from the 51st,   │
@@ -818,26 +851,54 @@ export const ENTERPRISE_PERSONAL = {
 export const LAUNCH_OFFER = {
   active: true,
   percent: 50,
-  limit: 50,
-  label: "Special offer for our first 50 customers",
+  /** Customers who get the 50% off (and ₹199 Sales Team logins). */
+  limit: 30,
+  /**
+   * The FOUNDING customers, the first 20 of them (21 Nov 2026). On top of
+   * the 50% they get: 3 months free (their first period runs 15 months for
+   * the price of 12), free cab travel for the shoot, and their first period
+   * of support, hosting & security free.
+   */
+  foundingLimit: 20,
+  freeMonths: 3,
+  label: "Special offer for our first 30 customers",
   short: "Special offer",
+  /** Written into a founding order's notes; fulfilment reads it back. */
+  foundingShort: "Founding offer",
 };
 
-/** Is the offer open, given how many customers have already bought? */
+/** Is the 50% offer open, given how many customers have already bought? */
 export function launchOfferOpen(sold: number): boolean {
   return LAUNCH_OFFER.active && sold < LAUNCH_OFFER.limit;
 }
 
-/** What a plan costs right now, GST excluded. */
-export function planPrice(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
+/** Is a founding place (the first 20) still open? */
+export function foundingOfferOpen(sold: number): boolean {
+  return LAUNCH_OFFER.active && sold < LAUNCH_OFFER.foundingLimit;
+}
+
+/** Months a new workspace is paid up for: 12, or 15 for a founding customer. */
+export function firstPeriodMonths(founding: boolean): number {
+  return SUPPORT_FREE_MONTHS + (founding && LAUNCH_OFFER.active ? LAUNCH_OFFER.freeMonths : 0);
+}
+
+/** What a plan costs right now, GST excluded: one year, or for life. */
+export function planPrice(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active, billing: PurchaseBilling = "annual"): number {
   const p = SITE_PLANS[planId];
-  return offerOpen && LAUNCH_OFFER.active ? p.priceInr : p.regularInr;
+  const on = offerOpen && LAUNCH_OFFER.active;
+  if (billing === "lifetime" && p.lifetimeInr > 0) return on ? p.lifetimeInr : p.regularLifetimeInr;
+  return on ? p.priceInr : p.regularInr;
+}
+
+/** The plan's regular price (the struck one), one year or for life. */
+export function regularPlanPrice(planId: SitePlanId, billing: PurchaseBilling = "annual"): number {
+  const p = SITE_PLANS[planId];
+  return billing === "lifetime" && p.regularLifetimeInr > 0 ? p.regularLifetimeInr : p.regularInr;
 }
 
 /** The rupees the offer takes off a plan, 0 once it has closed. */
-export function offerSaving(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
-  const p = SITE_PLANS[planId];
-  return p.regularInr - planPrice(planId, offerOpen);
+export function offerSaving(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active, billing: PurchaseBilling = "annual"): number {
+  return regularPlanPrice(planId, billing) - planPrice(planId, offerOpen, billing);
 }
 
 /** What a plan costs per month right now, GST excluded (yearly plans). */
@@ -847,7 +908,7 @@ export function planMonthly(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active)
 }
 
 /** A yearly plan's price at a given rate, whatever the offer is doing now:
- *  "offer" is what our first 50 customers pay, every year they renew. */
+ *  "offer" is what our first 30 customers pay, every year they renew. */
 export function yearlyPrice(planId: SitePlanId, rate: "offer" | "regular"): number {
   const p = SITE_PLANS[planId];
   return rate === "offer" ? p.priceInr : p.regularInr;
@@ -937,8 +998,20 @@ export function clampExtraVideos(n: unknown): number {
   return Math.max(0, Math.min(EXTRA_VIDEO_MAX, v));
 }
 
-/** What `n` extra areas cost on a given plan, GST excluded. */
-export function extraAreaCost(planId: SitePlanId, n: number): number {
+/**
+ * An extra area on a LIFETIME plan is bought once, for life, at this many
+ * times its yearly price (a plan for life costs about 4.7 years; an extra
+ * area has no offer on it, so it is priced a little above that).
+ */
+export const LIFETIME_EXTRA_AREA_MULTIPLE = 5;
+
+/** What `n` extra areas cost on a given plan, GST excluded: per year on a
+ *  yearly plan, once on a lifetime plan. */
+export function extraAreaCost(planId: SitePlanId, n: number, billing: PurchaseBilling = "annual"): number {
+  return yearlyExtraAreaCost(planId, n) * (billing === "lifetime" ? LIFETIME_EXTRA_AREA_MULTIPLE : 1);
+}
+
+function yearlyExtraAreaCost(planId: SitePlanId, n: number): number {
   const count = clampExtraAreas(n);
   let total = 0;
   let priced = 0;
@@ -955,9 +1028,9 @@ export function extraAreaCost(planId: SitePlanId, n: number): number {
 }
 
 /** Marginal price of the NEXT extra area — the "add one more" price. */
-export function nextExtraAreaPrice(planId: SitePlanId, have: number): number {
+export function nextExtraAreaPrice(planId: SitePlanId, have: number, billing: PurchaseBilling = "annual"): number {
   const n = clampExtraAreas(have);
-  return extraAreaCost(planId, n + 1) - extraAreaCost(planId, n);
+  return extraAreaCost(planId, n + 1, billing) - extraAreaCost(planId, n, billing);
 }
 
 /**
@@ -968,12 +1041,13 @@ export function nextExtraAreaPrice(planId: SitePlanId, have: number): number {
 export function sitePerArea(
   planId: SitePlanId,
   extraAreas = 0,
-  offerOpen = LAUNCH_OFFER.active
+  offerOpen = LAUNCH_OFFER.active,
+  billing: PurchaseBilling = "annual"
 ): number {
   const plan = SITE_PLANS[planId];
   const n = clampExtraAreas(extraAreas);
   const areas = plan.scenes + n;
-  return Math.round((planPrice(planId, offerOpen) + extraAreaCost(planId, n)) / areas);
+  return Math.round((planPrice(planId, offerOpen, billing) + extraAreaCost(planId, n, billing)) / areas);
 }
 
 /**
@@ -984,11 +1058,14 @@ export function sitePerArea(
  */
 export function discountBands(
   planId: SitePlanId,
-  offerOpen = LAUNCH_OFFER.active
+  offerOpen = LAUNCH_OFFER.active,
+  billing: PurchaseBilling = "annual"
 ): { from: number; to: number | null; each: number; percentOff: number }[] {
-  const base = sitePerArea(planId, 0, offerOpen);
+  const base = sitePerArea(planId, 0, offerOpen, billing);
+  const k = billing === "lifetime" ? LIFETIME_EXTRA_AREA_MULTIPLE : 1;
   let from = 1;
-  return SITE_PLANS[planId].extraAreaLadder.map((band) => {
+  return SITE_PLANS[planId].extraAreaLadder.map((b) => {
+    const band = { upTo: b.upTo, each: b.each * k };
     const to = Number.isFinite(band.upTo) ? band.upTo : null;
     const row = {
       from,
@@ -1005,10 +1082,11 @@ export function discountBands(
 export function extrasSaving(
   planId: SitePlanId,
   extraAreas: number,
-  offerOpen = LAUNCH_OFFER.active
+  offerOpen = LAUNCH_OFFER.active,
+  billing: PurchaseBilling = "annual"
 ): number {
   const n = clampExtraAreas(extraAreas);
-  return Math.max(0, n * sitePerArea(planId, 0, offerOpen) - extraAreaCost(planId, n));
+  return Math.max(0, n * sitePerArea(planId, 0, offerOpen, billing) - extraAreaCost(planId, n, billing));
 }
 
 /** Every step of the add-on slider, pre-computed for the table. */
@@ -1041,7 +1119,7 @@ export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.activ
  * YEARLY per salesperson (since 26 Oct 2026; it used to be one-time). The
  * first year is bought with the plan; from year 2 it renews together with
  * support, hosting & security, at the price the customer bought at. One flat
- * price per login, no volume discount. Our first 50 customers pay ₹199 per
+ * price per login, no volume discount. Our first 30 customers pay ₹199 per
  * login per year (shown against the regular ₹999); from the 51st customer it
  * is ₹999. Like the plan prices, the regular price is a real future price,
  * not a decoy.
@@ -1069,22 +1147,34 @@ export function seatPrice(offerOpen = LAUNCH_OFFER.active): number {
 }
 
 /**
- * What one year's renewal costs, GST excluded: the workspace's yearly plan
- * at the price it pays (planYearlyInr, stored on the workspace when it was
- * bought), or — for a plan bought before 21 Nov 2026, which has none —
- * support, hosting & security; plus each sales login at the price the
+ * What one year's renewal costs, GST excluded: support, hosting & security
+ * (every workspace); plus, on a plan paid yearly, the plan at the price it
+ * pays (planYearlyInr, stored when it was bought; 0 on a lifetime plan or a
+ * plan from before 21 Nov 2026); plus each sales login at the price the
  * customer bought it at.
  */
 export function renewalAmount(seats: number, seatInr: number, planYearlyInr = 0): number {
   const n = clampSalesSeats(seats);
-  const base = planYearlyInr > 0 ? Math.round(planYearlyInr) : SUPPORT_ANNUAL_INR;
-  return base + n * Math.max(0, Math.round(seatInr || 0));
+  return SUPPORT_ANNUAL_INR + Math.max(0, Math.round(planYearlyInr || 0)) + n * Math.max(0, Math.round(seatInr || 0));
 }
 
 /**
  * The yearly amount a site-plan order renews at, read back from its notes
  * ("…, renews yearly at ₹42,720 (yearly plan…)"). 0 = not a yearly plan.
  */
+/** How a site-plan order was paid for, read back from its notes. */
+export function planBillingFromNotes(notes: string | null | undefined): PurchaseBilling | null {
+  const n = notes ?? "";
+  if (!sitePlanFromNotes(n)) return null;
+  if (/^[^,]+ areas, lifetime(,| \()/.test(n)) return "lifetime";
+  return /renews yearly at ₹/.test(n) ? "annual" : null;
+}
+
+/** Was this order one of the founding 20 (3 months free)? */
+export function foundingFromNotes(notes: string | null | undefined): boolean {
+  return (notes ?? "").includes(`${LAUNCH_OFFER.foundingShort} (`);
+}
+
 export function planYearlyFromNotes(notes: string | null | undefined): number {
   const m = /renews yearly at ₹([\d,]+)/.exec(notes ?? "");
   if (!m) return 0;
@@ -1243,7 +1333,7 @@ export type QuoteLine = {
   label: string;
   amountInr: number;
   note?: string;
-  kind?: "plan" | "offer" | "extra" | "travel" | "time" | "support" | "coupon";
+  kind?: "plan" | "offer" | "bonus" | "extra" | "travel" | "time" | "support" | "coupon";
   /** The full price when this line is discounted to less (the support
    *  year, free for our first customers), so a screen can strike it out. */
   regularInr?: number;
@@ -1277,7 +1367,14 @@ export function couponLabel(c: Coupon): string {
 
 export type SiteQuote = {
   plan: SitePlanSpec;
+  /** Paid every year, or once for life. */
+  billing: PurchaseBilling;
   offerOpen: boolean;
+  /** A founding place (the first 20): 3 months free, free cab, free first
+   *  period of support, hosting & security. */
+  founding: boolean;
+  /** Months the first payment covers: 12, or 15 for a founding customer. */
+  firstMonths: number;
   /** What the special offer takes off, 0 once it has closed. */
   savingInr: number;
   extraAreas: number;
@@ -1341,17 +1438,17 @@ export type SiteQuote = {
 export const MIN_PAYABLE_INR = 1;
 
 /**
- * The cab line. Free for our first 50 customers — shown at its real price,
+ * The cab line. Free for our first 20 (founding) customers — shown at its real price,
  * struck out, exactly like the first year of support — and charged after.
  */
-function travelLine(label: string, amountInr: number, offerOpen: boolean): QuoteLine {
-  const free = offerOpen && LAUNCH_OFFER.active;
+function travelLine(label: string, amountInr: number, founding: boolean): QuoteLine {
+  const free = founding && LAUNCH_OFFER.active;
   return {
     kind: "travel",
     label,
     amountInr: free ? 0 : amountInr,
     regularInr: amountInr,
-    note: free ? `Free for our first ${LAUNCH_OFFER.limit} customers. ${CAB_TRAVEL.mode}` : CAB_TRAVEL.mode,
+    note: free ? `Free for our first ${LAUNCH_OFFER.foundingLimit} customers. ${CAB_TRAVEL.mode}` : CAB_TRAVEL.mode,
   };
 }
 
@@ -1368,6 +1465,11 @@ export function siteQuote(
     /** Whether the special offer still applies. The server decides this
      *  from the real count of buyers; screens pass what the server said. */
     offerOpen?: boolean;
+    /** Whether a founding place (the first 20) is still open; defaults to
+     *  offerOpen. Decided the same way. */
+    founding?: boolean;
+    /** Paid every year (the default) or once for life. */
+    billing?: PurchaseBilling;
     /** Sales-team logins bought with the plan. */
     salesSeats?: number;
     /** A coupon the caller has already checked is valid. */
@@ -1376,6 +1478,10 @@ export function siteQuote(
 ): SiteQuote {
   const plan = SITE_PLANS[planId];
   const offerOpen = (opts.offerOpen ?? true) && LAUNCH_OFFER.active;
+  const founding = (opts.founding ?? offerOpen) && offerOpen;
+  // Lifetime is offered on the plans on sale only.
+  const billing: PurchaseBilling = opts.billing === "lifetime" && plan.lifetimeInr > 0 ? "lifetime" : "annual";
+  const firstMonths = firstPeriodMonths(founding);
   const extraAreas = clampExtraAreas(opts.extraAreas);
   const selfVideos = clampExtraVideos(opts.selfVideos);
   const shotVideos = clampExtraVideos(opts.shotVideos);
@@ -1385,18 +1491,28 @@ export function siteQuote(
   const totalAreas = plan.scenes + extraAreas;
   const totalVideos = selfVideos + shotVideos;
   const shoot = shootTimeFor(planId, extraAreas, shotVideos);
-  const savingInr = offerSaving(planId, offerOpen);
+  const savingInr = offerSaving(planId, offerOpen, billing);
 
-  const yearly = plan.billing === "yearly";
+  // A yearly plan bought yearly; a plan from before 21 Nov 2026 (one-time);
+  // or a plan on sale bought for life.
+  const yearly = plan.billing === "yearly" && billing === "annual";
+  const lifetime = billing === "lifetime";
   const monthlyInr = yearly ? planMonthly(planId, offerOpen) : 0;
+  const what = `${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} process videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`;
   const lines: QuoteLine[] = [
     {
       kind: "plan",
-      label: `${plan.name} — ${yearly ? "first year, " : ""}${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} process videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
-      amountInr: plan.regularInr,
+      label: yearly
+        ? `${plan.name} — first ${founding ? `${firstMonths} months` : "year"}, ${what}`
+        : lifetime
+          ? `${plan.name} — lifetime, ${what}`
+          : `${plan.name} — ${what}`,
+      amountInr: regularPlanPrice(planId, billing),
       note: yearly
-        ? `${inr(plan.regularMonthlyInr)}/month, billed yearly. Support, hosting & security included. ${hoursLabel(plan.shootHours)} of shoot time included`
-        : `${hoursLabel(plan.shootHours)} of shoot time included`,
+        ? `${inr(plan.regularMonthlyInr)}/month, billed yearly. ${hoursLabel(plan.shootHours)} of shoot time included`
+        : lifetime
+          ? `Pay once: your plan is yours for life. ${hoursLabel(plan.shootHours)} of shoot time included`
+          : `${hoursLabel(plan.shootHours)} of shoot time included`,
     },
   ];
   if (savingInr > 0) {
@@ -1409,13 +1525,30 @@ export function siteQuote(
         : `For our first ${LAUNCH_OFFER.limit} customers`,
     });
   }
+  // The founding customers' 3 free months: on a yearly plan the first year
+  // runs 15 months for the price of 12; for life, support, hosting &
+  // security is free for the first 15 months instead of 12.
+  if (founding && (yearly || lifetime)) {
+    lines.push({
+      kind: "bonus",
+      label: `${LAUNCH_OFFER.freeMonths} months free`,
+      amountInr: 0,
+      note: yearly
+        ? `${LAUNCH_OFFER.foundingShort}: your first year runs ${firstMonths} months for the price of 12`
+        : `${LAUNCH_OFFER.foundingShort}: support, hosting & security free for your first ${firstMonths} months`,
+    });
+  }
 
   if (extraAreas > 0) {
     lines.push({
       kind: "extra",
       label: `${extraAreas} extra area${extraAreas === 1 ? "" : "s"}`,
-      amountInr: extraAreaCost(planId, extraAreas),
-      note: yearly ? `${totalAreas} areas in total. Renews yearly with your plan` : `${totalAreas} areas in total`,
+      amountInr: extraAreaCost(planId, extraAreas, billing),
+      note: yearly
+        ? `${totalAreas} areas in total. Renews yearly with your plan`
+        : lifetime
+          ? `${totalAreas} areas in total. Paid once, for life`
+          : `${totalAreas} areas in total`,
     });
   }
   if (paidSelfVideos > 0) {
@@ -1486,30 +1619,28 @@ export function siteQuote(
     logistics = logisticsFor(opts.city);
     available = logistics.inServiceArea;
     if (available) {
-      lines.push(travelLine(`${CAB_TRAVEL.label} — ${logistics.city}`, logistics.amountInr, offerOpen));
+      lines.push(travelLine(`${CAB_TRAVEL.label} — ${logistics.city}`, logistics.amountInr, founding));
     }
   } else {
     const zone: TravelZone = isTravelZone(opts.travel) ? opts.travel : "outside";
     available = zone === "ncr";
     if (available) {
-      lines.push(travelLine(`${CAB_TRAVEL.label} — ${TRAVEL_FEES[zone].label}`, TRAVEL_FEES[zone].amountInr, offerOpen));
+      lines.push(travelLine(`${CAB_TRAVEL.label} — ${TRAVEL_FEES[zone].label}`, TRAVEL_FEES[zone].amountInr, founding));
     }
   }
 
-  // The yearly plans include support, hosting & security. Only a plan from
-  // before 21 Nov 2026 (one-time fee) carries the separate support year.
-  const supportInr = yearly || offerOpen ? 0 : SUPPORT_ANNUAL_INR;
-  if (!yearly) {
-    lines.push({
-      kind: "support",
-      label: `First year of ${SUPPORT_NAME.toLowerCase()}`,
-      amountInr: supportInr,
-      regularInr: SUPPORT_ANNUAL_INR,
-      note: offerOpen
-        ? `Free for our first ${LAUNCH_OFFER.limit} customers. From year 2, ${inr(SUPPORT_ANNUAL_INR)} + GST a year (${inr(SUPPORT_MONTHLY_INR)}/month)`
-        : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Renews at ${inr(SUPPORT_ANNUAL_INR)} + GST a year`,
-    });
-  }
+  // Support, hosting & security: billed yearly on every plan, yearly or
+  // lifetime (21 Nov 2026). The first period is free for our founding 20.
+  const supportInr = founding ? 0 : SUPPORT_ANNUAL_INR;
+  lines.push({
+    kind: "support",
+    label: founding ? `First ${firstMonths} months of ${SUPPORT_NAME.toLowerCase()}` : `First year of ${SUPPORT_NAME.toLowerCase()}`,
+    amountInr: supportInr,
+    regularInr: SUPPORT_ANNUAL_INR,
+    note: founding
+      ? `Free for our first ${LAUNCH_OFFER.foundingLimit} customers. Then ${inr(SUPPORT_ANNUAL_INR)} + GST a year (${inr(SUPPORT_MONTHLY_INR)}/month)`
+      : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Renews at ${inr(SUPPORT_ANNUAL_INR)} + GST a year`,
+  });
 
   if (shoot.days > 1 && CHARGE_ADDITIONAL_SHOOT_DAY) {
     const extraDays = shoot.days - 1;
@@ -1538,7 +1669,10 @@ export function siteQuote(
 
   return {
     plan,
+    billing,
     offerOpen,
+    founding,
+    firstMonths,
     savingInr,
     extraAreas,
     totalAreas,
@@ -1560,7 +1694,7 @@ export function siteQuote(
     taxableInr: g.taxable,
     gstInr: g.gst,
     totalInr: g.total,
-    perAreaInr: sitePerArea(planId, extraAreas, offerOpen),
+    perAreaInr: sitePerArea(planId, extraAreas, offerOpen, billing),
   };
 }
 
@@ -1625,14 +1759,17 @@ export type InvoiceLine = {
 /** What one plan covers, in one sentence, for the invoice's first row. */
 export function planInclusionSentence(q: SiteQuote): string {
   const bits = [
-    q.plan.billing === "yearly" ? "One year of VPV, billed yearly" : "360° factory walkthrough",
+    q.billing === "lifetime"
+      ? "VPV for life, paid once"
+      : q.plan.billing === "yearly"
+        ? `${q.firstMonths === 12 ? "One year" : `${q.firstMonths} months`} of VPV, billed yearly`
+        : "360° factory walkthrough",
     `${q.totalAreas} Active Operational Areas`,
   ];
   if (q.totalVideos > 0) bits.push(`${q.totalVideos} process videos`);
   if (q.plan.pdfs > 0) bits.push(`${q.plan.pdfs} lab reports & certifications`);
   bits.push("information icons", "custom domain", "password-protected dashboard and branding");
   if (q.plan.sharingControls) bits.push(linkControlLabels(q.plan.id).join(", ").toLowerCase());
-  if (q.plan.billing === "yearly") bits.push(SUPPORT_NAME.toLowerCase());
   return `${bits.join(", ")}.`;
 }
 
@@ -1796,6 +1933,10 @@ export function priceFor(
     shotVideos?: number;
     /** Decided by the order route from the real count of buyers. */
     offerOpen?: boolean;
+    /** A founding place (the first 20), decided the same way. */
+    founding?: boolean;
+    /** site_plan: paid every year (default) or once for life. */
+    billing?: PurchaseBilling;
     salesSeats?: number;
     /** Renewal only: the price per sales login the customer bought at. */
     seatInr?: number;
@@ -1935,12 +2076,19 @@ export function priceFor(
         city: opts.city,
         travel: opts.travel,
         offerOpen: opts.offerOpen,
+        founding: opts.founding,
+        billing: opts.billing,
         salesSeats: opts.salesSeats,
         coupon: opts.coupon,
       });
+      // "lifetime" right after the areas is how fulfilment knows a plan was
+      // bought for life (planBillingFromNotes); keep the shape.
       const parts = [`${q.plan.name} — ${q.totalAreas} areas`];
+      if (q.billing === "lifetime") parts.push("lifetime");
       if (q.totalVideos > 0) parts.push(`${q.totalVideos} process videos`);
       if (q.savingInr > 0) parts.push(LAUNCH_OFFER.short);
+      // The first 20: read back by fulfilment, which makes the first period 15 months.
+      if (q.founding) parts.push(`${LAUNCH_OFFER.foundingShort} (${LAUNCH_OFFER.freeMonths} months free)`);
       parts.push(`${hoursLabel(q.shoot.totalHours)} shoot`);
       // Read back by seatsFromOrderNotes() when the workspace is built, so the
       // yearly renewal knows how many logins, and at what price, to bill.
@@ -1959,9 +2107,10 @@ export function priceFor(
       if (q.yearlyInr > 0) parts.push(`renews yearly at ${inr(q.yearlyInr)}`);
       return {
         amountInr: q.taxableInr,
-        description: q.yearlyInr > 0
-          ? `${parts.join(", ")} (yearly plan, year 1, ${SUPPORT_NAME.toLowerCase()} included)`
-          : `${parts.join(", ")} (includes year 1 of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
+        description:
+          `${parts.join(", ")} (` +
+          (q.billing === "lifetime" ? "lifetime plan, " : q.yearlyInr > 0 ? "yearly plan, " : "") +
+          `${q.founding ? `first ${q.firstMonths} months` : "year 1"} of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
         scenes: q.totalAreas,
         lines: invoiceLinesFromQuote(q),
       };
@@ -1980,24 +2129,29 @@ export function priceFor(
       return {
         amountInr: renewalAmount(seats, each, yearlyInr),
         description:
-          (yearlyInr > 0 ? `Yearly renewal of ${planName} — 1 year` : `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year`) + logins,
+          (yearlyInr > 0
+            ? `Yearly renewal of ${planName} — 1 year, with ${SUPPORT_NAME.toLowerCase()}`
+            : `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year`) + logins,
         scenes: null,
         lines: [
-          yearlyInr > 0
-            ? {
-                title: `${planName} — one more year`,
-                detail: `Your yearly plan, renewed for one year at the price you pay (${inr(Math.round(yearlyInr / 12))}/month, billed yearly), with ${SUPPORT_NAME.toLowerCase()} included.`,
-                qty: 1,
-                unitInr: yearlyInr,
-                amountInr: yearlyInr,
-              }
-            : {
-                title: SUPPORT_NAME,
-                detail: "One more year of hosting, security, backups, updates and technical support.",
-                qty: 1,
-                unitInr: SUPPORT_ANNUAL_INR,
-                amountInr: SUPPORT_ANNUAL_INR,
-              },
+          ...(yearlyInr > 0
+            ? [
+                {
+                  title: `${planName} — one more year`,
+                  detail: `Your yearly plan, renewed for one year at the price you pay (${inr(Math.round(yearlyInr / 12))}/month, billed yearly).`,
+                  qty: 1,
+                  unitInr: yearlyInr,
+                  amountInr: yearlyInr,
+                },
+              ]
+            : []),
+          {
+            title: SUPPORT_NAME,
+            detail: "One more year of hosting, security, backups, updates and technical support.",
+            qty: 1,
+            unitInr: SUPPORT_ANNUAL_INR,
+            amountInr: SUPPORT_ANNUAL_INR,
+          },
           ...(seats > 0 && each > 0
             ? [
                 {

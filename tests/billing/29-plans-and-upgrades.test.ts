@@ -249,7 +249,7 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     assert.equal(Number(org.plan_yearly_inr), 2_45_424 + 3 * 2_000);
     assert.equal(org.plan_offer_locked, true);
     const [inv] = await w.q(`select description from public.billing_invoices`);
-    assert.match(inv.description, /^White Glove — yearly plan, 103 areas, first year/);
+    assert.match(inv.description, /^White Glove — yearly plan, 103 areas, first 15 months/);
   });
 
   it("the migration fills the plan in for workspaces built before it, from their paid order", async () => {
