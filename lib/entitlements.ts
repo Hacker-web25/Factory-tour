@@ -154,9 +154,10 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
     tier === "media" ? SITE_PLANS[p].level >= 1 : SITE_PLANS[p].linkControls[ROLLOUT[key].control!];
   if (has(effectivePlan(f))) return { state: "open" };
   // The first plan this workspace can move up to that has it; failing that,
-  // the first plan on sale that has it (VPV VIP and Signature are arranged
-  // with our team, so the pop-up says so instead of linking to a payment).
-  const to = upgradeOptions(f).find(has) ?? SITE_PLAN_ORDER.find(has) ?? "signature";
+  // the first plan on sale that has it (White Glove, and any move from a
+  // plan sold before 21 Nov 2026, are arranged with our team, so the pop-up
+  // says so instead of linking to a payment — see canBuyUpgrade).
+  const to = upgradeOptions(f).find(has) ?? SITE_PLAN_ORDER.find(has) ?? "white_glove";
   return { state: "locked", upgradeTo: to };
 }
 
@@ -177,15 +178,19 @@ export function upgradeForMore(f: WorkspaceFacts, what: "videos" | "pdfs" | "inf
 }
 
 /**
- * Can a workspace on `from` move up to `to` from its own dashboard? Only to
- * a plan on sale that costs more, has at least as many areas and at least
- * the same features. Never to VPV or Signature: those include Mr. Gupta's
- * own time, so they are a conversation, not a button.
+ * Can a workspace on `from` move up to `to` from its own dashboard? Only
+ * from one yearly plan to a yearly plan on sale that costs more, has at
+ * least as many areas and at least the same features (the customer pays the
+ * yearly difference for the months left). Never to White Glove: it includes
+ * Mr. Gupta's own time, so it is a conversation, not a button. A workspace
+ * on a one-time plan from before 21 Nov 2026 moves to a yearly plan by
+ * talking to us, too: what it already paid has to be settled by a person.
  */
 export function isUpgrade(from: SitePlanId, to: SitePlanId): boolean {
   const a = SITE_PLANS[from];
   const b = SITE_PLANS[to];
   return (
+    a.billing === "yearly" &&
     !b.legacy &&
     !b.personal &&
     b.level >= a.level &&
@@ -200,10 +205,15 @@ export function upgradeOptions(f: WorkspaceFacts): SoldPlanId[] {
   return SITE_PLAN_ORDER.filter((p) => isUpgrade(from, p));
 }
 
+/** Can this workspace pay for a move to `to` online? (Else: write to us.) */
+export function canBuyUpgrade(f: WorkspaceFacts, to: SitePlanId): boolean {
+  return isUpgrade(effectivePlan(f), to);
+}
+
 /**
  * The one plan the dashboard ever suggests: the first that opens features
- * this workspace does not have (Lite and Plus → Pro; Pro and Premium →
- * Ultra). Null from Ultra up, where nothing more is sold from the dashboard.
+ * this workspace does not have (Light → Premium; Premium → Ultra). Null on
+ * Ultra and up, where nothing more is sold from the dashboard.
  */
 export function nextPlan(f: WorkspaceFacts): SoldPlanId | null {
   const level = SITE_PLANS[effectivePlan(f)].level;

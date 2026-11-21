@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BadgePercent, Check, Clock, FileText, Layers, Lock, Maximize2, Receipt, Star, Video,
+  BadgePercent, Check, Clock, FileText, Layers, Lock, Receipt, Star, Video,
 } from "lucide-react";
 import {
   BackLink,
@@ -47,9 +47,7 @@ import {
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
   SITE_PLAN_ORDER,
-  SUPPORT_MONTHLY_INR,
   AOA_HINT,
-  supportWorthLabel,
   VIDEO_SELF_INR,
   VIDEO_SELF_NOTE,
   VIDEO_SHOT_INR,
@@ -61,6 +59,7 @@ import {
   hoursLabel,
   inr,
   nextExtraAreaPrice,
+  planMonthly,
   planPrice,
   siteQuote,
   sitePerArea,
@@ -245,7 +244,7 @@ export default function Step4Plan() {
   }, []);
 
   const rec = useMemo(() => (s ? recommendPlan(s) : null), [s]);
-  const planId: SoldPlanId = s?.chosenPlan ?? "pro";
+  const planId: SoldPlanId = s?.chosenPlan ?? "premium";
   const offerOpen = offer.open && LAUNCH_OFFER.active;
   const quote = useMemo(
     () =>
@@ -314,6 +313,7 @@ export default function Step4Plan() {
   const plan = SITE_PLANS[planId];
   const isRecommended = planId === rec.plan;
   const price = planPrice(planId, offerOpen);
+  const monthly = planMonthly(planId, offerOpen);
   const extrasCost =
     extraAreaCost(planId, s.extraAreas) +
     Math.max(0, s.selfVideos - plan.videos) * VIDEO_SELF_INR +
@@ -324,7 +324,6 @@ export default function Step4Plan() {
     ...(SITE_PLANS[planId].personal
       ? [{ icon: Star, text: ENTERPRISE_PERSONAL.discussion.short, strong: true }]
       : []),
-    { icon: Maximize2, text: plan.plot.label },
     {
       icon: Layers,
       text: `${plan.scenes} AOAs (Active Operational Areas)`,
@@ -342,9 +341,7 @@ export default function Step4Plan() {
     { icon: Clock, text: `${hoursLabel(plan.shootHours)} of shoot time on site` },
     { icon: Check, text: "Information icons on every hotspot" },
     { icon: Check, text: "Your own branded workspace and domain" },
-    offerOpen
-      ? { icon: Check, text: `First year of support is free — worth ${supportWorthLabel()}`, strong: true }
-      : { icon: Check, text: `Support from ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly` },
+    { icon: Check, text: "Support, hosting & security included" },
   ];
 
   return (
@@ -370,13 +367,18 @@ export default function Step4Plan() {
 
                 <div className="mt-8">
                   {offerOpen && (
-                    <p className="text-[17px] text-white/55 line-through decoration-white/50">{inr(plan.regularInr)}</p>
+                    <p className="text-[17px] text-white/55 line-through decoration-white/50">{inr(plan.regularMonthlyInr)}/month</p>
                   )}
-                  <p className="text-[52px] font-semibold leading-none tracking-[-0.03em] tabular-nums">{inr(price)}</p>
-                  <p className="mt-2 text-[13px] text-white/70">one-time, + 18% GST</p>
+                  <p className="text-[52px] font-semibold leading-none tracking-[-0.03em] tabular-nums">
+                    {inr(monthly)}
+                    <span className="ml-1 text-[18px] font-medium tracking-normal text-white/75">/month</span>
+                  </p>
+                  <p className="mt-2 text-[13px] text-white/70">
+                    Billed yearly: {inr(price)} + 18% GST. Renews every year at the same price.
+                  </p>
                   {offerOpen && (
                     <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#FFF2C4] px-4 py-1.5 text-[13.5px] font-semibold text-[#5A3D00]">
-                      You save {inr(plan.regularInr - price)} as one of our first {LAUNCH_OFFER.limit} customers
+                      You save {inr(plan.regularInr - price)} a year, every year, as one of our first {LAUNCH_OFFER.limit} customers
                     </p>
                   )}
                 </div>
@@ -601,7 +603,7 @@ export default function Step4Plan() {
             aria-expanded={compare}
             className="text-[14px] font-medium text-vpv-blue underline underline-offset-2"
           >
-            {compare ? "Hide plan comparison" : "Compare all seven plans"}
+            {compare ? "Hide plan comparison" : "Compare all four plans"}
           </button>
         </div>
         {compare && (
@@ -618,12 +620,14 @@ export default function Step4Plan() {
                   )}
                   <h3 className="text-[17px] font-semibold text-vpv-ink">{p.name}</h3>
                   <div className="mt-3">
-                    {offerOpen && <p className="text-[13px] text-slate-400 line-through">{inr(p.regularInr)}</p>}
-                    <p className="text-[26px] font-semibold tabular-nums text-vpv-ink">{inr(planPrice(id, offerOpen))}</p>
-                    <p className="text-[12px] text-slate-500">{inr(sitePerArea(id, 0, offerOpen))} per area</p>
+                    {offerOpen && <p className="text-[13px] text-slate-400 line-through">{inr(p.regularMonthlyInr)}/month</p>}
+                    <p className="text-[26px] font-semibold tabular-nums text-vpv-ink">
+                      {inr(planMonthly(id, offerOpen))}
+                      <span className="ml-0.5 text-[13px] font-medium text-slate-500">/month</span>
+                    </p>
+                    <p className="text-[12px] text-slate-500">Billed yearly: {inr(planPrice(id, offerOpen))} + GST</p>
                   </div>
                   <ul className="mt-5 flex-1 space-y-2 text-[13.5px] text-slate-600">
-                    <li className="font-medium text-slate-700">{p.plot.label}</li>
                     {p.personal && (
                       <li className="font-medium text-[#8A6100]">
                         Private discussion and personal shoot by {ENTERPRISE_PERSONAL.person}

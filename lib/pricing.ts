@@ -159,7 +159,12 @@ export function sceneLadderRows(): {
 export const PRO_MONTHLY_INR = 5_000;
 export const ULTRA_MONTHLY_INR = 15_000;
 
-/** Support, hosting & security, per month, GST excluded. Billed yearly. */
+/**
+ * Support, hosting & security, per month, GST excluded, billed yearly — for
+ * the plans sold before 21 Nov 2026 (one-time fee + this yearly fee). The
+ * yearly plans on sale now INCLUDE support, hosting & security in their
+ * price; they renew at the plan's own yearly price instead.
+ */
 export const SUPPORT_MONTHLY_INR = 999;
 /** Support, hosting & security, per year, GST excluded (₹999 × 12). */
 export const SUPPORT_ANNUAL_INR = SUPPORT_MONTHLY_INR * 12;
@@ -189,7 +194,8 @@ export function supportWorthLabel(): string {
   return inr(Math.round(SUPPORT_ANNUAL_INR / 1000) * 1000);
 }
 
-/** Months of support included free with a Basic purchase. */
+/** Months a new workspace is paid up for: the first year of its yearly plan
+ *  (support included). On the old one-time plans, the free support year. */
 export const SUPPORT_FREE_MONTHS = 12;
 /**
  * LEVEL 1 → LEVEL 2 of the lapse ladder, in days.
@@ -415,19 +421,28 @@ export function fromPaise(paise: number): number {
   return Math.round(paise) / 100;
 }
 
+/**
+ * The old self-serve scene ladder (a one-time "VPV Basic licence" priced by
+ * the number of scenes, and its scene top-ups) is CLOSED since 21 Nov 2026:
+ * everything new is one of the four yearly plans, so the order route refuses
+ * both purposes and nobody can reach the old pricing by mistake.
+ *
+ * The billing tests open it on purpose (tests/billing/harness/world.ts):
+ * those purposes are still the simplest vehicle for testing the shared
+ * money machinery (races, signatures, refunds), and a test checks the
+ * production default refuses them. Never set `open` to true in app code.
+ */
+export const OLD_SCENE_LADDER = { open: false };
+
 /* ═══════════════ SITE PLANS: the named packs on myvpv.com ═════════ */
 
 /**
- * The plans the marketing site sells (VPV Lite to VPV Signature, chosen by
- * the factory's covered area). They are the SAME product as a Basic licence
- * — a workspace with a fixed number of areas — just sold as named packs at
- * a flat price instead of by the scene ladder. An "AOA" (Active Operational
- * Area) is a scene, so `scenes` below feeds the identical fulfilment path
- * and nothing downstream has to learn a new shape.
- *
- * The price per AOA FALLS as the plan grows (₹17,500 on Lite to ₹4,000 on
- * Signature). That fall is printed large on every card, because it is what
- * moves a buyer up a plan.
+ * The plans the marketing site sells (VPV Light to White Glove). They are
+ * the SAME product as a Basic licence — a workspace with a fixed number of
+ * areas — just sold as named packs at a flat YEARLY price instead of by the
+ * scene ladder. An "AOA" (Active Operational Area) is a scene, so `scenes`
+ * below feeds the identical fulfilment path and nothing downstream has to
+ * learn a new shape.
  *
  * Amounts are INR and EXCLUDE GST, exactly like the scene ladder.
  */
@@ -446,13 +461,22 @@ export function fromPaise(paise: number): number {
 export const PLACEHOLDER_PRICES = false;
 
 /**
- * Since 20 Nov 2026 the site sells SEVEN plans, chosen by the size of the
- * factory (its covered area in square feet). The four plans before them
- * (Confidence, Authority, Control, Enterprise) are no longer sold, but
+ * Since 21 Nov 2026 the site sells FOUR plans, billed YEARLY and shown per
+ * month (VPV Light, VPV Premium, VPV Ultra and White Glove). A plan is no
+ * longer a one-time fee plus a yearly support fee: the yearly plan price IS
+ * the whole recurring charge, support, hosting & security included, and it
+ * renews every year at the price the customer bought at.
+ *
+ * Plans sold before 21 Nov 2026 (Confidence, Authority, Control and
+ * Enterprise, one-time fees plus yearly support) are no longer sold, but
  * workspaces that bought one keep it: their ids stay valid here, marked
- * `legacy`, so their features, limits and upgrades keep working.
+ * `legacy` with `billing: "one_time"`, so their features, limits and the
+ * ₹11,988 support renewal keep working exactly as they were sold.
+ *
+ * Plans are no longer chosen by the factory's covered area (21 Nov 2026):
+ * the area is gone from the plans, the cards, the funnel and the policies.
  */
-export type SoldPlanId = "lite" | "plus" | "pro" | "premium" | "ultra" | "vpv" | "signature";
+export type SoldPlanId = "light" | "premium" | "ultra" | "white_glove";
 export type LegacyPlanId = "confidence" | "authority" | "control" | "enterprise";
 export type SitePlanId = SoldPlanId | LegacyPlanId;
 
@@ -465,7 +489,7 @@ export type ExtraAreaBand = { upTo: number; each: number };
  * the higher levels add, in order:
  *   0  the base (tours, information icons, dashboard, address, branding)
  *   1  + process videos and lab reports & certifications
- *   2  + sharing controls (one-time links, expiry, restrictions)
+ *   2  + more link controls (passwords)
  *   3  + Mr. Nitin Gupta's personal discussion and shoot
  */
 export type FeatureLevel = 0 | 1 | 2 | 3;
@@ -481,30 +505,40 @@ const links = (...on: LinkControl[]): LinkControls => ({
 /** The link controls in the order the plan cards list them. */
 export const LINK_CONTROLS: { key: LinkControl; label: string }[] = [
   { key: "oneTime", label: "One-time view link" },
+  { key: "password", label: "Password-protected link" },
   { key: "expiry", label: "Control link expiry time" },
   { key: "devices", label: "Limit device access" },
-  { key: "password", label: "Password-protected link" },
 ];
+
+/** How a plan is charged. */
+export type PlanBilling = "yearly" | "one_time";
 
 export type SitePlanSpec = {
   id: SitePlanId;
   name: string;
   tagline: string;
-  /** What the buyer pays WHILE the special offer is open, GST excluded. */
+  /**
+   * yearly    (the plans on sale) priceInr is ONE YEAR, charged up front and
+   *           again every year; support, hosting & security are included.
+   * one_time  (the plans sold before 21 Nov 2026) priceInr was paid once;
+   *           support renews separately at SUPPORT_ANNUAL_INR a year.
+   */
+  billing: PlanBilling;
+  /** Yearly plans: what the buyer pays per month WHILE the special offer is
+   *  open, GST excluded. The big figure on the card. 0 on one-time plans. */
+  monthlyInr: number;
+  /** Yearly plans: the per-month price once the offer closes (2× monthlyInr). */
+  regularMonthlyInr: number;
+  /** What the buyer pays WHILE the special offer is open, GST excluded:
+   *  one year (monthlyInr × 12) on a yearly plan. */
   priceInr: number;
   /**
    * The price once the special offer closes, GST excluded: twice priceInr
-   * (the offer is 50% off). Shown struck through beside priceInr while the
-   * offer runs, and charged from the 51st buyer. It is a REAL future price,
-   * not a decoy — see LAUNCH_OFFER for why that matters.
+   * (the offer is 50% off). Shown struck through beside the offer price, and
+   * charged from the 51st buyer. It is a REAL future price, not a decoy —
+   * see LAUNCH_OFFER for why that matters.
    */
   regularInr: number;
-  /**
-   * The factory size the plan is made for: its covered area, in square
-   * feet (`minSqft` inclusive, `maxSqft` exclusive; null = no upper limit).
-   * `area` is the big line on the plan card; `label` the sentence.
-   */
-  plot: { area: string; label: string; minSqft: number; maxSqft: number | null };
   /** AOAs — Active Operational Areas. These become the workspace's scenes. */
   scenes: number;
   videos: number;
@@ -514,13 +548,13 @@ export type SitePlanSpec = {
   /** See FeatureLevel. */
   level: FeatureLevel;
   /**
-   * The link controls this plan has (20 Nov 2026, the owner's split):
+   * The link controls this plan has (the owner's split, 20 Nov 2026):
    *   oneTime   one-time view links          Premium and up
    *   password  password-protected links     Ultra and up
-   *   expiry    control a link's expiry time VPV VIP and Signature
-   *   devices   limit device access          Signature only
+   *   expiry    control a link's expiry time White Glove
+   *   devices   limit device access          White Glove
    * None is sold as an add-on. The e-mail gate before viewing, promised on
-   * no plan card, goes with `devices` (the plans that have every control).
+   * no plan card, goes with `devices` (the plan that has every control).
    */
   linkControls: LinkControls;
   /** Has at least one link control (Premium and up): what the funnel's
@@ -532,33 +566,32 @@ export type SitePlanSpec = {
   personal: boolean;
   /** No longer sold; kept so workspaces that bought it keep working. */
   legacy?: boolean;
-  /** This plan's price for each extra area. Cheaper on the higher plans. */
+  /** This plan's YEARLY price for each extra area. Cheaper on the higher
+   *  plans. On a yearly plan extra areas renew with the plan. */
   extraAreaLadder: ExtraAreaBand[];
 };
 
 /*
- * ┌─ THE SEVEN PLANS (20 Nov 2026) ────────────────────────────────────┐
- * │ Priced just below a round figure where it moves the first digit or  │
- * │ the lakh (₹1,99,999 reads as "1 lakh-something"), the left-digit    │
- * │ effect; VPV and Signature, the gold plans, stay round because a     │
- * │ round price reads as premium. The price per AOA falls all the way:  │
- * │ ₹17,500 → 13,000 → 11,875 → 8,571 → 5,000 → 4,500 → 4,000.           │
+ * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026) ──────────────────────────────┐
+ * │ The owner's per-month prices: ₹3,560, ₹10,000, ₹13,542, ₹20,452.    │
+ * │ The yearly charge is exactly 12 of them, so the card's per-month    │
+ * │ figure and the bill always agree. The struck regular price is 2×    │
+ * │ (the 50% special offer for the first 50 customers, kept for as long │
+ * │ as they renew).                                                     │
  * │                                                                     │
- * │ Features are the old four tiers, spread: Lite and Plus have what    │
- * │ Confidence had; Pro and Premium what Authority had; Ultra what      │
- * │ Control had; VPV and Signature what Enterprise had.                 │
+ * │ Features follow the seven-plan spread: Light has what Plus had;     │
+ * │ Premium and Ultra keep theirs; White Glove has what Signature had   │
+ * │ (every link control and Mr. Gupta's own time).                      │
  * │                                                                     │
  * │ Extras: a plan plus enough extra areas to match the next plan must  │
- * │ cost MORE than the next plan (tests/billing/12), except into VPV,   │
- * │ which is priced for Mr. Gupta's time, not for areas.                │
+ * │ cost MORE than the next plan (tests/billing/12).                    │
  * └─────────────────────────────────────────────────────────────────────┘
  */
 const sold = (
   id: SoldPlanId,
   name: string,
   tagline: string,
-  priceInr: number,
-  plot: SitePlanSpec["plot"],
+  monthlyInr: number,
   scenes: number,
   level: FeatureLevel,
   media: { videos: number; pdfs: number },
@@ -570,9 +603,11 @@ const sold = (
   id,
   name,
   tagline,
-  priceInr,
-  regularInr: priceInr * 2,
-  plot,
+  billing: "yearly",
+  monthlyInr,
+  regularMonthlyInr: monthlyInr * 2,
+  priceInr: monthlyInr * 12,
+  regularInr: monthlyInr * 12 * 2,
   scenes,
   videos: media.videos,
   pdfs: media.pdfs,
@@ -585,145 +620,117 @@ const sold = (
   extraAreaLadder,
 });
 
-const sqft = (minSqft: number, maxSqft: number | null): SitePlanSpec["plot"] => {
-  const n = (v: number) => v.toLocaleString("en-IN");
-  const area =
-    maxSqft === null ? `${n(minSqft)}+ sq ft` : minSqft === 0 ? `Under ${n(maxSqft)} sq ft` : `${n(minSqft)}–${n(maxSqft)} sq ft`;
-  const label =
-    maxSqft === null
-      ? `Recommended for factories of ${n(minSqft)}+ sq ft`
-      : minSqft === 0
-        ? `Recommended for factories under ${n(maxSqft)} sq ft`
-        : `Recommended for factories of ${n(minSqft)}–${n(maxSqft)} sq ft`;
-  return { area, label, minSqft, maxSqft };
-};
+/** A plan sold before 21 Nov 2026: a one-time fee, support renewed separately. */
+const legacy = (
+  spec: Omit<SitePlanSpec, "billing" | "monthlyInr" | "regularMonthlyInr" | "legacy" | "sharingControls" | "infoIcons">
+): SitePlanSpec => ({
+  ...spec,
+  billing: "one_time",
+  monthlyInr: 0,
+  regularMonthlyInr: 0,
+  sharingControls: Object.values(spec.linkControls).some(Boolean),
+  infoIcons: Infinity,
+  legacy: true,
+});
 
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
-  lite: sold("lite", "VPV Lite", "Your plant, online and ready to show.", 34_999, sqft(0, 2_000), 2, 0, { videos: 0, pdfs: 0 }, 1, [
-    { upTo: 5, each: 11_000 },
-    { upTo: Infinity, each: 10_500 },
-  ], links(), 10),
-  plus: sold("plus", "VPV Plus", "Prove you're a trusted manufacturer.", 64_999, sqft(2_000, 5_000), 5, 0, { videos: 0, pdfs: 0 }, 2, [
-    { upTo: 5, each: 10_500 },
-    { upTo: Infinity, each: 10_000 },
-  ], links(), 20),
-  pro: sold("pro", "VPV Pro", "Show your systems, processes and capabilities.", 94_999, sqft(5_000, 10_000), 8, 1, { videos: 3, pdfs: 20 }, 4, [
+  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 3_560, 5, 0, { videos: 0, pdfs: 0 }, 2, [
     { upTo: 5, each: 6_000 },
     { upTo: Infinity, each: 5_500 },
-  ], links()),
-  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 1_19_999, sqft(10_000, 20_000), 14, 1, { videos: 5, pdfs: 30 }, 6, [
-    { upTo: 5, each: 5_500 },
-    { upTo: Infinity, each: 5_000 },
-  ], links("oneTime")),
-  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 1_99_999, sqft(20_000, 40_000), 40, 2, { videos: 8, pdfs: 50 }, 12, [
+  ], links(), 20),
+  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 10_000, 20, 1, { videos: 5, pdfs: 30 }, 7, [
     { upTo: 5, each: 4_500 },
     { upTo: Infinity, each: 4_000 },
+  ], links("oneTime")),
+  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 13_542, 45, 2, { videos: 8, pdfs: 50 }, 13, [
+    { upTo: 5, each: 3_200 },
+    { upTo: Infinity, each: 3_000 },
   ], links("oneTime", "password")),
-  vpv: sold("vpv", "VPV VIP", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 4_50_000, sqft(40_000, 80_000), 100, 3, { videos: 15, pdfs: 100 }, 24, [
-    { upTo: 5, each: 4_000 },
-    { upTo: Infinity, each: 3_500 },
-  ], links("oneTime", "expiry", "password")),
-  signature: sold("signature", "VPV Signature", "The flagship: a large plant, presented personally by Mr. Nitin Gupta.", 6_00_000, sqft(80_000, null), 150, 3, { videos: 20, pdfs: 150 }, 32, [
-    { upTo: 5, each: 3_500 },
-    { upTo: Infinity, each: 3_200 },
-  ], links("oneTime", "expiry", "devices", "password")),
+  white_glove: sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, [
+    { upTo: 5, each: 2_000 },
+    { upTo: Infinity, each: 1_800 },
+  ], links("oneTime", "password", "expiry", "devices")),
 
-  // ── No longer sold (before 20 Nov 2026). Kept for the workspaces that
-  //    bought them: what they paid, what they got, and their upgrades.
-  confidence: {
+  // ── No longer sold (one-time fees, before 21 Nov 2026). Kept for the
+  //    workspaces that bought them: what they paid, what they got.
+  confidence: legacy({
     id: "confidence",
     name: "VPV Confidence",
     tagline: "Prove you're a trusted manufacturer.",
     priceInr: 39_000,
     regularInr: 78_000,
-    plot: { area: "Up to 200 sq yards", label: "Recommended for factories up to 200 sq yards", minSqft: 0, maxSqft: 1_800 },
     scenes: 4,
     videos: 0,
     pdfs: 0,
     shootHours: 2,
     level: 0,
-    linkControls: { oneTime: false, password: false, expiry: false, devices: false },
-    infoIcons: Infinity,
-    sharingControls: false,
+    linkControls: links(),
     personal: false,
-    legacy: true,
     extraAreaLadder: [
       { upTo: 3, each: 6_000 },
       { upTo: Infinity, each: 5_500 },
     ],
-  },
-  authority: {
+  }),
+  authority: legacy({
     id: "authority",
     name: "VPV Authority",
     tagline: "Show your systems, processes and capabilities.",
     priceInr: 59_000,
     regularInr: 118_000,
-    plot: { area: "Up to 600 sq yards", label: "Recommended for factories up to 500–600 sq yards", minSqft: 1_800, maxSqft: 5_400 },
     scenes: 8,
     videos: 3,
     pdfs: 20,
     shootHours: 4,
     level: 1,
-    linkControls: { oneTime: false, password: false, expiry: false, devices: false },
-    infoIcons: Infinity,
-    sharingControls: false,
+    linkControls: links(),
     personal: false,
-    legacy: true,
     extraAreaLadder: [
       { upTo: 3, each: 5_500 },
       { upTo: Infinity, each: 5_000 },
     ],
-  },
-  control: {
+  }),
+  control: legacy({
     id: "control",
     name: "VPV Control",
     tagline: "Complete factory experience. Secure, controlled access and sharing.",
     priceInr: 90_000,
     regularInr: 180_000,
-    plot: { area: "Up to 1,000 sq yards", label: "Recommended for factories up to 1,000 sq yards", minSqft: 5_400, maxSqft: 9_000 },
     scenes: 15,
     videos: 8,
     pdfs: 50,
     shootHours: 6,
     level: 2,
-    linkControls: { oneTime: true, password: true, expiry: true, devices: true },
-    infoIcons: Infinity,
-    sharingControls: true,
+    linkControls: links("oneTime", "password", "expiry", "devices"),
     personal: false,
-    legacy: true,
     extraAreaLadder: [
       { upTo: 5, each: 4_500 },
       { upTo: 10, each: 3_900 },
       { upTo: Infinity, each: 3_400 },
     ],
-  },
-  enterprise: {
+  }),
+  enterprise: legacy({
     id: "enterprise",
     name: "VPV Enterprise",
     tagline: "Your plant, guided and filmed personally by Mr. Nitin Gupta.",
     priceInr: 299_999,
     regularInr: 599_998,
-    plot: { area: "1,000+ sq yards", label: "Recommended for factories of 1,000+ sq yards", minSqft: 9_000, maxSqft: null },
     scenes: 25,
     videos: 15,
     pdfs: 100,
     shootHours: 8,
     level: 3,
-    linkControls: { oneTime: true, password: true, expiry: true, devices: true },
-    infoIcons: Infinity,
-    sharingControls: true,
+    linkControls: links("oneTime", "password", "expiry", "devices"),
     personal: true,
-    legacy: true,
     extraAreaLadder: [
       { upTo: 5, each: 4_500 },
       { upTo: 10, each: 3_900 },
       { upTo: Infinity, each: 3_400 },
     ],
-  },
+  }),
 };
 
 /** The plans on sale, smallest first. */
-export const SITE_PLAN_ORDER: SoldPlanId[] = ["lite", "plus", "pro", "premium", "ultra", "vpv", "signature"];
+export const SITE_PLAN_ORDER: SoldPlanId[] = ["light", "premium", "ultra", "white_glove"];
 /** The plans no longer sold, kept for the workspaces that have them. */
 export const LEGACY_PLAN_ORDER: LegacyPlanId[] = ["confidence", "authority", "control", "enterprise"];
 
@@ -735,38 +742,35 @@ export function isSitePlanId(v: unknown): v is SoldPlanId {
 export function isKnownPlanId(v: unknown): v is SitePlanId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
 }
+/** Is this plan billed every year (true) or was it a one-time fee? */
+export function isYearlyPlan(planId: SitePlanId | null | undefined): boolean {
+  return !!planId && isKnownPlanId(planId) && SITE_PLANS[planId].billing === "yearly";
+}
 
 /** The link controls a plan has, as the plan cards name them. */
 export function linkControlLabels(planId: SitePlanId): string[] {
   return LINK_CONTROLS.filter((c) => SITE_PLANS[planId].linkControls[c.key]).map((c) => c.label);
 }
 
-/** "10 information icons" / "Unlimited information icons". */
+/** "20 information icons" / "Unlimited information icons". */
 export function infoIconsLabel(planId: SitePlanId): string {
   const n = SITE_PLANS[planId].infoIcons;
   return Number.isFinite(n) ? `${n} information icons` : "Unlimited information icons";
 }
 
-/** What one AOA costs on a plan, at today's price: the figure that falls as plans grow. */
-export function costPerAoa(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
-  return Math.round(planPrice(planId, offerOpen) / SITE_PLANS[planId].scenes);
-}
-
 /**
- * Which plan an order was for, read from its description ("VPV Pro — 8
+ * Which plan an order was for, read from its description ("VPV Light — 5
  * areas, …", written by priceFor). The name must be followed by " — ", so
  * "VPV Basic licence — …" (the scene licence) is never read as a plan.
- * "VPV — " is VPV VIP's name for its first day on sale (20 Nov 2026).
  */
 export function sitePlanFromNotes(notes: string | null | undefined): SitePlanId | null {
   const n = notes ?? "";
-  if (n.startsWith("VPV — ")) return "vpv";
   return (Object.keys(SITE_PLANS) as SitePlanId[]).find((id) => n.startsWith(`${SITE_PLANS[id].name} — `)) ?? null;
 }
 
 /**
- * What VPV VIP and VPV Signature add to everything in Ultra: two things that
- * cannot be bought any other way, because they are one person's time.
+ * What White Glove adds to everything in Ultra: two things that cannot be
+ * bought any other way, because they are one person's time.
  *
  * `short` is the line on a plan card; `long` is the sentence on the plan page
  * and in the Terms. The name is the founder's own, given for this use.
@@ -789,33 +793,6 @@ export const ENTERPRISE_PERSONAL = {
   },
 } as const;
 
-/** The size bands a buyer can pick: one per plan on sale, in order. */
-export type PlotBand = "lt2000" | "2000to5000" | "5000to10000" | "10000to20000" | "20000to40000" | "40000to80000" | "80000plus";
-export const PLOT_BANDS: { id: PlotBand; label: string; plan: SoldPlanId }[] = [
-  { id: "lt2000", label: "Under 2,000 sq ft", plan: "lite" },
-  { id: "2000to5000", label: "2,000 to 5,000 sq ft", plan: "plus" },
-  { id: "5000to10000", label: "5,000 to 10,000 sq ft", plan: "pro" },
-  { id: "10000to20000", label: "10,000 to 20,000 sq ft", plan: "premium" },
-  { id: "20000to40000", label: "20,000 to 40,000 sq ft", plan: "ultra" },
-  { id: "40000to80000", label: "40,000 to 80,000 sq ft", plan: "vpv" },
-  { id: "80000plus", label: "More than 80,000 sq ft", plan: "signature" },
-];
-export function isPlotBand(v: unknown): v is PlotBand {
-  return PLOT_BANDS.some((b) => b.id === v);
-}
-/** The plan made for a plant this big. */
-export function planForPlot(band: PlotBand | null | undefined): SoldPlanId | null {
-  return PLOT_BANDS.find((b) => b.id === band)?.plan ?? null;
-}
-/** The plan made for a plant of this many square feet. */
-export function planForSqft(sqftArea: number): SoldPlanId {
-  const a = Math.max(0, sqftArea);
-  return SITE_PLAN_ORDER.find((id) => {
-    const { minSqft, maxSqft } = SITE_PLANS[id].plot;
-    return a >= minSqft && (maxSqft === null || a < maxSqft);
-  }) ?? "signature";
-}
-
 /* ─────────────────────── Special offer ──────────────────────────── */
 
 /**
@@ -831,7 +808,12 @@ export function planForSqft(sqftArea: number): SoldPlanId {
  * │ remember. Refunded orders do not count: they are not customers.    │
  * └────────────────────────────────────────────────────────────────────┘
  *
- * `active: false` ends the offer early for everyone.
+ * The plans are yearly (21 Nov 2026), and the owner's rule is that a
+ * customer who bought on the offer KEEPS it for as long as they renew: the
+ * yearly amount they paid is stored on the workspace (plan_yearly_inr) and
+ * the renewal charges that, whatever the offer is doing by then.
+ *
+ * `active: false` ends the offer early for new buyers.
  */
 export const LAUNCH_OFFER = {
   active: true,
@@ -856,6 +838,31 @@ export function planPrice(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): 
 export function offerSaving(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
   const p = SITE_PLANS[planId];
   return p.regularInr - planPrice(planId, offerOpen);
+}
+
+/** What a plan costs per month right now, GST excluded (yearly plans). */
+export function planMonthly(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active): number {
+  const p = SITE_PLANS[planId];
+  return offerOpen && LAUNCH_OFFER.active ? p.monthlyInr : p.regularMonthlyInr;
+}
+
+/** A yearly plan's price at a given rate, whatever the offer is doing now:
+ *  "offer" is what our first 50 customers pay, every year they renew. */
+export function yearlyPrice(planId: SitePlanId, rate: "offer" | "regular"): number {
+  const p = SITE_PLANS[planId];
+  return rate === "offer" ? p.priceInr : p.regularInr;
+}
+
+/**
+ * The rate a workspace pays on its yearly plan: "offer" if it bought on the
+ * special offer (organizations.plan_offer_locked = true — kept every year it
+ * renews), "regular" if it bought after. Unknown (an older database) counts
+ * in the customer's favour while the offer runs.
+ */
+export function rateFor(offerLocked: boolean | null | undefined): "offer" | "regular" {
+  if (offerLocked === true) return "offer";
+  if (offerLocked === false) return "regular";
+  return LAUNCH_OFFER.active ? "offer" : "regular";
 }
 
 /** Kept for the older checkout screens: discount on a regular price. */
@@ -1062,12 +1069,27 @@ export function seatPrice(offerOpen = LAUNCH_OFFER.active): number {
 }
 
 /**
- * What one year's renewal costs, GST excluded: support, hosting & security,
- * plus each sales login at the price the customer bought it at.
+ * What one year's renewal costs, GST excluded: the workspace's yearly plan
+ * at the price it pays (planYearlyInr, stored on the workspace when it was
+ * bought), or — for a plan bought before 21 Nov 2026, which has none —
+ * support, hosting & security; plus each sales login at the price the
+ * customer bought it at.
  */
-export function renewalAmount(seats: number, seatInr: number): number {
+export function renewalAmount(seats: number, seatInr: number, planYearlyInr = 0): number {
   const n = clampSalesSeats(seats);
-  return SUPPORT_ANNUAL_INR + n * Math.max(0, Math.round(seatInr || 0));
+  const base = planYearlyInr > 0 ? Math.round(planYearlyInr) : SUPPORT_ANNUAL_INR;
+  return base + n * Math.max(0, Math.round(seatInr || 0));
+}
+
+/**
+ * The yearly amount a site-plan order renews at, read back from its notes
+ * ("…, renews yearly at ₹42,720 (yearly plan…)"). 0 = not a yearly plan.
+ */
+export function planYearlyFromNotes(notes: string | null | undefined): number {
+  const m = /renews yearly at ₹([\d,]+)/.exec(notes ?? "");
+  if (!m) return 0;
+  const v = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
 /**
@@ -1272,8 +1294,18 @@ export type SiteQuote = {
   /** False for a city we do not shoot in yet: the bill can be shown, but
    *  it cannot be paid. */
   available: boolean;
-  /** What the support year costs on THIS order: 0 while the offer is open. */
+  /** What a separate support year costs on THIS order. Always 0 on the
+   *  yearly plans: support, hosting & security are part of the plan. */
   supportInr: number;
+  /** The plan's own price per month on this order (yearly plans). */
+  monthlyInr: number;
+  /**
+   * What renews every year, GST excluded: the plan at the price paid now
+   * plus the extra areas. Not the coupon, the travel, the shoot time or the
+   * videos (those are one-off), and not the Sales Team logins (they renew on
+   * their own, see renewalAmount).
+   */
+  yearlyInr: number;
   /** What the coupon took off, 0 without one. */
   couponInr: number;
   coupon: Coupon | null;
@@ -1355,12 +1387,16 @@ export function siteQuote(
   const shoot = shootTimeFor(planId, extraAreas, shotVideos);
   const savingInr = offerSaving(planId, offerOpen);
 
+  const yearly = plan.billing === "yearly";
+  const monthlyInr = yearly ? planMonthly(planId, offerOpen) : 0;
   const lines: QuoteLine[] = [
     {
       kind: "plan",
-      label: `${plan.name} — ${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} process videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
+      label: `${plan.name} — ${yearly ? "first year, " : ""}${plan.scenes} areas${plan.videos > 0 ? `, ${plan.videos} process videos` : ""}${plan.pdfs > 0 ? `, ${plan.pdfs} PDFs` : ""}`,
       amountInr: plan.regularInr,
-      note: `${hoursLabel(plan.shootHours)} of shoot time included`,
+      note: yearly
+        ? `${inr(plan.regularMonthlyInr)}/month, billed yearly. Support, hosting & security included. ${hoursLabel(plan.shootHours)} of shoot time included`
+        : `${hoursLabel(plan.shootHours)} of shoot time included`,
     },
   ];
   if (savingInr > 0) {
@@ -1368,7 +1404,9 @@ export function siteQuote(
       kind: "offer",
       label: `${LAUNCH_OFFER.short} — ${LAUNCH_OFFER.percent}% off`,
       amountInr: -savingInr,
-      note: `For our first ${LAUNCH_OFFER.limit} customers`,
+      note: yearly
+        ? `For our first ${LAUNCH_OFFER.limit} customers, every year you renew: ${inr(plan.monthlyInr)}/month`
+        : `For our first ${LAUNCH_OFFER.limit} customers`,
     });
   }
 
@@ -1377,7 +1415,7 @@ export function siteQuote(
       kind: "extra",
       label: `${extraAreas} extra area${extraAreas === 1 ? "" : "s"}`,
       amountInr: extraAreaCost(planId, extraAreas),
-      note: `${totalAreas} areas in total`,
+      note: yearly ? `${totalAreas} areas in total. Renews yearly with your plan` : `${totalAreas} areas in total`,
     });
   }
   if (paidSelfVideos > 0) {
@@ -1458,17 +1496,20 @@ export function siteQuote(
     }
   }
 
-  // The first year of support, hosting & security.
-  const supportInr = offerOpen ? 0 : SUPPORT_ANNUAL_INR;
-  lines.push({
-    kind: "support",
-    label: `First year of ${SUPPORT_NAME.toLowerCase()}`,
-    amountInr: supportInr,
-    regularInr: SUPPORT_ANNUAL_INR,
-    note: offerOpen
-      ? `Free for our first ${LAUNCH_OFFER.limit} customers. From year 2, ${inr(SUPPORT_ANNUAL_INR)} + GST a year (${inr(SUPPORT_MONTHLY_INR)}/month)`
-      : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Renews at ${inr(SUPPORT_ANNUAL_INR)} + GST a year`,
-  });
+  // The yearly plans include support, hosting & security. Only a plan from
+  // before 21 Nov 2026 (one-time fee) carries the separate support year.
+  const supportInr = yearly || offerOpen ? 0 : SUPPORT_ANNUAL_INR;
+  if (!yearly) {
+    lines.push({
+      kind: "support",
+      label: `First year of ${SUPPORT_NAME.toLowerCase()}`,
+      amountInr: supportInr,
+      regularInr: SUPPORT_ANNUAL_INR,
+      note: offerOpen
+        ? `Free for our first ${LAUNCH_OFFER.limit} customers. From year 2, ${inr(SUPPORT_ANNUAL_INR)} + GST a year (${inr(SUPPORT_MONTHLY_INR)}/month)`
+        : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Renews at ${inr(SUPPORT_ANNUAL_INR)} + GST a year`,
+    });
+  }
 
   if (shoot.days > 1 && CHARGE_ADDITIONAL_SHOOT_DAY) {
     const extraDays = shoot.days - 1;
@@ -1508,6 +1549,8 @@ export function siteQuote(
     logistics,
     available,
     supportInr,
+    monthlyInr,
+    yearlyInr: yearly ? planPrice(planId, offerOpen) + extraAreaCost(planId, extraAreas) : 0,
     couponInr,
     coupon: couponInr > 0 ? coupon : null,
     shoot,
@@ -1581,11 +1624,15 @@ export type InvoiceLine = {
 
 /** What one plan covers, in one sentence, for the invoice's first row. */
 export function planInclusionSentence(q: SiteQuote): string {
-  const bits = [`360° factory walkthrough`, `${q.totalAreas} Active Operational Areas`];
+  const bits = [
+    q.plan.billing === "yearly" ? "One year of VPV, billed yearly" : "360° factory walkthrough",
+    `${q.totalAreas} Active Operational Areas`,
+  ];
   if (q.totalVideos > 0) bits.push(`${q.totalVideos} process videos`);
   if (q.plan.pdfs > 0) bits.push(`${q.plan.pdfs} lab reports & certifications`);
   bits.push("information icons", "custom domain", "password-protected dashboard and branding");
-  if (q.plan.sharingControls) bits.push("one-time link expiry and sharing restrictions");
+  if (q.plan.sharingControls) bits.push(linkControlLabels(q.plan.id).join(", ").toLowerCase());
+  if (q.plan.billing === "yearly") bits.push(SUPPORT_NAME.toLowerCase());
   return `${bits.join(", ")}.`;
 }
 
@@ -1669,16 +1716,28 @@ export function isPurchasePurpose(v: unknown): v is PurchasePurpose {
  */
 export type RequestPurpose = PurchasePurpose | "site_plan";
 
-/** What moving up a plan costs: the difference between the two plans at today's prices. */
+/**
+ * What moving up a yearly plan costs. Both plans are yearly, so the customer
+ * pays the difference between their two yearly prices for the MONTHS LEFT
+ * until the workspace renews, and from then on renews at the new plan.
+ *
+ * `rate` is the customer's own: "offer" for a workspace that bought on the
+ * special offer (they keep it every year), else "regular".
+ */
 export function upgradeQuote(
   from: SitePlanId,
   to: SitePlanId,
-  offerOpen = LAUNCH_OFFER.active
-): { amountInr: number; addAreas: number; addVideos: number; addPdfs: number } {
+  rate: "offer" | "regular" = LAUNCH_OFFER.active ? "offer" : "regular",
+  monthsLeft = 12
+): { amountInr: number; yearlyDiffInr: number; months: number; addAreas: number; addVideos: number; addPdfs: number } {
   const a = SITE_PLANS[from];
   const b = SITE_PLANS[to];
+  const months = clampMonths(monthsLeft);
+  const yearlyDiffInr = Math.max(0, yearlyPrice(to, rate) - yearlyPrice(from, rate));
   return {
-    amountInr: Math.max(0, planPrice(to, offerOpen) - planPrice(from, offerOpen)),
+    amountInr: Math.round((yearlyDiffInr * months) / 12),
+    yearlyDiffInr,
+    months,
     addAreas: Math.max(0, b.scenes - a.scenes),
     addVideos: Math.max(0, b.videos - a.videos),
     addPdfs: Math.max(0, b.pdfs - a.pdfs),
@@ -1745,26 +1804,43 @@ export function priceFor(
     /** plan_upgrade: the plan the workspace has, and the one it is buying. */
     fromPlan?: SitePlanId;
     toPlan?: SitePlanId;
-    /** seat_topup: whole months left until the logins' renewal date (1–12). */
+    /** plan_upgrade: the workspace's own rate ("offer" if it bought on the
+     *  special offer — it keeps it every year). */
+    rate?: "offer" | "regular";
+    /** support_renewal / plan_upgrade: what the workspace renews at now
+     *  (organizations.plan_yearly_inr). 0 / absent = a one-time plan. */
+    planYearlyInr?: number;
+    /** support_renewal: the workspace's plan, for the invoice wording. */
+    planId?: SitePlanId | null;
+    /** seat_topup: whole months left until the logins' renewal date (1–12).
+     *  plan_upgrade: whole months left until the workspace renews. */
     monthsLeft?: number;
   } = {}
 ): { amountInr: number; description: string; scenes: number | null; lines: InvoiceLine[] } {
   switch (purpose) {
     case "plan_upgrade": {
-      // The workspace's own plan may be one no longer sold; the target is always on sale.
-      const from: SitePlanId = isKnownPlanId(opts.fromPlan) ? opts.fromPlan : "confidence";
+      // Both plans are yearly plans on sale (the order route refuses anything
+      // else): the yearly difference, for the months left until renewal.
+      const from: SitePlanId = isSitePlanId(opts.fromPlan) ? opts.fromPlan : "light";
       const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "ultra";
-      const q = upgradeQuote(from, to, opts.offerOpen);
+      const rate = opts.rate ?? (opts.offerOpen === false ? "regular" : "offer");
+      const q = upgradeQuote(from, to, rate, opts.monthsLeft);
       const have = Math.max(0, Math.round(opts.existingScenes ?? 0));
+      // What the workspace renews at from now on: its current yearly amount
+      // (plan + extra areas) plus the difference between the two plans.
+      const renewsAt = Math.max(0, Math.round(opts.planYearlyInr ?? yearlyPrice(from, rate))) + q.yearlyDiffInr;
       return {
         amountInr: q.amountInr,
-        description: `Upgrade ${SITE_PLANS[from].name} → ${SITE_PLANS[to].name}${q.addAreas > 0 ? ` (+${q.addAreas} areas)` : ""}`,
+        description:
+          `Upgrade ${SITE_PLANS[from].name} → ${SITE_PLANS[to].name}${q.addAreas > 0 ? ` (+${q.addAreas} areas)` : ""}, ` +
+          `${q.months} month${q.months === 1 ? "" : "s"}, renews yearly at ${inr(renewsAt)}`,
         scenes: have + q.addAreas,
         lines: [
           {
             title: `Upgrade to ${SITE_PLANS[to].name}`,
             detail:
-              `From ${SITE_PLANS[from].name}: the price difference at today's prices. ` +
+              `From ${SITE_PLANS[from].name}: the difference between the two yearly plans (${inr(q.yearlyDiffInr)} a year) ` +
+              `for the ${q.months} month${q.months === 1 ? "" : "s"} until your plan renews; it then renews at ${inr(renewsAt)} a year. ` +
               [
                 q.addAreas > 0 ? `${q.addAreas} more areas` : "",
                 q.addVideos > 0 ? `${q.addVideos} more process videos` : "",
@@ -1851,7 +1927,7 @@ export function priceFor(
       // plan or more areas, never a cheaper rate for them.
       const planId: SitePlanId = isSitePlanId(opts.sitePlanId)
         ? opts.sitePlanId
-        : "lite";
+        : "light";
       const q = siteQuote(planId, {
         extraAreas: opts.extraAreas,
         selfVideos: opts.selfVideos,
@@ -1878,9 +1954,14 @@ export function priceFor(
       // The coupon's code is how lib/server/coupons.ts counts its uses, so
       // it is written in a fixed shape.
       if (q.coupon) parts.push(`coupon ${q.coupon.code}`);
+      // Read back by planYearlyFromNotes() when the workspace is built, so the
+      // renewal charges what this customer pays now, every year.
+      if (q.yearlyInr > 0) parts.push(`renews yearly at ${inr(q.yearlyInr)}`);
       return {
         amountInr: q.taxableInr,
-        description: `${parts.join(", ")} (includes year 1 of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
+        description: q.yearlyInr > 0
+          ? `${parts.join(", ")} (yearly plan, year 1, ${SUPPORT_NAME.toLowerCase()} included)`
+          : `${parts.join(", ")} (includes year 1 of ${SUPPORT_NAME.toLowerCase()}${q.supportInr === 0 ? ", free" : ""})`,
         scenes: q.totalAreas,
         lines: invoiceLinesFromQuote(q),
       };
@@ -1889,20 +1970,34 @@ export function priceFor(
       const seats = clampSalesSeats(opts.salesSeats ?? 0);
       // 0 = logins bought before they were yearly: paid once, never renewed.
       const each = seats > 0 ? Math.max(0, Math.round(opts.seatInr ?? 0)) : 0;
+      // A yearly plan renews at what the workspace pays for it; a plan bought
+      // before 21 Nov 2026 (one-time fee) renews support alone.
+      const yearlyInr = Math.max(0, Math.round(opts.planYearlyInr ?? 0));
+      const planName = opts.planId && isKnownPlanId(opts.planId) ? SITE_PLANS[opts.planId].name : "VPV";
+      const logins = seats > 0 && each > 0 ? `, with sales team ${seats} login${seats === 1 ? "" : "s"} at ${inr(each)}/yr` : "";
+      // Never "<plan name> — …": that shape is how a NEW plan order is
+      // recognised (sitePlanFromNotes), and a renewal is not one.
       return {
-        amountInr: renewalAmount(seats, each),
+        amountInr: renewalAmount(seats, each, yearlyInr),
         description:
-          `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year` +
-          (seats > 0 && each > 0 ? `, with sales team ${seats} login${seats === 1 ? "" : "s"} at ${inr(each)}/yr` : ""),
+          (yearlyInr > 0 ? `Yearly renewal of ${planName} — 1 year` : `VPV ${SUPPORT_NAME.toLowerCase()} — 1 year`) + logins,
         scenes: null,
         lines: [
-          {
-            title: SUPPORT_NAME,
-            detail: "One more year of hosting, security, backups, updates and technical support.",
-            qty: 1,
-            unitInr: SUPPORT_ANNUAL_INR,
-            amountInr: SUPPORT_ANNUAL_INR,
-          },
+          yearlyInr > 0
+            ? {
+                title: `${planName} — one more year`,
+                detail: `Your yearly plan, renewed for one year at the price you pay (${inr(Math.round(yearlyInr / 12))}/month, billed yearly), with ${SUPPORT_NAME.toLowerCase()} included.`,
+                qty: 1,
+                unitInr: yearlyInr,
+                amountInr: yearlyInr,
+              }
+            : {
+                title: SUPPORT_NAME,
+                detail: "One more year of hosting, security, backups, updates and technical support.",
+                qty: 1,
+                unitInr: SUPPORT_ANNUAL_INR,
+                amountInr: SUPPORT_ANNUAL_INR,
+              },
           ...(seats > 0 && each > 0
             ? [
                 {

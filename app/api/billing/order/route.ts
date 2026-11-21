@@ -76,6 +76,11 @@ import {
   SCENE_MAX,
   SUPPORT_RENEW_WINDOW_DAYS,
   isRequestPurpose,
+  OLD_SCENE_LADDER,
+  planYearlyFromNotes,
+  isKnownPlanId,
+  isYearlyPlan,
+  rateFor,
   isSitePlanId,
   isTravelZone,
   isValidSceneCount,
@@ -180,6 +185,18 @@ export async function POST(req: Request) {
   // What goes in billing_orders. A site plan is a Basic licence sold as a
   // named pack, so everything downstream sees the purpose it already knows.
   const stored: PurchasePurpose = storedPurpose(purpose as RequestPurpose);
+
+  // The old self-serve scene ladder (a one-time Basic licence and its
+  // top-ups) is no longer sold: since 21 Nov 2026 everything new is one of
+  // the four yearly plans. Refused here, whatever page or script asks, so
+  // nobody can reach the old pricing by mistake.
+  if ((purpose === "basic_licence" || purpose === "scene_topup") && !OLD_SCENE_LADDER.open) {
+    return fail(
+      410,
+      "old_pricing",
+      "This way of buying VPV has closed. Please choose one of our yearly plans at myvpv.com/plans, or write to support@myvpv.com."
+    );
+  }
 
   // A placeholder price must never reach a real card. The site's plan
   // prices are still the ones it was built with, so while that is true
@@ -401,8 +418,9 @@ export async function POST(req: Request) {
     }
     scenesWanted = target;
   } else if (purpose === "plan_upgrade") {
-    // Up to a larger plan on sale (lib/entitlements.ts isUpgrade); VPV and
-    // VPV Signature include Mr. Gupta's own time, so they are a conversation.
+    // From one yearly plan up to a larger one (lib/entitlements.ts
+    // isUpgrade). White Glove includes Mr. Gupta's own time, and a one-time
+    // plan from before 21 Nov 2026 cannot be prorated: both are a conversation.
     fromPlan = effectivePlan({ plan: String(org?.plan ?? ""), site_plan: await orgSitePlan(sb, orgId) });
     const want = body.upgradeTo;
     if (!isSitePlanId(want) || !isUpgrade(fromPlan, want)) {
@@ -441,6 +459,22 @@ export async function POST(req: Request) {
   // A renewal also renews the Sales Team logins, at the price they were bought at.
   const renewalSeats = purpose === "support_renewal" ? await orgSalesSeats(sb, orgId) : { seats: 0, seatInr: 0 };
 
+  // What the workspace renews at (a yearly plan, at the price it bought at),
+  // and whether it keeps the special offer. A one-time plan from before
+  // 21 Nov 2026 has neither and renews support alone.
+  const yearly =
+    purpose === "support_renewal" || purpose === "plan_upgrade"
+      ? await orgYearly(sb, orgId)
+      : { inr: 0, locked: null as boolean | null, sitePlan: null as string | null };
+  if (purpose === "support_renewal" && isYearlyPlan(yearly.sitePlan as SitePlanId) && yearly.inr <= 0) {
+    // A yearly plan with no stored amount would renew at the support fee
+    // alone: far too little. Stop, and let a person look (never undercharge
+    // silently, never guess a bigger number).
+    // eslint-disable-next-line no-console
+    console.error("[billing] yearly plan without plan_yearly_inr, renewal refused:", orgId);
+    return fail(503, "renewal_amount_missing", "We could not work out your renewal amount. Please write to support@myvpv.com and we will renew it for you.");
+  }
+
   // Extra logins: at the price the workspace already pays per login (or
   // today's price if it has none), for the months until the logins renew.
   let topupSeatInr = 0;
@@ -465,7 +499,14 @@ export async function POST(req: Request) {
     seatInr: purpose === "seat_topup" ? topupSeatInr : renewalSeats.seatInr,
     fromPlan,
     toPlan,
-    monthsLeft: topupMonths,
+    // A login top-up runs to the logins' renewal; an upgrade to the plan's.
+    monthsLeft:
+      purpose === "plan_upgrade"
+        ? monthsUntil((org?.support_until as string | null | undefined) ?? null)
+        : topupMonths,
+    rate: purpose === "plan_upgrade" ? rateFor(yearly.locked) : undefined,
+    planYearlyInr: yearly.inr > 0 ? yearly.inr : undefined,
+    planId: isKnownPlanId(yearly.sitePlan) ? yearly.sitePlan : null,
     coupon,
   });
   if (!(quote.amountInr > 0)) return fail(400, "nothing_to_pay", "There is nothing to pay for that.");
@@ -561,13 +602,15 @@ export async function POST(req: Request) {
       .from("billing_orders")
       .update(
         purpose === "plan_upgrade"
-          ? { upgrade_to: toPlan }
+          ? // What the workspace renews at once upgraded (applied, with the plan,
+            // by billing_apply_plan_upgrade; a full refund puts it back).
+            { upgrade_to: toPlan, plan_yearly_after: planYearlyFromNotes(quote.description) || null }
           : { seats_added: salesSeats, seat_inr: topupSeatInr }
       )
       .eq("id", order.id);
     if (whatErr) {
       // eslint-disable-next-line no-console
-      console.error("[billing] upgrade details not saved (run supabase/plan_features.sql):", whatErr.message);
+      console.error("[billing] upgrade details not saved (run supabase/plans_yearly.sql):", whatErr.message);
       return fail(503, "upgrade_unavailable", "Upgrades are being set up. Please try again shortly or write to support@myvpv.com.");
     }
   }
@@ -870,6 +913,23 @@ async function orgSitePlan(sb: SupabaseClient, orgId: string | null): Promise<st
   const { data, error } = await sb.from("organizations").select("site_plan").eq("id", orgId).maybeSingle();
   if (error || !data) return null;
   return ((data as { site_plan?: string | null }).site_plan ?? null) as string | null;
+}
+
+/**
+ * What the workspace renews at every year and whether it bought on the
+ * special offer (supabase/plans_yearly.sql). Read on its own, so a database
+ * without the columns yet answers "nothing stored" instead of failing.
+ */
+async function orgYearly(
+  sb: SupabaseClient,
+  orgId: string | null
+): Promise<{ inr: number; locked: boolean | null; sitePlan: string | null }> {
+  const sitePlan = await orgSitePlan(sb, orgId);
+  if (!orgId) return { inr: 0, locked: null, sitePlan };
+  const { data, error } = await sb.from("organizations").select("plan_yearly_inr, plan_offer_locked").eq("id", orgId).maybeSingle();
+  if (error || !data) return { inr: 0, locked: null, sitePlan };
+  const row = data as { plan_yearly_inr?: number | null; plan_offer_locked?: boolean | null };
+  return { inr: Math.max(0, Number(row.plan_yearly_inr ?? 0) || 0), locked: row.plan_offer_locked ?? null, sitePlan };
 }
 
 /** When the workspace's Sales Team logins renew: their own date, else the support date. */

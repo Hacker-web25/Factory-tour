@@ -91,7 +91,7 @@ export default function AdminCustomersPage() {
     }
     const { data, error } = await supabase.rpc("admin_customer_overview");
     if (!error && data) setRows(data as Customer[]);
-    // Which plan each one bought (supabase/plan_features.sql, plans_seven.sql).
+    // Which plan each one bought (supabase/plan_features.sql, plans_yearly.sql).
     const { data: sp } = await supabase.from("organizations").select("id, site_plan");
     if (Array.isArray(sp)) {
       setSitePlans(Object.fromEntries((sp as { id: string; site_plan: string | null }[]).map((r) => [r.id, r.site_plan])));

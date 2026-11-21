@@ -15,8 +15,6 @@ import {
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
   SITE_PLAN_ORDER,
-  SUPPORT_ANNUAL_INR,
-  SUPPORT_MONTHLY_INR,
   hoursLabel,
   inr,
   infoIconsLabel,
@@ -36,9 +34,7 @@ export const dynamic = "force-static";
  */
 const PLANS = SITE_PLAN_ORDER.map((id) => {
   const p = SITE_PLANS[id];
-  const offer = p.priceInr;
   const bits = [
-    p.plot.label.toLowerCase().replace(/^plants/, "suits plants"),
     ...(p.personal
       ? [`a personal, exclusive discussion with ${ENTERPRISE_PERSONAL.person}`, `a personal, exclusive shoot by ${ENTERPRISE_PERSONAL.person}`]
       : []),
@@ -49,7 +45,10 @@ const PLANS = SITE_PLAN_ORDER.map((id) => {
   if (p.pdfs > 0) bits.push(`${p.pdfs} PDF documents`);
   bits.push(infoIconsLabel(id).toLowerCase());
   if (p.sharingControls) bits.push(`link controls: ${linkControlLabels(id).join(", ").toLowerCase()}`);
-  return `- **${p.name}** — ${inr(offer)} + 18% GST (regular ${inr(p.regularInr)}). ${p.tagline} Includes ${bits.join(", ")}.`;
+  const price = LAUNCH_OFFER.active
+    ? `${inr(p.monthlyInr)}/month, billed yearly as ${inr(p.priceInr)} + 18% GST for the first ${LAUNCH_OFFER.limit} customers, every year they renew (regular ${inr(p.regularMonthlyInr)}/month, ${inr(p.regularInr)} a year)`
+    : `${inr(p.regularMonthlyInr)}/month, billed yearly as ${inr(p.regularInr)} + 18% GST`;
+  return `- **${p.name}** — ${price}. ${p.tagline} Includes ${bits.join(", ")}, and support, hosting and security every year.`;
 }).join("\n");
 
 const BODY = `# VPV — Virtual Plant Visit
@@ -62,7 +61,7 @@ viewer links gated by password + device limit.
 ## What you can summarise
 - Product landing page: https://myvpv.com/
 - Qualification form:   https://myvpv.com/apply
-- Pricing:              https://myvpv.com/pricing
+- Plans and prices:     https://myvpv.com/plans
 - About:                https://myvpv.com/about
 - Contact:              https://myvpv.com/contact
 - Legal centre:         https://myvpv.com/legal
@@ -89,14 +88,16 @@ quality checks — before any visit is arranged. It is sold to Indian
 manufacturers and exporters who need overseas buyers to trust what they have
 built without flying them in.
 
-## Plans and prices (one-time, GST extra)
+## Plans and prices (yearly plans, shown per month, GST extra)
 ${PLANS}
+
+Every plan is billed yearly in advance and renews every year; the first year
+includes the factory shoot. Extra areas renew with the plan.
 
 Also payable with the order:
 - Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
-- Sales Team logins (optional): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with support.
+- Sales Team logins (optional): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with the plan.
 - Extra shoot time beyond the plan: ${inr(EXTRA_HOUR_INR)} an hour.
-- Support, hosting and security: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly as ${inr(SUPPORT_ANNUAL_INR)} + GST. Free for the first year for the first ${LAUNCH_OFFER.limit} customers, payable from year two.
 
 A buyer picks a plan by answering a short assessment at
 https://myvpv.com/assessment, which recommends the smallest plan that covers

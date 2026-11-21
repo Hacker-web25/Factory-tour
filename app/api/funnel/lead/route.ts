@@ -43,7 +43,6 @@ import {
   clampExtraVideos,
   clampSalesSeats,
   isSitePlanId,
-  isPlotBand,
   siteQuote,
 } from "@/lib/pricing";
 
@@ -180,7 +179,6 @@ export async function POST(req: Request) {
 
   if (isSitePlanId(body.recommendedPlan)) patch.recommended_plan = body.recommendedPlan;
   // How big the plant is, for the rep's call and for sizing the shoot.
-  if (isPlotBand(body.plotBand)) patch.plot_size = body.plotBand;
 
   // The sales team step. The salary typed into the calculator is NOT sent
   // or stored: it only ever lives in the visitor's browser.
@@ -221,10 +219,9 @@ export async function POST(req: Request) {
     patch.marketing_consent_at = body.marketingConsent ? new Date().toISOString() : null;
   }
 
-  // Until supabase/plans_seven.sql (and enterprise_plan.sql before it) has
-  // been run, the database does not know the plot_size column, the new size
-  // bands or the seven plans. Rather than lose the whole note, write it
-  // again without those things.
+  // Until supabase/plans_yearly.sql has been run, the database does not
+  // know the four yearly plans. Rather than lose the whole note, write it
+  // again without the plan.
   const olderDatabase = (message: string) =>
     /plot_size|funnel_leads_(recommended|chosen)_plan_check|violates check constraint/i.test(message);
   const withoutNewFields = (p: Record<string, unknown>) => {

@@ -299,7 +299,7 @@ export default function Step5SalesTeam() {
               {offerOpen && <OfferSeal size={124} percent={SALES_TEAM.percentOff} className="absolute -right-3 -top-12 z-10 sm:-right-6" />}
               <Card>
                 <SectionTitle icon={Wallet} title="One login for each salesperson">
-                  One flat price per login, however many you add. Paid once with your order; no monthly fee per salesperson.
+                  One flat price per login, however many you add. Billed yearly with your plan; no monthly fee per salesperson.
                 </SectionTitle>
 
                 <div className="mt-7 grid items-center gap-8 lg:grid-cols-[1fr_1.1fr]">

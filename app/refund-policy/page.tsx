@@ -37,8 +37,9 @@ const sections: LegalSection[] = [
         <P>
           VPV is a service delivered online, with one visit to your factory to
           shoot it. Nothing is shipped, so there is nothing to return. This
-          policy covers cancelling, and refunds of money paid for a VPV Plan,
-          its add-ons, {SUPPORT_NAME} and Sales Team logins.
+          policy covers cancelling, and refunds of money paid for a VPV Plan
+          (billed yearly, with {SUPPORT_NAME.toLowerCase()} included), its
+          add-ons and Sales Team logins.
         </P>
         <Callout title="At a glance">
           <UL>
@@ -79,9 +80,10 @@ const sections: LegalSection[] = [
             only when payment succeeds.
           </li>
           <li>
-            <B>{SUPPORT_NAME}.</B> It renews only when you pay for it: we never
-            charge you automatically. To stop, simply do not renew, or tell us
-            and we stop the reminders. If a renewal is not paid, the Workspace
+            <B>Your yearly Plan.</B> It renews only when you pay for it: we
+            never charge you automatically. To stop, simply do not renew, or
+            tell us and we stop the reminders. (On a Plan bought before 21
+            November 2026, the same applies to the yearly {SUPPORT_NAME}.) If a renewal is not paid, the Workspace
             locks {POLICY.supportGraceDays} days after the renewal date and
             unlocks as soon as you renew; your Content is kept (see the{" "}
             <L href="/terms#support">Terms</L>).
@@ -148,8 +150,9 @@ const sections: LegalSection[] = [
             [
               "A serious, lasting fault on our side stops you using the Service (an outage, or data loss caused by us) and we cannot fix it within a reasonable time",
               <>
-                A <B>refund for the affected period</B> of {SUPPORT_NAME}, or of
-                the affected item.
+                A <B>refund for the affected period</B> of your Plan Fee (or, on a
+                Plan bought before 21 November 2026, of {SUPPORT_NAME}), or of the
+                affected item.
               </>,
             ],
           ]}
@@ -175,9 +178,16 @@ const sections: LegalSection[] = [
         <UL>
           <li>a change of mind, using VPV less than expected, or switching to another provider, once you have paid;</li>
           <li>
-            {SUPPORT_NAME} ({inr(SUPPORT_ANNUAL_INR)} plus GST a year) and Sales
-            Team logins ({inr(SALES_TEAM.regularInr)} per salesperson a year at
-            the regular price) once the year has started;
+            a year of your Plan (which includes {SUPPORT_NAME.toLowerCase()}) once
+            the year has started, including the part of the year you do not use
+            if you stop early; the Plan Fee for the first year also pays for the
+            shoot, which is booked as soon as you pay;
+          </li>
+          <li>
+            Sales Team logins ({inr(SALES_TEAM.regularInr)} per salesperson a
+            year at the regular price) and, on a Plan bought before 21 November
+            2026, {SUPPORT_NAME} ({inr(SUPPORT_ANNUAL_INR)} plus GST a year), once
+            the year has started;
           </li>
           <li>cab travel, extra shoot time and date-change fees once the shoot visit has happened, because they pay for a visit that took place;</li>
           <li>a renewal you paid after we reminded you, unless it was charged in error;</li>

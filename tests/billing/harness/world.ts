@@ -37,6 +37,13 @@ export async function makeWorld() {
   delete process.env.VERCEL_ENV;
   delete process.env.RAZORPAY_ALLOW_LIVE_OUTSIDE_PRODUCTION;
 
+  // The old scene ladder is closed in production (lib/pricing.ts
+  // OLD_SCENE_LADDER); these tests use it as the plainest way to exercise
+  // the shared payment machinery. tests/billing/30-yearly-plans checks the
+  // production default refuses it.
+  const { OLD_SCENE_LADDER } = await import("@/lib/pricing");
+  OLD_SCENE_LADDER.open = true;
+
   const { sb, raw, reset: resetDb } = await createTestDb(process.cwd());
   const gw = new FakeGateway();
   gw.install();

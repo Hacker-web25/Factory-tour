@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { SITE_PLAN_ORDER, SITE_PLANS, isPlotBand, isSitePlanId, planForPlot, type PlotBand, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { EXTRA_AREA_MAX, SITE_PLAN_ORDER, SITE_PLANS, isSitePlanId, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -51,8 +51,6 @@ export type FunnelState = {
    * billing step — never generated behind their back.
    */
   workspaceSlug: string;
-  /** How big the plant is. Empty until they say; "Not sure" is allowed. */
-  plotBand: PlotBand | "";
 
   /* Step 2 — the scope they want. Areas are picked from the catalogue in
      lib/factoryAreas.ts; the count follows from the picks. Process videos
@@ -121,7 +119,6 @@ export const EMPTY_FUNNEL: FunnelState = {
   addressLine: "",
   pincode: "",
   workspaceSlug: "",
-  plotBand: "",
   selectedAreas: [],
   customAreas: [],
   aoaCount: null,
@@ -155,12 +152,13 @@ export function loadFunnel(): FunnelState {
     if (!raw) return { ...EMPTY_FUNNEL };
     const parsed = JSON.parse(raw) as Partial<FunnelState>;
     // Spread over the defaults so a field added later is never undefined.
-    const state = { ...EMPTY_FUNNEL, ...parsed };
-    // A visit saved before the seven plans (20 Nov 2026) may name a plan or
-    // a plant size that no longer exists: drop them, so the visitor is
-    // matched again instead of being sent to a plan we do not sell.
+    const state = { ...EMPTY_FUNNEL, ...parsed } as FunnelState & { plotBand?: unknown };
+    // A visit saved before the four yearly plans (21 Nov 2026) may name a
+    // plan that no longer exists: drop it, so the visitor is matched again
+    // instead of being sent to a plan we do not sell. The plant size it may
+    // carry is no longer asked or used.
     if (state.chosenPlan !== null && !isSitePlanId(state.chosenPlan)) state.chosenPlan = null;
-    if (state.plotBand !== "" && !isPlotBand(state.plotBand)) state.plotBand = "";
+    delete state.plotBand;
     return state;
   } catch {
     /* intentional — storage can be blocked or hold stale JSON; a blank
@@ -223,68 +221,62 @@ export type Recommendation = {
 /**
  * The lowest plan that covers everything the visitor asked for.
  *
- * Since 20 Nov 2026 the plans are sold by the size of the factory, so the
- * plant decides first. Three things must all be covered, and the answer is
- * the cheapest plan that covers every one of them:
+ * Two things must both be covered, and the answer is the cheapest plan that
+ * covers them (plans are no longer matched to the factory's covered area,
+ * since 21 Nov 2026):
  *
- *   1. THE PLANT. Each size band has its own plan, and the recommendation
- *      is never below it. A buyer who does not say ("not sure") is not held
- *      to a size. VPV VIP and VPV Signature (Mr. Gupta's own time) are offered
- *      only to plants of 40,000+ sq ft, never as a way round a smaller
- *      plan's limits.
- *   2. THE LINK. If they said they want to stop the link reaching a
+ *   1. THE LINK. If they said they want to stop the link reaching a
  *      competitor, the plan must have at least one link control (one-time
  *      view links, Premium and up). None can be bought as an add-on.
- *   3. THE SCOPE. Its areas and lab reports must cover what they picked.
+ *   2. THE SCOPE. Its areas and lab reports must cover what they picked.
  *      Process videos are deliberately NOT part of this test: they are
  *      add-ons anyone can buy on any plan.
  *
- * If no plan covers the scope on its own, it is the largest plan the plant
- * and link allow, with the shortfall added as extras.
+ * White Glove (Mr. Gupta's own time) is recommended only when the areas go
+ * beyond what the largest standard plan can reach with extra areas; it is
+ * never a way round a smaller plan's limits. Otherwise, if no standard plan
+ * covers the scope on its own, it is the largest one with the shortfall
+ * added as extras.
  *
  * Deliberately the LOWEST qualifying plan, not the dearest: a buyer who
  * later finds they were sold more than they needed does not renew, and the
- * annual support is where this product makes its money.
+ * yearly renewal is where this product makes its money.
  */
 export function recommendPlan(s: {
   aoaCount?: number | null;
   pdfCount?: number | null;
   wantsSharingControls?: boolean | null;
-  plotBand?: PlotBand | "" | null;
 }): Recommendation {
   const aoa = Math.max(0, s.aoaCount ?? 0);
   const pdfs = Math.max(0, s.pdfCount ?? 0);
   const reasons: string[] = [];
-
-  const floorId = planForPlot(s.plotBand || null);
-  const floor = floorId ? SITE_PLAN_ORDER.indexOf(floorId) : 0;
   const wantsLink = s.wantsSharingControls === true;
-  const bigPlant = floorId !== null && SITE_PLANS[floorId].personal;
 
-  const allowed = SITE_PLAN_ORDER.filter(
-    (id, i) =>
-      i >= floor &&
-      (bigPlant ? SITE_PLANS[id].personal : !SITE_PLANS[id].personal) &&
-      (!wantsLink || SITE_PLANS[id].sharingControls)
-  );
+  const standard = SITE_PLAN_ORDER.filter((id) => !SITE_PLANS[id].personal && (!wantsLink || SITE_PLANS[id].sharingControls));
+  const largest = standard[standard.length - 1];
+  const personal = SITE_PLAN_ORDER.find((id) => SITE_PLANS[id].personal);
+  // Beyond the largest standard plan plus every extra area it can take.
+  const bigPlant = !!personal && aoa > SITE_PLANS[largest].scenes + EXTRA_AREA_MAX;
+  const allowed = bigPlant && personal ? [personal] : standard;
+
   const covers = (id: SitePlanId) => {
     const p = SITE_PLANS[id];
     return p.scenes >= aoa && p.pdfs >= pdfs;
   };
 
   const fit = allowed.find(covers);
-  // Nothing covers the scope outright: the largest plan the plant and the
-  // link allow, with the shortfall added as extras.
+  // Nothing covers the scope outright: the largest plan allowed, with the
+  // shortfall added as extras.
   const chosen: SoldPlanId = fit ?? allowed[allowed.length - 1];
   const p = SITE_PLANS[chosen];
 
-  if (floorId && floorId !== "lite") {
-    reasons.push(`${p.plot.label}, which matches the plant size you gave.`);
-  }
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords, expiry and device limits come with the larger plans."
+      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords come with VPV Ultra, and expiry and device limits with White Glove."
     );
+  }
+  if (bigPlant) {
+    reasons.push(`${aoa} areas is more than our standard plans cover, so this is ${p.name}, planned with you personally by Mr. Nitin Gupta.`);
   }
 
   if (fit) {
@@ -294,9 +286,7 @@ export function recommendPlan(s: {
   }
 
   const extraAreas = Math.max(0, aoa - p.scenes);
-  if (!wantsLink && !floorId) {
-    reasons.push(`What you picked goes beyond every plan, so this is ${p.name}, our largest standard plan, with the rest added on.`);
-  } else if (aoa > 0) {
+  if (aoa > 0) {
     reasons.push(`Covers the ${aoa} area${aoa === 1 ? "" : "s"} you chose, with the rest added on top of the ${p.scenes} included.`);
   }
   if (extraAreas > 0) reasons.push(`${extraAreas} extra area${extraAreas === 1 ? "" : "s"} on top of the ${p.scenes} included.`);
@@ -357,7 +347,6 @@ export async function mirrorLead(
         factoryCity: state.factoryCity,
         factoryState: state.factoryState,
         pincode: state.pincode,
-        plotBand: state.plotBand,
         aoaCount: state.aoaCount,
         selectedAreas: state.selectedAreas,
         customAreas: state.customAreas,

@@ -44,56 +44,53 @@ import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.a8bf99b8.js";
+const JS_SRC = "/static/js/main.e1697044.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
 
 /** The two faces used only on the plan cards: Fraunces for the plan names,
- *  two brush scripts for the gold plans, chosen by the owner (20 Nov 2026):
- *  Comforter for VPV VIP, Ms Madi for VPV Signature. */
+ *  and the brush script Ms Madi for White Glove, the gold plan. */
 const PLAN_FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Comforter&family=Ms+Madi&display=swap";
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Ms+Madi&display=swap";
+
+/** How many grid rows sit above a card's feature list: name, price, AOAs. */
+const PLAN_CARD_HEAD_ROWS = 3;
 
 /**
- * The plan card (20 Nov 2026), top to bottom: the plan's name (a serif, or
- * a script on the gold plans), the factory size (the same size as the price
- * they pay, so the eye does not stop there), the AOAs, the price (struck
- * regular price, the offer price under it), and the COST PER AOA, with how
- * far it has fallen against the smallest plan.
+ * The plan card (21 Nov 2026), top to bottom: the plan's name (a serif, or
+ * a script on White Glove); the PRICE PER MONTH — the struck regular price
+ * per month with the 50% offer tag, then the offer price per month, the
+ * largest figure on the card so the eye goes straight to it, then what one
+ * year is billed at; then the AOAs, smaller than the price; then the
+ * features. No factory area and no cost per AOA.
  *
- * All seven sit in ONE row on a laptop so they compare at a glance (the
- * cards grow taller instead of wider; on a narrow laptop the row scrolls).
- * Tablets and phones swipe through them, with size chips on phones.
+ * All four sit in ONE row on a laptop; tablets and phones swipe through
+ * them, with plan chips on phones.
  *
- * VPV VIP and VPV Signature: an ivory card in a fine double gold frame, the
- * name in a deep, solid antique gold script. Nothing moves or shines.
+ * White Glove: an ivory card in a fine double gold frame, the name in a
+ * deep, solid antique gold script. Nothing moves or shines.
  */
 const PLAN_CARD_CSS = [
   ".vpv-pc-tag{display:none}",
-  ".vpv-pc-name{margin:0;font-family:Fraunces,Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-size:clamp(1.15rem,1.5vw,1.6rem);line-height:1.15;font-weight:700;letter-spacing:-.012em;color:#0b2a5b}",
-  ".vpv-pc-area{margin-top:.85rem}",
-  ".vpv-pc-area-v{margin:0;font-size:var(--vpv-pay,1.25rem);line-height:1.2;font-weight:800;letter-spacing:-.015em;color:#0b2a5b}",
-  ".vpv-pc-unit{display:inline-block;font-size:.7em;font-weight:700;letter-spacing:0;color:#3b4f6b;white-space:pre}",
-  ".vpv-pc-k{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.3rem 0 0;font-size:.75rem;line-height:1.35;font-weight:600;color:#64748b}",
-  ".vpv-pc-aoa{margin-top:.7rem}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.125rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
-  ".vpv-pc-price{margin-top:1rem;padding-top:1rem;border-top:1px solid #e8eef6}",
-  ".vpv-pc .vpv-was .vpv-strike{font-size:clamp(1.05rem,1.4vw,1.375rem)}",
-  ".vpv-pc{--vpv-pay:clamp(1rem,1.25vw,1.25rem)}.vpv-pc .vpv-now{font-size:var(--vpv-pay);line-height:1.25}",
-  ".vpv-pc-per{margin-top:1rem;padding:.7rem .8rem;border-radius:14px;background:#effaf3;border:1px solid #cdeedb}",
-  ".vpv-pc-per-v{margin:0;font-size:clamp(1.15rem,1.55vw,1.6rem);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:#0d7a43;font-variant-numeric:tabular-nums}",
-  ".vpv-pc-per-v span{display:inline-block;white-space:pre;font-size:.8125rem;font-weight:700;letter-spacing:0;color:#3f7a5a}",
-  ".vpv-pc-drop{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;background:#0d7a43;color:#fff;font-size:.6875rem;font-weight:800;letter-spacing:.01em;white-space:nowrap}",
-  // the gold plans
+  ".vpv-pc-name{margin:0;font-family:Fraunces,Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-size:clamp(1.25rem,1.6vw,1.6rem);line-height:1.15;font-weight:700;letter-spacing:-.012em;color:#0b2a5b}",
+  // the price: struck per month + offer tag, the big offer price per month, the yearly bill
+  ".vpv-pc-price{margin-top:.9rem}",
+  ".vpv-pc .vpv-was{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;margin:0}",
+  ".vpv-pc .vpv-was .vpv-strike{font-size:1.0625rem;line-height:1.2;font-weight:700;letter-spacing:-.01em;color:#475569;text-decoration-thickness:2px}",
+  ".vpv-pc .vpv-was{flex-direction:column;align-items:flex-start}.vpv-pc .vpv-off{order:-1;white-space:nowrap}",
+  ".vpv-pc .vpv-now{margin:.3rem 0 0;font-size:clamp(2.25rem,2.9vw,2.9rem);line-height:1;font-weight:800;letter-spacing:-.035em;color:#0b2a5b;font-variant-numeric:tabular-nums}",
+  ".vpv-pm{margin-left:.2rem;font-size:.9375rem;font-weight:700;letter-spacing:0;color:#475569}",
+  ".vpv-billed{margin:.45rem 0 0;font-size:.8125rem;line-height:1.35;font-weight:600;color:#64748b}",
+  // the AOAs: under the price, smaller than it
+  ".vpv-pc-aoa{margin-top:.9rem;padding-top:.85rem;border-top:1px solid #e8eef6}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.25rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
+  // the gold plan
   ".vpv-pc-gold{border:1px solid #CDAA5C!important;background:linear-gradient(180deg,#FFFCF3 0%,#FFFDF8 45%,#fff 100%)!important;box-shadow:inset 0 0 0 4px #fff,inset 0 0 0 5px rgba(196,160,80,.45),0 24px 50px -30px rgba(110,80,20,.5)!important}",
-  ".vpv-pc-gold .vpv-pc-name{font-family:'Ms Madi','Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.45rem,1.95vw,2.6rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
-  "[data-testid$='-card-vpv'] .vpv-pc-name{font-family:Comforter,'Segoe Script','Apple Chancery',cursive;font-size:clamp(1.9rem,2.55vw,3.3rem);-webkit-text-stroke:0;letter-spacing:.02em}",
-  ".vpv-pc-gold .vpv-pc-price{border-top-color:#EFE3C4}",
-  ".vpv-pc-gold .vpv-pc-per{background:#FBF6EA;border-color:#EADBB4}",
-  ".vpv-pc-gold .vpv-pc-k{color:#7a6a4f}",
-  // one row of seven on a laptop
-  "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(7,minmax(168px,1fr))!important;gap:0 .75rem!important;margin-left:50%;transform:translateX(-50%);width:min(1760px,calc(100vw - 24px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.1rem 1rem!important}.vpv-plans-grid>*>ul{font-size:.8125rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.875rem}}",
-  "@media (min-width:1024px) and (max-width:1279px){.vpv-plans-grid{overflow-x:auto;padding:0 12px 10px}}",
+  ".vpv-pc-gold .vpv-pc-name{font-family:'Ms Madi','Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.7rem,2.1vw,2.2rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
+  ".vpv-pc-gold .vpv-pc-aoa{border-top-color:#EFE3C4}",
+  ".vpv-pc-gold .vpv-billed{color:#7a6a4f}",
+  // one row of four on a laptop
+  "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1320px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.4rem 1.3rem!important}.vpv-plans-grid>*>ul{font-size:.875rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.9375rem}}",
   // tablets and phones swipe
   ".vpv-pj{display:none}",
   "@media (max-width:1023px){.vpv-pj{display:flex;gap:.5rem;overflow-x:auto;margin:1.5rem -1rem -1.25rem;padding:.25rem 1rem .5rem;scrollbar-width:none}.vpv-pj::-webkit-scrollbar{display:none}" +
@@ -101,9 +98,10 @@ const PLAN_CARD_CSS = [
     ".vpv-pj button b{font-size:.8125rem;font-weight:800}.vpv-pj button span{font-size:.6875rem;font-weight:600;color:#64748b;white-space:nowrap}" +
     ".vpv-pj button[aria-current=true]{border-color:" + BRAND + ";background:#eef4ff;box-shadow:0 0 0 2px rgba(11,92,255,.15)}" +
     ".vpv-pj button.gold{border-color:#CDAA5C;background:#FFFCF3}.vpv-pj button.gold b{color:#7E5A16}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(196,160,80,.35)}}",
-  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc{--vpv-pay:1.25rem}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.6rem}[data-testid$='-card-vpv'] .vpv-pc-name{font-size:3.1rem}.vpv-pc .vpv-was .vpv-strike{font-size:1.375rem}.vpv-pc-per-v{font-size:1.6rem}}",
+  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.3rem}.vpv-pc .vpv-now{font-size:2.75rem}}",
   "@media (min-width:640px) and (max-width:1023px){.vpv-plans-grid>*{flex-basis:46%}}",
 ].join("");
+
 const OG_IMAGE = `${SITE}/vpv-icon-512.png`;
 
 function esc(v: string): string {
@@ -165,12 +163,21 @@ function serviceLd(): string {
     const price = LAUNCH_OFFER.active
       ? Math.round((p.regularInr * (100 - LAUNCH_OFFER.percent)) / 100)
       : p.regularInr;
+    // Billed yearly: one year's price, with the unit stated, so nobody
+    // reads the yearly charge as a one-time fee.
     return {
       "@type": "Offer",
       name: p.name,
       description: p.tagline,
       price: String(price),
       priceCurrency: "INR",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: String(price),
+        priceCurrency: "INR",
+        unitCode: "ANN",
+        referenceQuantity: { "@type": "QuantitativeValue", value: 1, unitCode: "ANN" },
+      },
       url: `${SITE}/plans`,
       availability: "https://schema.org/InStock",
       ...(LAUNCH_OFFER.active
@@ -293,7 +300,7 @@ const HOME_CSS = `[data-testid="hero-experience"]{position:relative;width:100%;h
 li:has(>.vpv-gold-line)>svg{color:#C8920F;width:1.15rem;height:1.15rem;margin-top:.2rem}\
 \
 \
-@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span ${5 + PLAN_ROWS};row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span ${PLAN_ROWS};margin-top:1.25rem}}\
+@media (min-width:1024px){.vpv-plans-grid>*{display:grid!important;grid-template-rows:subgrid;grid-row:span ${PLAN_CARD_HEAD_ROWS + PLAN_ROWS};row-gap:0}.vpv-plans-grid{row-gap:0!important}.vpv-plans-grid>*{margin-bottom:1rem}.vpv-plans-grid>*>ul{display:grid;grid-template-rows:subgrid;grid-row:span ${PLAN_ROWS};margin-top:1.25rem}}\
 .vpv-strike{color:#0f172a;text-decoration:line-through;text-decoration-color:#e11d2e;text-decoration-thickness:2px}\
 .vpv-was{margin:0}.vpv-was .vpv-strike{font-size:1.5rem;line-height:1.15;font-weight:800;letter-spacing:-.02em;text-decoration-thickness:3px}\
 .vpv-now-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.4rem}\
@@ -427,19 +434,19 @@ const AOA_HINT_SCRIPT = String.raw`(function(){
 })();`;
 
 /**
- * Phones swipe through the seven plan cards. Above them, a row of chips
- * named by factory size jumps straight to the right card, and follows the
- * swipe. Built from the cards themselves, so it can never list a plan the
+ * Phones swipe through the four plan cards. Above them, a row of chips
+ * (each plan's name and price per month) jumps straight to the right card,
+ * and follows the swipe. Built from the cards themselves, so it can never list a plan the
  * page does not show; re-runs when the page redraws.
  */
 const PLAN_JUMP_SCRIPT = String.raw`(function(){
   function build(g){
     var cards=[].slice.call(g.children);if(cards.length<2)return;
-    var row=document.createElement("div");row.className="vpv-pj";row.setAttribute("aria-label","Jump to a plan by factory size");
+    var row=document.createElement("div");row.className="vpv-pj";row.setAttribute("aria-label","Jump to a plan");
     var chips=cards.map(function(c,i){
       var b=document.createElement("button");b.type="button";
-      var n=c.querySelector(".vpv-pc-name"),a=c.querySelector(".vpv-pc-area-v");
-      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"")||"VIP";b.lastChild.textContent=a?a.textContent:"";
+      var n=c.querySelector(".vpv-pc-name"),a=c.querySelector(".vpv-now");
+      b.innerHTML="<b></b><span></span>";b.firstChild.textContent=(n?n.textContent:"Plan "+(i+1)).replace(/^VPV\s*/,"");b.lastChild.textContent=a?a.textContent:"";
       if(c.classList.contains("vpv-pc-gold"))b.className="gold";
       b.addEventListener("click",function(){g.scrollTo({left:c.offsetLeft-g.offsetLeft-16,behavior:"smooth"})});
       row.appendChild(b);return b;

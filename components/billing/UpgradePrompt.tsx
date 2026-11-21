@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, Check, Crown, Users, X } from "lucide-react";
-import { ROLLOUT, accessTo, effectivePlan, upgradeForMore, type FeatureKey } from "@/lib/entitlements";
+import { ROLLOUT, accessTo, effectivePlan, isUpgrade, upgradeForMore, type FeatureKey } from "@/lib/entitlements";
 import { loadWorkspaceFacts } from "@/lib/useEntitlements";
 import { LAUNCH_OFFER, LINK_CONTROLS, SALES_TEAM, SITE_PLANS, inr, seatPrice, upgradeQuote, type SitePlanId } from "@/lib/pricing";
 
@@ -104,8 +104,11 @@ export default function UpgradePrompt() {
         q && q.addPdfs > 0 ? `${to!.pdfs} lab reports & certifications` : "",
         ...LINK_CONTROLS.filter((c) => to!.linkControls[c.key] && !from.linkControls[c.key]).map((c) => c.label),
       ].filter(Boolean);
-  // VPV VIP and Signature include Mr. Gupta's own time: arranged with our team, not paid here.
+  // White Glove includes Mr. Gupta's own time, and a plan bought before
+  // yearly billing (21 Nov 2026) cannot be prorated: both are arranged with
+  // our team, not paid here.
   const personal = !sales && to!.personal;
+  const talk = !sales && (personal || !isUpgrade(shown.from, shown.target as SitePlanId));
 
   return (
     <div
@@ -149,7 +152,9 @@ export default function UpgradePrompt() {
                 ? "comes with Sales Team logins."
                 : personal
                   ? `is part of ${to!.name}, which includes Mr. Nitin Gupta's personal involvement and is arranged with our team. You are on ${from.name}.`
-                  : `is part of ${to!.name}. You are on ${from.name}.`}
+                  : talk
+                    ? `is part of ${to!.name}. You are on ${from.name}, bought before our yearly plans, so we arrange the move with you.`
+                    : `is part of ${to!.name}. You are on ${from.name}.`}
             </>
           )}
         </p>
@@ -165,17 +170,17 @@ export default function UpgradePrompt() {
         <p className="mt-4 text-[13px] text-slate-500">
           {sales
             ? `${inr(seatPrice())} per salesperson a year${LAUNCH_OFFER.active ? ` (normally ${inr(SALES_TEAM.regularInr)})` : ""} + GST.`
-            : personal
+            : talk
               ? "Write to us and we will arrange it with you."
-              : `You pay only the difference: ${inr(q!.amountInr)} + GST. Everything opens the moment the payment is confirmed.`}
+              : `You pay only the difference between the two yearly plans (${inr(q!.yearlyDiffInr)} a year + GST), and only for the months left until your plan renews. Everything opens the moment the payment is confirmed.`}
         </p>
         <div className="mt-6 flex flex-col gap-2.5 sm:flex-row-reverse">
           {shown.isAdmin ? (
             <a
-              href={personal ? `mailto:support@myvpv.com?subject=${encodeURIComponent(to!.name)}` : href}
+              href={talk ? `mailto:support@myvpv.com?subject=${encodeURIComponent(to!.name)}` : href}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#0B3D91] via-[#1468D8] to-[#19B8F2] py-3 text-[14.5px] font-semibold text-white"
             >
-              {sales ? "Add logins" : personal ? "Write to us" : "See the upgrade"} <ArrowRight size={15} />
+              {sales ? "Add logins" : talk ? "Write to us" : "See the upgrade"} <ArrowRight size={15} />
             </a>
           ) : (
             <p className="flex-1 rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-600">

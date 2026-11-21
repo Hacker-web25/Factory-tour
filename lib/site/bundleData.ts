@@ -29,6 +29,7 @@ import {
   LINK_CONTROLS,
   discountBands,
   infoIconsLabel,
+  planPrice,
   linkControlLabels,
   inr,
   supportWorthLabel,
@@ -91,11 +92,18 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
 }
 
 /** How many rows every plan card has (they all have the same number). */
-export const PLAN_ROWS = inclusions("lite").length;
+export const PLAN_ROWS = inclusions("light").length;
 
-/** `ln={…},sn=[…]` — the offer and the plans on sale, as the bundle names them.
- *  `area` is the factory size the card leads with; `gold` marks VPV and
- *  VPV Signature (Mr. Gupta's own plans). */
+/**
+ * `ln={…},sn=[…]` — the offer and the plans on sale, as the bundle names them.
+ *
+ * Since 21 Nov 2026 the plans are billed yearly and shown PER MONTH, so the
+ * bundle's `price` is the regular price per month: its own offer maths
+ * (ga = price − 50%) then gives the offer price per month, the big figure on
+ * the card. `billed` is what one year costs today (offer or regular), the
+ * "Billed yearly" line under it. `gold` marks White Glove (Mr. Gupta's own
+ * plan). There is no factory area any more.
+ */
 export function bundlePlanData(): string {
   const ln =
     `ln={active:${LAUNCH_OFFER.active},percent:${LAUNCH_OFFER.percent},` +
@@ -104,7 +112,7 @@ export function bundlePlanData(): string {
   const plans = SITE_PLAN_ORDER.map((id) => {
     const p = SITE_PLANS[id];
     return (
-      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},area:${js(p.plot.area)},areaNum:${js(p.plot.area.replace(/ sq ft$/, "").replace("–", "–\u2060"))},gold:${p.personal},price:${p.regularInr},placeholder:false,` +
+      `{id:${js(id)},name:${js(p.name)},tagline:${js(p.tagline)},gold:${p.personal},price:${p.regularMonthlyInr},billed:${planPrice(id)},period:"month",placeholder:false,` +
       `limits:{aoas:${p.scenes},videos:${p.videos},pdfs:${p.pdfs},infoIcons:true,sharingControls:${p.sharingControls}},` +
       `infoIconsLabel:"Information icons",inclusions:${js(inclusions(id))},` +
       `security:${js([...linkControlLabels(id), ...BASE_SECURITY])}}`
@@ -134,7 +142,7 @@ export function bundleCareData(): string {
     `cn={name:${js(SUPPORT_NAME)},amount:${SUPPORT_ANNUAL_INR},period:"year",mandatory:!0,gstApplies:!0,payableNow:!1,` +
     `includes:${js(SUPPORT_INCLUDES.map((i) => i.title.toLowerCase()))},billingStart:"year_2",` +
     `billingStartLabels:{go_live:"Billed annually, starting from go-live",` +
-    `year_2:${js(`${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first year for our first ${LAUNCH_OFFER.limit} customers — worth ${supportWorthLabel()}`)}}}`
+    `year_2:"Your plan renews every year at the price you bought at"}}`
   );
 }
 
@@ -152,8 +160,11 @@ function travelPrice(): string {
 
 /** What the special offer gives, in one sentence, for the bundle's FAQ. */
 function offerSentence(): string {
-  return `The \${ln.percent}% applies to the plan price, Sales Team logins are ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, and cab travel and the first year of support, hosting & security are free. Extra areas, process videos and shoot time are not discounted.`;
+  return `The \${ln.percent}% applies to the yearly plan price, and you keep it every year you renew. Sales Team logins are ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, and cab travel is free. Extra areas, process videos and shoot time are not discounted.`;
 }
+/** offerSentence() as it read before the yearly plans (21 Nov 2026). */
+const OFFER_SENTENCE_NOV20 =
+  "The ${ln.percent}% applies to the plan price, Sales Team logins are ₹199 per salesperson per year instead of ₹999, and cab travel and the first year of support, hosting & security are free. Extra areas, process videos and shoot time are not discounted.";
 
 /** The Sales Team add-on, in one sentence. */
 function salesSentence(): string {
@@ -193,7 +204,7 @@ function NOV20_FIGURES(): [string, string][] {
       "Every plan lets you add extra areas, and each one costs less than the last. On VPV Control, extra areas start at ₹4,500 and fall to ₹3,400. You see the price of every extra area, and the total, before you pay.",
       `Every plan lets you add extra areas, and each one costs less than the last. On ${ultra.name}, extra areas start at ${inr(bands[0].each)} and fall to ${inr(bands[bands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
     ],
-    ['(for example, "You selected 8 areas; ${Ir.name} includes 4")', `(for example, "You selected 8 areas; \${Ir.name} includes ${SITE_PLANS.lite.scenes}")`],
+    ['(for example, "You selected 8 areas; ${Ir.name} includes 4")', `(for example, "You selected 8 areas; \${Ir.name} includes ${SITE_PLANS.light.scenes}")`],
   ];
 }
 
@@ -227,8 +238,64 @@ const NOV20_CARD_ROUND_TWO: [string, string][] = [
   // The plans page heading, as the first round wrote it, to the owner's line.
   ['"Seven VPV plans, sized to your factory."', '"One-time investment, lifetime trust."'],['(0,Dt.jsx)("p",{className:"vpv-pc-k",children:"Factory covered area"})', '(0,Dt.jsx)("p",{className:"vpv-pc-k vpv-pc-area-k",children:"Recommended for factories with the above covered area"})']];
 
+/**
+ * 21 Nov 2026: four plans, billed yearly and shown per month; no factory
+ * area; support, hosting & security part of every plan. Rewrites the text
+ * the earlier patches put in the bundle (applied to every patch's new text,
+ * with a migration pair carrying the bundle from the old to the new).
+ */
+function NOV21_REWORDING(list: [string, string][]): [string, string][] {
+  const oldYa = list.find(([, to]) => to.startsWith("const ya=e=>{let{plan:t,testPrefix:n,size:r=\"lg\"}=e;const L="))?.[1];
+  if (!oldYa) throw new Error("bundleData: the plan price patch is missing");
+  return [
+    // The card: name, then the price (per month, the biggest figure), then
+    // the AOAs. The factory area and the cost per AOA are gone.
+    [NOV20_CARD[2][1], NOV21_CARD_TOP],
+    [oldYa, NOV21_PRICE],
+    ['Dr=e=>`${e.name} (${e.area}): "${e.tagline}" ', 'Dr=e=>`${e.name}: "${e.tagline}" '],
+    ['"One-time investment, lifetime trust."', JSON.stringify(PLANS_HEADING)],
+    ['title:"Seven plans, sized to your factory"', 'title:"Four yearly plans for your factory"'],
+  ];
+}
+
+/** The plans page heading (21 Nov 2026): the plans are no longer one-time. */
+export const PLANS_HEADING = "Simple yearly plans. Lifetime trust.";
+
+/** Under the plan's name: the price block, then the AOAs. */
+const NOV21_CARD_TOP =
+  '(0,Dt.jsx)("div",{className:"vpv-pc-price",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})}),' +
+  '(0,Dt.jsx)("div",{className:"vpv-pc-aoa",children:(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`})})';
+
+/**
+ * The price block (21 Nov 2026). On a card: the regular price per month,
+ * struck through, with the offer tag; under it the offer price per month,
+ * the largest figure on the card; then what one year is billed at. Without
+ * the offer only the price per month and the yearly line show.
+ */
+const NOV21_PRICE =
+  'const ya=e=>{let{plan:t,testPrefix:n,size:r="lg"}=e;const L="lg"===r&&ln.active,' +
+  'b=(0,Dt.jsx)("span",{className:"rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700"+(L?" vpv-off":""),children:ln.label}),' +
+  'm=(0,Dt.jsx)("span",{className:"vpv-pm",children:"/month"}),' +
+  'p=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-launch-price`,children:[mn(ga(t)),m]});' +
+  'return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,children:[' +
+  'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsxs)("s",{className:"vpv-strike","data-testid":`${n}-standard-price`,children:[mn(t.price),"/month"]}),b]}),' +
+  'p,(0,Dt.jsxs)("p",{className:"vpv-billed","data-testid":`${n}-billed`,children:["Billed yearly: ",mn(t.billed)," + GST"]})]})}';
+
+/** Sentences of the original bundle that quoted the separate yearly support
+ *  fee, and what they say now that it is part of every yearly plan. */
+const NOV21_SUPPORT: [string, string][] = [
+  [
+    "${cn.name} is mandatory at ${mn(cn.amount)} + GST per year and includes ${pn(cn.includes)}. It keeps your VPV hosted, live and technically maintained. It is not a per-user fee, and your sales team does not pay separately to use the VPV. If not renewed, the VPV goes offline. ${cn.billingStartLabels[cn.billingStart]}.",
+    "${cn.name} is included in every yearly plan and covers ${pn(cn.includes)}. It keeps your VPV hosted, live and technically maintained. It is not a per-user fee, and your sales team does not pay separately to use the VPV. If your plan is not renewed, the VPV goes offline.",
+  ],
+  ["${cn.name}: ${mn(cn.amount)} + GST per year (mandatory). Includes ${pn(cn.includes)}", "${cn.name}: included in every yearly plan. Covers ${pn(cn.includes)}"],
+  ["${cn.name} (${mn(cn.amount)} + GST per year) is recurring.", "Every plan is billed yearly, with ${cn.name} included, and renews every year at the price you bought at."],
+  ["The plan price covers the plan you choose", "The yearly plan price covers the plan you choose"],
+  ['q:"Is annual digital maintenance mandatory?"', 'q:"Are support, hosting and security included?"'],
+];
+
 export function bundleTextPatches(): [string, string][] {
-  const conf = SITE_PLANS.lite;
+  const conf = SITE_PLANS.light;
   const ctrl = SITE_PLANS.ultra;
   const ctrlBands = discountBands("ultra");
   const travelLong = `${travelSentence()} Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`;
@@ -464,6 +531,31 @@ export function bundleTextPatches(): [string, string][] {
   }
   // The same pairs, at the plan figures the bundle was last synced with.
   for (const [before, after] of NOV20_FIGURES()) migrations.push([before, after]);
-  return [...out, ...migrations, ...NOV20_CARD, ...NOV20_CARD_ROUND_TWO];
+
+  // ── 21 November 2026: four yearly plans. The card's area line (the
+  // second pair of NOV20_CARD_ROUND_TWO) is gone with the area itself.
+  const nov20 = [...out, ...migrations, ...NOV20_CARD, NOV20_CARD_ROUND_TWO[0]];
+  const reword = NOV21_REWORDING(nov20);
+  const final: [string, string][] = [];
+  const nov21: [string, string][] = [];
+  for (const [from, to] of nov20) {
+    let next = to;
+    for (const [a, b] of reword) next = next.split(a).join(b);
+    final.push([from, next]);
+    if (next !== to && !nov21.some(([m]) => m === to)) nov21.push([to, next]);
+  }
+  // Figures the bundle carries from the seven plans, to the four.
+  const ultraBands = discountBands("ultra");
+  nov21.push(
+    [
+      "Every plan lets you add extra areas, and each one costs less than the last. On VPV Ultra, extra areas start at ₹4,500 and fall to ₹4,000. You see the price of every extra area, and the total, before you pay.",
+      `Every plan lets you add extra areas, and each one costs less than the last. On ${SITE_PLANS.ultra.name}, extra areas start at ${inr(ultraBands[0].each)} and fall to ${inr(ultraBands[ultraBands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
+    ],
+    ['(for example, "You selected 8 areas; ${Ir.name} includes 2")', `(for example, "You selected 8 areas; \${Ir.name} includes ${conf.scenes}")`],
+    [OFFER_SENTENCE_NOV20, offerSentence()]
+  );
+  // A pair whose old and new text are now the same (a figure that happens
+  // to be back where it started) has nothing to do.
+  return [...final, ...nov21, ...NOV21_SUPPORT].filter(([from, to]) => from !== to);
 }
 

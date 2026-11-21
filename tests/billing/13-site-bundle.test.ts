@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { bundleCareData, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
-import { SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
+import { SITE_PLANS, SITE_PLAN_ORDER, planPrice } from "@/lib/pricing";
 
 const home = fs.readFileSync(path.join(process.cwd(), "lib/site/home.ts"), "utf8");
 const jsSrc = home.match(/const JS_SRC = "(\/static\/js\/main\.[0-9a-f]+\.js)";/)![1];
@@ -44,8 +44,13 @@ describe("the marketing site's bundle agrees with lib/pricing.ts", () => {
     for (const old of ["price:49e3", "price:99e3", "price:199e3", '"5 AOAs"', '"20 AOAs"']) {
       assert.ok(!bundle.includes(old), `old figure still in bundle: ${old}`);
     }
+    // Since 21 Nov 2026 the bundle prices a plan per month (the regular price
+    // per month; its own offer maths halves it) and bills it yearly.
     for (const id of SITE_PLAN_ORDER) {
-      assert.ok(bundle.includes(`price:${SITE_PLANS[id].regularInr}`), id);
+      assert.ok(bundle.includes(`price:${SITE_PLANS[id].regularMonthlyInr},billed:${planPrice(id)},period:"month"`), id);
+    }
+    for (const gone of ["sq ft", "per AOA", "One-time investment", "first year of support", "VPV Signature", "VPV VIP"]) {
+      assert.ok(!bundle.includes(gone), `old wording still in bundle: ${gone}`);
     }
   });
 

@@ -100,6 +100,8 @@ export default function BillingPage() {
   const [pane, setPane] = useState<"none" | "support" | "scenes">("none");
   const [topupTo, setTopupTo] = useState<number>(0);
   const [renewInr, setRenewInr] = useState<number>(SUPPORT_ANNUAL_INR);
+  // What the yearly plan renews at, 0 on a plan from before yearly billing.
+  const [planYearly, setPlanYearly] = useState(0);
   // Sales Team logins: how many are paid for, at what price, until when, and how many people use them.
   const [logins, setLogins] = useState<{
     seats: number;
@@ -138,7 +140,16 @@ export default function BillingPage() {
           .maybeSingle();
         const seats = Number((seatRow as { sales_seats?: number } | null)?.sales_seats ?? 0) || 0;
         const each = Number((seatRow as { sales_seat_inr?: number } | null)?.sales_seat_inr ?? 0) || 0;
-        setRenewInr(renewalAmount(each > 0 ? seats : 0, each));
+        // A yearly plan renews at what the workspace pays for it (stored when
+        // it was bought); a plan from before 21 Nov 2026 renews support alone.
+        const { data: yRow } = await supabase
+          .from("organizations")
+          .select("plan_yearly_inr, site_plan")
+          .eq("id", p.org_id)
+          .maybeSingle();
+        const yearlyInr = Number((yRow as { plan_yearly_inr?: number | null } | null)?.plan_yearly_inr ?? 0) || 0;
+        setPlanYearly(yearlyInr);
+        setRenewInr(renewalAmount(each > 0 ? seats : 0, each, yearlyInr));
         // Their own end date and head-count. Read separately again: a database
         // without supabase/renewal_ladder.sql just shows the logins as moving with support.
         const { data: untilRow } = await supabase
@@ -230,8 +241,8 @@ export default function BillingPage() {
         </Banner>
       )}
       {!closed && state === "nag" && access && (
-        <Banner tone="amber" icon={<AlertTriangle size={18} />} title="Your support year has ended — please renew">
-          Technical support and hosting ended on{" "}
+        <Banner tone="amber" icon={<AlertTriangle size={18} />} title={planYearly > 0 ? "Your plan year has ended — please renew" : "Your support year has ended — please renew"}>
+          {planYearly > 0 ? "Your yearly plan ended on" : "Technical support and hosting ended on"}{" "}
           <strong>{new Date(org.support_until as string).toDateString()}</strong>. Your workspace
           will <strong>lock on {access.locksAt?.toDateString()}</strong>
           {access.daysToLock !== null && <> ({access.daysToLock} day{access.daysToLock === 1 ? "" : "s"} from now)</>}{" "}
@@ -241,7 +252,7 @@ export default function BillingPage() {
       )}
       {!closed && state === "locked" && (
         <Banner tone="red" icon={<Lock size={18} />} title="Your workspace is locked">
-          The support year ended and the {SUPPORT_GRACE_DAYS}-day reminder period has passed. Your tours and
+          {planYearly > 0 ? "Your plan year" : "The support year"} ended and the {SUPPORT_GRACE_DAYS}-day reminder period has passed. Your tours and
           data are safe. Renew for {inr(renewInr)} below and everything unlocks the moment
           the payment is confirmed.
         </Banner>
@@ -256,14 +267,14 @@ export default function BillingPage() {
 
         {/* Support */}
         <Card>
-          <CardHead icon={<LifeBuoy size={17} />} title="Technical support" />
+          <CardHead icon={<LifeBuoy size={17} />} title={planYearly > 0 ? "Yearly plan" : "Technical support"} />
           <div className="mt-4">
             <SupportBadge state={state} />
           </div>
           <p className="mt-3 text-[13.5px] leading-relaxed text-slate-600">
             {state === "active" && org.support_until && (
               <>
-                Covered until{" "}
+                {planYearly > 0 ? "Paid until" : "Covered until"}{" "}
                 <strong className="text-vpv-ink">
                   {new Date(org.support_until).toDateString()}
                 </strong>
@@ -272,7 +283,7 @@ export default function BillingPage() {
             )}
             {state === "nag" && (
               <>
-                Your support year has ended. Renew within{" "}
+                {planYearly > 0 ? "Your plan year" : "Your support year"} has ended. Renew within{" "}
                 {access?.daysToLock ?? SUPPORT_GRACE_DAYS} day
                 {(access?.daysToLock ?? SUPPORT_GRACE_DAYS) === 1 ? "" : "s"} to keep your
                 workspace and shared tours live.
@@ -294,6 +305,11 @@ export default function BillingPage() {
               Renew for {inr(renewInr)} + GST per year
             </button>
           )}
+          {planYearly > 0 && (
+            <p className="mt-2 text-[12px] leading-relaxed text-slate-500">
+              Your plan renews every year at the price you bought at, with support, hosting &amp; security included.
+            </p>
+          )}
           {org.plan !== "basic" && (
             <p className="mt-4 flex items-center gap-1.5 text-[13px] text-emerald-700">
               <Check size={14} /> Included with {org.plan}
@@ -309,16 +325,16 @@ export default function BillingPage() {
           </div>
           <p className="mt-3 text-[13.5px] leading-relaxed text-slate-600">
             {org.plan === "basic"
-              ? "Scenes your customers can see. Add more at any time — the price per scene keeps falling."
+              ? "Areas your customers can see. Need more? Move up a plan; you pay only the difference for the months left this year."
               : "No limit on this plan."}
           </p>
           {isAdmin && org.plan === "basic" && (
-            <button
-              onClick={() => setPane(pane === "scenes" ? "none" : "scenes")}
-              className="mt-4 w-full rounded-full border border-vpv-blue/40 py-2.5 text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
+            <a
+              href="/billing/upgrade"
+              className="mt-4 block w-full rounded-full border border-vpv-blue/40 py-2.5 text-center text-[13.5px] font-semibold text-vpv-blue hover:bg-vpv-tint"
             >
-              Add more scenes
-            </button>
+              See bigger plans
+            </a>
           )}
         </Card>
       </div>
@@ -335,10 +351,11 @@ export default function BillingPage() {
 
       {/* ── Buy panes ───────────────────────────────────────────────── */}
       {pane === "support" && isAdmin && (
-        <Pane title="Renew technical support">
+        <Pane title={planYearly > 0 ? "Renew your yearly plan" : "Renew technical support"}>
           <CheckoutFlow
             purpose="support_renewal"
             renewalInr={renewInr}
+            renewalLabel={planYearly > 0 ? "Your yearly plan · one more year" : undefined}
             renewal={{ seats: logins.seats, seatInr: logins.seatInr, salespeople: logins.salespeople, loginsEnd: logins.until }}
             accessToken={token}
             onComplete={() => {

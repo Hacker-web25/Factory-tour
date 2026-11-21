@@ -14,7 +14,10 @@
 --     Enterprise workspace, whatever the browser sends.
 --
 -- Run once in the Supabase SQL editor, after billing_hardening.sql,
--- sales_seats.sql and renewal_ladder.sql. Safe to run again.
+-- sales_seats.sql and renewal_ladder.sql. Safe to run again — but
+-- supabase/plans_yearly.sql (21 Nov 2026) replaces several functions below
+-- with newer versions, so if you ever run this file again, run
+-- plans_yearly.sql straight after it.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -149,9 +152,9 @@ begin
   if not found then raise exception 'order_not_found'; end if;
   if o.status <> 'paid' or o.revoked_at is not null then raise exception 'order_not_payable'; end if;
   if o.org_id is null then raise exception 'upgrade_without_org'; end if;
-  -- 20 Nov 2026: the seven plans (see plans_seven.sql). Kept in step here so
-  -- running this file again never takes them away.
-  if o.upgrade_to is null or o.upgrade_to not in ('plus', 'pro', 'premium', 'ultra', 'authority', 'control', 'enterprise') then
+  -- 21 Nov 2026: the yearly plans (see plans_yearly.sql, which also moves the
+  -- renewal amount with the plan).
+  if o.upgrade_to is null or o.upgrade_to not in ('premium', 'ultra', 'authority', 'control', 'enterprise') then
     raise exception 'upgrade_target_missing';
   end if;
 
@@ -315,13 +318,12 @@ set search_path = public
 as $$ select org_id from public.tours where id = p_tour $$;
 grant execute on function public.tour_org_of(uuid) to anon, authenticated;
 
--- 20 Nov 2026: the link controls, each on its own plan. Kept identical to
--- supabase/plans_seven.sql so running this file again changes nothing.
--- Which link controls a workspace has (20 Nov 2026, the owner's split):
+-- The link controls, each on its own plan. Kept identical to
+-- supabase/plans_yearly.sql so running this file again changes nothing.
 --   oneTime   one-time view links (view_limit, session_minutes)   Premium and up
 --   password  password-protected links (password_hash)            Ultra and up
---   expiry    link expiry time (expires_at)                       VPV VIP and Signature
---   devices   device limits (device_limit) and the e-mail gate    Signature
+--   expiry    link expiry time (expires_at)                       White Glove
+--   devices   device limits (device_limit) and the e-mail gate    White Glove
 -- The old Control and Enterprise, and the old monthly Pro and Ultra, have all.
 -- Must match linkControls in lib/pricing.ts.
 create or replace function public.org_link_controls(p_org uuid)
@@ -333,10 +335,8 @@ set search_path = public
 as $$
   select coalesce((
     select case
-      when o.plan in ('pro', 'ultra') or o.site_plan in ('signature', 'control', 'enterprise')
+      when o.plan in ('pro', 'ultra') or o.site_plan in ('white_glove', 'control', 'enterprise')
         then '{"oneTime": true, "password": true, "expiry": true, "devices": true}'::jsonb
-      when o.site_plan = 'vpv'
-        then '{"oneTime": true, "password": true, "expiry": true, "devices": false}'::jsonb
       when o.site_plan = 'ultra'
         then '{"oneTime": true, "password": true, "expiry": false, "devices": false}'::jsonb
       when o.site_plan = 'premium'
@@ -411,8 +411,8 @@ begin
           using hint = case need
             when 'oneTime' then 'One-time view links start with VPV Premium.'
             when 'password' then 'Password-protected links start with VPV Ultra.'
-            when 'expiry' then 'Link expiry time comes with VPV VIP and VPV Signature.'
-            else 'Device limits and the e-mail gate come with VPV Signature.'
+            when 'expiry' then 'Link expiry time comes with White Glove.'
+            else 'Device limits and the e-mail gate come with White Glove.'
           end,
           errcode = '42501';
       end if;

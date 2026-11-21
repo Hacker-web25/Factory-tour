@@ -96,7 +96,7 @@ describe("invoice: the printed rows", () => {
   });
 
   it("explains what the plan price covers without charging for it twice", () => {
-    const lines = invoiceLinesFromQuote(siteQuote("pro", { city: "Gurugram" }));
+    const lines = invoiceLinesFromQuote(siteQuote("premium", { city: "Gurugram" }));
     const included = lines.filter((l) => l.amountInr === null);
     assert.ok(included.length >= 2, "the shoot and the setup are listed");
     for (const l of included) assert.equal(l.unitInr, null, `${l.title} is marked Included`);
@@ -107,7 +107,7 @@ describe("invoice: the printed rows", () => {
       priceFor("basic_licence", { scenes: 7 }),
       priceFor("scene_topup", { existingScenes: 5, scenes: 9 }),
       priceFor("support_renewal", { salesSeats: 2, seatInr: 999 }),
-      priceFor("site_plan", { sitePlanId: "signature", city: "Gurugram" }),
+      priceFor("site_plan", { sitePlanId: "white_glove", city: "Gurugram" }),
     ];
     for (const c of cases) {
       assert.ok(c.lines.length > 0, c.description);

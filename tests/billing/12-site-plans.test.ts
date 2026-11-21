@@ -95,23 +95,30 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
   it("charges plan + travel, in rupees we can read", () => {
     // Hard numbers, so a silent edit to a plan price fails here rather than
-    // in somebody's bank statement. 20 Nov 2026: the seven plans.
-    assert.equal(SITE_PLANS.lite.priceInr, 34_999);
-    assert.equal(SITE_PLANS.pro.priceInr, 94_999);
-    assert.equal(SITE_PLANS.premium.priceInr, 1_19_999);
-    assert.equal(SITE_PLANS.ultra.priceInr, 1_99_999);
+    // in somebody's bank statement. 21 Nov 2026: four yearly plans, priced
+    // per month by the owner; the yearly charge is exactly 12 months.
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr), [3_560, 10_000, 13_542, 20_452]);
+    assert.equal(SITE_PLANS.light.priceInr, 42_720);
+    assert.equal(SITE_PLANS.premium.priceInr, 1_20_000);
+    assert.equal(SITE_PLANS.ultra.priceInr, 1_62_504);
+    assert.equal(SITE_PLANS.white_glove.priceInr, 2_45_424);
+    for (const id of SITE_PLAN_ORDER) {
+      assert.equal(SITE_PLANS[id].billing, "yearly", id);
+      assert.equal(SITE_PLANS[id].priceInr, SITE_PLANS[id].monthlyInr * 12, id);
+      assert.equal(SITE_PLANS[id].regularMonthlyInr, SITE_PLANS[id].monthlyInr * 2, id);
+    }
 
-    // The price PER AREA falls as the plans grow — that fall is what moves a
-    // buyer up a plan, so it is pinned here.
-    assert.equal(sitePerArea("lite"), 17_500);
-    assert.equal(sitePerArea("pro"), 11_875);
-    assert.equal(sitePerArea("ultra"), 5_000);
+    // The price per area still falls as the plans grow (it is no longer
+    // printed on the cards, but the plans must stay sensible).
+    assert.equal(sitePerArea("light"), 8_544);
+    assert.equal(sitePerArea("premium"), 6_000);
+    assert.equal(sitePerArea("ultra"), 3_611);
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       assert.ok(sitePerArea(SITE_PLAN_ORDER[i]) < sitePerArea(SITE_PLAN_ORDER[i - 1]), SITE_PLAN_ORDER[i]);
     }
 
     // Link controls start at Premium (one-time view links) and are not sold as an add-on anywhere.
-    assert.equal(SITE_PLANS.pro.sharingControls, false);
+    assert.equal(SITE_PLANS.light.sharingControls, false);
     assert.equal(SITE_PLANS.premium.sharingControls, true);
 
     // The special offer: 50% off the regular price for the first 50
@@ -120,9 +127,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(LAUNCH_OFFER.active, true);
     assert.equal(LAUNCH_OFFER.percent, 50);
     assert.equal(LAUNCH_OFFER.limit, 50);
-    assert.equal(SITE_PLANS.lite.regularInr, 69_998);
-    assert.equal(SITE_PLANS.ultra.regularInr, 3_99_998);
-    assert.equal(SITE_PLANS.signature.regularInr, 12_00_000);
+    assert.equal(SITE_PLANS.light.regularInr, 85_440);
+    assert.equal(SITE_PLANS.ultra.regularInr, 3_25_008);
+    assert.equal(SITE_PLANS.white_glove.regularInr, 4_90_848);
     for (const id of SITE_PLAN_ORDER) {
       const p = SITE_PLANS[id];
       assert.equal(p.priceInr, Math.round(p.regularInr * (1 - LAUNCH_OFFER.percent / 100)), id);
@@ -136,12 +143,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(TRAVEL_FEES.ncr.amountInr, 4_000);
 
     // Under the offer the cab is free: the plan price is the whole bill.
-    assert.equal(sitePlanQuote("lite", "ncr").amountInr, 34_999);
-    assert.equal(sitePlanQuote("pro", "ncr").amountInr, 94_999);
-    assert.equal(sitePlanQuote("ultra", "ncr").amountInr, 1_99_999);
+    assert.equal(sitePlanQuote("light", "ncr").amountInr, 42_720);
+    assert.equal(sitePlanQuote("premium", "ncr").amountInr, 1_20_000);
+    assert.equal(sitePlanQuote("ultra", "ncr").amountInr, 1_62_504);
     // Once it closes: regular price + ₹4,000 cab.
-    assert.equal(sitePlanQuote("lite", "ncr", false).amountInr, 69_998 + 4_000);
-    assert.equal(sitePlanQuote("ultra", "ncr", false).amountInr, 3_99_998 + 4_000);
+    assert.equal(sitePlanQuote("light", "ncr", false).amountInr, 85_440 + 4_000);
+    assert.equal(sitePlanQuote("ultra", "ncr", false).amountInr, 3_25_008 + 4_000);
   });
 
   it("keeps every upgrade path pointing UP", () => {
@@ -149,7 +156,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // adding enough areas to match the next plan must always cost MORE than
     // just buying the next plan. If it ever does not, the dearer plan is
     // pointless and buyers will work that out faster than we will. (Into
-    // VPV the rule does not apply: it is priced for Mr. Gupta's own time.)
+    // White Glove the rule does not apply: it is priced for Mr. Gupta's own time.)
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       const lo = SITE_PLAN_ORDER[i - 1];
       const hi = SITE_PLAN_ORDER[i];
@@ -160,8 +167,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
       const via = SITE_PLANS[lo].priceInr + extraAreaCost(lo, need);
       assert.ok(via > SITE_PLANS[hi].priceInr, `${lo} + ${need} areas = ${via}, must exceed ${hi} ${SITE_PLANS[hi].priceInr}`);
     }
-    assert.equal(SITE_PLANS.lite.priceInr + extraAreaCost("lite", 3), 67_999);
-    assert.equal(SITE_PLANS.pro.priceInr + extraAreaCost("pro", 6), 1_30_499);
+    assert.equal(SITE_PLANS.light.priceInr + extraAreaCost("light", 15), 1_27_720);
     // And the extras never cost more on a bigger plan.
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       const a = SITE_PLANS[SITE_PLAN_ORDER[i - 1]].extraAreaLadder[0].each;
@@ -188,7 +194,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   });
 
   it("travels by cab only, and only to the cities we shoot in", () => {
-    const ncr = siteQuote("pro", { city: "Manesar" });
+    const ncr = siteQuote("premium", { city: "Manesar" });
     assert.equal(ncr.available, true);
     assert.equal(ncr.logistics?.amountInr, 4_000);
     const cab = ncr.lines.find((l) => l.kind === "travel");
@@ -198,14 +204,14 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(cab!.regularInr, 4_000);
     assert.match(cab!.note ?? "", /Free for our first 50 customers/);
     // …and charged once the offer has closed.
-    const closedCab = siteQuote("pro", { city: "Manesar", offerOpen: false }).lines.find((l) => l.kind === "travel");
+    const closedCab = siteQuote("premium", { city: "Manesar", offerOpen: false }).lines.find((l) => l.kind === "travel");
     assert.equal(closedCab!.amountInr, 4_000);
     assert.ok(!ncr.lines.some((l) => /air|flight|airport|train/i.test(`${l.label} ${l.note ?? ""}`)));
 
     // Anywhere else is "coming soon": a bill can be shown, not paid, and no
     // travel is charged for a trip we will not make.
     for (const city of ["Coimbatore", "Panipat", "Nowhere-upon-Sea"]) {
-      const q = siteQuote("pro", { city });
+      const q = siteQuote("premium", { city });
       assert.equal(q.available, false, city);
       assert.ok(!q.lines.some((l) => l.kind === "travel"), city);
       assert.equal(logisticsFor(city).inServiceArea, false, city);
@@ -213,22 +219,27 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(logisticsFor("gurgaon").inServiceArea, true);
   });
 
-  it("shows the first support year on the bill: free under the offer, charged after", () => {
-    const open = siteQuote("premium", { city: "Manesar", offerOpen: true });
-    const line = open.lines.find((l) => l.kind === "support")!;
-    assert.equal(line.amountInr, 0);
-    assert.equal(line.regularInr, SUPPORT_ANNUAL_INR);
+  it("bills a yearly plan with support included: no separate support line, offer or not", () => {
+    for (const offerOpen of [true, false]) {
+      const q = siteQuote("premium", { city: "Manesar", offerOpen });
+      assert.ok(!q.lines.some((l) => l.kind === "support"), String(offerOpen));
+      assert.equal(q.supportInr, 0);
+      assert.match(q.lines[0].label, /first year/);
+      assert.match(q.lines[0].note ?? "", /billed yearly/);
+      assert.match(q.lines[0].note ?? "", /Support, hosting & security included/);
+    }
+    // What renews every year: the plan at today's price plus the extra areas.
+    assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 1_20_000);
+    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 2 }).yearlyInr, 1_20_000 + 9_000);
+    assert.equal(siteQuote("premium", { city: "Manesar", offerOpen: false }).yearlyInr, 2_40_000);
+    // The old one-time plans kept their separate support year (SUPPORT_ANNUAL_INR).
     assert.equal(SUPPORT_ANNUAL_INR, 11_988);
-    assert.equal(open.supportInr, 0);
-
-    const closed = siteQuote("premium", { city: "Manesar", offerOpen: false });
-    assert.equal(closed.lines.find((l) => l.kind === "support")!.amountInr, SUPPORT_ANNUAL_INR);
-    assert.equal(closed.supportInr, SUPPORT_ANNUAL_INR);
+    assert.equal(siteQuote("control", { city: "Manesar", offerOpen: false }).supportInr, SUPPORT_ANNUAL_INR);
   });
 
   it("takes a coupon off the plan and extras, never the cab or the support year", () => {
-    const base = siteQuote("pro", { city: "Manesar", offerOpen: false, extraAreas: 2 });
-    const pct = siteQuote("pro", {
+    const base = siteQuote("premium", { city: "Manesar", offerOpen: false, extraAreas: 2 });
+    const pct = siteQuote("premium", {
       city: "Manesar",
       offerOpen: false,
       extraAreas: 2,
@@ -242,16 +253,16 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.ok(pct.lines.some((l) => l.kind === "coupon" && l.amountInr === -pct.couponInr));
 
     // A fixed amount can never take more than the discountable part.
-    const huge = siteQuote("pro", {
+    const huge = siteQuote("premium", {
       city: "Manesar",
       offerOpen: false,
       coupon: { code: "ALL", percentOff: null, amountOffInr: 10_000_000 },
     });
-    assert.equal(huge.taxableInr, 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(huge.taxableInr, 4_000);
   });
 
-  it("includes 1 to 32 hours of shoot time by plan, and charges extra time by the hour", () => {
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => shootTimeFor(id).totalHours), [1, 2, 4, 6, 12, 24, 32]);
+  it("includes 2 to 24 hours of shoot time by plan, and charges extra time by the hour", () => {
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => shootTimeFor(id).totalHours), [2, 7, 13, 24]);
     for (const id of SITE_PLAN_ORDER) {
       const q = siteQuote(id, { city: "Manesar" });
       assert.equal(q.shoot.extraHours, 0, id);
@@ -261,7 +272,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // 4 extra areas = 60 minutes = exactly one extra hour.
     const one = siteQuote("premium", { city: "Manesar", extraAreas: 4 });
     assert.equal(one.shoot.extraHours, 1);
-    assert.equal(one.shoot.totalHours, 7);
+    assert.equal(one.shoot.totalHours, 8);
     const line = one.lines.find((l) => /extra shoot time/i.test(l.label));
     assert.ok(line);
     assert.equal(line!.amountInr, EXTRA_HOUR_INR);
@@ -269,23 +280,23 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // 5 extra areas = 75 minutes, rounded UP to two hours.
     assert.equal(shootTimeFor("premium", 5).extraHours, 2);
     // Videos count too.
-    assert.equal(shootTimeFor("pro", 0, 4).extraHours, 1);
+    assert.equal(shootTimeFor("light", 0, 4).extraHours, 1);
   });
 
   it("shows a two-day shoot but never bills the same hours twice", () => {
-    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 5 }).shoot.days, 1);
-    // 6 h + 10 areas (150 min → 3 h) = 9 h: past an 8-hour day.
-    const big = siteQuote("premium", { city: "Manesar", extraAreas: 10 });
+    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 4 }).shoot.days, 1);
+    // 7 h + 5 areas (75 min → 2 h) = 9 h: past an 8-hour day.
+    const big = siteQuote("premium", { city: "Manesar", extraAreas: 5 });
     assert.equal(big.shoot.days, 2);
     // Time is billed by the hour; no day fee on top, so one extra area can
     // never jump the total by ₹20,000.
     assert.ok(!big.lines.some((l) => /additional shoot day/i.test(l.label)));
     const nine = siteQuote("premium", { city: "Manesar", extraAreas: 8 });
     const ten = siteQuote("premium", { city: "Manesar", extraAreas: 9 });
-    assert.ok(ten.taxableInr - nine.taxableInr <= 5_500 + EXTRA_HOUR_INR);
+    assert.ok(ten.taxableInr - nine.taxableInr <= 4_500 + EXTRA_HOUR_INR);
     // The big plans are several days on site from the start, shown and not billed as days.
     assert.equal(siteQuote("ultra", { city: "Manesar" }).shoot.days, 2);
-    assert.equal(siteQuote("signature", { city: "Manesar" }).shoot.days, 4);
+    assert.equal(siteQuote("white_glove", { city: "Manesar" }).shoot.days, 3);
   });
 
   it("shows the discount bands with percentages the buyer can check", () => {
@@ -293,8 +304,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.deepEqual(
       bands.map((b) => [b.from, b.to, b.each, b.percentOff]),
       [
-        [1, 5, 5_500, 36],
-        [6, null, 5_000, 42],
+        [1, 5, 4_500, 25],
+        [6, null, 4_000, 33],
       ]
     );
     // Every band on every plan is cheaper than the plan's own per-area rate.
@@ -322,7 +333,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   it("prices the funnel's add-ons server-side, whatever the browser asks", async () => {
     await w.reset();
     const r = await open({
-      sitePlanId: "pro",
+      sitePlanId: "premium",
       city: "Gurugram",
       extraAreas: 4,
       selfVideos: 5,
@@ -334,7 +345,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     const expected = toPaise(
-      siteQuote("pro", { city: "Gurugram", extraAreas: 4, selfVideos: 5, shotVideos: 2 }).totalInr
+      siteQuote("premium", { city: "Gurugram", extraAreas: 4, selfVideos: 5, shotVideos: 2 }).totalInr
     );
     assert.equal(r.body.amountPaise, expected);
     assert.equal(w.gw.orders.get(r.body.razorpayOrderId)!.amount, expected);
@@ -358,7 +369,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
   it("refuses a site plan with neither a city nor a travel zone", async () => {
     await w.reset();
-    const r = await open({ sitePlanId: "pro" });
+    const r = await open({ sitePlanId: "premium" });
     assert.equal(r.status, 400);
     assert.equal(r.body.error, "invalid_travel");
   });
@@ -394,9 +405,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     }
 
     for (const bad of [
-      { sitePlanId: "pro", travel: "mars" },
-      { sitePlanId: "pro" },
-      { sitePlanId: "pro", travel: null },
+      { sitePlanId: "premium", travel: "mars" },
+      { sitePlanId: "premium" },
+      { sitePlanId: "premium", travel: null },
     ]) {
       const r = await open(bad);
       assert.equal(r.status, 400, JSON.stringify(bad));
@@ -407,7 +418,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   /* ── what it stores and builds ─────────────────────────────────── */
 
   it("stores an ordinary basic_licence, with the plan's areas as the scene quota", async () => {
-    const r = await open({ sitePlanId: "pro", travel: "ncr" });
+    const r = await open({ sitePlanId: "premium", travel: "ncr" });
     assert.equal(r.status, 200);
 
     const [row] = await w.q(`select purpose, scenes, notes from public.billing_orders`);
@@ -415,8 +426,10 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // refund reversal all branch on this column.
     assert.equal(row.purpose, "basic_licence");
     assert.equal(storedPurpose("site_plan"), "basic_licence");
-    assert.equal(row.scenes, SITE_PLANS.pro.scenes);
-    assert.match(row.notes, /^VPV Pro — /);
+    assert.equal(row.scenes, SITE_PLANS.premium.scenes);
+    assert.match(row.notes, /^VPV Premium — /);
+    // A yearly plan says what it renews at, read back when the workspace is built.
+    assert.match(row.notes, /renews yearly at ₹1,20,000/);
     // The offer is open in a fresh world, and the order says it took it.
     assert.match(row.notes, /Special offer/);
   });
@@ -442,7 +455,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   });
 
   it("a second plan purchase by the same buyer is refused, like any other licence", async () => {
-    const first = await open({ sitePlanId: "lite", travel: "ncr" });
+    const first = await open({ sitePlanId: "light", travel: "ncr" });
     await w.payInBrowser(first.body);
     const second = await open({ sitePlanId: "premium", travel: "ncr" });
     assert.equal(second.status, 409, JSON.stringify(second.body));
@@ -455,7 +468,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     await withEnv(
       { RAZORPAY_KEY_ID: "rzp_live_AbCdEf123456", VERCEL_ENV: "production" },
       async () => {
-        const r = await open({ sitePlanId: "pro", travel: "ncr" });
+        const r = await open({ sitePlanId: "premium", travel: "ncr" });
         assert.notEqual(r.body.error, "prices_not_final", JSON.stringify(r.body));
         assert.equal(r.status, 200, JSON.stringify(r.body));
         assert.equal(r.body.testMode, false, "a live key opens a live order");
@@ -465,7 +478,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
   it("and a live key outside production is refused before that, as it always was", async () => {
     await withEnv({ RAZORPAY_KEY_ID: "rzp_live_AbCdEf123456", VERCEL_ENV: undefined }, async () => {
-      const r = await open({ sitePlanId: "pro", travel: "ncr" });
+      const r = await open({ sitePlanId: "premium", travel: "ncr" });
       assert.equal(r.status, 503, JSON.stringify(r.body));
       assert.equal(r.body.error, "payments_unavailable");
       assert.equal(await w.count("billing_orders"), 0);
@@ -473,7 +486,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   });
 
   it("but the whole flow still runs on test keys, so it can be rehearsed", async () => {
-    const r = await open({ sitePlanId: "lite", travel: "ncr" });
+    const r = await open({ sitePlanId: "light", travel: "ncr" });
     assert.equal(r.status, 200);
     assert.equal(r.body.testMode, true);
     const paid = await w.payInBrowser(r.body);
@@ -493,8 +506,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
                 limit: async () => ({
                   data: [
                     ...Array.from({ length: n }, (_, i) => ({
-                      // The seven plans on sale, VPV VIP, and the four sold before.
-                      notes: `${["VPV Lite", "VPV Pro", "VPV VIP", "VPV Signature", "VPV Confidence", "VPV Control"][i % 6]} — 8 areas`,
+                      // The four yearly plans on sale, and the one-time plans sold before.
+                      notes: `${["VPV Light", "VPV Premium", "VPV Ultra", "White Glove", "VPV Confidence", "VPV Control"][i % 6]} — 8 areas`,
                     })),
                     { notes: "VPV Basic licence — 7 scenes (includes 1 year support and hosting)" },
                   ],
@@ -520,7 +533,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     const closed = siteQuote("premium", { city: "Manesar", offerOpen: false });
     assert.equal(closed.savingInr, 0);
     assert.ok(!closed.lines.some((l) => l.kind === "offer"));
-    assert.equal(closed.taxableInr, 2_39_998 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(closed.taxableInr, 2_40_000 + 4_000);
   });
 
   it("charges the regular price for real once 50 customers have paid", async () => {
@@ -553,7 +566,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   it("refuses an order for a city we do not shoot in yet", async () => {
     await w.reset();
     for (const body of [{ city: "Ludhiana" }, { city: "Panipat" }, { travel: "outside" }]) {
-      const r = await open({ sitePlanId: "pro", ...body });
+      const r = await open({ sitePlanId: "premium", ...body });
       assert.equal(r.status, 400, JSON.stringify(r.body));
       assert.equal(r.body.error, "city_not_served");
       assert.match(String(r.body.message), /coming to/i);
@@ -565,18 +578,18 @@ describe("site plans: the named packs sold by the marketing site", () => {
     await w.reset();
     await w.q(`insert into public.coupons (code, percent_off, max_uses) values ('FRIENDS10', 10, 1)`);
 
-    const fake = await open({ sitePlanId: "pro", city: "Manesar", coupon: "NOPE123" });
+    const fake = await open({ sitePlanId: "premium", city: "Manesar", coupon: "NOPE123" });
     assert.equal(fake.status, 400);
     assert.equal(fake.body.error, "coupon_invalid");
 
-    const r = await open({ sitePlanId: "pro", city: "Manesar", coupon: " friends10 " });
+    const r = await open({ sitePlanId: "premium", city: "Manesar", coupon: " friends10 " });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     const expected = toPaise(
-      siteQuote("pro", { city: "Manesar", coupon: { code: "FRIENDS10", percentOff: 10, amountOffInr: null } }).totalInr
+      siteQuote("premium", { city: "Manesar", coupon: { code: "FRIENDS10", percentOff: 10, amountOffInr: null } }).totalInr
     );
     assert.equal(r.body.amountPaise, expected);
     const [row] = await w.q(`select notes from public.billing_orders where status = 'created'`);
-    assert.match(row.notes, /, coupon FRIENDS10 \(/);
+    assert.match(row.notes, /, coupon FRIENDS10(, | \()/);
   });
 
   it("a one-use coupon cannot be used twice", async () => {
@@ -586,7 +599,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
       `insert into public.billing_orders (purpose, scenes, amount_paise, status, buyer_name, buyer_email, buyer_company, notes)
        values ('basic_licence', 8, 100, 'paid', 'Earlier buyer', 'early@example.com', 'Co', 'VPV Authority — 8 areas, cab Manesar, coupon ONCE5K (includes year 1 of support, hosting & security, free)')`
     );
-    const r = await open({ sitePlanId: "pro", city: "Manesar", coupon: "ONCE5K" });
+    const r = await open({ sitePlanId: "premium", city: "Manesar", coupon: "ONCE5K" });
     assert.equal(r.status, 400, JSON.stringify(r.body));
     assert.match(String(r.body.message), /already been used/);
   });
