@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Car, Maximize2, MapPin, UserRound } from "lucide-react";
+import { Car, MapPin, UserRound } from "lucide-react";
 import {
   Card,
   ComingSoonCity,
@@ -29,7 +29,7 @@ import {
   TextInput,
   useOfferState,
 } from "@/components/funnel/FunnelShell";
-import { LAUNCH_OFFER, PLOT_BANDS, isPlotBand } from "@/lib/pricing";
+import { LAUNCH_OFFER } from "@/lib/pricing";
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
 import PreparingScreen, { preparingDurationMs } from "@/components/funnel/PreparingScreen";
 import FunnelIntro from "@/components/funnel/FunnelIntro";
@@ -297,28 +297,6 @@ export default function Step1Info() {
             {quote && !quote.inServiceArea && quote.city.trim().length >= 3 && (
               <ComingSoonCity city={quote.city} className="mt-5" />
             )}
-          </Card>
-
-          <Card className="mt-5">
-            <SectionTitle icon={Maximize2} title="How big is your plant?">
-              Our plans are sized by your factory&apos;s covered area, so this picks the plan that fits.
-            </SectionTitle>
-            <div className="mt-5">
-              <Field label="Factory covered area (sq ft)">
-                <SelectInput
-                  value={s.plotBand}
-                  onChange={(e) => set("plotBand", isPlotBand(e.target.value) ? e.target.value : "")}
-                  data-testid="plot-band"
-                >
-                  <option value="">Not sure yet</option>
-                  {PLOT_BANDS.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.label}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-            </div>
           </Card>
 
           <label

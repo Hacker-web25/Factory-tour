@@ -96,7 +96,8 @@ export async function sendWelcomeEmail(args: {
       "Welcome to VPV",
       `<p ${P}>Hello ${esc(args.name)}, your workspace for <strong>${esc(args.company)}</strong> is live.
          It is set up for <strong>${args.scenes} area${args.scenes === 1 ? "" : "s"}</strong> of your plant, and your
-         support, hosting and security are included free until <strong>${esc(dateStr(args.supportUntil))}</strong>.</p>
+         plan, with support, hosting and security, is paid up until <strong>${esc(dateStr(args.supportUntil))}</strong>.
+         We remind you before it renews.</p>
        ${credentials}
        <p ${P}>What happens next:</p>
        <ol style="margin:0 0 18px;padding-left:20px;font-size:14px;line-height:1.8;color:#334155;">${steps}</ol>
@@ -175,7 +176,7 @@ export async function sendConfirmationEmail(args: {
   detail: string;
 }): Promise<boolean> {
   const words = {
-    support_renewal: { title: "Support renewed", subject: "Your VPV support is renewed" },
+    support_renewal: { title: "Renewed for another year", subject: "Your VPV is renewed" },
     scene_topup: { title: "Scenes added", subject: "Your extra VPV scenes are live" },
     plan_upgrade: { title: "Plan upgraded", subject: "Your VPV plan is upgraded" },
     seat_topup: { title: "Logins added", subject: "Your extra Sales Team logins are ready" },
@@ -233,6 +234,9 @@ export function reminderMail(args: {
   supportInr: number;
   seats: number;
   seatInr: number;
+  /** A yearly plan ("VPV Light"): `supportInr` is then the plan's yearly
+   *  amount, and the e-mail talks about the plan, not a support fee. */
+  planName?: string | null;
 }): ReminderMail | null {
   const st = parseReminderKind(args.kind);
   if (!st) return null;
@@ -246,17 +250,26 @@ export function reminderMail(args: {
   const n = (x: number, one: string, many: string) => `${x} ${x === 1 ? one : many}`;
   const salespeople = n(args.seats, "Sales Team login", "Sales Team logins");
 
-  const what = loginsOnly ? salespeople : withLogins ? "support, hosting and Sales Team logins" : "technical support and hosting";
+  const plan = args.planName ? esc(args.planName) : null;
+  const what = loginsOnly
+    ? salespeople
+    : plan
+      ? withLogins
+        ? `your ${plan} plan and Sales Team logins`
+        : `your ${plan} plan`
+      : withLogins
+        ? "support, hosting and Sales Team logins"
+        : "technical support and hosting";
   const lines = loginsOnly
     ? `${salespeople}: ${esc(inr(loginsInr))} + GST a year`
     : withLogins
-      ? `Support, hosting &amp; security: ${esc(inr(args.supportInr))} · ${esc(salespeople)}: ${esc(inr(loginsInr))} — ${esc(inr(total))} + GST a year`
-      : `${esc(inr(args.supportInr))} + GST a year`;
+      ? `${plan ? `${plan} (support, hosting &amp; security included)` : "Support, hosting &amp; security"}: ${esc(inr(args.supportInr))} · ${esc(salespeople)}: ${esc(inr(loginsInr))} — ${esc(inr(total))} + GST a year`
+      : `${plan ? `${plan}: ` : ""}${esc(inr(args.supportInr))} + GST a year`;
 
   const consequence = loginsOnly
     ? `On <strong>${locks}</strong> your salespeople are switched off. You, your tours and your data keep working, and renewing switches them back on.`
     : withLogins
-      ? `On <strong>${locks}</strong> the workspace locks — your dashboard and the tours you have shared stop opening. You can also renew support alone; then only your salespeople are switched off.`
+      ? `On <strong>${locks}</strong> the workspace locks — your dashboard and the tours you have shared stop opening. You can also renew ${plan ? "the plan" : "support"} alone; then only your salespeople are switched off.`
       : `On <strong>${locks}</strong> the workspace locks — your dashboard and the tours you have shared stop opening. Your data is kept, and renewing unlocks everything at once.`;
 
   const label = `Renew for ${inr(total)} + GST`;
@@ -321,6 +334,8 @@ export async function sendSupportReminder(args: {
   supportInr?: number;
   seats?: number;
   seatInr?: number;
+  /** A yearly plan's name; supportInr is then the plan's yearly amount. */
+  planName?: string | null;
 }): Promise<boolean> {
   const seats = args.seats ?? 0;
   const seatInr = args.seatInr ?? 0;
@@ -334,6 +349,7 @@ export async function sendSupportReminder(args: {
     supportInr,
     seats,
     seatInr,
+    planName: args.planName ?? null,
   });
   if (!mail) return false;
   const url = `https://${args.slug}.myvpv.com/billing?renew=1`;

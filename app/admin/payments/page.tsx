@@ -177,6 +177,8 @@ type Renewal = {
   logins_stage: "none" | "active" | "nag" | "lapsed" | null;
   sales_seats: number;
   sales_seat_inr: number | null;
+  /** What a yearly plan renews at (plans_yearly.sql); null on a one-time plan. */
+  plan_yearly_inr?: number | null;
   salespeople: number;
   last_reminder: string | null;
   last_reminder_at: string | null;
@@ -1008,7 +1010,7 @@ function RenewalsSection({ rows }: { rows: Renewal[] }) {
                   {r.last_reminder_at && <div>{when(r.last_reminder_at)}</div>}
                 </td>
                 <td className="px-4 py-3 tabular-nums">
-                  {inr(SUPPORT_ANNUAL_INR + billed)}
+                  {inr((r.plan_yearly_inr ?? 0) > 0 ? (r.plan_yearly_inr as number) + billed : SUPPORT_ANNUAL_INR + billed)}
                   <div className="text-[12px] text-vpv-muted">+ GST</div>
                 </td>
               </tr>

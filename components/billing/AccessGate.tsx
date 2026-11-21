@@ -25,7 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Lock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, inr } from "@/lib/pricing";
+import { SUPPORT_GRACE_DAYS } from "@/lib/pricing";
 
 type Access = {
   state: "active" | "nag" | "locked";
@@ -240,7 +240,7 @@ export default function AccessGate() {
               <>This workspace was closed after a refund or at the owner&apos;s request. To reopen it, write to support@myvpv.com.</>
             ) : (
               <>
-                Technical support and hosting ended on {endedOn}, and the {SUPPORT_GRACE_DAYS}-day reminder
+                Your VPV year (support and hosting) ended on {endedOn}, and the {SUPPORT_GRACE_DAYS}-day reminder
                 period has passed. <strong className="text-slate-900">Your tours and data are safe</strong> —
                 renewing unlocks everything the moment the payment is confirmed.
               </>
@@ -252,7 +252,7 @@ export default function AccessGate() {
                 href="/billing?renew=1"
                 className="rounded-full bg-gradient-to-r from-[#0B3D91] via-[#1468D8] to-[#19B8F2] py-3 text-[15px] font-semibold text-white"
               >
-                Renew for {inr(SUPPORT_ANNUAL_INR)} a year
+                Renew now
               </a>
             )}
             {!canRenew && !closed && (
@@ -328,10 +328,10 @@ export default function AccessGate() {
           </span>
           <div>
             <h2 id="vpv-nag-title" className="text-[19px] font-semibold tracking-tight text-slate-900">
-              Your support year has ended
+              Your VPV year has ended
             </h2>
             <p className="mt-2 text-[14px] leading-relaxed text-slate-600">
-              Technical support and hosting ended on <strong className="text-slate-900">{endedOn}</strong>.
+              Your plan, with support and hosting, ended on <strong className="text-slate-900">{endedOn}</strong>.
               {locksOn && (
                 <>
                   {" "}This workspace <strong className="text-red-700">locks on {locksOn}</strong>
@@ -352,7 +352,7 @@ export default function AccessGate() {
               autoFocus
               className="flex-1 rounded-full bg-gradient-to-r from-[#0B3D91] via-[#1468D8] to-[#19B8F2] py-3 text-center text-[14.5px] font-semibold text-white"
             >
-              Renew for {inr(SUPPORT_ANNUAL_INR)}
+              Renew now
             </a>
           )}
           <button

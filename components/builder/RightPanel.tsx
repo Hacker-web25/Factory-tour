@@ -581,7 +581,7 @@ function AddonsTab({
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
   const ent = useEntitlements();
   const audioOk = ent.ready && !ent.hidden("audio_narration");
-  // VPV Lite and Plus include 10 and 20 information icons; the rest, unlimited.
+  // VPV Light includes 20 information icons; the rest, unlimited.
   async function infoIconRoom(): Promise<boolean> {
     const max = ent.limits.infoIcons;
     if (!Number.isFinite(max)) return true;
@@ -3688,11 +3688,11 @@ function AddonTab({
           <option value="info_popup">Open info popup</option>
           <option value="image_popup">Show image</option>
           <option value="video_popup">
-            Open process video{videoAccess.state === "locked" ? " · VPV Pro and up" : ""}
+            Open process video{videoAccess.state === "locked" ? " · VPV Premium and up" : ""}
           </option>
           {audioActionOk && <option value="audio_popup">Play audio / voice note</option>}
           <option value="pdf_popup">
-            Open PDF report{pdfAccess.state === "locked" ? " · VPV Pro and up" : ""}
+            Open PDF report{pdfAccess.state === "locked" ? " · VPV Premium and up" : ""}
           </option>
           <option value="url">Open URL</option>
         </select>

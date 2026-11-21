@@ -527,8 +527,8 @@ function NextPlanCard({ from, to }: { from: SitePlanId; to: SitePlanId }) {
             <li key={l}>{l}</li>
           ))}
       </ul>
-      <div className="text-[22px] font-extrabold leading-none text-vpv-blue">{inr(q.amountInr)}</div>
-      <div className="mb-3 text-[10.5px] text-vpv-muted">the difference, + GST</div>
+      <div className="text-[22px] font-extrabold leading-none text-vpv-blue">+{inr(Math.round(q.yearlyDiffInr / 12))}</div>
+      <div className="mb-3 text-[10.5px] text-vpv-muted">a month, billed yearly, + GST</div>
       <a
         href={`/billing/upgrade?to=${to}`}
         className="flex w-full items-center justify-center gap-1.5 rounded-full bg-vpv-grad py-2.5 text-[12px] font-semibold text-white hover:opacity-90"

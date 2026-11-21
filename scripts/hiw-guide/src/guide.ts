@@ -24,8 +24,6 @@ import {
   SALES_TEAM,
   SITE_PLANS,
   SITE_PLAN_ORDER,
-  SUPPORT_ANNUAL_INR,
-  SUPPORT_MONTHLY_INR,
   VIDEO_SELF_INR,
   VIDEO_SHOT_INR,
   inr,
@@ -100,7 +98,7 @@ const STEPS: Step[] = [
     title: "Confirm & pay online",
     who: "you",
     when: "A few minutes, online",
-    text: "Every charge sits on one screen before you pay: your plan, cab travel, support, hosting & security, and GST. Pay online and your order is confirmed.",
+    text: "Every charge sits on one screen before you pay: your yearly plan (support, hosting & security included), cab travel and GST. Pay online and your order is confirmed.",
     ticks: ["Your GST invoice arrives by e-mail", "Your VPV dashboard and login are ready within 24 hours"],
   },
   {
@@ -136,15 +134,15 @@ type Deliverable = { icon: string; title: string; tag: string; tagKind: "all" | 
 const GET: Deliverable[] = [
   { icon: I.orbit, tag: "Every plan", tagKind: "all", title: "A 360° walk through your plant", text: "Each area you choose becomes a 360° view. Buyers stand in it, look around and move on to the next area, at their own pace. We call each area an AOA (Active Operational Area)." },
   { icon: I.link, tag: "Every plan", tagKind: "all", title: "Your own web address", text: "yourcompany.myvpv.com: one link that opens your whole factory." },
-  { icon: I.info, tag: "Every plan", tagKind: "all", title: "Information icons", text: "Small icons placed inside the tour. Tap one to read about a machine, a line or a capacity. 10 on Lite, 20 on Plus, unlimited on every other plan." },
+  { icon: I.info, tag: "Every plan", tagKind: "all", title: "Information icons", text: "Small icons placed inside the tour. Tap one to read about a machine, a line or a capacity. 20 on Light, unlimited on every other plan." },
   { icon: I.brand, tag: "Every plan", tagKind: "all", title: "Your brand on it", text: "Your logo and company name, so every buyer knows whose factory they are walking through." },
   { icon: I.dash, tag: "Every plan", tagKind: "all", title: "Your VPV dashboard", text: "A password-protected login for your company. Pick the areas to show and send links from one place." },
-  { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: "Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours." },
-  { icon: I.video, tag: "Pro and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
-  { icon: I.file, tag: "Pro and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
-  { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium, password-protected links from Ultra, link expiry time on VIP, and limits on devices with Signature." },
+  { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: "Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours. Included in your yearly plan." },
+  { icon: I.video, tag: "Premium and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
+  { icon: I.file, tag: "Premium and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
+  { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium, password-protected links from Ultra, and link expiry time and limits on devices with White Glove." },
   { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place." },
-  { icon: I.star, tag: "VIP & Signature", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
+  { icon: I.star, tag: "White Glove", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
 ];
 
 const BUYER = [
@@ -177,19 +175,16 @@ const AFTER = [
 type CostRow = { what: string; price: string; was?: string; note: string };
 const COSTS: CostRow[] = [
   {
-    what: "Your plan, paid once",
-    price: plans.map((p) => `${shortName(p.name)} ${inr(p.priceInr)}`).join(" · "),
-    note: `${LAUNCH_OFFER.percent}% off the regular price, for our first ${LAUNCH_OFFER.limit} customers.`,
+    what: "Your plan, billed yearly",
+    price: plans.map((p) => `${shortName(p.name)} ${inr(LAUNCH_OFFER.active ? p.monthlyInr : p.regularMonthlyInr)}/month`).join(" · "),
+    note: LAUNCH_OFFER.active
+      ? `${LAUNCH_OFFER.percent}% off the regular price for our first ${LAUNCH_OFFER.limit} customers, every year they renew. Support, hosting & security included.`
+      : "Support, hosting & security included.",
   },
   { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.limit} customers.` },
-  {
-    what: "Support, hosting & security",
-    price: `${inr(SUPPORT_ANNUAL_INR)} a year`,
-    note: `That is ${inr(SUPPORT_MONTHLY_INR)} a month. The first year is free for our first ${LAUNCH_OFFER.limit} customers.`,
-  },
   { what: "Sales Team logins (optional)", price: `${inr(SALES_TEAM.offerInr)} per login, a year`, was: inr(SALES_TEAM.regularInr), note: "Only if your salespeople will present it." },
   { what: "Extra process videos (optional)", price: `${inr(VIDEO_SELF_INR)} or ${inr(VIDEO_SHOT_INR)} each`, note: `${inr(VIDEO_SELF_INR)} if you send us the video, ${inr(VIDEO_SHOT_INR)} if we film it.` },
-  { what: "Extra areas (optional)", price: `${extraAreaRange} each`, note: "The bigger your plan, the less each extra area costs." },
+  { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with your plan. The bigger your plan, the less each extra area costs." },
   { what: "Extra shoot time (only if needed)", price: `${inr(EXTRA_HOUR_INR)} an hour`, note: `Plans include ${hoursList} hours. Extra areas or videos can add time, and it shows on your bill before you pay.` },
   { what: "Rescheduling your shoot", price: "First change free", note: `${inr(RESCHEDULE_INR)} for each change after that.` },
 ];
@@ -256,7 +251,7 @@ const afterHtml = `<div class="hg-after">${AFTER.map(
 <div class="hg-renew hg-rv">
   <span class="hg-ic">${svg(I.bell, 20)}</span>
   <div><h3 class="hg-h3">Renewing is just as simple</h3>
-  <p class="hg-p">Support, hosting & security renews once a year, and so do Sales Team logins. We e-mail you 30 days, 1 week and 1 day before it's due. If it isn't renewed, you still get 7 more days; after that your VPV pauses until you renew. Your tours and data are kept, and renewing switches everything back on straight away.</p></div>
+  <p class="hg-p">Your plan renews once a year at the price you bought at, with support, hosting & security included, and so do Sales Team logins. We e-mail you 30 days, 1 week and 1 day before it's due. If it isn't renewed, you still get 7 more days; after that your VPV pauses until you renew. Your tours and data are kept, and renewing switches everything back on straight away.</p></div>
 </div>`;
 
 const costHtml = `<div class="hg-cost hg-rv">${COSTS.map(

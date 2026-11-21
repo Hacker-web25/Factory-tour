@@ -18,6 +18,7 @@
  * running it twice (or an overlapping run) is harmless.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { fulfilOrder, sendPendingEmails, MAX_AUTO_ATTEMPTS } from "@/lib/server/fulfilment";
 import {
@@ -29,7 +30,7 @@ import {
 import { fetchRazorpayRefund, listRazorpayPayments, listRazorpayRefunds } from "@/lib/server/razorpay";
 import { alertFounders, parseReminderKind, sendSupportReminder, type ReminderKind, type ReminderScope } from "@/lib/server/billingEmails";
 import { json, fail, safeEqualSecret } from "@/lib/server/billingGuard";
-import { SUPPORT_ANNUAL_INR, fromPaise } from "@/lib/pricing";
+import { SITE_PLANS, SUPPORT_ANNUAL_INR, fromPaise, isKnownPlanId } from "@/lib/pricing";
 import { orgSalesSeats } from "@/lib/server/salesSeats";
 
 export const runtime = "nodejs";
@@ -318,8 +319,12 @@ export async function GET(req: Request) {
       try {
         const seats = await orgSalesSeats(sb, r.org_id);
         const billed = seats.seatInr > 0 ? seats.seats : 0;
+        // A yearly plan renews at its own stored amount; a plan from before
+        // 21 Nov 2026 renews support alone.
+        const yearly = await orgPlanYearly(sb, r.org_id);
         sent = await sendSupportReminder({
-          supportInr: SUPPORT_ANNUAL_INR,
+          supportInr: yearly.inr > 0 ? yearly.inr : SUPPORT_ANNUAL_INR,
+          planName: yearly.inr > 0 ? yearly.name : null,
           seats: billed,
           seatInr: seats.seatInr,
           scope: r.scope ?? "support",
@@ -361,4 +366,14 @@ export async function GET(req: Request) {
   }
 
   return json({ ok: true, ms: Date.now() - started, ...report });
+}
+
+/** What a workspace's yearly plan renews at, and its name. Read on its own,
+ *  so a database without supabase/plans_yearly.sql answers "none". */
+async function orgPlanYearly(sb: SupabaseClient, orgId: string): Promise<{ inr: number; name: string | null }> {
+  const { data, error } = await sb.from("organizations").select("plan_yearly_inr, site_plan").eq("id", orgId).maybeSingle();
+  if (error || !data) return { inr: 0, name: null };
+  const row = data as { plan_yearly_inr?: number | null; site_plan?: string | null };
+  const sp = row.site_plan ?? "";
+  return { inr: Math.max(0, Number(row.plan_yearly_inr ?? 0) || 0), name: isKnownPlanId(sp) ? SITE_PLANS[sp].name : null };
 }

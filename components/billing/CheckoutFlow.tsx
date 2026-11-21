@@ -71,6 +71,7 @@ export default function CheckoutFlow({
   /** Renewal only: support plus the workspace's yearly Sales Team logins, GST excluded.
    *  Display only — the server prices the renewal itself. */
   renewalInr,
+  renewalLabel,
   renewal,
 }: {
   purpose?: Purpose;
@@ -80,6 +81,9 @@ export default function CheckoutFlow({
   accessToken?: string | null;
   onComplete?: () => void;
   renewalInr?: number;
+  /** support_renewal: what the base line is called ("Yearly plan — one more
+   *  year" on the yearly plans, the support year on the old ones). */
+  renewalLabel?: string;
   /** Renewal only: the workspace's yearly Sales Team logins, so the customer can
    *  renew them with support or leave them to stop. Display only — the server
    *  prices the renewal itself. */
@@ -111,6 +115,9 @@ export default function CheckoutFlow({
   const loginsOnOffer = purpose === "support_renewal" && !!renewal && renewal.seats > 0 && renewal.seatInr > 0;
   const [renewLogins, setRenewLogins] = useState(true);
   const loginsInr = loginsOnOffer ? renewal!.seats * renewal!.seatInr : 0;
+  // renewalInr already includes the logins; the base is the plan (or, on a
+  // plan from before yearly billing, the support year) on its own.
+  const renewBaseInr = Math.max(0, (renewalInr ?? SUPPORT_ANNUAL_INR) - loginsInr);
 
   const payment = useRazorpayPayment({ accessToken });
   const { phase, busy, error, notice, testMode, result, scriptReady } = payment;
@@ -127,7 +134,7 @@ export default function CheckoutFlow({
     ? quote.amountInr
     : purpose === "support_renewal"
       ? loginsOnOffer
-        ? SUPPORT_ANNUAL_INR + (renewLogins ? loginsInr : 0)
+        ? renewBaseInr + (renewLogins ? loginsInr : 0)
         : (renewalInr ?? SUPPORT_ANNUAL_INR)
       : priceForScenes(scenes);
   // What the server will send to Razorpay (base + 18% GST). We show this
@@ -501,13 +508,13 @@ export default function CheckoutFlow({
                 value={inr(quote.travelFee)}
                 muted
               />
-              <Row label="First year of support" value="Free" muted />
+              <Row label="Support, hosting & security" value="Included" muted />
             </>
           ) : (
             <>
               <Row
-                label={purpose === "support_renewal" ? "Annual technical support" : `Basic licence · ${scenes} scenes`}
-                value={inr(loginsOnOffer ? SUPPORT_ANNUAL_INR : amount)}
+                label={purpose === "support_renewal" ? (renewalLabel ?? "Annual technical support") : `Basic licence · ${scenes} scenes`}
+                value={inr(loginsOnOffer ? renewBaseInr : amount)}
               />
               {loginsOnOffer && (
                 <Row

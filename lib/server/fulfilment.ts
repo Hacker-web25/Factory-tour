@@ -21,7 +21,8 @@
  *
  *   basic_licence    creates the organisation, its admin login and its
  *                    subdomain; sets the scene quota to what was bought;
- *                    starts the FREE first year of support; issues a GST
+ *                    starts its first paid year (for a yearly plan, the
+ *                    renewal amount is stored too); issues a GST
  *                    invoice; e-mails the welcome and the invoice.
  *   scene_topup      adds the scenes that were paid for.
  *   support_renewal  extends support by one year from whichever is later:
@@ -49,6 +50,8 @@ import {
   clampScenes,
   fromPaise,
   seatsFromOrderNotes,
+  planYearlyFromNotes,
+  LAUNCH_OFFER,
   SITE_PLANS,
   isKnownPlanId,
   sitePlanFromNotes,
@@ -304,10 +307,13 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
   await ensureAdminUser(sb, row, orgId, slug as string);
 
   // 3. The GST invoice (number + row in one transaction).
+  const boughtPlan = sitePlanFromNotes((row as { notes?: string | null }).notes);
   const invoiceNo = await issueInvoice(
     sb,
     row.id,
-    `VPV Basic licence — ${scenes} scene${scenes === 1 ? "" : "s"}, including 1 year of technical support and hosting`
+    boughtPlan && SITE_PLANS[boughtPlan].billing === "yearly"
+      ? `${SITE_PLANS[boughtPlan].name} — yearly plan, ${scenes} area${scenes === 1 ? "" : "s"}, first year, support, hosting & security included`
+      : `VPV Basic licence — ${scenes} scene${scenes === 1 ? "" : "s"}, including 1 year of technical support and hosting`
   );
 
   // 3b. Sales Team logins are yearly: remember how many, and at what price,
@@ -324,7 +330,8 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
 }
 
 async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
-  const plan = sitePlanFromNotes((row as { notes?: string | null }).notes);
+  const notes = (row as { notes?: string | null }).notes;
+  const plan = sitePlanFromNotes(notes);
   if (!plan) return;
   try {
     const { error } = await sb.from("organizations").update({ site_plan: plan }).eq("id", orgId).is("site_plan", null);
@@ -334,8 +341,28 @@ async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string
       kind: "site_plan_not_saved",
       severity: "warning",
       orderId: row.id,
-      detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plan_features.sql; it fills the plan in from the order.`,
+      detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} but the plan could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql; it fills the plan in from the order.`,
     });
+  }
+  // A yearly plan: what it renews at every year, and whether it keeps the
+  // special offer when it does (the owner's rule: our first 50 customers
+  // keep 50% off for as long as they renew).
+  const yearlyInr = planYearlyFromNotes(notes);
+  if (yearlyInr <= 0) return;
+  const offerLocked = (notes ?? "").includes(LAUNCH_OFFER.short);
+  try {
+    const { error } = await sb
+      .from("organizations")
+      .update({ plan_yearly_inr: yearlyInr, plan_offer_locked: offerLocked })
+      .eq("id", orgId);
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    await alertFounders(sb, {
+      kind: "plan_yearly_not_saved",
+      severity: "critical",
+      orderId: row.id,
+      detail: `${row.buyer_company} bought ${SITE_PLANS[plan].name} (renews yearly at ₹${yearlyInr.toLocaleString("en-IN")}) but the renewal amount could not be saved (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_yearly_inr = ${yearlyInr}, plan_offer_locked = ${offerLocked} for this workspace; until then its renewal is refused.`,
+    }).catch(() => undefined);
   }
 }
 
@@ -510,7 +537,9 @@ async function fulfilPlanUpgrade(sb: SupabaseClient, row: OrderRow): Promise<Ful
     throw e;
   }
   const plan = String(out.site_plan ?? "");
-  const name = plan ? `VPV ${plan.charAt(0).toUpperCase()}${plan.slice(1)}` : "the new plan";
+  const name = isKnownPlanId(plan) ? SITE_PLANS[plan].name : "the new plan";
+  // The new renewal amount moved with the plan, in the same transaction
+  // (billing_apply_plan_upgrade, from billing_orders.plan_yearly_after).
   const invoiceNo = await issueInvoice(sb, row.id, `Upgrade to ${name}`);
   await markProvisioned(sb, row.id, row.org_id);
   return { ok: true, orgId: row.org_id, slug: await slugOf(sb, row.org_id), invoiceNo };
@@ -541,10 +570,13 @@ async function fulfilSupportRenewal(sb: SupabaseClient, row: OrderRow): Promise<
   const out = await rpc<{ support_until: string }>(sb, "billing_apply_support_renewal", { p_order: row.id });
   const until = new Date(out.support_until);
 
+  const notes = (row as { notes?: string | null }).notes ?? "";
   const invoiceNo = await issueInvoice(
     sb,
     row.id,
-    `VPV annual technical support, maintenance and hosting — until ${until.toISOString().slice(0, 10)}`
+    notes.startsWith("Yearly renewal of ")
+      ? `${notes.replace(/^Yearly renewal of /, "").replace(/ — 1 year.*$/, "")} — yearly plan renewed until ${until.toISOString().slice(0, 10)}, support, hosting & security included`
+      : `VPV annual technical support, maintenance and hosting — until ${until.toISOString().slice(0, 10)}`
   );
   await markProvisioned(sb, row.id, row.org_id);
   return { ok: true, orgId: row.org_id, slug: await slugOf(sb, row.org_id), invoiceNo };
@@ -673,7 +705,7 @@ async function sendConfirmation(sb: SupabaseClient, order: OrderRow): Promise<bo
       to: order.buyer_email,
       kind: "support_renewal",
       slug,
-      detail: `Your technical support and hosting is active until ${new Date(org?.support_until as string).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}. Nothing changes in your workspace — you simply stay covered for another year.`,
+      detail: `Your VPV is renewed: everything keeps working, with support and hosting, until ${new Date(org?.support_until as string).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}. Nothing changes in your workspace.`,
     });
   }
   if (order.purpose === "plan_upgrade" || order.purpose === "seat_topup") {

@@ -7,7 +7,7 @@
  * that order.
  *
  * Everything the buyer is being charged for is itemised before anything is
- * asked of them: the plan, each add-on, the cab, the first year of support,
+ * asked of them: the plan, each add-on, the cab, what renews every year,
  * hosting & security (with a "?" that explains what it pays for), any
  * coupon, and the GST. There is no figure on the Razorpay screen that was
  * not on this one. A factory in a city we do not shoot in yet sees its bill
@@ -51,16 +51,13 @@ import { validGstin } from "@/lib/gstin";
 import { SLUG_MAX_WORDS, slugProblem, workspaceHost, workspaceSlug } from "@/lib/slugs";
 import {
   LAUNCH_OFFER,
-  SUPPORT_ANNUAL_INR,
   SUPPORT_INCLUDES,
-  SUPPORT_MONTHLY_INR,
   SUPPORT_NAME,
   couponLabel,
   hoursLabel,
   inr,
   siteQuote,
   type Coupon,
-  type QuoteLine,
 } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
 import {
@@ -440,8 +437,6 @@ export default function Step5Billing() {
   const billLines = quote.lines.filter((l) => l.kind !== "support" && l.kind !== "travel");
   const travel = quote.lines.find((l) => l.kind === "travel") ?? null;
   const travelFree = travel !== null && travel.amountInr === 0;
-  const support = quote.lines.find((l) => l.kind === "support") as QuoteLine;
-  const supportFree = support.amountInr === 0;
 
   return (
     <>
@@ -515,45 +510,31 @@ export default function Step5Billing() {
                 </div>
               )}
 
-              {/* The support year: its own block, in big type, with a "?". */}
-              <div
-                className={`mt-4 rounded-2xl border p-4 sm:p-5 ${supportFree ? "border-[#BFE6CD] bg-[#F1FBF4]" : "border-vpv-line bg-vpv-canvas"}`}
-              >
+              {/* Support, hosting & security: part of the yearly plan, with a "?",
+                  and what the plan renews at every year. */}
+              <div className="mt-4 rounded-2xl border border-[#BFE6CD] bg-[#F1FBF4] p-4 sm:p-5" data-testid="bill-yearly">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 text-[16.5px] font-semibold leading-snug text-vpv-ink">
-                      First year support
+                      {SUPPORT_NAME}
                       <HelpButton
                         label={`What ${SUPPORT_NAME.toLowerCase()} pays for`}
                         open={supportOpen}
                         onToggle={() => setSupportOpen((v) => !v)}
                       />
                     </p>
-                    <p className="mt-0.5 text-[12.5px] text-slate-600">
-                      {SUPPORT_NAME} · {inr(SUPPORT_MONTHLY_INR)}/month, billed yearly
-                    </p>
+                    <p className="mt-0.5 text-[12.5px] text-slate-600">Part of your yearly plan, every year</p>
                   </div>
                   <div className="shrink-0 text-right">
-                    {supportFree ? (
-                      <>
-                        <p className="text-[15px] font-semibold tabular-nums text-slate-400 line-through">{inr(SUPPORT_ANNUAL_INR)}</p>
-                        <p className="text-[24px] font-bold leading-none tracking-[-0.01em] text-[#1F8A4C]">FREE</p>
-                      </>
-                    ) : (
-                      <p className="text-[24px] font-bold leading-none tabular-nums text-vpv-ink">{inr(SUPPORT_ANNUAL_INR)}</p>
-                    )}
+                    <p className="text-[20px] font-bold leading-none tracking-[-0.01em] text-[#1F8A4C]">Included</p>
                   </div>
                 </div>
-                <p className={`mt-3 text-[12.5px] leading-relaxed ${supportFree ? "text-[#1D5E37]" : "text-slate-600"}`}>
-                  {supportFree ? (
-                    <>
-                      <strong className="font-semibold">Free for the first year</strong> for our first {LAUNCH_OFFER.limit}{" "}
-                      customers. From year 2 it is {inr(SUPPORT_ANNUAL_INR)} + 18% GST a year, and we remind you before it
-                      is due.
-                    </>
-                  ) : (
-                    <>Charged with this order for your first year. From year 2 it renews at {inr(SUPPORT_ANNUAL_INR)} + 18% GST a year.</>
-                  )}
+                <p className="mt-3 text-[12.5px] leading-relaxed text-[#1D5E37]">
+                  This order pays for your <strong className="font-semibold">first year</strong>. Your plan
+                  {quote.extraAreas > 0 ? " and its extra areas renew" : " renews"} every year at{" "}
+                  <strong className="font-semibold">{inr(quote.yearlyInr)} + 18% GST</strong>
+                  {quote.offerOpen ? `, keeping your ${LAUNCH_OFFER.percent}% offer` : ""}, and we remind you before it is due.
+                  Cab travel, shoot time and process videos are one-off.
                 </p>
                 {supportOpen && (
                   <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-vpv-line">

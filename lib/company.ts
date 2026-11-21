@@ -143,9 +143,9 @@ export {
 
 export const POLICY = {
   /** Shown as "Effective" on every policy page. Bump on material edits. */
-  updated: "16 November 2026",
+  updated: "21 November 2026",
   /** The version before this one, named in the "What changed" box. */
-  previousUpdated: "26 October 2026",
+  previousUpdated: "16 November 2026",
   /** Prior e-mail notice before a new price applies to an existing customer. */
   priceChangeNoticeDays: 30,
   /** Prior notice before changed Terms / Privacy Policy take effect. */

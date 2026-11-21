@@ -201,6 +201,10 @@ const nextConfig = {
   async redirects() {
     return [
       { source: "/pricing", destination: "/plans", permanent: false },
+      // The old one-time scene ladder and its checkout are closed (21 Nov
+      // 2026): everything new is a yearly plan, chosen on /plans.
+      { source: "/get-started", destination: "/plans", permanent: false },
+      { source: "/checkout", destination: "/assessment", permanent: false },
       { source: "/assessment/processes", destination: "/assessment/scope", permanent: false },
       { source: "/assessment/price", destination: "/assessment/plan", permanent: false },
     ];

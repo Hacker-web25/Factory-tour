@@ -32,7 +32,9 @@ import {
   monthsUntil,
   seatPrice,
   seatTopupAmount,
+  rateFor,
   upgradeQuote,
+  yearlyPrice,
   withGst,
   type SitePlanId,
   linkControlLabels,
@@ -57,6 +59,8 @@ export default function UpgradePage() {
   const [logins, setLogins] = useState({ seats: 0, seatInr: 0, until: null as string | null, salespeople: 0 });
   const [loading, setLoading] = useState(true);
   const [focus, setFocus] = useState<SitePlanId | null>(null);
+  // What the workspace renews at, and whether it keeps the special offer.
+  const [yearly, setYearly] = useState<{ inr: number; locked: boolean | null }>({ inr: 0, locked: null });
 
   const load = useCallback(async () => {
     const p = await getMyProfile();
@@ -74,6 +78,14 @@ export default function UpgradePage() {
         .eq("id", p.org_id)
         .maybeSingle();
       setOrg((data as OrgInfo) ?? null);
+      // Read on its own, so a database without the columns yet still loads.
+      const { data: y } = await supabase
+        .from("organizations")
+        .select("plan_yearly_inr, plan_offer_locked")
+        .eq("id", p.org_id)
+        .maybeSingle();
+      const yr = (y ?? {}) as { plan_yearly_inr?: number | null; plan_offer_locked?: boolean | null };
+      setYearly({ inr: Number(yr.plan_yearly_inr ?? 0) || 0, locked: yr.plan_offer_locked ?? null });
       const { data: s } = await supabase
         .from("organizations")
         .select("sales_seats, sales_seat_inr, sales_seats_until")
@@ -165,12 +177,21 @@ export default function UpgradePage() {
             <p className="mt-3 rounded-2xl border border-vpv-line bg-white p-5 text-[14px] text-slate-600">
               {SITE_PLANS[current].personal || legacyMonthly
                 ? "You have every feature we offer today."
-                : `You are on ${SITE_PLANS[current].name}, which has every feature we offer today. `}
-              {!SITE_PLANS[current].personal && !legacyMonthly && (
+                : SITE_PLANS[current].billing !== "yearly"
+                  ? `You are on ${SITE_PLANS[current].name}, bought before our yearly plans. To move to one of them, `
+                  : `You are on ${SITE_PLANS[current].name}, which has every feature we sell from here. `}
+              {!SITE_PLANS[current].personal && !legacyMonthly && SITE_PLANS[current].billing !== "yearly" && (
                 <>
-                  {" "}
-                  {SITE_PLANS.vpv.name} and {SITE_PLANS.signature.name} add {ENTERPRISE_PERSONAL.person}&apos;s personal involvement;{" "}
-                  <a className="text-vpv-blue underline underline-offset-2" href="mailto:support@myvpv.com?subject=VPV%20Signature">
+                  <a className="text-vpv-blue underline underline-offset-2" href="mailto:support@myvpv.com?subject=Moving%20to%20a%20yearly%20plan">
+                    write to us
+                  </a>{" "}
+                  and we will arrange it with you.
+                </>
+              )}
+              {!SITE_PLANS[current].personal && !legacyMonthly && SITE_PLANS[current].billing === "yearly" && (
+                <>
+                  {SITE_PLANS.white_glove.name} adds {ENTERPRISE_PERSONAL.person}&apos;s personal involvement;{" "}
+                  <a className="text-vpv-blue underline underline-offset-2" href="mailto:support@myvpv.com?subject=White%20Glove">
                     write to us
                   </a>{" "}
                   if you would like it.
@@ -186,6 +207,9 @@ export default function UpgradePage() {
                   from={current}
                   to={to}
                   focused={focus === to}
+                  rate={rateFor(yearly.locked)}
+                  months={monthsUntil(org?.support_until && new Date(org.support_until).getTime() > Date.now() ? org.support_until : null)}
+                  renewsNow={yearly.inr}
                   enabled={isAdmin && !closed}
                   billingState={org?.billing_state ?? null}
                   onDone={refresh}
@@ -220,6 +244,9 @@ function PlanUpgradeCard({
   from,
   to,
   focused,
+  rate,
+  months,
+  renewsNow,
   enabled,
   billingState,
   onDone,
@@ -228,12 +255,17 @@ function PlanUpgradeCard({
   from: SitePlanId;
   to: SitePlanId;
   focused: boolean;
+  rate: "offer" | "regular";
+  months: number;
+  /** What the workspace renews at today (0 = not known). */
+  renewsNow: number;
   enabled: boolean;
   billingState: string | null;
   onDone: () => void;
 }) {
   const plan = SITE_PLANS[to];
-  const q = upgradeQuote(from, to);
+  const q = upgradeQuote(from, to, rate, months);
+  const renewsAt = (renewsNow > 0 ? renewsNow : yearlyPrice(from, rate)) + q.yearlyDiffInr;
   const total = withGst(q.amountInr).total;
   const gains = [
     q.addAreas > 0 ? `${q.addAreas} more areas — ${areasNow + q.addAreas} in all` : null,
@@ -261,13 +293,16 @@ function PlanUpgradeCard({
       </ul>
       <div className="mt-5 border-t border-vpv-line pt-4">
         <div className="flex items-baseline justify-between">
-          <span className="text-[13px] text-slate-500">You pay the difference</span>
+          <span className="text-[13px] text-slate-500">
+            You pay the difference for {q.months} month{q.months === 1 ? "" : "s"}
+          </span>
           <span className="text-[22px] font-semibold tabular-nums">{inr(q.amountInr)}</span>
         </div>
         <div className="mt-0.5 text-right text-[12px] text-slate-500">+ 18% GST = {inr2(total)}</div>
         <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
-          {SITE_PLANS[to].name} is {inr(LAUNCH_OFFER.active ? plan.priceInr : plan.regularInr)} today and{" "}
-          {SITE_PLANS[from].name} is {inr(LAUNCH_OFFER.active ? SITE_PLANS[from].priceInr : SITE_PLANS[from].regularInr)}. The new
+          {SITE_PLANS[to].name} is {inr(yearlyPrice(to, rate))} a year for you and {SITE_PLANS[from].name} is{" "}
+          {inr(yearlyPrice(from, rate))}: {inr(q.yearlyDiffInr)} a year more, charged only for the {q.months} month
+          {q.months === 1 ? "" : "s"} left until your plan renews. From then on it renews at {inr(renewsAt)} a year + GST. The new
           features open as soon as the payment is confirmed; we call you to book the shoot for the extra areas.
         </p>
       </div>
