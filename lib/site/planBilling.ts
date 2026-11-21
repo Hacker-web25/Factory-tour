@@ -47,8 +47,25 @@ const monthsWorth = `${inr(Math.min(...monthly) * freeMonths)} to ${inr(Math.max
 const halfLow = Math.min(...SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].regularInr - SITE_PLANS[id].priceInr));
 const halfHigh = Math.max(...SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].regularLifetimeInr - SITE_PLANS[id].lifetimeInr));
 
+/**
+ * The most a founding customer can get free: on each plan, the 50% off, the
+ * cab and the first 15 months of support (on a yearly plan also the 3 free
+ * months of the plan itself); the biggest of those, which is White Glove for
+ * life. It depends on the plan bought, so the block says "up to" and stars it.
+ */
+const freebies = SITE_PLAN_ORDER.flatMap((id) => {
+  const p = SITE_PLANS[id];
+  const shared = CAB_TRAVEL.amountInr + SUPPORT_MONTHLY_INR * firstMonths;
+  return [
+    p.regularInr - p.priceInr + p.monthlyInr * freeMonths + shared,
+    p.regularLifetimeInr - p.lifetimeInr + shared,
+  ];
+});
+const maxFree = Math.max(...freebies);
+
 /** What the founding block says, worked out from lib/pricing.ts. */
 export const FOUNDING_COPY = {
+  maxFree,
   limit: LAUNCH_OFFER.foundingLimit,
   halfLimit: LAUNCH_OFFER.limit,
   benefits: [
@@ -69,8 +86,8 @@ export const FOUNDING_COPY = {
     {
       icon: "car",
       tag: `First ${LAUNCH_OFFER.foundingLimit}`,
-      title: "Free cab to your plant",
-      body: "Our crew comes to you, and back, at no charge.",
+      title: "Complimentary factory visit",
+      body: "Our team visits your factory at no additional travel cost.",
       worth: `Worth ${inr(CAB_TRAVEL.amountInr)}`,
     },
     {
@@ -140,6 +157,9 @@ export const PLAN_BILLING_CSS = [
   ".vpv-fo-eyebrow svg{width:16px;height:16px}",
   ".vpv-fo-h{margin:.45rem 0 0;font-size:clamp(1.3rem,1.8vw,1.6rem);line-height:1.18;font-weight:800;letter-spacing:-.02em;color:#fff}",
   ".vpv-fo-h em{font-style:normal;background:linear-gradient(100deg,#FBE7A6,#E9C46A 45%,#C99532);-webkit-background-clip:text;background-clip:text;color:transparent}",
+  ".vpv-fo-big{margin:.3rem 0 0;font-size:clamp(2rem,3.4vw,2.7rem);line-height:1.05;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;background:linear-gradient(100deg,#FBE7A6,#E9C46A 45%,#C99532);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}",
+  ".vpv-fo-big span{display:block;margin-bottom:.15rem;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;-webkit-text-fill-color:rgba(255,255,255,.78);color:rgba(255,255,255,.78)}",
+  ".vpv-fo-big sup{font-size:.45em;vertical-align:.9em;margin-left:2px}",
   ".vpv-fo-p{margin:.5rem 0 0;font-size:13px;line-height:1.5;color:rgba(255,255,255,.72);max-width:34rem}",
   ".vpv-fo-meter{margin-top:.9rem}",
   ".vpv-fo-seats{display:grid;grid-template-columns:repeat(20,12px);gap:4px}",
@@ -191,8 +211,9 @@ const svg = (name: string, stroke = "currentColor") =>
 const FOUNDING_HTML =
   `<div class="vpv-fo-in"><div>` +
   `<p class="vpv-fo-eyebrow">${svg("crown")}Founding ${FOUNDING_COPY.limit}</p>` +
-  `<h2 class="vpv-fo-h" data-h>Our first ${FOUNDING_COPY.limit} factories get <em>four things free</em>.</h2>` +
-  `<p class="vpv-fo-p" data-p>Places go in the order payments reach us. Customers ${FOUNDING_COPY.limit + 1} to ${FOUNDING_COPY.halfLimit} get the ${LAUNCH_OFFER.percent}% off; from the ${FOUNDING_COPY.halfLimit + 1}st, regular prices.</p>` +
+  `<h2 class="vpv-fo-h" data-h>Our first ${FOUNDING_COPY.limit} factories get <em>four things free</em></h2>` +
+  `<p class="vpv-fo-big" data-w><span>Worth up to</span> ${inr(FOUNDING_COPY.maxFree)}<sup>*</sup></p>` +
+  `<p class="vpv-fo-p" data-p>*Varies depending upon the plan purchased.</p>` +
   `<div class="vpv-fo-meter"><div class="vpv-fo-seats" aria-hidden="true">${Array.from({ length: FOUNDING_COPY.limit }, (_, k) => `<span class="vpv-fo-seat" style="--k:${k}"></span>`).join("")}</div>` +
   `<p class="vpv-fo-count" data-count aria-live="polite"></p></div>` +
   `<a class="vpv-fo-cta" href="/assessment" data-testid="founding-cta">Claim a founding place <span aria-hidden="true">→</span></a>` +
@@ -252,7 +273,7 @@ export const PLAN_BILLING_SCRIPT = String.raw`(function(){
   function onPlans(){return location.pathname.replace(/\/+$/,"")==="/plans"}
   var offer=null,asked=false;
   function fill(b){
-    var c=b.querySelector("[data-count]"),seats=b.querySelectorAll(".vpv-fo-seat"),h=b.querySelector("[data-h]"),p=b.querySelector("[data-p]");
+    var c=b.querySelector("[data-count]"),seats=b.querySelectorAll(".vpv-fo-seat"),h=b.querySelector("[data-h]"),p=b.querySelector("[data-p]"),w=b.querySelector("[data-w]");
     if(!offer){b.classList.add("loading");return}
     b.classList.remove("loading");
     if(offer.failed){c.textContent="Limited to our first "+LIM+" paid customers.";b.querySelector(".vpv-fo-meter").firstChild.style.display="none";return}
@@ -260,7 +281,7 @@ export const PLAN_BILLING_SCRIPT = String.raw`(function(){
     var left=Math.max(0,offer.foundingRemaining|0),taken=LIM-left;
     for(var i=0;i<seats.length;i++)seats[i].classList.toggle("taken",i<taken);
     if(offer.founding){c.innerHTML="<b>"+left+"</b> of "+LIM+" founding places left"}
-    else{b.classList.add("gone");h.innerHTML="All "+LIM+" founding places are taken. <em>"+PCT+"% off</em> is still open.";
+    else{b.classList.add("gone");if(w)w.style.display="none";h.innerHTML="All "+LIM+" founding places are taken. <em>"+PCT+"% off</em> is still open.";
       p.textContent="Customers "+(LIM+1)+" to "+HALF+" get "+PCT+"% off their plan. From the "+(HALF+1)+"st, regular prices.";
       c.innerHTML="<b>"+Math.max(0,offer.remaining|0)+"</b> of "+(HALF-LIM)+" places at "+PCT+"% off left"}
   }
