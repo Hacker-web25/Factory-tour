@@ -112,4 +112,14 @@ describe("the plan cards on the marketing site (22 Nov 2026)", () => {
     assert.ok(bundle.includes('className:"vpv-sales-note"'));
     assert.match(home, /\.vpv-sales-note\{color:" \+ BRAND/);
   });
+
+  it("marks VPV Premium, and only Premium, as the most popular plan", () => {
+    assert.ok(bundle.includes('("premium"===t.id?"vpv-pc-pop ":"")'), "the blue frame class is set from the plan id");
+    assert.ok(bundle.includes('"premium"===t.id&&(0,Dt.jsx)("span",{className:"vpv-pc-poptag"'), "the tag is set from the plan id");
+    assert.ok(bundle.includes('children:"Most popular"'));
+    assert.equal(bundle.split("vpv-pc-poptag").length - 1, 1, "one tag in the card, nowhere else");
+    assert.match(home, /\.vpv-pc-pop\{border-color:#0b5cff!important/);
+    assert.match(home, /\.vpv-pc-poptag\{position:absolute/);
+    assert.match(home, /prefers-reduced-motion:no-preference\)\{\.vpv-pc-pop::before\{animation/, "the glow is gated");
+  });
 });

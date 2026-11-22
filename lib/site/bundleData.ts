@@ -192,7 +192,6 @@ const NOV22_ORDER: [string, string][] = [
   ['"data-testid":"plan-comparison",children:sn.map(e=>', '"data-testid":"plan-comparison",children:vpvSd.map(e=>'],
   ['sn.map(e=>(0,Dt.jsx)("th",{className:"px-4 py-4 text-base font-bold text-brand-deep"', 'vpvSd.map(e=>(0,Dt.jsx)("th",{className:"px-4 py-4 text-base font-bold text-brand-deep"'],
   ['sn.map(t=>(0,Dt.jsx)(rc,{value:e.value(t)', 'vpvSd.map(t=>(0,Dt.jsx)(rc,{value:e.value(t)'],
-  ['sn.map(e=>(0,Dt.jsxs)("td",{className:"px-4 py-4","data-testid":`compare-cell-price-', 'vpvSd.map(e=>(0,Dt.jsxs)("td",{className:"px-4 py-4","data-testid":`compare-cell-price-'],
 ];
 
 /** offerSentence() as it read before the yearly plans (21 Nov 2026). */
@@ -310,6 +309,15 @@ function NOV21_REWORDING(list: [string, string][]): [string, string][] {
     ['Dr=e=>`${e.name} (${e.area}): "${e.tagline}" ', 'Dr=e=>`${e.name}: "${e.tagline}" '],
     ['"One-time investment, lifetime trust."', JSON.stringify(PLANS_HEADING)],
     ['title:"Seven plans, sized to your factory"', 'title:"Four plans for your factory"'],
+    // 22 Nov 2026: VPV Premium is the most popular plan: a blue frame and a tag.
+    [
+      '"vpv-pc relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm "+(t.gold?"vpv-pc-gold ":"")+',
+      '"vpv-pc relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm "+("premium"===t.id?"vpv-pc-pop ":"")+(t.gold?"vpv-pc-gold ":"")+',
+    ],
+    [
+      '(0,Dt.jsx)("h3",{className:"vpv-pc-name",children:t.name})',
+      '(0,Dt.jsx)("h3",{className:"vpv-pc-name","data-plan":t.id,children:t.name}),"premium"===t.id&&(0,Dt.jsx)("span",{className:"vpv-pc-poptag","data-testid":`${o}-${t.id}-popular`,children:"Most popular"})',
+    ],
   ];
 }
 

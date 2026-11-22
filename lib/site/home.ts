@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.5eee3d2c.js";
+const JS_SRC = "/static/js/main.04554eca.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -74,6 +74,12 @@ const PLAN_CARD_HEAD_ROWS = 3;
  */
 const PLAN_CARD_CSS = [
   ".vpv-pc-tag{display:none}",
+  // VPV Premium, the most popular plan: a brand-blue frame, a soft blue wash, a halo that breathes, and a tag on the top edge.
+  ".vpv-pc-pop{border-color:#0b5cff!important;background:linear-gradient(180deg,#EAF2FF 0%,#F6FAFF 22%,#fff 55%)!important;box-shadow:inset 0 0 0 1px #0b5cff,0 0 0 4px rgba(11,92,255,.10),0 26px 54px -28px rgba(11,92,255,.6)!important}",
+  ".vpv-pc-pop::before{content:'';position:absolute;inset:-7px;border-radius:calc(1rem + 7px);border:2px solid rgba(11,92,255,.35);pointer-events:none;opacity:.55}",
+  ".vpv-pc-poptag{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);z-index:2;display:inline-flex;align-items:center;gap:.35rem;white-space:nowrap;padding:.34rem .9rem;border-radius:999px;background:linear-gradient(135deg,#0b2a5b 0%,#0b5cff 100%);color:#fff;font-size:.72rem;line-height:1;font-weight:800;letter-spacing:.09em;text-transform:uppercase;box-shadow:0 6px 16px -6px rgba(11,92,255,.7),0 0 0 3px #fff}",
+  ".vpv-pc-poptag::before{content:'\\2605';font-size:.8rem;letter-spacing:0;color:#FFD66B}",
+  "@media (prefers-reduced-motion:no-preference){.vpv-pc-pop::before{animation:vpv-pop-glow 2.8s ease-in-out infinite}@keyframes vpv-pop-glow{0%,100%{opacity:.25}50%{opacity:.95}}}",
   ".vpv-pc-name{margin:0;font-family:Fraunces,Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-size:clamp(1.25rem,1.6vw,1.6rem);line-height:1.15;font-weight:700;letter-spacing:-.012em;color:#0b2a5b}",
   // the price: struck per month + offer tag, the big offer price per month, the yearly bill
   ".vpv-pc-price{margin-top:.9rem}",
@@ -112,7 +118,7 @@ const PLAN_CARD_CSS = [
     ".vpv-pj button b{font-size:.8125rem;font-weight:800}.vpv-pj button span{font-size:.6875rem;font-weight:600;color:#64748b;white-space:nowrap}" +
     ".vpv-pj button[aria-current=true]{border-color:" + BRAND + ";background:#eef4ff;box-shadow:0 0 0 2px rgba(11,92,255,.15)}" +
     ".vpv-pj button.gold{border-color:#CDAA5C;background:#FFFCF3}.vpv-pj button.gold b{color:#7E5A16}.vpv-pj button.gold[aria-current=true]{box-shadow:0 0 0 2px rgba(196,160,80,.35)}}",
-  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:.25rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.3rem}.vpv-pc .vpv-now{font-size:2.75rem}}",
+  "@media (max-width:1023px){.vpv-plans-grid{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;gap:.75rem!important;margin-left:-1rem;margin-right:-1rem;padding:1rem 1rem 1rem;scroll-padding:0 1rem;scrollbar-width:none}.vpv-plans-grid::-webkit-scrollbar{display:none}.vpv-plans-grid>*{flex:0 0 86%;scroll-snap-align:start;padding:1.25rem!important}.vpv-pc-name{font-size:1.6rem}.vpv-pc-gold .vpv-pc-name{font-size:2.3rem}.vpv-pc .vpv-now{font-size:2.75rem}}",
   "@media (min-width:640px) and (max-width:1023px){.vpv-plans-grid>*{flex-basis:46%}}",
 ].join("");
 
