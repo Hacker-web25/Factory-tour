@@ -317,11 +317,18 @@ export default function Step5SalesTeam() {
                   <div className="rounded-2xl bg-vpv-canvas p-6 text-center">
                     {offerOpen && (
                       <div className="mb-3 flex justify-center">
-                        <StarBadge label={`${SALES_TEAM.percentOff}% off for our first ${LAUNCH_OFFER.limit} customers`} />
+                        <StarBadge label={`Only for our first ${LAUNCH_OFFER.limit} customers`} />
                       </div>
                     )}
-                    {offerOpen && <p className="text-[17px] text-slate-400 line-through">{inr(SALES_TEAM.regularInr)}</p>}
-                    <p className="text-[52px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink">{inr(seatPrice(offerOpen))}</p>
+                    <p className="text-[13px] font-medium text-vpv-blue">{offerOpen ? "Your price per login" : "Price per login"}</p>
+                    <p className="mt-1 text-[56px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink" data-testid="seat-price">
+                      {inr(seatPrice(offerOpen))}
+                    </p>
+                    {offerOpen && (
+                      <p className="mt-2.5 text-[15px] text-slate-500" data-testid="seat-was">
+                        Cut from <s className="font-semibold text-slate-400">{inr(SALES_TEAM.regularInr)}</s>
+                      </p>
+                    )}
                     <p className="mt-2 text-[13px] text-slate-600">per salesperson per year, + GST</p>
                   </div>
                   <div>

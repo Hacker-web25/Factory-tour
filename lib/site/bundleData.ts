@@ -199,6 +199,12 @@ const NOV22_ORDER: [string, string][] = [
 const OFFER_SENTENCE_NOV20 =
   "The ${ln.percent}% applies to the plan price, Sales Team logins are ₹199 per salesperson per year instead of ₹999, and cab travel and the first year of support, hosting & security are free. Extra areas, process videos and shoot time are not discounted.";
 
+/** The extra-area price, in one sentence: one ladder, the same on every plan. */
+function extraAreaSentence(): string {
+  const b = discountBands("light");
+  return `Every plan lets you add extra areas, and each one costs less than the last: ${inr(b[0].each)} an area at first, falling to ${inr(b[b.length - 1].each)}, the same on every plan. You see the price of every extra area, and the total, before you pay.`;
+}
+
 /** The Sales Team add-on, in one sentence. */
 let SALES_WITHOUT_PERK = false;
 function salesSentence(): string {
@@ -237,7 +243,7 @@ function NOV20_FIGURES(): [string, string][] {
   return [
     [
       "Every plan lets you add extra areas, and each one costs less than the last. On VPV Control, extra areas start at ₹4,500 and fall to ₹3,400. You see the price of every extra area, and the total, before you pay.",
-      `Every plan lets you add extra areas, and each one costs less than the last. On ${ultra.name}, extra areas start at ${inr(bands[0].each)} and fall to ${inr(bands[bands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
+      extraAreaSentence(),
     ],
     ['(for example, "You selected 8 areas; ${Ir.name} includes 4")', `(for example, "You selected 8 areas; \${Ir.name} includes ${SITE_PLANS.light.scenes}")`],
   ];
@@ -351,7 +357,7 @@ function buildPatches(): [string, string][] {
     ['q:"What if I need more than 20 AOAs?"', 'q:"What if I need more areas than my plan includes?"'],
     [
       "Our current plans cover up to ${Lr.limits.aoas} AOAs. If you need more, the assessment keeps all your selections and gives you a direct route to our team so we can plan it together.",
-      `Every plan lets you add extra areas, and each one costs less than the last. On ${ctrl.name}, extra areas start at ${inr(ctrlBands[0].each)} and fall to ${inr(ctrlBands[ctrlBands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
+      extraAreaSentence(),
     ],
     [
       "${Mr.name} includes unlimited information icons and ${Lr.name} includes information icons. ${Ir.name} does not include them.",
@@ -582,7 +588,7 @@ function buildPatches(): [string, string][] {
   nov21.push(
     [
       "Every plan lets you add extra areas, and each one costs less than the last. On VPV Ultra, extra areas start at ₹4,500 and fall to ₹4,000. You see the price of every extra area, and the total, before you pay.",
-      `Every plan lets you add extra areas, and each one costs less than the last. On ${SITE_PLANS.ultra.name}, extra areas start at ${inr(ultraBands[0].each)} and fall to ${inr(ultraBands[ultraBands.length - 1].each)}. You see the price of every extra area, and the total, before you pay.`,
+      extraAreaSentence(),
     ],
     ['(for example, "You selected 8 areas; ${Ir.name} includes 2")', `(for example, "You selected 8 areas; \${Ir.name} includes ${conf.scenes}")`],
     [OFFER_SENTENCE_NOV20, offerSentence()]

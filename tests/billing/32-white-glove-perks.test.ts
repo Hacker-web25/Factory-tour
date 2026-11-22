@@ -74,3 +74,14 @@ describe("what White Glove includes", () => {
     assert.equal(before.lines.filter((l) => l.kind === "bonus").every((l) => l.amountInr === 0), true);
   });
 });
+
+describe("the recommendation does not move with the wider slider", () => {
+  it("still sends a plant past the largest plan plus 15 extra areas to White Glove", async () => {
+    const { recommendPlan } = await import("@/lib/funnel");
+    const at60 = recommendPlan({ aoaCount: 60, pdfCount: 0, wantsSharingControls: false });
+    assert.equal(at60.plan, "ultra");
+    assert.equal(at60.extraAreas, 15);
+    const at61 = recommendPlan({ aoaCount: 61, pdfCount: 0, wantsSharingControls: false });
+    assert.equal(at61.plan, "white_glove");
+  });
+});

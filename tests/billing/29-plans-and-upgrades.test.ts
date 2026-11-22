@@ -246,7 +246,7 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     const [org] = await w.q(`select site_plan, scene_quota, plan_yearly_inr, plan_offer_locked from public.organizations`);
     assert.equal(org.site_plan, "white_glove");
     assert.equal(Number(org.scene_quota), 103);
-    assert.equal(Number(org.plan_yearly_inr), 2_45_424 + 3 * 2_000);
+    assert.equal(Number(org.plan_yearly_inr), 2_45_424 + 3 * 9_000);
     assert.equal(org.plan_offer_locked, true);
     const [inv] = await w.q(`select description from public.billing_invoices`);
     assert.match(inv.description, /^White Glove — yearly plan, 103 areas, first 15 months/);

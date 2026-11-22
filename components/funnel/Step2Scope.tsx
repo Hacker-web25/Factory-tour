@@ -56,7 +56,6 @@ import {
 import { matchIndustries, shortLabels } from "@/lib/industryProfiles";
 import { loadFunnel, mirrorLead, saveFunnel, type FunnelState } from "@/lib/funnel";
 import {
-  EXTRA_VIDEO_MAX,
   VIDEO_SELF_INR,
   VIDEO_SELF_NOTE,
   VIDEO_SHOT_INR,
@@ -64,6 +63,9 @@ import {
   inr,
   videoShotWasLabel,
 } from "@/lib/pricing";
+
+/** This step asks roughly, so its video sliders stop at 12; the plan step goes to 50. */
+const SCOPE_VIDEO_MAX = 12;
 
 function toggle(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -578,7 +580,7 @@ export default function Step2Scope() {
                   value={s.selfVideos}
                   onChange={(n) => setS({ ...s, selfVideos: n })}
                   min={0}
-                  max={EXTRA_VIDEO_MAX}
+                  max={SCOPE_VIDEO_MAX}
                   suffix="videos"
                 />
               </div>
@@ -608,7 +610,7 @@ export default function Step2Scope() {
                   value={s.shotVideos}
                   onChange={(n) => setS({ ...s, shotVideos: n })}
                   min={0}
-                  max={EXTRA_VIDEO_MAX}
+                  max={SCOPE_VIDEO_MAX}
                   suffix="videos"
                 />
               </div>

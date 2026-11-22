@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { EXTRA_AREA_MAX, SITE_PLAN_ORDER, SITE_PLANS, isPurchaseBilling, isSitePlanId, type PurchaseBilling, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { RECOMMEND_EXTRA_AREA_LIMIT, SITE_PLAN_ORDER, SITE_PLANS, isPurchaseBilling, isSitePlanId, type PurchaseBilling, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -270,7 +270,7 @@ export function recommendPlan(s: {
   const largest = standard[standard.length - 1];
   const personal = SITE_PLAN_ORDER.find((id) => SITE_PLANS[id].personal);
   // Beyond the largest standard plan plus every extra area it can take.
-  const bigPlant = !!personal && aoa > SITE_PLANS[largest].scenes + EXTRA_AREA_MAX;
+  const bigPlant = !!personal && aoa > SITE_PLANS[largest].scenes + RECOMMEND_EXTRA_AREA_LIMIT;
   const allowed = bigPlant && personal ? [personal] : standard;
 
   const covers = (id: SitePlanId) => {
