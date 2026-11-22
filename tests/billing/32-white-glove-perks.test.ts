@@ -85,3 +85,31 @@ describe("the recommendation does not move with the wider slider", () => {
     assert.equal(at61.plan, "white_glove");
   });
 });
+
+describe("the plan cards on the marketing site (22 Nov 2026)", () => {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const path = require("node:path") as typeof import("node:path");
+  const home = fs.readFileSync(path.join(process.cwd(), "lib/site/home.ts"), "utf8");
+  const jsSrc = home.match(/const JS_SRC = "(\/static\/js\/main\.[0-9a-f]+\.js)";/)![1];
+  const bundle = fs.readFileSync(path.join(process.cwd(), "public", jsSrc), "utf8");
+
+  it("puts the support block, with the free months, beside the AOAs on every card", () => {
+    assert.ok(bundle.includes('className:"vpv-pc-care"'));
+    assert.ok(bundle.includes("Support, hosting & security: ₹999/month"));
+    assert.ok(bundle.includes("Billed yearly (₹11,988 + GST)."));
+    assert.ok(bundle.includes("First 15 months "), "the free months");
+    assert.ok(bundle.includes('className:"vpv-care-free",children:"FREE"'));
+    assert.ok(bundle.includes(" for first 20 customers."));
+  });
+
+  it("strikes the regular price as the larger figure and sets /month smaller", () => {
+    assert.ok(bundle.includes('children:[mn(t.price),m]'), "/month is its own, smaller span inside the struck price");
+    assert.match(home, /\.vpv-pc \.vpv-was \.vpv-strike\{font-size:clamp\(1\.9rem/);
+    assert.match(home, /\.vpv-pc \.vpv-now\{[^}]*font-size:clamp\(1\.5rem/);
+  });
+
+  it("sets the sales team note in the brand blue", () => {
+    assert.ok(bundle.includes('className:"vpv-sales-note"'));
+    assert.match(home, /\.vpv-sales-note\{color:" \+ BRAND/);
+  });
+});

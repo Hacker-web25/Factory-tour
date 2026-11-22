@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.7337c0f4.js";
+const JS_SRC = "/static/js/main.5eee3d2c.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -78,17 +78,30 @@ const PLAN_CARD_CSS = [
   // the price: struck per month + offer tag, the big offer price per month, the yearly bill
   ".vpv-pc-price{margin-top:.9rem}",
   ".vpv-pc .vpv-was{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;margin:0}",
-  ".vpv-pc .vpv-was .vpv-strike{font-size:1.0625rem;line-height:1.2;font-weight:700;letter-spacing:-.01em;color:#475569;text-decoration-thickness:2px}",
+  // 22 Nov 2026: the struck regular price is the bigger figure and the offer price
+  // the smaller, so the eye reads what the buyer is saving first.
+  ".vpv-pc .vpv-was .vpv-strike{font-size:clamp(1.9rem,2.5vw,2.5rem);line-height:1.05;font-weight:800;letter-spacing:-.03em;color:#475569;text-decoration:none;position:relative;display:inline-block;font-variant-numeric:tabular-nums}",
+  // one red line through the whole struck price, "/month" included
+  ".vpv-pc .vpv-was .vpv-strike::after{content:\"\";position:absolute;left:-1px;right:-1px;top:54%;height:3px;border-radius:2px;background:#e11d2e;transform:rotate(-1deg)}",
   ".vpv-pc .vpv-was{flex-direction:column;align-items:flex-start}.vpv-pc .vpv-off{order:-1;white-space:nowrap}",
-  ".vpv-pc .vpv-now{margin:.3rem 0 0;font-size:clamp(2.25rem,2.9vw,2.9rem);line-height:1;font-weight:800;letter-spacing:-.035em;color:#0b2a5b;font-variant-numeric:tabular-nums}",
-  ".vpv-pm{margin-left:.2rem;font-size:.9375rem;font-weight:700;letter-spacing:0;color:#475569}",
+  ".vpv-pc .vpv-now{margin:.35rem 0 0;font-size:clamp(1.5rem,1.9vw,1.9rem);line-height:1;font-weight:600;letter-spacing:-.025em;color:#0b2a5b;font-variant-numeric:tabular-nums}",
+  ".vpv-pm{margin-left:.2rem;font-size:.8125rem;font-weight:600;letter-spacing:0;color:#475569}",
+  ".vpv-pc .vpv-strike .vpv-pm{font-size:.9375rem;font-weight:700;letter-spacing:0}",
   ".vpv-billed{margin:.45rem 0 0;font-size:.8125rem;line-height:1.35;font-weight:600;color:#64748b}",
-  // the AOAs: under the price, smaller than it
-  ".vpv-pc-aoa{margin-top:.9rem;padding-top:.85rem;border-top:1px solid #e8eef6}.vpv-pc-aoa p{margin:0;display:flex;align-items:center;font-size:1.25rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
+  // the AOAs, with the support block (a shield, its price and the free months) to the right of them
+  ".vpv-pc-aoa{margin-top:.9rem;padding-top:.85rem;border-top:1px solid #e8eef6}.vpv-pc-aoa>p:first-child{margin:0;display:flex;align-items:center;font-size:1.25rem;line-height:1.2;font-weight:800;letter-spacing:-.01em;color:" + BRAND + "}",
   // the gold plan
   ".vpv-pc-gold{border:1px solid #CDAA5C!important;background:linear-gradient(180deg,#FFFCF3 0%,#FFFDF8 45%,#fff 100%)!important;box-shadow:inset 0 0 0 4px #fff,inset 0 0 0 5px rgba(196,160,80,.45),0 24px 50px -30px rgba(110,80,20,.5)!important}",
   ".vpv-pc-gold .vpv-pc-name{font-family:'Ms Madi','Segoe Script','Apple Chancery',cursive;font-weight:400;font-size:clamp(1.7rem,2.1vw,2.2rem);line-height:1;letter-spacing:.01em;white-space:nowrap;color:#6F4E10;-webkit-text-stroke:.4px #6F4E10;text-shadow:0 1px 0 rgba(255,255,255,.8);padding:.06em 0 .04em}",
-  ".vpv-pc-gold .vpv-pc-aoa{border-top-color:#EFE3C4}",
+  ".vpv-pc-aoa{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:.8rem}",
+  ".vpv-pc-care{display:flex;gap:.55rem;align-items:flex-start;padding-left:.8rem;border-left:1px solid #e3eaf4}",
+  ".vpv-care-ic{flex:none;margin-top:.1rem;color:" + BRAND + "}",
+  ".vpv-pc-aoa .vpv-care-t{margin:0;font-size:.78rem;line-height:1.25;font-weight:800;color:#0b2a5b}",
+  ".vpv-pc-aoa .vpv-care-n{margin:.2rem 0 0;font-size:.72rem;line-height:1.3;font-weight:500;color:#475569}",
+  ".vpv-care-free{font-weight:800;color:#16a34a}",
+  ".vpv-pc-gold .vpv-pc-aoa{border-top-color:#EFE3C4}.vpv-pc-gold .vpv-pc-care{border-left-color:#EFE3C4}.vpv-pc-gold .vpv-care-ic{color:#8A6612}",
+  // the Sales Team note under the plans
+  ".vpv-sales-note{color:" + BRAND + ";font-weight:600}",
   ".vpv-pc-gold .vpv-billed{color:#7a6a4f}",
   // one row of four on a laptop
   "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1320px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.4rem 1.3rem!important}.vpv-plans-grid>*>ul{font-size:.875rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.9375rem}}",
