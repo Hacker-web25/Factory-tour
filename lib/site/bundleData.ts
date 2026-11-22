@@ -205,6 +205,20 @@ function extraAreaSentence(): string {
   return `Every plan lets you add extra areas, and each one costs less than the last: ${inr(b[0].each)} an area at first, falling to ${inr(b[b.length - 1].each)}, the same on every plan. You see the price of every extra area, and the total, before you pay.`;
 }
 
+/**
+ * The plans page's note on Sales Team logins (22 Nov 2026): the sentence about
+ * the optional logins is set in the brand blue. The bundle on main carries it
+ * as plain text, so the pass that works out the older wording sets the flag
+ * (see bundleTextPatches).
+ */
+let SALES_NOTE_PLAIN = false;
+function salesNoteExpr(): string {
+  const lead = "Your whole sales team can present your VPV. ";
+  const note = `Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson per year, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`;
+  if (SALES_NOTE_PLAIN) return JSON.stringify(lead + note);
+  return `[${JSON.stringify(lead)},(0,Dt.jsx)("span",{className:"vpv-sales-note",children:${JSON.stringify(note)}})]`;
+}
+
 /** The Sales Team add-on, in one sentence. */
 let SALES_WITHOUT_PERK = false;
 function salesSentence(): string {
@@ -302,10 +316,27 @@ function NOV21_REWORDING(list: [string, string][]): [string, string][] {
 /** The plans page heading (21 Nov 2026): the plans are no longer one-time. */
 export const PLANS_HEADING = "Simple plans. Lifetime trust.";
 
-/** Under the plan's name: the price block, then the AOAs. */
+/**
+ * The support, hosting & security block on a card (22 Nov 2026): a shield, what
+ * it costs, how it is billed and, while the offer runs, that the first months
+ * are free. It sits to the right of the AOAs, as on the owner's reference.
+ */
+const CARE_BLOCK =
+  '(0,Dt.jsxs)("div",{className:"vpv-pc-care","data-testid":`${o}-${t.id}-care`,children:[' +
+  '(0,Dt.jsxs)("svg",{viewBox:"0 0 24 24",width:30,height:30,className:"vpv-care-ic",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true",children:[' +
+  '(0,Dt.jsx)("path",{d:"M12 3 19 6v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"}),(0,Dt.jsx)("path",{d:"m8.8 12.2 2.3 2.3 4.3-4.6"})]}),' +
+  '(0,Dt.jsxs)("div",{children:[' +
+  `(0,Dt.jsx)("p",{className:"vpv-care-t",children:${js(`${SUPPORT_NAME}: ${inr(SUPPORT_MONTHLY_INR)}/month`)}}),` +
+  `(0,Dt.jsx)("p",{className:"vpv-care-n",children:${js(`Billed yearly (${inr(SUPPORT_ANNUAL_INR)} + GST).`)}}),` +
+  `ln.active&&(0,Dt.jsxs)("p",{className:"vpv-care-n",children:[${js(`First ${LAUNCH_OFFER.freeMonths + 12} months `)},(0,Dt.jsx)("b",{className:"vpv-care-free",children:"FREE"}),${js(` for first ${LAUNCH_OFFER.limit} customers.`)}]})` +
+  ']})]})';
+
+/** Under the plan's name: the price block, then the AOAs beside the support block. */
 const NOV21_CARD_TOP =
   '(0,Dt.jsx)("div",{className:"vpv-pc-price",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})}),' +
-  '(0,Dt.jsx)("div",{className:"vpv-pc-aoa",children:(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`})})';
+  '(0,Dt.jsxs)("div",{className:"vpv-pc-aoa",children:[(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`}),' +
+  CARE_BLOCK +
+  ']})';
 
 /**
  * The price block (21 Nov 2026). On a card: the regular price per month,
@@ -322,7 +353,7 @@ const NOV21_PRICE =
   'q=(0,Dt.jsxs)("p",{className:L?"vpv-now":("lg"===r?"text-3xl":"text-lg")+" mt-1 font-extrabold text-brand-deep","data-testid":`${n}-lifetime-price`,children:[mn(t.lifeNow),(0,Dt.jsx)("span",{className:"vpv-pm",children:" once"})]});' +
   'return(0,Dt.jsxs)("div",{"data-testid":`${n}-price`,className:"vpv-pr",children:[' +
   '(0,Dt.jsxs)("div",{className:"vpv-pa",children:[' +
-  'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsxs)("s",{className:"vpv-strike","data-testid":`${n}-standard-price`,children:[mn(t.price),"/month"]}),b]}),' +
+  'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsxs)("s",{className:"vpv-strike","data-testid":`${n}-standard-price`,children:[mn(t.price),m]}),b]}),' +
   'p,(0,Dt.jsxs)("p",{className:"vpv-billed","data-testid":`${n}-billed`,children:["Billed yearly: ",mn(t.billed)," + GST"]})]}),' +
   '(0,Dt.jsxs)("div",{className:"vpv-pl","aria-hidden":"true",children:[' +
   'ln.active&&(0,Dt.jsxs)("p",{className:L?"vpv-was":"flex flex-wrap items-center gap-2 text-sm text-slate-500",children:[(0,Dt.jsx)("s",{className:"vpv-strike",children:mn(t.lifeWas)}),b]}),' +
@@ -399,9 +430,7 @@ function buildPatches(): [string, string][] {
     ],
     [
       '"The whole sales team can use your VPV. There is no per-salesperson fee. Multiple factories are quoted separately based on scope."',
-      JSON.stringify(
-        `Your whole sales team can present your VPV. Optional Sales Team logins (${inr(SALES_TEAM.offerInr)} per salesperson per year, for our first ${LAUNCH_OFFER.limit} customers) show you every meeting they hold. Multiple factories are quoted separately based on scope.`
-      ),
+      salesNoteExpr(),
     ],
     // The yearly fee is no longer "Digital Care", and travel is a cab.
     [
@@ -617,9 +646,11 @@ export function bundleTextPatches(): [string, string][] {
     LAUNCH_OFFER.limit = 50;
     // The bundle on main predates the free White Glove login.
     SALES_WITHOUT_PERK = true;
+    SALES_NOTE_PLAIN = true;
     before = buildPatches();
   } finally {
     SALES_WITHOUT_PERK = false;
+    SALES_NOTE_PLAIN = false;
     LAUNCH_OFFER.limit = saved.limit;
     LAUNCH_OFFER.limit = saved.foundingLimit;
   }
