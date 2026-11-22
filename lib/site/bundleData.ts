@@ -27,6 +27,7 @@ import {
   SUPPORT_NAME,
   TRAVEL_FEES,
   LINK_CONTROLS,
+  PLAN_PERKS,
   discountBands,
   infoIconsLabel,
   planPrice,
@@ -85,6 +86,8 @@ function inclusions(id: (typeof SITE_PLAN_ORDER)[number]): string[] {
     [p.videos > 0, p.videos > 0 ? `${p.videos} process videos` : "Process videos"],
     [p.pdfs > 0, p.pdfs > 0 ? `${p.pdfs} lab reports & certifications` : "Lab reports & certifications"],
     ...LINK_CONTROLS.map((c): [boolean, string] => [p.linkControls[c.key], c.label]),
+    [p.freeSalesLogins > 0, PLAN_PERKS.salesLogin.row],
+    [p.updateShoots > 0, PLAN_PERKS.updateShoot.row],
     [ent, ENTERPRISE_PERSONAL.discussion.short],
     [ent, ENTERPRISE_PERSONAL.shoot.short],
   ];
@@ -121,7 +124,10 @@ export function bundlePlanData(): string {
       `security:${js([...linkControlLabels(id), ...BASE_SECURITY])}}`
     );
   });
-  return `${ln},sn=[${plans.join(",")}]`;
+  // `sn` stays smallest to largest: the bundle reads it as "the biggest plan
+  // is the last one" (the area meter, the recommendation). `vpvSd` is the same
+  // plans in the order they are SHOWN, the dearest first (22 Nov 2026).
+  return `${ln},sn=[${plans.join(",")}],vpvSd=[...sn].reverse()`;
 }
 
 /** `un={…}` — the travel object. Kept in its old two-zone shape because the
@@ -130,7 +136,7 @@ export function bundleTravelData(): string {
   // Free for our first 50 customers (the bundle cannot count buyers, so it
   // follows LAUNCH_OFFER.active, exactly as it does for the plan prices).
   const free = LAUNCH_OFFER.active;
-  const label = free ? `Travel (free for our first ${LAUNCH_OFFER.foundingLimit} customers)` : "Travel & logistics";
+  const label = free ? `Travel (free for our first ${LAUNCH_OFFER.limit} customers)` : "Travel & logistics";
   return (
     `un={question:"Where is your factory?",label:${js(label)},gstApplies:true,payableNow:true,` +
     `options:{ncr:{label:"Delhi NCR",amount:${free ? 0 : TRAVEL_FEES.ncr.amountInr}},` +
@@ -147,7 +153,7 @@ export function bundleCareData(): string {
     `billingStartLabels:{go_live:"Billed annually, starting from go-live",` +
     `year_2:${js(
       LAUNCH_OFFER.active
-        ? `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan, yearly or lifetime. Free for the first ${LAUNCH_OFFER.freeMonths + 12} months for our first ${LAUNCH_OFFER.foundingLimit} customers`
+        ? `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan, yearly or lifetime. Free for the first ${LAUNCH_OFFER.freeMonths + 12} months for our first ${LAUNCH_OFFER.limit} customers`
         : `${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan, yearly or lifetime`
     )}}}`
   );
@@ -161,25 +167,43 @@ function travelSentence(): string {
 /** "free for our first 50 customers (normally ₹4,000 + GST)", or "₹4,000 + GST" once the offer ends. */
 function travelPrice(): string {
   return LAUNCH_OFFER.active
-    ? `free for our first ${LAUNCH_OFFER.foundingLimit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST)`
+    ? `free for our first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST)`
     : `${inr(CAB_TRAVEL.amountInr)} + GST`;
 }
 
 /** What the special offer gives, in one sentence, for the bundle's FAQ. */
 function offerSentence(): string {
   return (
-    `Our first ${LAUNCH_OFFER.limit} customers get \${ln.percent}% off their plan, yearly (kept every year they renew) or lifetime, and Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}. ` +
-    `Our first ${LAUNCH_OFFER.foundingLimit} customers also get ${LAUNCH_OFFER.freeMonths} months free, free cab travel for the shoot, and their first ${LAUNCH_OFFER.freeMonths + 12} months of support, hosting & security free. ` +
+    `Our first ${LAUNCH_OFFER.limit} customers get \${ln.percent}% off their plan, yearly (kept every year they renew) or lifetime, Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}, ${LAUNCH_OFFER.freeMonths} months free, free cab travel for the shoot, and their first ${LAUNCH_OFFER.freeMonths + 12} months of support, hosting & security free. ` +
     `Places are counted in the order payments reach us. Extra areas, process videos and shoot time are not discounted.`
   );
 }
+/**
+ * 22 Nov 2026: the plans are shown dearest first (White Glove, Ultra, Premium,
+ * Light). Only the places that LIST the plans read `vpvSd` (see
+ * bundlePlanData); the code that reasons about them keeps the ascending `sn`.
+ */
+const NOV22_ORDER: [string, string][] = [
+  // The card grids and the FAQ line as an earlier sync left them (the pairs
+  // above that start from "md:grid-cols-3" end at the same text).
+  ['vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', 'vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
+  ['vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', 'vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
+  ['${sn.map(Dr).join(" ")} See the plans page', '${vpvSd.map(Dr).join(" ")} See the plans page'],
+  ['"data-testid":"plan-comparison",children:sn.map(e=>', '"data-testid":"plan-comparison",children:vpvSd.map(e=>'],
+  ['sn.map(e=>(0,Dt.jsx)("th",{className:"px-4 py-4 text-base font-bold text-brand-deep"', 'vpvSd.map(e=>(0,Dt.jsx)("th",{className:"px-4 py-4 text-base font-bold text-brand-deep"'],
+  ['sn.map(t=>(0,Dt.jsx)(rc,{value:e.value(t)', 'vpvSd.map(t=>(0,Dt.jsx)(rc,{value:e.value(t)'],
+  ['sn.map(e=>(0,Dt.jsxs)("td",{className:"px-4 py-4","data-testid":`compare-cell-price-', 'vpvSd.map(e=>(0,Dt.jsxs)("td",{className:"px-4 py-4","data-testid":`compare-cell-price-'],
+];
+
 /** offerSentence() as it read before the yearly plans (21 Nov 2026). */
 const OFFER_SENTENCE_NOV20 =
   "The ${ln.percent}% applies to the plan price, Sales Team logins are ₹199 per salesperson per year instead of ₹999, and cab travel and the first year of support, hosting & security are free. Extra areas, process videos and shoot time are not discounted.";
 
 /** The Sales Team add-on, in one sentence. */
+let SALES_WITHOUT_PERK = false;
 function salesSentence(): string {
-  return `Sales Team logins, which give you a dashboard of every meeting they hold, are an optional yearly add-on: ${inr(SALES_TEAM.offerInr)} per salesperson per year for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`;
+  const perk = SALES_WITHOUT_PERK ? "" : " (White Glove includes one free)";
+  return `Sales Team logins, which give you a dashboard of every meeting they hold, are an optional yearly add-on${perk}: ${inr(SALES_TEAM.offerInr)} per salesperson per year for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`;
 }
 
 /**
@@ -200,7 +224,7 @@ const NOV20_REWORDING: [string, string][] = [
   ['"Four VPV plans. One clear investment."', '"One-time investment, lifetime trust."'],
   ['title:"Confidence, Authority, Control or Enterprise"', 'title:"Seven plans, sized to your factory"'],
   ['q:"What is the difference between Confidence, Authority, Control and Enterprise?"', 'q:"What is the difference between the plans?"'],
-  ["${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page", '${sn.map(Dr).join(" ")} See the plans page'],
+  ["${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page", '${vpvSd.map(Dr).join(" ")} See the plans page'],
   // Mr. Gupta's tagline is no longer drawn on the card (see NOV20_CARD).
   ['className:"mt-1 text-sm text-slate-600"+("enterprise"===t.id?" vpv-gold-tag":""),children:t.tagline}', 'className:"vpv-pc-tag",children:t.tagline}'],
 ];
@@ -415,8 +439,8 @@ function buildPatches(): [string, string][] {
     // October 2026: a fourth plan (Enterprise). The three plan grids and the
     // plan-difference FAQ were written for three.
     ['title:"Confidence, Authority or Control"', 'title:"Confidence, Authority, Control or Enterprise"'],
-    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
-    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-3",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
     ['"grid gap-4 md:grid-cols-3","data-testid":"plan-comparison"', '"grid gap-4 md:grid-cols-2","data-testid":"plan-comparison"'],
     // Enterprise's three Mr. Nitin Gupta lines shine: golden, larger. The
     // card is one component, so these key off the plan id and the text.
@@ -429,8 +453,8 @@ function buildPatches(): [string, string][] {
     // The first Enterprise sync used a grid class the site's CSS does not ship.
     ['"mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4"', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid"'],
     // Four cards in a row, rows aligned (see the CSS in lib/site/home.ts).
-    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
-    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"home-plan-card"}'],
+    ['"mt-10 grid gap-5 md:grid-cols-2",children:sn.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}', '"mt-10 grid gap-5 md:grid-cols-2 vpv-plans-grid",children:vpvSd.map(e=>(0,Dt.jsx)(xa,{plan:e,testPrefix:"plans-page-card"}'],
     ['"grid gap-4 md:grid-cols-2 xl:grid-cols-4"', '"grid gap-4 md:grid-cols-2"'],
     ['q:"What is the difference between Confidence, Authority and Control?"', 'q:"What is the difference between Confidence, Authority, Control and Enterprise?"'],
     ['${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} See the plans page', '${Dr(Ir)} ${Dr(Mr)} ${Dr(Lr)} ${Dr(sn[3])} See the plans page'],
@@ -565,29 +589,33 @@ function buildPatches(): [string, string][] {
   );
   // A pair whose old and new text are now the same (a figure that happens
   // to be back where it started) has nothing to do.
-  return [...final, ...nov21, ...NOV21_SUPPORT].filter(([from, to]) => from !== to);
+  return [...final, ...nov21, ...NOV21_SUPPORT, ...NOV22_ORDER].filter(([from, to]) => from !== to);
 }
 
 /**
  * Every [old, new] text pair the sync applies to the bundle.
  *
  * 21 Nov 2026 (second round): the offer went from "our first 50 customers"
- * to the first 30 (50% off) and the first 20 (the founding offer). The
+ * to the first 30 (50% off) and the first 20 (the founding offer); on 22 Nov
+ * both became "the first 20". The
  * bundle on main carries the sentences as they were written with 50, so the
  * pairs are worked out a second time at 50 and every sentence that changed
  * gets a migration pair from its 50 wording to its current one.
  */
 export function bundleTextPatches(): [string, string][] {
   const now = buildPatches();
-  const saved = { limit: LAUNCH_OFFER.limit, foundingLimit: LAUNCH_OFFER.foundingLimit };
+  const saved = { limit: LAUNCH_OFFER.limit, foundingLimit: LAUNCH_OFFER.limit };
   let before: [string, string][] = [];
   try {
     LAUNCH_OFFER.limit = 50;
-    LAUNCH_OFFER.foundingLimit = 50;
+    LAUNCH_OFFER.limit = 50;
+    // The bundle on main predates the free White Glove login.
+    SALES_WITHOUT_PERK = true;
     before = buildPatches();
   } finally {
+    SALES_WITHOUT_PERK = false;
     LAUNCH_OFFER.limit = saved.limit;
-    LAUNCH_OFFER.foundingLimit = saved.foundingLimit;
+    LAUNCH_OFFER.limit = saved.foundingLimit;
   }
   const migrations: [string, string][] = [];
   const nowTo = new Set(now.map(([, to]) => to));

@@ -556,7 +556,7 @@ export type SitePlanSpec = {
   /**
    * The price once the special offer closes, GST excluded: twice priceInr
    * (the offer is 50% off). Shown struck through beside the offer price, and
-   * charged from the 51st buyer. It is a REAL future price, not a decoy —
+   * charged from the 21st buyer. It is a REAL future price, not a decoy —
    * see LAUNCH_OFFER for why that matters.
    */
   regularInr: number;
@@ -585,6 +585,12 @@ export type SitePlanSpec = {
   infoIcons: number;
   /** Mr. Nitin Gupta's personal discussion and shoot (level 3). */
   personal: boolean;
+  /** Sales Team logins (salesperson dashboards) included free for as long as
+   *  the plan runs (White Glove: 1). More are sold at SALES_TEAM prices. */
+  freeSalesLogins: number;
+  /** Update shoots included free every plan year: a reshoot of areas already
+   *  in the VPV, to update them (White Glove: 1). Does not carry over. */
+  updateShoots: number;
   /** No longer sold; kept so workspaces that bought it keep working. */
   legacy?: boolean;
   /** This plan's YEARLY price for each extra area. Cheaper on the higher
@@ -601,7 +607,7 @@ export type SitePlanSpec = {
  * │ billed yearly on top (SUPPORT_ANNUAL_INR).                          │
  * │ The yearly charge is exactly 12 of them, so the card's per-month    │
  * │ figure and the bill always agree. The struck regular price is 2×    │
- * │ (the 50% special offer for the first 30 customers, kept for as long │
+ * │ (the 50% special offer for the first 20 customers, kept for as long │
  * │ as they renew).                                                     │
  * │                                                                     │
  * │ Features follow the seven-plan spread: Light has what Plus had;     │
@@ -645,6 +651,8 @@ const sold = (
   sharingControls: Object.values(linkControls).some(Boolean),
   infoIcons,
   personal: level >= 3,
+  freeSalesLogins: 0,
+  updateShoots: 0,
   extraAreaLadder,
 });
 
@@ -652,7 +660,16 @@ const sold = (
 const legacy = (
   spec: Omit<
     SitePlanSpec,
-    "billing" | "monthlyInr" | "regularMonthlyInr" | "lifetimeInr" | "regularLifetimeInr" | "legacy" | "sharingControls" | "infoIcons"
+    | "billing"
+    | "monthlyInr"
+    | "regularMonthlyInr"
+    | "lifetimeInr"
+    | "regularLifetimeInr"
+    | "legacy"
+    | "sharingControls"
+    | "infoIcons"
+    | "freeSalesLogins"
+    | "updateShoots"
   >
 ): SitePlanSpec => ({
   ...spec,
@@ -663,6 +680,8 @@ const legacy = (
   regularLifetimeInr: 0,
   sharingControls: Object.values(spec.linkControls).some(Boolean),
   infoIcons: Infinity,
+  freeSalesLogins: 0,
+  updateShoots: 0,
   legacy: true,
 });
 
@@ -679,10 +698,16 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
     { upTo: 5, each: 3_200 },
     { upTo: Infinity, each: 3_000 },
   ], links("oneTime", "password"), Infinity, 7_49_999),
-  white_glove: sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, [
-    { upTo: 5, each: 2_000 },
-    { upTo: Infinity, each: 1_800 },
-  ], links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
+  // White Glove also includes (22 Nov 2026): one free salesperson dashboard
+  // (a Sales Team login) and one free update shoot of the factory every year.
+  white_glove: {
+    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, [
+      { upTo: 5, each: 2_000 },
+      { upTo: Infinity, each: 1_800 },
+    ], links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
+    freeSalesLogins: 1,
+    updateShoots: 1,
+  },
 
   // ── No longer sold (one-time fees, before 21 Nov 2026). Kept for the
   //    workspaces that bought them: what they paid, what they got.
@@ -764,6 +789,15 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
 
 /** The plans on sale, smallest first. */
 export const SITE_PLAN_ORDER: SoldPlanId[] = ["light", "premium", "ultra", "white_glove"];
+
+/**
+ * The order the plans are SHOWN to a buyer (22 Nov 2026): the dearest first,
+ * White Glove, then Ultra, Premium, Light, so the first price a buyer
+ * anchors on is the top one and the others read as steps down from it.
+ * SITE_PLAN_ORDER stays smallest to largest because upgrade and
+ * recommendation logic depend on that order; only display code uses this.
+ */
+export const SITE_PLAN_DISPLAY_ORDER: SoldPlanId[] = [...SITE_PLAN_ORDER].reverse();
 /** The plans no longer sold, kept for the workspaces that have them. */
 export const LEGACY_PLAN_ORDER: LegacyPlanId[] = ["confidence", "authority", "control", "enterprise"];
 
@@ -775,6 +809,26 @@ export function isSitePlanId(v: unknown): v is SoldPlanId {
 export function isKnownPlanId(v: unknown): v is SitePlanId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
 }
+/**
+ * What White Glove adds, in the words every screen uses (the plan card, the
+ * funnel, the bill, the Terms), so they cannot drift apart.
+ */
+export const PLAN_PERKS = {
+  salesLogin: {
+    row: "1 free salesperson dashboard",
+    note: "A Sales Team login, free for as long as your White Glove plan runs. More logins can be added.",
+  },
+  updateShoot: {
+    row: "1 free update shoot every year",
+    note: "Once a plan year we reshoot the areas of your factory that have changed and update your VPV. Cab travel included.",
+  },
+};
+
+/** Sales Team logins a plan includes free (0 for a plan that includes none, or an unknown plan). */
+export function includedSalesLogins(planId: string | null | undefined): number {
+  return isKnownPlanId(planId) ? SITE_PLANS[planId].freeSalesLogins : 0;
+}
+
 /** Is this plan billed every year (true) or was it a one-time fee? */
 export function isYearlyPlan(planId: SitePlanId | null | undefined): boolean {
   return !!planId && isKnownPlanId(planId) && SITE_PLANS[planId].billing === "yearly";
@@ -829,14 +883,16 @@ export const ENTERPRISE_PERSONAL = {
 /* ─────────────────────── Special offer ──────────────────────────── */
 
 /**
- * The special offer for our first 30 customers: 50% off the regular plan
- * price, and 50% off each sales-team login (see SALES_TEAM).
+ * The offer for our first 20 customers (22 Nov 2026: one tier, no longer
+ * 20 and 30): 50% off the regular plan price, 50% off each sales-team login
+ * (see SALES_TEAM), 3 months free (a 15-month first period), free cab travel
+ * for the shoot, and the first 15 months of support, hosting & security free.
  *
  * ┌─ THIS IS A PROMISE, AND THE CODE KEEPS IT ────────────────────────┐
- * │ "First 30 customers" is printed on the site, so it has to be       │
+ * │ "First 20 customers" is printed on the site, so it has to be       │
  * │ true. An offer that never ends is a false-urgency claim under the  │
  * │ CCPA's dark-pattern guidelines. So the order route COUNTS paid     │
- * │ site-plan orders (lib/server/launchOffer.ts) and, from the 51st,   │
+ * │ site-plan orders (lib/server/launchOffer.ts) and, from the 21st,   │
  * │ prices at regularInr — automatically, with nobody having to        │
  * │ remember. Refunded orders do not count: they are not customers.    │
  * └────────────────────────────────────────────────────────────────────┘
@@ -851,28 +907,27 @@ export const ENTERPRISE_PERSONAL = {
 export const LAUNCH_OFFER = {
   active: true,
   percent: 50,
-  /** Customers who get the 50% off (and ₹199 Sales Team logins). */
-  limit: 30,
+  /** Customers who get every offer: the 50%, ₹199 logins, 3 months free, free cab, free first support. */
+  limit: 20,
   /**
-   * The FOUNDING customers, the first 20 of them (21 Nov 2026). On top of
-   * the 50% they get: 3 months free (their first period runs 15 months for
-   * the price of 12), free cab travel for the shoot, and their first period
-   * of support, hosting & security free.
+   * Kept equal to `limit`. Until 22 Nov 2026 the 50% reached 30 customers
+   * and the rest of the offer only the first 20; the owner made it one tier,
+   * so the two numbers are the same and "founding" simply means "on the offer".
    */
   foundingLimit: 20,
   freeMonths: 3,
-  label: "Special offer for our first 30 customers",
+  label: "Special offer for our first 20 customers",
   short: "Special offer",
   /** Written into a founding order's notes; fulfilment reads it back. */
   foundingShort: "Founding offer",
 };
 
-/** Is the 50% offer open, given how many customers have already bought? */
+/** Is the offer open, given how many customers have already bought? */
 export function launchOfferOpen(sold: number): boolean {
   return LAUNCH_OFFER.active && sold < LAUNCH_OFFER.limit;
 }
 
-/** Is a founding place (the first 20) still open? */
+/** Is a founding place (the first 20) still open? The same as the offer being open. */
 export function foundingOfferOpen(sold: number): boolean {
   return LAUNCH_OFFER.active && sold < LAUNCH_OFFER.foundingLimit;
 }
@@ -908,7 +963,7 @@ export function planMonthly(planId: SitePlanId, offerOpen = LAUNCH_OFFER.active)
 }
 
 /** A yearly plan's price at a given rate, whatever the offer is doing now:
- *  "offer" is what our first 30 customers pay, every year they renew. */
+ *  "offer" is what our first 20 customers pay, every year they renew. */
 export function yearlyPrice(planId: SitePlanId, rate: "offer" | "regular"): number {
   const p = SITE_PLANS[planId];
   return rate === "offer" ? p.priceInr : p.regularInr;
@@ -1119,8 +1174,8 @@ export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.activ
  * YEARLY per salesperson (since 26 Oct 2026; it used to be one-time). The
  * first year is bought with the plan; from year 2 it renews together with
  * support, hosting & security, at the price the customer bought at. One flat
- * price per login, no volume discount. Our first 30 customers pay ₹199 per
- * login per year (shown against the regular ₹999); from the 51st customer it
+ * price per login, no volume discount. Our first 20 customers pay ₹199 per
+ * login per year (shown against the regular ₹999); from the 21st customer it
  * is ₹999. Like the plan prices, the regular price is a real future price,
  * not a decoy.
  */
@@ -1536,6 +1591,26 @@ export function siteQuote(
       note: yearly
         ? `${LAUNCH_OFFER.foundingShort}: your first year runs ${firstMonths} months for the price of 12`
         : `${LAUNCH_OFFER.foundingShort}: support, hosting & security free for your first ${firstMonths} months`,
+    });
+  }
+
+  // What White Glove includes beyond the areas: a free salesperson dashboard
+  // and a free update shoot every year. Shown as free lines so the buyer
+  // sees what they are getting on the bill itself.
+  if (plan.freeSalesLogins > 0) {
+    lines.push({
+      kind: "bonus",
+      label: PLAN_PERKS.salesLogin.row,
+      amountInr: 0,
+      note: PLAN_PERKS.salesLogin.note,
+    });
+  }
+  if (plan.updateShoots > 0) {
+    lines.push({
+      kind: "bonus",
+      label: PLAN_PERKS.updateShoot.row,
+      amountInr: 0,
+      note: PLAN_PERKS.updateShoot.note,
     });
   }
 

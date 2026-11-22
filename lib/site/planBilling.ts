@@ -10,16 +10,17 @@
  *
  *  2. THE FOUNDING OFFER (plans page only). The first 20 customers get four
  *     things — 3 months free, 50% off, free cab, their first 15 months of
- *     support free — and customers 21 to 30 get the 50% off. A live meter
+ *     support free, and the ₹199 sales logins (22 Nov 2026: one tier, the
+ *     first 20 only; there is no 21-to-30 tier any more). A live meter
  *     shows how many of the 20 places are left, from the same count the
  *     checkout prices with (GET /api/funnel/offer). Nothing on it is
  *     invented: no countdown, no made-up "people viewing". India's CCPA
  *     dark-pattern guidelines treat scarcity that is not backed by current,
  *     verifiable facts as false urgency; this one is the real count, and the
- *     block says how places are counted. Until the count loads the meter
+ *     meter is that count. Until the count loads the meter
  *     shows no number; if it cannot load, the block says "limited to the
- *     first 20 paid customers" without one. When the places are gone the
- *     block says so, and when both offers are over it disappears.
+ *     first 20 paid customers" without one. When the 20 places are gone the
+ *     block disappears.
  *
  * Built outside the React bundle (like the plan chips in home.ts) and re-run
  * when the page redraws. All motion is off for visitors who ask for less.
@@ -66,12 +67,11 @@ const maxFree = Math.max(...freebies);
 /** What the founding block says, worked out from lib/pricing.ts. */
 export const FOUNDING_COPY = {
   maxFree,
-  limit: LAUNCH_OFFER.foundingLimit,
-  halfLimit: LAUNCH_OFFER.limit,
+  limit: LAUNCH_OFFER.limit,
   benefits: [
     {
       icon: "gift",
-      tag: `First ${LAUNCH_OFFER.foundingLimit}`,
+      tag: `First ${LAUNCH_OFFER.limit}`,
       title: `${freeMonths} months free`,
       body: `Your first year runs ${firstMonths} months for the price of 12.`,
       worth: `Worth ${monthsWorth}`,
@@ -85,14 +85,14 @@ export const FOUNDING_COPY = {
     },
     {
       icon: "car",
-      tag: `First ${LAUNCH_OFFER.foundingLimit}`,
+      tag: `First ${LAUNCH_OFFER.limit}`,
       title: "Complimentary factory visit",
       body: "Our team visits your factory at no additional travel cost.",
       worth: `Worth ${inr(CAB_TRAVEL.amountInr)}`,
     },
     {
       icon: "shield",
-      tag: `First ${LAUNCH_OFFER.foundingLimit}`,
+      tag: `First ${LAUNCH_OFFER.limit}`,
       title: `${firstMonths} months of support free`,
       body: "Hosting, security, backups and a real person to help.",
       worth: `Worth ${inr(SUPPORT_MONTHLY_INR * firstMonths)}`,
@@ -186,7 +186,6 @@ export const PLAN_BILLING_CSS = [
   ".vpv-fo-b h3{margin:.7rem 0 0;font-size:15px;line-height:1.25;font-weight:800;letter-spacing:-.01em;color:#fff}",
   ".vpv-fo-b p{margin:.3rem 0 0;font-size:12px;line-height:1.45;color:rgba(255,255,255,.66)}",
   ".vpv-fo-b .vpv-fo-worth{margin-top:auto;padding-top:.55rem;font-size:12.5px;font-weight:700;color:#F6DA92}",
-  ".vpv-fo.gone .vpv-fo-b.f{opacity:.45}",
   ".vpv-fo.seen .vpv-fo-b{animation:vpvFoIn .6s cubic-bezier(.22,1,.36,1) both;animation-delay:calc(var(--k)*90ms + .1s)}",
   "@keyframes vpvFoIn{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}",
   "@media (max-width:639px){.vpv-fo{padding:20px 16px;border-radius:22px}.vpv-fo-in{gap:18px}.vpv-fo-p{font-size:12.5px}.vpv-fo-grid{gap:8px}.vpv-fo-b{padding:11px 11px 10px;border-radius:15px}.vpv-fo-ic{width:30px;height:30px;border-radius:9px}.vpv-fo-ic svg{width:16px;height:16px}.vpv-fo-tag{font-size:9.5px;padding:2px 6px}.vpv-fo-b h3{margin-top:.5rem;font-size:14px}.vpv-fo-b p:not(.vpv-fo-worth){display:none}.vpv-fo-b .vpv-fo-worth{font-size:11.5px;padding-top:.35rem}.vpv-fo-seats{grid-template-columns:repeat(20,minmax(0,1fr));gap:3px}.vpv-fo-seat{width:auto;height:auto;aspect-ratio:1}.vpv-fo-cta{padding:10px 16px;font-size:14px}.vpv-bt-opt{font-size:14.5px}.vpv-bt{gap:10px}}",
@@ -222,7 +221,7 @@ const FOUNDING_HTML =
   FOUNDING_COPY.benefits
     .map(
       (b, k) =>
-        `<article class="vpv-fo-b${b.tag.endsWith(String(FOUNDING_COPY.limit)) ? " f" : ""}" style="--k:${k}">` +
+        `<article class="vpv-fo-b" style="--k:${k}">` +
         `<div class="vpv-fo-b-top"><span class="vpv-fo-ic">${svg(b.icon)}</span><span class="vpv-fo-tag">${b.tag}</span></div>` +
         `<h3>${b.title}</h3><p>${b.body}</p><p class="vpv-fo-worth">${b.worth}</p></article>`
     )
@@ -244,7 +243,7 @@ const CAPTION = {
 
 export const PLAN_BILLING_SCRIPT = String.raw`(function(){
   var KEY="vpv.billing",CAP=${JSON.stringify(CAPTION)},FO=${JSON.stringify(FOUNDING_HTML)},TG=${JSON.stringify(TOGGLE_HTML)};
-  var LIM=${FOUNDING_COPY.limit},HALF=${FOUNDING_COPY.halfLimit},PCT=${LAUNCH_OFFER.percent},ON=${LAUNCH_OFFER.active ? "true" : "false"};
+  var LIM=${FOUNDING_COPY.limit},ON=${LAUNCH_OFFER.active ? "true" : "false"};
   var quiet=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var painted=null;
   function mode(){try{return sessionStorage.getItem(KEY)==="lifetime"?"lifetime":"annual"}catch(e){return "annual"}}
@@ -273,17 +272,14 @@ export const PLAN_BILLING_SCRIPT = String.raw`(function(){
   function onPlans(){return location.pathname.replace(/\/+$/,"")==="/plans"}
   var offer=null,asked=false;
   function fill(b){
-    var c=b.querySelector("[data-count]"),seats=b.querySelectorAll(".vpv-fo-seat"),h=b.querySelector("[data-h]"),p=b.querySelector("[data-p]"),w=b.querySelector("[data-w]");
+    var c=b.querySelector("[data-count]"),seats=b.querySelectorAll(".vpv-fo-seat");
     if(!offer){b.classList.add("loading");return}
     b.classList.remove("loading");
     if(offer.failed){c.textContent="Limited to our first "+LIM+" paid customers.";b.querySelector(".vpv-fo-meter").firstChild.style.display="none";return}
-    if(!offer.open){b.style.display="none";return}
+    if(!offer.open||!offer.founding){b.style.display="none";return}
     var left=Math.max(0,offer.foundingRemaining|0),taken=LIM-left;
     for(var i=0;i<seats.length;i++)seats[i].classList.toggle("taken",i<taken);
-    if(offer.founding){c.innerHTML="<b>"+left+"</b> of "+LIM+" founding places left"}
-    else{b.classList.add("gone");if(w)w.style.display="none";h.innerHTML="All "+LIM+" founding places are taken. <em>"+PCT+"% off</em> is still open.";
-      p.textContent="Customers "+(LIM+1)+" to "+HALF+" get "+PCT+"% off their plan. From the "+(HALF+1)+"st, regular prices.";
-      c.innerHTML="<b>"+Math.max(0,offer.remaining|0)+"</b> of "+(HALF-LIM)+" places at "+PCT+"% off left"}
+    c.innerHTML="<b>"+left+"</b> of "+LIM+" founding places left"
   }
   function ask(){
     if(asked)return;asked=true;

@@ -160,6 +160,6 @@ describe("the order route", () => {
     );
     const bigBody = await w.readJson(big);
     assert.equal(bigBody.amountPaise, toPaise(siteQuote("premium", { city: "Manesar", salesSeats: SALES_TEAM.maxSeats }).totalInr));
-    assert.equal(LAUNCH_OFFER.limit, 30);
+    assert.equal(LAUNCH_OFFER.limit, 20);
   });
 });

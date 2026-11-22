@@ -38,7 +38,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import VpvLogo from "@/components/dashboard/VpvLogo";
-import { SUPPORT_ANNUAL_INR, fromPaise, inr } from "@/lib/pricing";
+import { SUPPORT_ANNUAL_INR, fromPaise, includedSalesLogins, inr } from "@/lib/pricing";
 import { usageTitle } from "@/lib/purchaseUsage";
 
 type StuckOrder = {
@@ -179,6 +179,8 @@ type Renewal = {
   sales_seat_inr: number | null;
   /** What a yearly plan renews at (plans_yearly.sql); null on a one-time plan. */
   plan_yearly_inr?: number | null;
+  /** The plan bought (plans_yearly.sql): White Glove includes one free login. */
+  site_plan?: string | null;
   salespeople: number;
   last_reminder: string | null;
   last_reminder_at: string | null;
@@ -949,7 +951,7 @@ function RenewalsSection({ rows }: { rows: Renewal[] }) {
     });
   const count = (st: Renewal["support_stage"]) => rows.filter((r) => r.support_stage === st).length;
   const calm = rows.length - act.length;
-  const over = rows.filter((r) => r.sales_seats > 0 && r.salespeople > r.sales_seats);
+  const over = rows.filter((r) => r.sales_seats > 0 && r.salespeople > r.sales_seats + includedSalesLogins(r.site_plan));
   const tone = count("locked") > 0 ? "red" : count("grace") > 0 || act.length > 0 ? "amber" : "plain";
   return (
     <Section
@@ -997,7 +999,7 @@ function RenewalsSection({ rows }: { rows: Renewal[] }) {
                               : "One-time"}
                       </Chip>
                       <div className="mt-1 text-[12.5px] text-vpv-muted">
-                        {r.salespeople} of {r.sales_seats} in use
+                        {r.salespeople} of {r.sales_seats + includedSalesLogins(r.site_plan)} in use
                         {r.logins_until && r.logins_stage !== "none" && ` · to ${when(r.logins_until).split(",")[0]}`}
                       </div>
                     </>
@@ -1021,7 +1023,7 @@ function RenewalsSection({ rows }: { rows: Renewal[] }) {
       {over.length > 0 && (
         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800">
           More salespeople than logins paid for:{" "}
-          {over.map((r) => `${r.org_name} (${r.salespeople} of ${r.sales_seats})`).join(", ")}.
+          {over.map((r) => `${r.org_name} (${r.salespeople} of ${r.sales_seats + includedSalesLogins(r.site_plan)})`).join(", ")}.
         </p>
       )}
       {calm > 0 && act.length > 0 && <p className="mt-2 text-[12px] text-vpv-muted">{calm} more are paid up for over a month.</p>}

@@ -48,6 +48,8 @@ import {
   inr,
   priceForScenes,
   linkControlLabels,
+  PLAN_PERKS,
+  isKnownPlanId,
 } from "@/lib/pricing";
 
 type OrgRow = {
@@ -102,6 +104,8 @@ export default function BillingPage() {
   const [renewInr, setRenewInr] = useState<number>(SUPPORT_ANNUAL_INR);
   // What the yearly plan renews at, 0 on a plan from before yearly billing.
   const [planYearly, setPlanYearly] = useState(0);
+  // The plan bought: White Glove includes a free login and a free update shoot every year.
+  const [sitePlan, setSitePlan] = useState<string | null>(null);
   // Sales Team logins: how many are paid for, at what price, until when, and how many people use them.
   const [logins, setLogins] = useState<{
     seats: number;
@@ -149,6 +153,7 @@ export default function BillingPage() {
           .maybeSingle();
         const yearlyInr = Number((yRow as { plan_yearly_inr?: number | null } | null)?.plan_yearly_inr ?? 0) || 0;
         setPlanYearly(yearlyInr);
+        setSitePlan(((yRow as { site_plan?: string | null } | null)?.site_plan as string | null) ?? null);
         setRenewInr(renewalAmount(each > 0 ? seats : 0, each, yearlyInr));
         // Their own end date and head-count. Read separately again: a database
         // without supabase/renewal_ladder.sql just shows the logins as moving with support.
@@ -338,6 +343,33 @@ export default function BillingPage() {
           )}
         </Card>
       </div>
+
+      {/* ── What the plan includes beyond the areas (White Glove) ───── */}
+      {org.plan === "basic" && isKnownPlanId(sitePlan) && (SITE_PLANS[sitePlan].freeSalesLogins > 0 || SITE_PLANS[sitePlan].updateShoots > 0) && (
+        <div className="mt-4 rounded-2xl border border-[#E9C46A]/70 bg-[#FFF8E1] p-6" data-testid="plan-perks">
+          <h2 className="text-[15px] font-semibold text-[#6B4A00]">Included with {SITE_PLANS[sitePlan].name}</h2>
+          <ul className="mt-3 space-y-2.5 text-[13.5px] leading-relaxed text-[#6B4A00]">
+            {SITE_PLANS[sitePlan].freeSalesLogins > 0 && (
+              <li>
+                <strong className="font-semibold">★ {PLAN_PERKS.salesLogin.row}.</strong> {PLAN_PERKS.salesLogin.note}{" "}
+                <Link href="/team" className="font-semibold underline underline-offset-2">Invite your salesperson</Link>
+              </li>
+            )}
+            {SITE_PLANS[sitePlan].updateShoots > 0 && (
+              <li>
+                <strong className="font-semibold">★ {PLAN_PERKS.updateShoot.row}.</strong> {PLAN_PERKS.updateShoot.note}{" "}
+                <a
+                  href={`mailto:support@myvpv.com?subject=${encodeURIComponent(`Update shoot for ${org.name}`)}&body=${encodeURIComponent("Hello, we would like to book our free update shoot for this plan year. The areas that have changed are:\n\n")}`}
+                  className="font-semibold underline underline-offset-2"
+                  data-testid="request-update-shoot"
+                >
+                  Request your update shoot
+                </a>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
       {/* ── Sales Team logins: their own due date ───────────────────── */}
       {org.plan === "basic" && logins.seats > 0 && (

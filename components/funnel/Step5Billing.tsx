@@ -102,8 +102,7 @@ export default function Step5Billing() {
   const offerOpen = offer.open && LAUNCH_OFFER.active && !offerClosedNotice;
   // A founding place (the first 20): 3 months free, free cab, free first
   // period of support. Re-checked before paying, like the 50%.
-  const [foundingClosedNotice, setFoundingClosedNotice] = useState(false);
-  const founding = offer.founding && offerOpen && !foundingClosedNotice;
+  const founding = offer.founding && offerOpen;
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -272,23 +271,17 @@ export default function Step5Billing() {
 
   async function onPay() {
     if (!s || !s.chosenPlan || !quote) return;
-    // The special offer is for the first 30 customers, and the founding
-    // offer for the first 20. If the last place went while this page was
-    // open, show the new total HERE, before Razorpay opens — never let the
-    // first sight of it be the payment sheet.
+    // The offer is for our first 20 customers. If the last place went while
+    // this page was open, show the new total HERE, before Razorpay opens —
+    // never let the first sight of it be the payment sheet.
     if (offerOpen) {
       try {
         const res = await fetch("/api/funnel/offer", { cache: "no-store" });
-        const data = (await res.json()) as { open?: boolean; founding?: boolean };
+        const data = (await res.json()) as { open?: boolean };
         if (data.open === false) {
           // Re-prices the bill on this screen and says why; the buyer
           // presses Pay again once they have seen the new total.
           setOfferClosedNotice(true);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          return;
-        }
-        if (founding && data.founding === false) {
-          setFoundingClosedNotice(true);
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         }
@@ -521,7 +514,7 @@ export default function Step5Billing() {
                   </div>
                   {travelFree && (
                     <p className="mt-3 text-[12.5px] leading-relaxed text-[#1D5E37]">
-                      <strong className="font-semibold">Travel is free</strong> for our first {LAUNCH_OFFER.foundingLimit} customers.
+                      <strong className="font-semibold">Travel is free</strong> for our first {LAUNCH_OFFER.limit} customers.
                     </p>
                   )}
                 </div>
@@ -561,7 +554,7 @@ export default function Step5Billing() {
                   {supportFree ? (
                     <>
                       <strong className="font-semibold">Free for your first {quote.firstMonths} months</strong> as one of our first{" "}
-                      {LAUNCH_OFFER.foundingLimit} customers.{" "}
+                      {LAUNCH_OFFER.limit} customers.{" "}
                     </>
                   ) : (
                     <>Charged with this order for your first year. </>
@@ -894,15 +887,9 @@ export default function Step5Billing() {
                   <div className="mt-5">
                     {offerClosedNotice && (
                       <p className="mb-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] text-slate-700">
-                        The special offer has just been taken by our {LAUNCH_OFFER.limit}th customer, so your total has
-                        been updated to the regular price. Please check it before you pay.
-                      </p>
-                    )}
-                    {foundingClosedNotice && !offerClosedNotice && (
-                      <p className="mb-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] text-slate-700">
-                        The last of our {LAUNCH_OFFER.foundingLimit} founding places has just been taken, so the 3 free
-                        months, the free cab and the free first year of support are no longer on your bill. You still get{" "}
-                        {LAUNCH_OFFER.percent}% off. Please check the new total before you pay.
+                        The offer has just been taken by our {LAUNCH_OFFER.limit}th customer, so your total has been
+                        updated to the regular price, without the {LAUNCH_OFFER.percent}% off, the free months, the free
+                        cab or the free first period of support. Please check it before you pay.
                       </p>
                     )}
                     {pay.testMode && (

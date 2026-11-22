@@ -44,6 +44,8 @@ import {
 import {
   LAUNCH_OFFER,
   SALES_TEAM,
+  SITE_PLANS,
+  includedSalesLogins,
   inr,
   inrLakhs,
   salesTeamMaths,
@@ -301,6 +303,15 @@ export default function Step5SalesTeam() {
                 <SectionTitle icon={Wallet} title="One login for each salesperson">
                   One flat price per login, however many you add. Billed yearly with your plan; no monthly fee per salesperson.
                 </SectionTitle>
+                {includedSalesLogins(s.chosenPlan) > 0 && (
+                  <p
+                    className="mt-4 rounded-xl border border-[#E9C46A]/60 bg-[#FFF8E1] px-4 py-3 text-[13.5px] font-medium text-[#6B4A00]"
+                    data-testid="included-login-note"
+                  >
+                    ★ Your {SITE_PLANS.white_glove.name} plan already includes {includedSalesLogins(s.chosenPlan)} free salesperson
+                    dashboard. The logins below are for more salespeople.
+                  </p>
+                )}
 
                 <div className="mt-7 grid items-center gap-8 lg:grid-cols-[1fr_1.1fr]">
                   <div className="rounded-2xl bg-vpv-canvas p-6 text-center">

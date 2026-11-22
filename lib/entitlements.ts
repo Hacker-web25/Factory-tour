@@ -18,7 +18,7 @@
  * browser cannot open them.
  */
 
-import { SITE_PLANS, SITE_PLAN_ORDER, isKnownPlanId, planPrice, type LinkControl, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { SITE_PLANS, SITE_PLAN_ORDER, includedSalesLogins, isKnownPlanId, planPrice, type LinkControl, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 
 /**
  * Where a feature starts. "all" = every plan; "media" = plans with process
@@ -151,7 +151,11 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   const tier = ROLLOUT[key].tier;
   if (tier === "hidden") return { state: "hidden" };
   if (tier === "all") return { state: "open" };
-  if (tier === "sales") return (f.sales_seats ?? 0) > 0 ? { state: "open" } : { state: "locked", upgradeTo: "sales_team" };
+  // A bought login, or the free one a plan includes (White Glove).
+  if (tier === "sales") {
+    const logins = (f.sales_seats ?? 0) + (f.plan === "pro" || f.plan === "ultra" ? 0 : includedSalesLogins(f.site_plan));
+    return logins > 0 ? { state: "open" } : { state: "locked", upgradeTo: "sales_team" };
+  }
   const has = (p: SitePlanId) =>
     tier === "media" ? SITE_PLANS[p].level >= 1 : SITE_PLANS[p].linkControls[ROLLOUT[key].control!];
   if (has(effectivePlan(f))) return { state: "open" };

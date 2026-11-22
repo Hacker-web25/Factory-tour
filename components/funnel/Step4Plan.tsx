@@ -23,7 +23,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BadgePercent, Check, Clock, FileText, Layers, Lock, Receipt, Star, Video,
+  BadgePercent, Camera, Check, Clock, FileText, Layers, Lock, Receipt, Star, UserCheck, Video,
 } from "lucide-react";
 import {
   BackLink,
@@ -46,7 +46,7 @@ import {
   SHOOT_DAY_HOURS,
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
-  SITE_PLAN_ORDER,
+  SITE_PLAN_DISPLAY_ORDER,
   AOA_HINT,
   VIDEO_SELF_INR,
   VIDEO_SELF_NOTE,
@@ -69,6 +69,7 @@ import {
   type SitePlanId,
   type SoldPlanId,
   infoIconsLabel,
+  PLAN_PERKS,
   linkControlLabels,
 } from "@/lib/pricing";
 import { loadFunnel, mirrorLead, recommendPlan, saveFunnel, type FunnelState } from "@/lib/funnel";
@@ -357,6 +358,8 @@ export default function Step4Plan() {
     founding
       ? { icon: Check, text: `Support, hosting & security free for ${quote.firstMonths} months`, strong: true }
       : { icon: Check, text: `Support, hosting & security: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly` },
+    ...(plan.freeSalesLogins > 0 ? [{ icon: UserCheck, text: PLAN_PERKS.salesLogin.row, strong: true, hint: PLAN_PERKS.salesLogin.note }] : []),
+    ...(plan.updateShoots > 0 ? [{ icon: Camera, text: PLAN_PERKS.updateShoot.row, strong: true, hint: PLAN_PERKS.updateShoot.note }] : []),
   ];
 
   return (
@@ -415,12 +418,12 @@ export default function Step4Plan() {
                   {founding && (
                     <ul className="mt-3 space-y-1.5 text-[13px] text-[#FFE7A0]">
                       <li>
-                        ★ Founding {LAUNCH_OFFER.foundingLimit}:{" "}
+                        ★ Founding {LAUNCH_OFFER.limit}:{" "}
                         {life
                           ? `support, hosting & security free for your first ${quote.firstMonths} months`
                           : `${LAUNCH_OFFER.freeMonths} months free (your first year runs ${quote.firstMonths} months), and support free for them`}
                         , plus a free cab to your plant
-                        {offer.foundingRemaining != null ? ` · ${offer.foundingRemaining} of ${LAUNCH_OFFER.foundingLimit} places left` : ""}
+                        {offer.foundingRemaining != null ? ` · ${offer.foundingRemaining} of ${LAUNCH_OFFER.limit} places left` : ""}
                       </li>
                     </ul>
                   )}
@@ -654,7 +657,7 @@ export default function Step4Plan() {
         </div>
         {compare && (
           <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {SITE_PLAN_ORDER.map((id) => {
+            {SITE_PLAN_DISPLAY_ORDER.map((id) => {
               const p = SITE_PLANS[id];
               const active = id === planId;
               return (
@@ -694,6 +697,8 @@ export default function Step4Plan() {
                     <li className={p.sharingControls ? "font-medium text-vpv-blue" : "text-slate-400"}>
                       {p.sharingControls ? linkControlLabels(id).join(" · ") : "No link controls"}
                     </li>
+                    {p.freeSalesLogins > 0 && <li className="font-medium text-[#8A6100]">★ {PLAN_PERKS.salesLogin.row}</li>}
+                    {p.updateShoots > 0 && <li className="font-medium text-[#8A6100]">★ {PLAN_PERKS.updateShoot.row}</li>}
                   </ul>
                   <button
                     type="button"

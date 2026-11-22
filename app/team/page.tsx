@@ -1,5 +1,6 @@
 "use client";
 
+import { includedSalesLogins } from "@/lib/pricing";
 import { useEntitlements } from "@/lib/useEntitlements";
 import SalesTeamLock from "@/components/billing/SalesTeamLock";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -414,10 +415,10 @@ export default function TeamPage() {
               Manage presenters — see their activity, revoke access, generate
               invite codes.
             </p>
-            {ent.ready && (ent.facts.sales_seats ?? 0) > 0 && (
+            {ent.ready && (ent.facts.sales_seats ?? 0) + includedSalesLogins(ent.facts.site_plan) > 0 && (
               <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-vpv-line bg-white px-3 py-1 text-[12.5px] text-vpv-ink">
                 <strong className="tabular-nums">{members.length}</strong> of{" "}
-                <strong className="tabular-nums">{ent.facts.sales_seats}</strong> Sales Team logins in use
+                <strong className="tabular-nums">{(ent.facts.sales_seats ?? 0) + includedSalesLogins(ent.facts.site_plan)}</strong> Sales Team logins in use
                 {me?.role === "org_admin" && (
                   <Link href="/billing/upgrade#logins" className="font-semibold text-vpv-blue hover:underline">
                     Add logins

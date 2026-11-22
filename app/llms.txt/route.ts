@@ -17,7 +17,7 @@ import {
   SUPPORT_NAME,
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
-  SITE_PLAN_ORDER,
+  SITE_PLAN_DISPLAY_ORDER,
   hoursLabel,
   inr,
   infoIconsLabel,
@@ -35,7 +35,7 @@ export const dynamic = "force-static";
  * lib/pricing.ts — the same constants the checkout charges from — so this
  * file cannot drift away from what a buyer is actually quoted.
  */
-const PLANS = SITE_PLAN_ORDER.map((id) => {
+const PLANS = SITE_PLAN_DISPLAY_ORDER.map((id) => {
   const p = SITE_PLANS[id];
   const bits = [
     ...(p.personal
@@ -48,6 +48,8 @@ const PLANS = SITE_PLAN_ORDER.map((id) => {
   if (p.pdfs > 0) bits.push(`${p.pdfs} PDF documents`);
   bits.push(infoIconsLabel(id).toLowerCase());
   if (p.sharingControls) bits.push(`link controls: ${linkControlLabels(id).join(", ").toLowerCase()}`);
+  if (p.freeSalesLogins > 0) bits.push(`${p.freeSalesLogins} free salesperson dashboard (a Sales Team login)`);
+  if (p.updateShoots > 0) bits.push(`${p.updateShoots} free update shoot of the factory every year`);
   const price = LAUNCH_OFFER.active
     ? `yearly ${inr(p.monthlyInr)}/month, billed yearly as ${inr(p.priceInr)}, or lifetime ${inr(p.lifetimeInr)} once, + 18% GST, for the first ${LAUNCH_OFFER.limit} customers (regular ${inr(p.regularMonthlyInr)}/month, ${inr(p.regularInr)} a year, or ${inr(p.regularLifetimeInr)} lifetime)`
     : `yearly ${inr(p.regularMonthlyInr)}/month, billed yearly as ${inr(p.regularInr)}, or lifetime ${inr(p.regularLifetimeInr)} once, + 18% GST`;
@@ -101,11 +103,11 @@ factory shoot.
 Every plan, yearly or lifetime, also carries ${SUPPORT_NAME.toLowerCase()} at
 ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly as ${inr(SUPPORT_ANNUAL_INR)} + GST.
 ${LAUNCH_OFFER.active ? `
-Offers, counted in the order payments reach us: the first ${LAUNCH_OFFER.limit} customers get ${LAUNCH_OFFER.percent}% off the plan (kept every year a yearly plan renews). The first ${LAUNCH_OFFER.foundingLimit} also get ${LAUNCH_OFFER.freeMonths} months free (a ${12 + LAUNCH_OFFER.freeMonths}-month first year), free cab travel, and their first ${12 + LAUNCH_OFFER.freeMonths} months of support, hosting & security free. Places left are shown live on https://myvpv.com/plans.
+Offer, counted in the order payments reach us: the first ${LAUNCH_OFFER.limit} customers (and only them) get ${LAUNCH_OFFER.percent}% off the plan (kept every year a yearly plan renews), ${LAUNCH_OFFER.freeMonths} months free (a ${12 + LAUNCH_OFFER.freeMonths}-month first year), free cab travel, their first ${12 + LAUNCH_OFFER.freeMonths} months of support, hosting & security free, and Sales Team logins at ${inr(SALES_TEAM.offerInr)}. Places left are shown live on https://myvpv.com/plans.
 ` : ""}
 Also payable with the order:
-- Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.foundingLimit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
-- Sales Team logins (optional): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with the plan.
+- Travel: by cab, for factories in ${SERVICE_CITY_LIST}. ${LAUNCH_OFFER.active ? `Free for the first ${LAUNCH_OFFER.limit} customers (normally ${inr(CAB_TRAVEL.amountInr)} + GST).` : `${inr(CAB_TRAVEL.amountInr)} + GST.`} Other cities are not served yet.
+- Sales Team logins (optional; White Glove includes one free): ${inr(SALES_TEAM.offerInr)} per salesperson per year for the first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that; renewed yearly with the plan.
 - Extra shoot time beyond the plan: ${inr(EXTRA_HOUR_INR)} an hour.
 
 A buyer picks a plan by answering a short assessment at

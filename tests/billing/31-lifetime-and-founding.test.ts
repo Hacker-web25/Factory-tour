@@ -28,9 +28,9 @@ import { canBuyUpgrade, upgradeOptions } from "@/lib/entitlements";
 /**
  * 22 Nov 2026: every plan can also be bought once, for life; support,
  * hosting & security (₹999/month, billed yearly as ₹11,988) is charged on
- * every plan again; and the offers are now the founding 20 (3 months free,
- * 50% off, free cab, first 15 months of support free) and customers 21 to
- * 30 (50% off only).
+ * every plan again; and the offer is one tier, for the first 20 customers
+ * only (3 months free, 50% off, free cab, first 15 months of support free,
+ * Sales Team logins at the offer price). From the 21st, none of it.
  */
 describe("lifetime prices", () => {
   it("are the owner's just-below-round prices, with the struck price at twice that", () => {
@@ -52,9 +52,6 @@ describe("lifetime prices", () => {
     assert.equal(q.yearlyInr, 0, "only support renews");
     // Founding customer: support free for 15 months, cab free.
     assert.equal(q.taxableInr, 5_49_999);
-    // Customer 21 to 30: support and cab charged.
-    const later = siteQuote("premium", { city: "Manesar", billing: "lifetime", founding: false });
-    assert.equal(later.taxableInr, 5_49_999 + 4_000 + SUPPORT_ANNUAL_INR);
     // After the offer: the regular lifetime price.
     const closed = siteQuote("premium", { city: "Manesar", billing: "lifetime", offerOpen: false });
     assert.equal(closed.taxableInr, 10_99_998 + 4_000 + SUPPORT_ANNUAL_INR);
@@ -99,19 +96,19 @@ describe("lifetime prices", () => {
   });
 });
 
-describe("the founding 20 and the first 30", () => {
-  it("counts the founding places inside the 30", () => {
+describe("the first 20 and nobody after", () => {
+  it("has one tier: the founding places are the whole offer", () => {
     assert.equal(LAUNCH_OFFER.foundingLimit, 20);
-    assert.equal(LAUNCH_OFFER.limit, 30);
+    assert.equal(LAUNCH_OFFER.limit, 20);
     assert.equal(foundingOfferOpen(19), true);
     assert.equal(foundingOfferOpen(20), false);
-    assert.equal(launchOfferOpen(20), true);
-    assert.equal(launchOfferOpen(30), false);
+    assert.equal(launchOfferOpen(19), true);
+    assert.equal(launchOfferOpen(20), false);
     assert.equal(firstPeriodMonths(true), 15);
     assert.equal(firstPeriodMonths(false), 12);
   });
 
-  it("gives a founding customer all four benefits, and customer 21 the 50% only", () => {
+  it("gives one of the first 20 all four benefits, and customer 21 none", () => {
     const f = siteQuote("light", { city: "Gurugram" });
     assert.equal(f.founding, true);
     assert.equal(f.firstMonths, 15);
@@ -121,12 +118,12 @@ describe("the founding 20 and the first 30", () => {
     assert.equal(f.lines.find((l) => l.kind === "support")!.amountInr, 0, "support free for 15 months");
     assert.equal(f.taxableInr, 42_720);
 
-    const n21 = siteQuote("light", { city: "Gurugram", founding: false });
+    const n21 = siteQuote("light", { city: "Gurugram", offerOpen: false });
     assert.equal(n21.founding, false);
     assert.equal(n21.firstMonths, 12);
-    assert.ok(n21.lines.some((l) => l.kind === "offer"), "still 50% off");
+    assert.ok(!n21.lines.some((l) => l.kind === "offer"), "no 50% off");
     assert.ok(!n21.lines.some((l) => l.kind === "bonus"));
-    assert.equal(n21.taxableInr, 42_720 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(n21.taxableInr, 85_440 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 });
 
@@ -172,19 +169,19 @@ describe("lifetime and founding through the real payment flow", () => {
     assert.ok(months > 14.8 && months < 15.2, `15 months, got ${months}`);
   });
 
-  it("customer 21 pays the 50% price with the cab and a year of support, for 12 months", async () => {
+  it("customer 21 pays the regular price with the cab and a year of support, for 12 months", async () => {
     await paidOrders(20);
     const o = await open({ sitePlanId: "light" });
     assert.equal(o.status, 200, JSON.stringify(o.body));
-    assert.equal(o.body.amountPaise, toPaise(withGst(42_720 + 4_000 + SUPPORT_ANNUAL_INR).total));
+    assert.equal(o.body.amountPaise, toPaise(withGst(85_440 + 4_000 + SUPPORT_ANNUAL_INR).total));
     const [row] = await w.q(`select notes from public.billing_orders where status = 'created'`);
-    assert.match(row.notes, /Special offer/);
+    assert.doesNotMatch(row.notes, /Special offer/);
     assert.doesNotMatch(row.notes, /Founding offer/);
     await w.payInBrowser(o.body);
     assert.equal((await w.poll(o.body.orderId)).body.status, "ready");
     const [org] = await w.q(`select plan_billing, plan_yearly_inr, support_until from public.organizations`);
     assert.equal(org.plan_billing, "annual");
-    assert.equal(Number(org.plan_yearly_inr), 42_720);
+    assert.equal(Number(org.plan_yearly_inr), 85_440);
     const months = (new Date(org.support_until).getTime() - Date.now()) / (30.4 * 86_400_000);
     assert.ok(months > 11.8 && months < 12.2, `12 months, got ${months}`);
   });

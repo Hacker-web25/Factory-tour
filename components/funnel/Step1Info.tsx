@@ -289,7 +289,7 @@ export default function Step1Info() {
                   )}
                 </div>
                 <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-600">
-                  {travelFree ? `Free for our first ${LAUNCH_OFFER.foundingLimit} customers. ` : ""}
+                  {travelFree ? `Free for our first ${LAUNCH_OFFER.limit} customers. ` : ""}
                   {quote.mode}
                 </p>
               </div>
