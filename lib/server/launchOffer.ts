@@ -2,11 +2,11 @@
  * lib/server/launchOffer.ts — how many customers have taken the special
  * offer, and so whether it is still open.
  *
- * "Our first 30 customers" (50% off) and "our first 20" (the founding
- * offer) are printed on the site. This is
- * what makes it true: the order route asks here before pricing a plan, and
- * from the 51st paid site-plan order onwards the plan is charged at its
- * regular price. Nobody has to remember to switch the offer off.
+ * "Our first 20 customers" (every offer: 50% off, ₹199 logins, 3 months
+ * free, free cab, free first support) is printed on the site. This is what
+ * makes it true: the order route asks here before pricing a plan, and from
+ * the 21st paid site-plan order onwards the plan is charged at its regular
+ * price. Nobody has to remember to switch the offer off.
  *
  * What counts as a customer: a billing_orders row that is PAID, stored as a
  * basic_licence, whose description names one of the site plans. Site
@@ -23,10 +23,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LAUNCH_OFFER, foundingOfferOpen, launchOfferOpen, sitePlanFromNotes } from "@/lib/pricing";
 
 export type OfferState = {
-  /** 50% off (and ₹199 logins): the first 30. */
+  /** The offer (50% off, ₹199 logins, …): the first 20. */
   open: boolean;
-  /** A founding place (3 months free, free cab, free first period of
-   *  support): the first 20. */
+  /** Always the same as `open` since 22 Nov 2026 (one tier, the first 20);
+   *  kept so older callers keep working. */
   founding: boolean;
   sold: number;
   remaining: number;
@@ -63,7 +63,7 @@ export async function launchOfferState(sb: SupabaseClient | null): Promise<Offer
     console.warn("[launchOffer] count failed, treating offer as open:", error.message);
     return closed(0);
   }
-  // Every plan counts, the seven on sale and the four sold before them.
+  // Every plan counts, the four on sale and the older ones sold before them.
   const sold = (data ?? []).filter((r: { notes: string | null }) => sitePlanFromNotes(r.notes) !== null).length;
   return closed(sold);
 }

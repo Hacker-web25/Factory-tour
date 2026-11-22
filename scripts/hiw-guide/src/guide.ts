@@ -25,7 +25,7 @@ import {
   SUPPORT_ANNUAL_INR,
   SUPPORT_MONTHLY_INR,
   SITE_PLANS,
-  SITE_PLAN_ORDER,
+  SITE_PLAN_DISPLAY_ORDER,
   VIDEO_SELF_INR,
   VIDEO_SHOT_INR,
   inr,
@@ -73,7 +73,7 @@ const svg = (d: string, s = 20, w = 2) =>
   `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
 /* ─────────── the numbers, all from lib/pricing ─────────── */
-const plans = SITE_PLAN_ORDER.map((id) => SITE_PLANS[id]);
+const plans = SITE_PLAN_DISPLAY_ORDER.map((id) => SITE_PLANS[id]);
 const shortName = (n: string) => n.replace(/^VPV /, "");
 const hoursList = (() => {
   const h = plans.map((p) => p.shootHours);
@@ -143,8 +143,9 @@ const GET: Deliverable[] = [
   { icon: I.video, tag: "Premium and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
   { icon: I.file, tag: "Premium and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
   { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium, password-protected links from Ultra, and link expiry time and limits on devices with White Glove." },
-  { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place." },
+  { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place. White Glove includes one free." },
   { icon: I.star, tag: "White Glove", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
+  { icon: I.video, tag: "White Glove", tagKind: "ent", title: "A free update shoot every year", text: "If parts of your factory change, we come back once a year and reshoot those areas, and update your VPV. Cab travel included." },
 ];
 
 const BUYER = [
@@ -180,7 +181,7 @@ const COSTS: CostRow[] = [
     what: "Your plan, billed yearly",
     price: plans.map((p) => `${shortName(p.name)} ${inr(LAUNCH_OFFER.active ? p.monthlyInr : p.regularMonthlyInr)}/month`).join(" · "),
     note: LAUNCH_OFFER.active
-      ? `${LAUNCH_OFFER.percent}% off the regular price for our first ${LAUNCH_OFFER.limit} customers, every year they renew. Our first ${LAUNCH_OFFER.foundingLimit} also get ${LAUNCH_OFFER.freeMonths} months free.`
+      ? `${LAUNCH_OFFER.percent}% off the regular price for our first ${LAUNCH_OFFER.limit} customers, every year they renew. They also get ${LAUNCH_OFFER.freeMonths} months free.`
       : "Renews every year at the price you bought at.",
   },
   {
@@ -195,10 +196,10 @@ const COSTS: CostRow[] = [
     price: LAUNCH_OFFER.active ? `Free for ${12 + LAUNCH_OFFER.freeMonths} months` : `${inr(SUPPORT_MONTHLY_INR)}/month`,
     was: LAUNCH_OFFER.active ? inr(SUPPORT_ANNUAL_INR) : undefined,
     note: LAUNCH_OFFER.active
-      ? `On every plan, yearly or lifetime: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.foundingLimit} customers.`
+      ? `On every plan, yearly or lifetime: ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly. Free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.limit} customers.`
       : `On every plan, yearly or lifetime, billed yearly as ${inr(SUPPORT_ANNUAL_INR)}.`,
   },
-  { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.foundingLimit} customers.` },
+  { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.limit} customers.` },
   { what: "Sales Team logins (optional)", price: `${inr(SALES_TEAM.offerInr)} per login, a year`, was: inr(SALES_TEAM.regularInr), note: "Only if your salespeople will present it." },
   { what: "Extra process videos (optional)", price: `${inr(VIDEO_SELF_INR)} or ${inr(VIDEO_SHOT_INR)} each`, note: `${inr(VIDEO_SELF_INR)} if you send us the video, ${inr(VIDEO_SHOT_INR)} if we film it.` },
   { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with a yearly plan (on a lifetime plan, paid once). The bigger your plan, the less each extra area costs." },

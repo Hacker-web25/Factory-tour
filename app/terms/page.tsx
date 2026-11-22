@@ -5,9 +5,9 @@
  * plans (Light, Premium, Ultra, White Glove), each bought either yearly (a
  * Plan Fee shown per month and billed yearly in advance) or once, for life;
  * plus the yearly Support Fee for support, hosting & security on every plan,
- * and optional yearly Sales Team logins. The special offers: 50% off for the
- * first 30 customers, and for the first 20 also 3 months free, free cab
- * travel and their first 15 months of support free. Plans bought before (a one-time fee plus a
+ * and optional yearly Sales Team logins. One offer, for the first 20
+ * customers only: 50% off, 3 months free, free cab travel, their first 15
+ * months of support free, and ₹199 Sales Team logins. Plans bought before (a one-time fee plus a
  * yearly support fee) keep their terms: see "Older plans". Every number and window comes from
  * lib/pricing.ts and lib/company.ts, so this page can never disagree with
  * /plans, the checkout, the invoice or the other policies.
@@ -135,8 +135,9 @@ const sections: LegalSection[] = [
           Workspace and tours online, on every Plan, yearly or lifetime.
         </li>
         <li>
-          <B>Sales Team login</B>: an optional yearly login for one of your
-          salespeople.
+          <B>Sales Team login</B>: a yearly login for one of your salespeople,
+          optional on every Plan, and one is included free with{" "}
+          {SITE_PLANS.white_glove.name}.
         </li>
         <li>
           <B>Workspace</B>: your business&rsquo;s private area of VPV, reached at{" "}
@@ -212,6 +213,14 @@ const sections: LegalSection[] = [
                 {p.sharingControls ? `, and these link controls: ${linkControlLabels(id).join(", ").toLowerCase()}` : ""}
                 {p.personal
                   ? `, together with a private discussion with ${ENTERPRISE_PERSONAL.person} and a shoot led personally by ${ENTERPRISE_PERSONAL.person} (see below)`
+                  : ""}
+                {p.freeSalesLogins > 0 || p.updateShoots > 0
+                  ? `, ${[
+                      p.freeSalesLogins > 0 ? `${p.freeSalesLogins} free Sales Team login (a salesperson dashboard)` : "",
+                      p.updateShoots > 0 ? `${p.updateShoots} free update shoot every plan year (see The free update shoot)` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" and ")}`
                   : ""}
                 .
               </li>
@@ -291,7 +300,9 @@ const sections: LegalSection[] = [
         </P>
         <P>
           <B>Sales Team logins.</B> On any Plan you may add a login for each of
-          your salespeople. It gives your administrator (usually the MD) a sales
+          your salespeople; {SITE_PLANS.white_glove.name} already includes{" "}
+          {SITE_PLANS.white_glove.freeSalesLogins} login free, for as long as the
+          Plan runs, and more can be added at the prices below. It gives your administrator (usually the MD) a sales
           dashboard: when and where each meeting started, the meetings held with
           each client, and each client&rsquo;s stage (new, moving ahead, won or
           lost). Logins are billed <B>per salesperson, per year</B>, at one flat
@@ -299,7 +310,7 @@ const sections: LegalSection[] = [
           Plan, the logins are offered for renewal on the same bill and you can
           untick them; how that works is under{" "}
           <L href="#support">Yearly renewal, support, hosting &amp; security</L>. A Workspace
-          cannot have more salespeople signed in than the logins paid for. A
+          cannot have more salespeople signed in than the logins paid for (and, on {SITE_PLANS.white_glove.name}, the one included). A
           meeting&rsquo;s place is recorded only if the salesperson allows
           location in their browser; see{" "}
           <L href="#recording-ai">Location, and features that are switched off</L>.
@@ -344,7 +355,7 @@ const sections: LegalSection[] = [
             lifetime): {inr(SUPPORT_MONTHLY_INR)} a month, billed yearly as{" "}
             {inr(SUPPORT_ANNUAL_INR)}
             {LAUNCH_OFFER.active
-              ? `. Our first ${LAUNCH_OFFER.foundingLimit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free; for later customers the first year is charged with the order`
+              ? `. Our first ${LAUNCH_OFFER.limit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free; for later customers the first year is charged with the order`
               : "; the first year is charged with your order"}
             .
           </li>
@@ -384,7 +395,7 @@ const sections: LegalSection[] = [
           </li>
           <li>
             <B>Cab travel</B> for our crew: {inr(CAB_TRAVEL.amountInr)} per shoot
-            {LAUNCH_OFFER.active ? `, free for our first ${LAUNCH_OFFER.foundingLimit} customers` : ""}.
+            {LAUNCH_OFFER.active ? `, free for our first ${LAUNCH_OFFER.limit} customers` : ""}.
           </li>
           <li>
             <B>Changing the shoot date</B>: the first change is free; each change
@@ -437,10 +448,8 @@ const sections: LegalSection[] = [
       <>
         <P>
           {LAUNCH_OFFER.active
-            ? `There are two offers, by the order in which payments reach us. ` +
-              `The founding offer, for our first ${LAUNCH_OFFER.foundingLimit} customers: ${LAUNCH_OFFER.freeMonths} months free (a yearly Plan's first year runs ${12 + LAUNCH_OFFER.freeMonths} months for the price of 12), free cab travel for the shoot, and the first ${12 + LAUNCH_OFFER.freeMonths} months of ${support} free; together with the special offer. ` +
-              `The special offer, for our first ${LAUNCH_OFFER.limit} customers: the Plans at ${LAUNCH_OFFER.percent}% off their regular price (yearly, every year they renew, or lifetime), and Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}.`
-            : "The special offers have ended; the Plans are sold at their regular price."}
+            ? `Our first ${LAUNCH_OFFER.limit} customers, by the order in which payments reach us, get everything below, together: the Plans at ${LAUNCH_OFFER.percent}% off their regular price (yearly, every year they renew, or lifetime); ${LAUNCH_OFFER.freeMonths} months free (a yearly Plan's first year runs ${12 + LAUNCH_OFFER.freeMonths} months for the price of 12); free cab travel for the shoot; the first ${12 + LAUNCH_OFFER.freeMonths} months of ${support} free; and Sales Team logins at ${inr(SALES_TEAM.offerInr)} per salesperson per year instead of ${inr(SALES_TEAM.regularInr)}. There is no second tier: from the ${LAUNCH_OFFER.limit + 1}st customer, none of it applies.`
+            : "The offer has ended; the Plans are sold at their regular price."}
         </P>
         <UL>
           <li>
@@ -456,10 +465,9 @@ const sections: LegalSection[] = [
             updated at least every minute.
           </li>
           <li>
-            <B>It ends on its own.</B> From the {LAUNCH_OFFER.foundingLimit + 1}st paid
-            Plan the founding offer no longer applies, and from the{" "}
-            {LAUNCH_OFFER.limit + 1}st the regular price applies. The checkout
-            counts this automatically. If the last place is taken while you are
+            <B>It ends on its own.</B> From the {LAUNCH_OFFER.limit + 1}st paid
+            Plan the regular price applies. The checkout counts this
+            automatically. If the last place is taken while you are
             on the billing page, you see the new total before you pay, never
             after.
           </li>
@@ -469,9 +477,9 @@ const sections: LegalSection[] = [
             long as you keep renewing (your Plan renews at the price you bought
             at, and moving up a Plan is priced at the offer rate too), and on a
             lifetime Plan to the one payment. Sales Team logins bought with it
-            stay at the offer price at each renewal. The founding offer&rsquo;s
-            free months and free first period of {support} are given once, at
-            the start. Neither offer covers extra AOAs, process videos, extra
+            stay at the offer price at each renewal. The free months and the free
+            first period of {support} are given once, at the start. The offer
+            does not cover extra AOAs, process videos, extra
             shoot time, date changes or the Support Fee after the free first
             period. If a Workspace is closed and you buy again later, the price
             of that day applies.
@@ -511,6 +519,18 @@ const sections: LegalSection[] = [
           before you pay. You pay the hours on your bill, not what the day
           actually takes. A shoot longer than one working day runs over more
           than one day.
+        </li>
+        <li>
+          <B>The free update shoot ({SITE_PLANS.white_glove.name}).</B>{" "}
+          {SITE_PLANS.white_glove.name} includes {SITE_PLANS.white_glove.updateShoots} update shoot every plan year,
+          free: if parts of your factory change, we come back and reshoot the
+          areas already in your VPV, and update them. Ask for it from your
+          dashboard or by writing to us; we contact you within{" "}
+          {POLICY.shootContactBusinessDays} business days to agree a date. Cab
+          travel is included. It covers updating areas your VPV already has;
+          new AOAs, process videos and any extra shoot time are charged as set
+          out above. An update shoot you do not use in a plan year does not
+          carry over to the next.
         </li>
         <li>
           <B>On the day you provide</B> access to every area you chose, a person
@@ -562,7 +582,7 @@ const sections: LegalSection[] = [
           <B>{inr(CAB_TRAVEL.amountInr)}</B> plus GST per shoot
           {LAUNCH_OFFER.active ? (
             <>
-              , and <B>free for our first {LAUNCH_OFFER.foundingLimit} customers</B>
+              , and <B>free for our first {LAUNCH_OFFER.limit} customers</B>
             </>
           ) : null}
           . It is shown on your bill before you pay. There are no flights,
@@ -645,7 +665,7 @@ const sections: LegalSection[] = [
           month, billed yearly as {inr(SUPPORT_ANNUAL_INR)} plus GST</B>, on
           every Plan, yearly or lifetime
           {LAUNCH_OFFER.active
-            ? `; our first ${LAUNCH_OFFER.foundingLimit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free`
+            ? `; our first ${LAUNCH_OFFER.limit} customers get their first ${12 + LAUNCH_OFFER.freeMonths} months free`
             : ""}
           . It covers:
         </P>
@@ -1073,7 +1093,7 @@ export default function TermsPage() {
         {LAUNCH_OFFER.active ? " under the same offer" : ""}), plus GST. The first payment includes the shoot and building your
         VPV, usually live {POLICY.vpvDeliveryTypical} after the shoot. {SUPPORT_NAME} is{" "}
         {inr(SUPPORT_ANNUAL_INR)} a year on every Plan
-        {LAUNCH_OFFER.active ? `, free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.foundingLimit} customers` : ""}.
+        {LAUNCH_OFFER.active ? `, free for the first ${12 + LAUNCH_OFFER.freeMonths} months for our first ${LAUNCH_OFFER.limit} customers` : ""}.
         We never charge you automatically: you renew yourself, after reminders,
         and a Workspace not renewed within {POLICY.supportGraceDays} days is
         locked (never deleted without {POLICY.deletionNoticeDays} days&rsquo;
@@ -1092,10 +1112,9 @@ export default function TermsPage() {
               factory&rsquo;s covered area.
             </li>
             <li>
-              The special offer is now for our first {LAUNCH_OFFER.limit} customers ({LAUNCH_OFFER.percent}% off, kept
-              every year a yearly Plan renews), and our first {LAUNCH_OFFER.foundingLimit} also get{" "}
-              {LAUNCH_OFFER.freeMonths} months free, free cab travel and their first {12 + LAUNCH_OFFER.freeMonths}{" "}
-              months of support free.
+              The offer is now one offer for our first {LAUNCH_OFFER.limit} customers only: {LAUNCH_OFFER.percent}% off
+              (kept every year a yearly Plan renews), {LAUNCH_OFFER.freeMonths} months free, free cab travel, their
+              first {12 + LAUNCH_OFFER.freeMonths} months of support free, and ₹199 Sales Team logins.
             </li>
             <li>Moving up a Plan: the yearly difference, for the months left until your Plan renews.</li>
           </UL>

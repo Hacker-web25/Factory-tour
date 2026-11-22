@@ -35,7 +35,7 @@
  */
 
 import { sitePage } from "@/lib/site/pages";
-import { AOA_HINT, LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_ORDER } from "@/lib/pricing";
+import { AOA_HINT, LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_DISPLAY_ORDER } from "@/lib/pricing";
 import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.9e420716.js";
+const JS_SRC = "/static/js/main.a29c5d5d.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -159,7 +159,7 @@ const ORGANIZATION_LD = JSON.stringify({
  * checkout charges from, which means they cannot quietly go stale.
  */
 function serviceLd(): string {
-  const offers = SITE_PLAN_ORDER.map((id) => {
+  const offers = SITE_PLAN_DISPLAY_ORDER.map((id) => {
     const p = SITE_PLANS[id];
     const price = LAUNCH_OFFER.active
       ? Math.round((p.regularInr * (100 - LAUNCH_OFFER.percent)) / 100)

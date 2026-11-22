@@ -428,7 +428,8 @@ returns table (
   salespeople       integer,
   last_reminder     text,
   last_reminder_at  timestamptz,
-  plan_yearly_inr   integer
+  plan_yearly_inr   integer,
+  site_plan         text
 )
 language sql
 stable
@@ -460,7 +461,8 @@ as $$
     (select count(*)::int from public.profiles p where p.org_id = o.id and p.role = 'presenter'),
     (select r.kind from public.support_reminders r where r.org_id = o.id order by r.sent_at desc limit 1),
     (select r.sent_at from public.support_reminders r where r.org_id = o.id order by r.sent_at desc limit 1),
-    o.plan_yearly_inr
+    o.plan_yearly_inr,
+    o.site_plan
   from public.organizations o
   where o.plan = 'basic'
     and public.is_platform_owner()

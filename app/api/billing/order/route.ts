@@ -451,7 +451,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // The special offers are "for our first 30 / first 20 customers", so whether they still
+  // The offer is "for our first 20 customers", so whether it still
   // applies is decided HERE, from the real count of paid site-plan orders —
   // never from anything the browser says.
   const offer =
