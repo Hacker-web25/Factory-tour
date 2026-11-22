@@ -202,7 +202,7 @@ const COSTS: CostRow[] = [
   { what: "Cab travel for our crew", price: "Free", was: inr(CAB_TRAVEL.amountInr), note: `Free for our first ${LAUNCH_OFFER.limit} customers.` },
   { what: "Sales Team logins (optional)", price: `${inr(SALES_TEAM.offerInr)} per login, a year`, was: inr(SALES_TEAM.regularInr), note: "Only if your salespeople will present it." },
   { what: "Extra process videos (optional)", price: `${inr(VIDEO_SELF_INR)} or ${inr(VIDEO_SHOT_INR)} each`, note: `${inr(VIDEO_SELF_INR)} if you send us the video, ${inr(VIDEO_SHOT_INR)} if we film it.` },
-  { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with a yearly plan (on a lifetime plan, paid once). The bigger your plan, the less each extra area costs." },
+  { what: "Extra areas (optional)", price: `${extraAreaRange} each, a year`, note: "They renew with a yearly plan (on a lifetime plan, paid once). The price is the same on every plan, and it falls the more areas you add." },
   { what: "Extra shoot time (only if needed)", price: `${inr(EXTRA_HOUR_INR)} an hour`, note: `Plans include ${hoursList} hours. Extra areas or videos can add time, and it shows on your bill before you pay.` },
   { what: "Rescheduling your shoot", price: "First change free", note: `${inr(RESCHEDULE_INR)} for each change after that.` },
 ];

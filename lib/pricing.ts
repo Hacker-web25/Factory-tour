@@ -593,8 +593,10 @@ export type SitePlanSpec = {
   updateShoots: number;
   /** No longer sold; kept so workspaces that bought it keep working. */
   legacy?: boolean;
-  /** This plan's YEARLY price for each extra area. Cheaper on the higher
-   *  plans. On a yearly plan extra areas renew with the plan. */
+  /** This plan's YEARLY price for each extra area. The four plans on sale
+   *  share one ladder (EXTRA_AREA_LADDER) since 22 Nov 2026; the plans no
+   *  longer sold keep their own. On a yearly plan extra areas renew with
+   *  the plan. */
   extraAreaLadder: ExtraAreaBand[];
 };
 
@@ -614,8 +616,9 @@ export type SitePlanSpec = {
  * │ Premium and Ultra keep theirs; White Glove has what Signature had   │
  * │ (every link control and Mr. Gupta's own time).                      │
  * │                                                                     │
- * │ Extras: a plan plus enough extra areas to match the next plan must  │
- * │ cost MORE than the next plan (tests/billing/12).                    │
+ * │ Extras: one ladder for all four plans (EXTRA_AREA_LADDER, from      │
+ * │ ₹9,000 an area); a plan plus enough extra areas to match the next   │
+ * │ plan must cost MORE than the next plan (tests/billing/12).          │
  * └─────────────────────────────────────────────────────────────────────┘
  */
 const sold = (
@@ -685,26 +688,29 @@ const legacy = (
   legacy: true,
 });
 
+/**
+ * The price of an extra area, the same on all four plans (22 Nov 2026): it
+ * starts at ₹9,000 a year and falls as the buyer adds more. `upTo` is the
+ * running count of extra areas the band reaches, so the first five cost
+ * ₹9,000 each, the next ten ₹8,000, and so on. (The percentages the buyer
+ * sees are measured against the ₹9,000 start.)
+ */
+export const EXTRA_AREA_LADDER: ExtraAreaBand[] = [
+  { upTo: 5, each: 9_000 },
+  { upTo: 15, each: 8_000 },
+  { upTo: 30, each: 7_000 },
+  { upTo: 60, each: 6_000 },
+  { upTo: Infinity, each: 5_000 },
+];
+
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
-  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 3_560, 5, 0, { videos: 0, pdfs: 0 }, 2, [
-    { upTo: 5, each: 6_000 },
-    { upTo: Infinity, each: 5_500 },
-  ], links(), 20, 1_99_999),
-  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 10_000, 20, 1, { videos: 5, pdfs: 30 }, 7, [
-    { upTo: 5, each: 4_500 },
-    { upTo: Infinity, each: 4_000 },
-  ], links("oneTime"), Infinity, 5_49_999),
-  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 13_542, 45, 2, { videos: 8, pdfs: 50 }, 13, [
-    { upTo: 5, each: 3_200 },
-    { upTo: Infinity, each: 3_000 },
-  ], links("oneTime", "password"), Infinity, 7_49_999),
+  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 3_560, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_99_999),
+  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 10_000, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 5_49_999),
+  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 13_542, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 7_49_999),
   // White Glove also includes (22 Nov 2026): one free salesperson dashboard
   // (a Sales Team login) and one free update shoot of the factory every year.
   white_glove: {
-    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, [
-      { upTo: 5, each: 2_000 },
-      { upTo: Infinity, each: 1_800 },
-    ], links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
+    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
     freeSalesLogins: 1,
     updateShoots: 1,
   },
@@ -1018,8 +1024,12 @@ export const VIDEO_SHOT_INR = 499;
 export const VIDEO_SHOT_WAS_INR = 5_000;
 
 /** Slider limits for the add-ons on the recommendation page. */
-export const EXTRA_AREA_MAX = 15;
-export const EXTRA_VIDEO_MAX = 12;
+export const EXTRA_AREA_MAX = 500;
+export const EXTRA_VIDEO_MAX = 50;
+/** Past this many extra areas on the largest standard plan, the funnel
+ *  recommends White Glove (planned with Mr. Gupta) instead. A rule about
+ *  which plan fits, not the slider's reach. */
+export const RECOMMEND_EXTRA_AREA_LIMIT = 15;
 
 /**
  * Said on every screen that sells a video, because a buyer is entitled to
@@ -1089,9 +1099,9 @@ export function nextExtraAreaPrice(planId: SitePlanId, have: number, billing: Pu
 }
 
 /**
- * Average price per area across the plan AND its extras — the big number
- * on the add-on slider. It falls as extras are added, because every band
- * is cheaper than the plan's own per-area price.
+ * Average price per area across the plan AND its extras. (Since 22 Nov 2026
+ * the add-on panel shows the price of an extra area instead; this stays for
+ * the bill's summary and the tests.)
  */
 export function sitePerArea(
   planId: SitePlanId,
@@ -1106,18 +1116,19 @@ export function sitePerArea(
 }
 
 /**
- * The discount bands behind the "add more areas" banner: each band's price
- * per area and how far below the plan's own per-area price it is. Honest
- * by construction — the percentage is computed from the same two numbers
- * the buyer can see.
+ * The discount bands behind the "unlock" chip: each band's price per extra
+ * area and how far below the FIRST band (the ₹9,000 start) it is. Honest by
+ * construction — the percentage is computed from the same two numbers the
+ * buyer can see.
  */
 export function discountBands(
   planId: SitePlanId,
   offerOpen = LAUNCH_OFFER.active,
   billing: PurchaseBilling = "annual"
 ): { from: number; to: number | null; each: number; percentOff: number }[] {
-  const base = sitePerArea(planId, 0, offerOpen, billing);
+  void offerOpen; // extras are never part of the offer
   const k = billing === "lifetime" ? LIFETIME_EXTRA_AREA_MULTIPLE : 1;
+  const base = SITE_PLANS[planId].extraAreaLadder[0].each * k;
   let from = 1;
   return SITE_PLANS[planId].extraAreaLadder.map((b) => {
     const band = { upTo: b.upTo, each: b.each * k };
@@ -1133,15 +1144,17 @@ export function discountBands(
   });
 }
 
-/** What the extras save against paying the plan's own per-area rate. */
+/** What the extras save against paying the first band's price for every one. */
 export function extrasSaving(
   planId: SitePlanId,
   extraAreas: number,
   offerOpen = LAUNCH_OFFER.active,
   billing: PurchaseBilling = "annual"
 ): number {
+  void offerOpen;
   const n = clampExtraAreas(extraAreas);
-  return Math.max(0, n * sitePerArea(planId, 0, offerOpen, billing) - extraAreaCost(planId, n, billing));
+  const k = billing === "lifetime" ? LIFETIME_EXTRA_AREA_MULTIPLE : 1;
+  return Math.max(0, n * SITE_PLANS[planId].extraAreaLadder[0].each * k - extraAreaCost(planId, n, billing));
 }
 
 /** Every step of the add-on slider, pre-computed for the table. */

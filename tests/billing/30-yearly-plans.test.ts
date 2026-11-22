@@ -68,7 +68,7 @@ describe("four yearly plans", () => {
   it("reads a yearly plan and its renewal back from an order's description", () => {
     const d = priceFor("site_plan", { sitePlanId: "ultra", city: "Gurugram", extraAreas: 2, offerOpen: true }).description;
     assert.equal(sitePlanFromNotes(d), "ultra");
-    assert.equal(planYearlyFromNotes(d), 1_62_504 + 2 * 3_200);
+    assert.equal(planYearlyFromNotes(d), 1_62_504 + 2 * 9_000);
     assert.match(d, /Special offer/);
     assert.equal(sitePlanFromNotes("White Glove — 100 areas"), "white_glove");
     assert.equal(sitePlanFromNotes("VPV Basic licence — 7 scenes"), null);

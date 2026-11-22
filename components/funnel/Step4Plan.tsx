@@ -1,19 +1,21 @@
 /**
- * Step 4 of the funnel — the recommended plan, the add-ons, and the time.
+ * Step 4 of the funnel — the recommended plan and the add-ons.
  *
- * Three things on this screen, in the order a buyer decides:
+ * Two things on this screen, in the order a buyer decides:
  *
  *   1. THE PLAN, revealed as a deep navy card with the gold special-offer
  *      seal: regular price struck through, the offer price, and the saving.
  *      The gold seal is the single loudest object in the funnel.
- *   2. THE ADD-ONS — sliders for areas and videos, the falling price per
- *      area in the largest type, and a banner showing the discount bands
- *      the buyer moves through as they add areas.
- *   3. THE TIME — hours on site, drawn as a bar of hours, with any extra
- *      hour priced as it appears.
+ *   2. THE ADD-ONS, each with its own price: extra areas (the price of the
+ *      next one on the left, a slider to 500 on the right, a small chip of
+ *      the lower prices unlocked as they add) and process videos (the total
+ *      on the left, a ₹99 and a ₹499 slider side by side). The message is
+ *      that what the plan includes is already theirs; they pay for extras.
  *
- * The running total sits underneath, smaller than the per-area number but
- * never hidden. Every figure comes from siteQuote() in lib/pricing.ts — the
+ * The bill sits underneath, with what is free and what is saved set large.
+ * Time on site is not shown as a block (it is still priced by the hour, as a
+ * line on the bill when a plan's hours are exceeded). Every figure comes
+ * from siteQuote() in lib/pricing.ts — the
  * same function /api/billing/order charges the card with — and the special
  * offer is shown only while the server's real count says it is open.
  */
@@ -39,11 +41,8 @@ import {
 } from "@/components/funnel/FunnelShell";
 import {
   EXTRA_AREA_MAX,
-  EXTRA_HOUR_INR,
   EXTRA_VIDEO_MAX,
   LAUNCH_OFFER,
-  MINUTES_PER_EXTRA_AREA,
-  SHOOT_DAY_HOURS,
   ENTERPRISE_PERSONAL,
   SITE_PLANS,
   SITE_PLAN_DISPLAY_ORDER,
@@ -65,7 +64,6 @@ import {
   SUPPORT_MONTHLY_INR,
   type PurchaseBilling,
   siteQuote,
-  sitePerArea,
   type SitePlanId,
   type SoldPlanId,
   infoIconsLabel,
@@ -75,6 +73,11 @@ import {
 import { loadFunnel, mirrorLead, recommendPlan, saveFunnel, type FunnelState } from "@/lib/funnel";
 import BillingSwitch from "@/components/funnel/BillingSwitch";
 
+/**
+ * A slider with a stepper either side. A range of hundreds is too coarse to
+ * land on one number by dragging alone, so − and + (and the arrow keys) move
+ * it a single step.
+ */
 function Slider({
   value,
   onChange,
@@ -89,116 +92,88 @@ function Slider({
   id: string;
 }) {
   const pct = (value / max) * 100;
+  const step = (d: number) => onChange(Math.max(0, Math.min(max, value + d)));
+  const btn =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-vpv-line bg-white text-[18px] font-semibold leading-none text-vpv-blue transition hover:border-vpv-blue/50 disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-vpv-blue/50";
   return (
     <div>
-      <label htmlFor={id} className="mb-2.5 block text-[13.5px] font-medium text-vpv-ink">
-        {label}
-      </label>
-      <input
-        id={id}
-        type="range"
-        min={0}
-        max={max}
-        step={1}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-2 w-full cursor-pointer appearance-none rounded-full accent-vpv-blue"
-        style={{ backgroundImage: `linear-gradient(90deg, #1468D8 ${pct}%, #EAF2FE ${pct}%)` }}
-      />
-      <div className="mt-1.5 flex justify-between text-[11.5px] text-slate-400">
-        <span>None</span>
-        <span>+{max}</span>
+      <div className="flex items-center gap-3">
+        <button type="button" className={btn} aria-label={`One fewer: ${label}`} disabled={value <= 0} onClick={() => step(-1)}>
+          −
+        </button>
+        <input
+          id={id}
+          aria-label={label}
+          type="range"
+          min={0}
+          max={max}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-2 w-full cursor-pointer appearance-none rounded-full accent-vpv-blue"
+          style={{ backgroundImage: `linear-gradient(90deg, #1468D8 ${pct}%, #EAF2FE ${pct}%)` }}
+        />
+        <button type="button" className={btn} aria-label={`One more: ${label}`} disabled={value >= max} onClick={() => step(1)}>
+          +
+        </button>
+      </div>
+      <div className="mt-1.5 flex justify-between px-12 text-[11.5px] text-slate-400">
+        <span>0</span>
+        <span>{max}</span>
       </div>
     </div>
   );
 }
 
-/** The discount bands as a stepped strip: every band the buyer has reached
- *  is filled, the next one shows what it takes to get there. */
-function DiscountBanner({
+/**
+ * A small navy-and-gold chip: the lower prices a buyer unlocks as they add
+ * extra areas. Light on the page on purpose; it shows each step, whether it
+ * is reached, and what has been saved so far.
+ */
+function UnlockChip({
   planId,
   extraAreas,
-  offerOpen,
   billing,
 }: {
   planId: SitePlanId;
   extraAreas: number;
-  offerOpen: boolean;
   billing: PurchaseBilling;
 }) {
-  const bands = discountBands(planId, offerOpen, billing);
-  const saving = extrasSaving(planId, extraAreas, offerOpen, billing);
-  const next = bands.find((b) => extraAreas < b.from);
+  const later = discountBands(planId, true, billing).slice(1);
+  const saving = extrasSaving(planId, extraAreas, true, billing);
+  const next = later.find((b) => extraAreas < b.from);
   return (
-    <div className="overflow-hidden rounded-2xl bg-vpv-grad-soft text-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-            <BadgePercent className="h-5 w-5" aria-hidden />
-          </span>
-          <div>
-            <p className="text-[15.5px] font-semibold">The more areas you add, the less each one costs</p>
-            <p className="text-[12.5px] text-white/75">
-              Compared with {inr(sitePerArea(planId, 0, offerOpen, billing))} per area on the plan itself
-              {billing === "annual" ? ", a year" : ", once"}
-            </p>
-          </div>
-        </div>
-        {saving > 0 && (
-          <p className="rounded-full bg-white px-3.5 py-1.5 text-[13px] font-semibold text-vpv-navy">
-            You save {inr(saving)} on extras
-          </p>
-        )}
-      </div>
-      <ol className={`mt-5 grid grid-cols-1 gap-px bg-white/10 ${bands.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-        {bands.map((b) => {
+    <div
+      data-testid="unlock-chip"
+      className="mt-6 inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-vpv-navy px-4 py-2.5 text-white shadow-[0_10px_24px_-16px_rgba(11,61,145,0.8)]"
+    >
+      <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#FFE7A0]">
+        <BadgePercent className="h-4 w-4" aria-hidden /> Unlock lower prices
+      </span>
+      <ul className="flex flex-wrap gap-1.5">
+        {later.map((b) => {
           const reached = extraAreas >= b.from;
           return (
-            <li key={b.from} className={`px-4 py-4 transition-colors ${reached ? "bg-white/20" : "bg-white/[0.04]"}`}>
-              <p className="text-[24px] font-semibold leading-none tabular-nums">{b.percentOff}% off</p>
-              <p className="mt-1.5 text-[12.5px] text-white/85">
-                {inr(b.each)} per area
-              </p>
-              <p className="mt-0.5 text-[11.5px] text-white/65">
-                {b.to === null ? `${b.from}+ extra areas` : b.from === b.to ? `extra area ${b.from}` : `extra areas ${b.from}–${b.to}`}
-              </p>
+            <li
+              key={b.from}
+              data-reached={reached ? "true" : "false"}
+              className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold tabular-nums ${
+                reached ? "bg-[#F6D87A] text-[#4A3300]" : "border border-white/30 text-white/80"
+              }`}
+            >
+              {reached ? <Check className="h-3 w-3" aria-hidden /> : <Lock className="h-3 w-3" aria-hidden />}
+              {b.from}+ extra · {b.percentOff}% off
             </li>
           );
         })}
-      </ol>
-      {next && (
-        <p className="px-5 py-3 text-[12.5px] text-white/80">
-          {extraAreas === 0
-            ? `Your first extra area costs ${inr(next.each)}, already ${next.percentOff}% below the plan's own rate.`
-            : `Add ${next.from - extraAreas} more and every extra area from number ${next.from} costs ${inr(next.each)}, ${next.percentOff}% off.`}
-        </p>
-      )}
-    </div>
-  );
-}
-
-/** Hours on site as a row of hour blocks: what the plan includes in blue,
- *  anything extra in cyan with its price. */
-function ShootTimeBar({ included, extra }: { included: number; extra: number }) {
-  const total = included + extra;
-  return (
-    <div>
-      <div className="flex gap-1" role="img" aria-label={`${hoursLabel(total)} on site: ${hoursLabel(included)} included${extra ? `, ${hoursLabel(extra)} extra` : ""}`}>
-        {Array.from({ length: total }, (_, i) => (
-          <span
-            key={i}
-            className={`flex h-10 flex-1 items-end justify-center rounded-md pb-1 text-[10.5px] font-semibold ${i < included ? "bg-vpv-blue text-white/85" : "bg-vpv-cyan text-vpv-ink"}`}
-          >
-            {i + 1}h
-          </span>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-slate-600">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-vpv-blue" />{hoursLabel(included)} included</span>
-        {extra > 0 && (
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-vpv-cyan" />{hoursLabel(extra)} extra at {inr(EXTRA_HOUR_INR)}/hour</span>
-        )}
-      </div>
+      </ul>
+      <span className="text-[12px] text-white/80">
+        {saving > 0 ? (
+          <>You save <strong className="text-[#FFE7A0]">{inr(saving)}</strong></>
+        ) : next ? (
+          <>Add {next.from - extraAreas} more for {inr(next.each)} each</>
+        ) : null}
+      </span>
     </div>
   );
 }
@@ -328,11 +303,12 @@ export default function Step4Plan() {
   const price = planPrice(planId, offerOpen, billing);
   const regular = regularPlanPrice(planId, billing);
   const monthly = planMonthly(planId, offerOpen);
-  const extrasCost =
-    extraAreaCost(planId, s.extraAreas, billing) +
-    Math.max(0, s.selfVideos - plan.videos) * VIDEO_SELF_INR +
-    s.shotVideos * VIDEO_SHOT_INR;
-  const basePerArea = sitePerArea(planId, 0, offerOpen, billing);
+  const areasCost = extraAreaCost(planId, s.extraAreas, billing);
+  const selfIncluded = Math.min(s.selfVideos, plan.videos);
+  const selfExtra = Math.max(0, s.selfVideos - plan.videos);
+  const videosCost = selfExtra * VIDEO_SELF_INR + s.shotVideos * VIDEO_SHOT_INR;
+  // The price of the next extra area: it falls as bands are reached.
+  const nextAreaPrice = nextExtraAreaPrice(planId, Math.min(s.extraAreas, EXTRA_AREA_MAX - 1), billing);
 
   const inclusions: { icon: typeof Layers; text: string; strong?: boolean; hint?: string }[] = [
     ...(SITE_PLANS[planId].personal
@@ -486,78 +462,122 @@ export default function Step4Plan() {
         {/* ── Add-ons ──────────────────────────────────────────────── */}
         <Card className="mt-8">
           <SectionTitle icon={Layers} title="Need more than that?">
-            Every area you add costs less than the one before it, so a bigger VPV is always better value per area.
+            Everything above is already yours. You only pay for what you add here.
           </SectionTitle>
 
-          <div className="mt-7 grid items-center gap-8 lg:grid-cols-[1fr_1.2fr]">
+          {/* Areas: the price of the next extra area on the left (it falls
+              as the buyer adds more), the slider and the count on the right. */}
+          <div className="mt-7 grid items-center gap-8 lg:grid-cols-[1fr_1.5fr]" data-testid="addon-areas">
             <div className="rounded-2xl bg-vpv-canvas p-6 text-center">
-              <p className="text-[13px] font-medium text-vpv-blue">Your price per area</p>
-              <p className="mt-2 text-[56px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink">
-                {inr(quote.perAreaInr)}
+              <p className="text-[13px] font-medium text-vpv-blue">Price per extra AOA right now</p>
+              <p className="mt-2 text-[56px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink" data-testid="extra-area-price">
+                {inr(nextAreaPrice)}
               </p>
-              <p className="mt-2.5 text-[13px] text-slate-600">
-                across {quote.totalAreas} areas
-                {!SITE_PLANS[planId].personal && quote.perAreaInr < basePerArea && (
-                  <span className="mt-1 block font-semibold text-vpv-blue">down from {inr(basePerArea)}</span>
-                )}
-              </p>
+              <p className="mt-2.5 text-[13px] text-slate-600">{life ? "once, for life" : "a year"} + GST</p>
+              {s.extraAreas > 0 && (
+                <p className="mt-4 border-t border-vpv-line pt-3 text-[13.5px] text-slate-700">
+                  {s.extraAreas} extra {s.extraAreas === 1 ? "AOA" : "AOAs"}: <strong className="text-vpv-ink">{inr(areasCost)}</strong>
+                </p>
+              )}
             </div>
-            <div className="space-y-7">
-              <div>
+            <div>
+              <p className="text-[30px] font-bold leading-tight tracking-[-0.02em] text-vpv-blue sm:text-[36px]">Need more AOAs?</p>
+              <div className="mt-4">
                 <Slider
                   id="extra-areas"
-                  label={`Extra areas: ${s.extraAreas} more, ${quote.totalAreas} in total`}
+                  label="Extra AOAs"
                   value={s.extraAreas}
                   max={EXTRA_AREA_MAX}
                   onChange={(n) => setS({ ...s, extraAreas: n })}
                 />
-                <p className="mt-2 text-[12.5px] text-slate-500">
-                  Next area: {inr(nextExtraAreaPrice(planId, s.extraAreas, billing))}
-                  {life ? " once" : " a year"}
-                </p>
               </div>
-              {/* Two ways to get a process video, priced apart: footage the
-                  buyer already owns costs us nothing but hosting, a shoot
-                  costs us a crew. Both land on THEIR YouTube channel. */}
-              <div>
-                <Slider
-                  id="self-videos"
-                  label={`Videos you already have: ${s.selfVideos}`}
-                  value={s.selfVideos}
-                  max={EXTRA_VIDEO_MAX}
-                  onChange={(n) => setS({ ...s, selfVideos: n })}
-                />
-                <p className="mt-2 text-[12.5px] text-slate-500">
-                  {plan.videos > 0 ? (
-                    <>
-                      First {plan.videos} free with {plan.name}, then {inr(VIDEO_SELF_INR)} each.{" "}
-                    </>
-                  ) : (
-                    <>{inr(VIDEO_SELF_INR)} each. </>
-                  )}
-                  {VIDEO_SELF_NOTE}
-                  <sup className="text-vpv-blue">*</sup>
-                </p>
+              <p className="mt-3 text-[15px] text-vpv-ink" data-testid="total-areas">
+                Total AOAs: <strong className="text-[20px]">{quote.totalAreas}</strong>
+                <span className="text-slate-500">
+                  {" "}= {plan.scenes} included in {plan.name} + {s.extraAreas} extra
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <UnlockChip planId={planId} extraAreas={s.extraAreas} billing={billing} />
+
+          {/* Videos: the price of each is fixed, so the left side is the total
+              cost; two ways to get one, side by side. Both land on THEIR
+              YouTube channel. */}
+          <div className="mt-9 grid items-center gap-8 border-t border-vpv-line pt-9 lg:grid-cols-[1fr_1.5fr]" data-testid="addon-videos">
+            <div className="rounded-2xl bg-vpv-canvas p-6 text-center">
+              <p className="text-[13px] font-medium text-vpv-blue">Your video add-ons</p>
+              <p className="mt-2 text-[56px] font-semibold leading-none tracking-[-0.03em] tabular-nums text-vpv-ink" data-testid="video-total">
+                {inr(videosCost)}
+              </p>
+              <p className="mt-2.5 text-[13px] text-slate-600">
+                {videosCost > 0 ? "+ GST, paid once" : "Nothing extra to pay"}
+              </p>
+              <p className="mt-4 border-t border-vpv-line pt-3 text-[13.5px] text-slate-700">
+                {s.selfVideos + s.shotVideos} process {s.selfVideos + s.shotVideos === 1 ? "video" : "videos"} in your VPV
+              </p>
+            </div>
+            <div>
+              <p className="text-[30px] font-bold leading-tight tracking-[-0.02em] text-vpv-blue sm:text-[36px]">Need extra process videos?</p>
+              <div className="mt-5 grid gap-7 sm:grid-cols-2">
+                <div data-testid="addon-self-videos">
+                  <p className="text-[13px] font-medium text-slate-600">Shoot yourself, we upload</p>
+                  <p className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-vpv-ink">
+                    {inr(VIDEO_SELF_INR)}<span className="ml-1 text-[14px] font-medium text-slate-500">each</span>
+                  </p>
+                  <div className="mt-4">
+                    <Slider
+                      id="self-videos"
+                      label="Videos you already have"
+                      value={s.selfVideos}
+                      max={EXTRA_VIDEO_MAX}
+                      onChange={(n) => setS({ ...s, selfVideos: n })}
+                    />
+                  </div>
+                  <p className="mt-3 text-[14px] text-vpv-ink">
+                    Total <strong>{s.selfVideos}</strong> {s.selfVideos === 1 ? "video" : "videos"}, worth{" "}
+                    <strong>{inr(s.selfVideos * VIDEO_SELF_INR)}</strong>
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">
+                    <span className="font-semibold text-[#1F8A4C]">{selfIncluded} included free</span> with {plan.name}
+                    {selfExtra > 0 && (
+                      <>
+                        {" "}+ <span className="font-semibold text-vpv-ink">{selfExtra} extra = {inr(selfExtra * VIDEO_SELF_INR)}</span>
+                      </>
+                    )}
+                    <sup className="text-vpv-blue">*</sup>
+                  </p>
+                </div>
+                <div data-testid="addon-shot-videos">
+                  <p className="text-[13px] font-medium text-slate-600">We shoot for you</p>
+                  <p className="mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-vpv-ink">
+                    {videoShotWasLabel(offerOpen) && (
+                      <s className="mr-2 text-[16px] font-normal text-slate-400">{videoShotWasLabel(offerOpen)}</s>
+                    )}
+                    {inr(VIDEO_SHOT_INR)}<span className="ml-1 text-[14px] font-medium text-slate-500">each</span>
+                  </p>
+                  <div className="mt-4">
+                    <Slider
+                      id="shot-videos"
+                      label="Videos we shoot for you"
+                      value={s.shotVideos}
+                      max={EXTRA_VIDEO_MAX}
+                      onChange={(n) => setS({ ...s, shotVideos: n })}
+                    />
+                  </div>
+                  <p className="mt-3 text-[14px] text-vpv-ink">
+                    Total <strong>{s.shotVideos}</strong> {s.shotVideos === 1 ? "video" : "videos"}, worth{" "}
+                    <strong>{inr(s.shotVideos * VIDEO_SHOT_INR)}</strong>
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">
+                    {VIDEO_SHOT_NOTE}
+                    <sup className="text-vpv-blue">*</sup>
+                  </p>
+                </div>
               </div>
-              <div>
-                <Slider
-                  id="shot-videos"
-                  label={`Videos we shoot for you: ${s.shotVideos}`}
-                  value={s.shotVideos}
-                  max={EXTRA_VIDEO_MAX}
-                  onChange={(n) => setS({ ...s, shotVideos: n })}
-                />
-                <p className="mt-2 text-[12.5px] text-slate-500">
-                  {videoShotWasLabel(offerOpen) && (
-                    <s className="text-slate-400">{videoShotWasLabel(offerOpen)}</s>
-                  )}{" "}
-                  <strong className="font-semibold text-vpv-ink">{inr(VIDEO_SHOT_INR)}</strong> each.{" "}
-                  {VIDEO_SHOT_NOTE}
-                  <sup className="text-vpv-blue">*</sup>
-                </p>
-              </div>
-              <p className="text-[12px] leading-relaxed text-slate-500">
-                <sup className="text-vpv-blue">*</sup> The YouTube channel is yours, not ours. You keep
+              <p className="mt-6 text-[12px] leading-relaxed text-slate-500">
+                <sup className="text-vpv-blue">*</sup> {VIDEO_SELF_NOTE} The YouTube channel is yours, not ours. You keep
                 control of every video on it and can change or remove one at any time — which also
                 means what happens to it afterwards is outside our hands. See the{" "}
                 <a href="/disclaimer" className="text-vpv-blue underline underline-offset-2">
@@ -567,65 +587,62 @@ export default function Step4Plan() {
               </p>
             </div>
           </div>
-
-          {!SITE_PLANS[planId].personal && (
-            <div className="mt-7">
-              <DiscountBanner planId={planId} extraAreas={s.extraAreas} offerOpen={offerOpen} billing={billing} />
-            </div>
-          )}
-
-          {extrasCost > 0 && (
-            <div className="mt-6 flex flex-wrap items-baseline justify-between gap-2 border-t border-vpv-line pt-5">
-              <span className="text-[14px] text-slate-600">What you are adding to {plan.name}</span>
-              <span className="text-[26px] font-semibold tabular-nums text-vpv-ink">
-                + {inr(extrasCost)}<span className="ml-1 text-[12px] font-normal text-slate-500">+ GST</span>
-              </span>
-            </div>
-          )}
-        </Card>
-
-        {/* ── Shoot time ───────────────────────────────────────────── */}
-        <Card className="mt-6">
-          <SectionTitle
-            icon={Clock}
-            title="Time on site"
-            aside={<span className="text-[22px] font-semibold tabular-nums text-vpv-ink">{hoursLabel(quote.shoot.totalHours)}</span>}
-          >
-            {plan.name} includes {hoursLabel(plan.shootHours)} of shooting. Each extra area or process video adds about{" "}
-            {MINUTES_PER_EXTRA_AREA} minutes; any time beyond the plan is {inr(EXTRA_HOUR_INR)} an hour, rounded up to
-            the hour.
-          </SectionTitle>
-          <div className="mt-6">
-            <ShootTimeBar included={quote.shoot.includedHours} extra={quote.shoot.extraHours} />
-          </div>
-          {quote.shoot.days > 1 && (
-            <p className="mt-4 rounded-xl border border-vpv-line bg-vpv-canvas px-4 py-3 text-[13px] leading-relaxed text-slate-700">
-              That is more than one {SHOOT_DAY_HOURS}-hour working day, so the shoot runs over {quote.shoot.days} days.
-              The time is already priced by the hour above.
-            </p>
-          )}
         </Card>
 
         {/* ── Running total ────────────────────────────────────────── */}
         <Card className="mt-6">
           <SectionTitle icon={Receipt} title="Your total so far" />
           <dl className="mt-5 divide-y divide-vpv-line text-[14px]">
-            {quote.lines.map((l) => (
-              <div key={l.label} className="flex items-start justify-between gap-4 py-2.5">
-                <dt className={l.kind === "offer" ? "font-medium text-[#8A6100]" : "text-slate-600"}>
-                  {l.label}
-                  {l.note && <span className="mt-0.5 block text-[12px] font-normal text-slate-500">{l.note}</span>}
-                </dt>
-                <dd className={`shrink-0 text-right tabular-nums font-medium ${l.kind === "offer" ? "text-[#8A6100]" : "text-vpv-ink"}`}>
-                  {l.regularInr != null && l.regularInr > l.amountInr && (
-                    <span className="mr-2 text-[12.5px] font-normal text-slate-400 line-through">{inr(l.regularInr)}</span>
-                  )}
-                  {l.kind === "support" && l.amountInr === 0
-                    ? <span className="font-semibold text-[#1F8A4C]">Free</span>
-                    : l.amountInr < 0 ? `− ${inr(-l.amountInr)}` : inr(l.amountInr)}
-                </dd>
-              </div>
-            ))}
+            {quote.lines.map((l) => {
+              // What the buyer gets free, and what they save, are what the eye
+              // should find first on this bill: both are set large and bold.
+              const free = l.amountInr === 0 && l.kind !== "plan";
+              const deal = l.kind === "offer" || l.kind === "coupon";
+              return (
+                <div
+                  key={l.label}
+                  data-testid={free ? "bill-free" : deal ? "bill-discount" : undefined}
+                  className={`flex items-start justify-between gap-4 ${
+                    free
+                      ? "-mx-3 my-1 rounded-xl bg-[#EAF7EF] px-3 py-3.5"
+                      : deal
+                        ? "-mx-3 my-1 rounded-xl bg-[#FFF3CC] px-3 py-3.5"
+                        : "py-2.5"
+                  }`}
+                >
+                  <dt
+                    className={
+                      free
+                        ? "text-[16px] font-bold text-[#14532D]"
+                        : deal
+                          ? "text-[16px] font-bold text-[#7A5600]"
+                          : "text-slate-600"
+                    }
+                  >
+                    {l.label}
+                    {l.note && (
+                      <span className={`mt-0.5 block text-[12px] font-normal ${free ? "text-[#2F6B49]" : deal ? "text-[#8A6100]" : "text-slate-500"}`}>
+                        {l.note}
+                      </span>
+                    )}
+                  </dt>
+                  <dd className={`shrink-0 text-right tabular-nums ${deal ? "text-[22px] font-bold text-[#7A5600]" : "font-medium text-vpv-ink"}`}>
+                    {l.regularInr != null && l.regularInr > l.amountInr && !deal && (
+                      <span className="mr-2 text-[12.5px] font-normal text-slate-400 line-through">{inr(l.regularInr)}</span>
+                    )}
+                    {free ? (
+                      <span className="inline-block rounded-full bg-[#1F8A4C] px-3.5 py-1 text-[14px] font-bold uppercase tracking-wide text-white">
+                        Free
+                      </span>
+                    ) : l.amountInr < 0 ? (
+                      `− ${inr(-l.amountInr)}`
+                    ) : (
+                      inr(l.amountInr)
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
             <div className="flex items-center justify-between gap-4 py-2.5">
               <dt className="text-slate-600">18% GST</dt>
               <dd className="shrink-0 tabular-nums font-medium text-vpv-ink">{inr(quote.gstInr)}</dd>

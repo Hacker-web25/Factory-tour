@@ -374,11 +374,11 @@ const sections: LegalSection[] = [
             until your Plan renews.
           </li>
           <li>
-            <B>Extra AOAs</B> (optional): a yearly price per Plan, cheaper the
-            more you add, added to your Plan Fee and renewed with it; on{" "}
-            {SITE_PLANS.ultra.name}, for example, from{" "}
-            {inr(discountBands("ultra")[0].each)} down to{" "}
-            {inr(discountBands("ultra").slice(-1)[0].each)} each a year. On a
+            <B>Extra AOAs</B> (optional): the same yearly price on every Plan,
+            cheaper the more you add, added to your Plan Fee and renewed with
+            it: from {inr(discountBands("light")[0].each)} down to{" "}
+            {inr(discountBands("light").slice(-1)[0].each)} each a year, the
+            price falling in steps as the number of extra AOAs grows. On a
             lifetime Plan, {LIFETIME_EXTRA_AREA_MULTIPLE} times that, once.
           </li>
           <li>

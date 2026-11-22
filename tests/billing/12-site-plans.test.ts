@@ -12,6 +12,8 @@ import {
   TRAVEL_FEES,
   discountBands,
   extraAreaCost,
+  extrasSaving,
+  nextExtraAreaPrice,
   launchOfferOpen,
   offerSaving,
   planPrice,
@@ -166,12 +168,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
       const hi = SITE_PLAN_ORDER[i];
       if (SITE_PLANS[hi].personal && !SITE_PLANS[lo].personal) continue;
       const need = SITE_PLANS[hi].scenes - SITE_PLANS[lo].scenes;
-      // Past the slider's 15 extras a buyer cannot reach the next plan this way at all.
+      // (The slider now reaches 500 extras, so every step up can be reached this way.)
       if (need > EXTRA_AREA_MAX) continue;
       const via = SITE_PLANS[lo].priceInr + extraAreaCost(lo, need);
       assert.ok(via > SITE_PLANS[hi].priceInr, `${lo} + ${need} areas = ${via}, must exceed ${hi} ${SITE_PLANS[hi].priceInr}`);
     }
-    assert.equal(SITE_PLANS.light.priceInr + extraAreaCost("light", 15), 1_27_720);
+    assert.equal(SITE_PLANS.light.priceInr + extraAreaCost("light", 15), 42_720 + 5 * 9_000 + 10 * 8_000);
     // And the extras never cost more on a bigger plan.
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       const a = SITE_PLANS[SITE_PLAN_ORDER[i - 1]].extraAreaLadder[0].each;
@@ -180,21 +182,27 @@ describe("site plans: the named packs sold by the marketing site", () => {
     }
   });
 
-  it("makes the price per area fall as areas are added, on every plan", () => {
+  it("sells extra areas at one price on all four plans, from ₹9,000, falling as more are added", () => {
+    const ladders = SITE_PLAN_ORDER.map((id) => JSON.stringify(SITE_PLANS[id].extraAreaLadder));
+    assert.equal(new Set(ladders).size, 1, "every plan has the same ladder");
     for (const planId of SITE_PLAN_ORDER) {
-      let previous = sitePerArea(planId, 0);
-      for (let extras = 1; extras <= 10; extras++) {
-        const now = sitePerArea(planId, extras);
-        assert.ok(
-          now <= previous,
-          `${planId}: per-area rose from ${previous} to ${now} at +${extras}`
-        );
+      assert.equal(nextExtraAreaPrice(planId, 0), 9_000, `${planId}: the first extra area`);
+      let previous = nextExtraAreaPrice(planId, 0);
+      for (let have = 1; have < 200; have++) {
+        const now = nextExtraAreaPrice(planId, have);
+        assert.ok(now <= previous, `${planId}: the price of an extra area rose from ${previous} to ${now} after ${have}`);
         previous = now;
       }
-      // And it must genuinely fall, not merely stay flat — the falling
-      // number is the thing the slider is for.
-      assert.ok(sitePerArea(planId, 10) < sitePerArea(planId, 0), planId);
+      // And it genuinely falls: the 6th, 16th, 31st and 61st extra area are each cheaper.
+      assert.deepEqual([5, 15, 30, 60].map((have) => nextExtraAreaPrice(planId, have)), [8_000, 7_000, 6_000, 5_000]);
     }
+    // The slider reaches 500 extras, and the cost is the sum of the bands.
+    assert.equal(EXTRA_AREA_MAX, 500);
+    assert.equal(EXTRA_VIDEO_MAX, 50);
+    assert.equal(extraAreaCost("premium", 20), 5 * 9_000 + 10 * 8_000 + 5 * 7_000);
+    assert.equal(extraAreaCost("premium", 500), 5 * 9_000 + 10 * 8_000 + 15 * 7_000 + 30 * 6_000 + 440 * 5_000);
+    assert.equal(extraAreaCost("premium", 9_999), extraAreaCost("premium", 500), "never more than the slider's reach");
+    assert.equal(extraAreaCost("premium", 5, "lifetime"), 5 * 9_000 * 5);
   });
 
   it("travels by cab only, and only to the cities we shoot in", () => {
@@ -247,7 +255,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     }
     // What renews every year: the plan at today's price plus the extra areas.
     assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 1_20_000);
-    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 2 }).yearlyInr, 1_20_000 + 9_000);
+    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 2 }).yearlyInr, 1_20_000 + 2 * 9_000);
     assert.equal(siteQuote("premium", { city: "Manesar", offerOpen: false }).yearlyInr, 2_40_000);
     // The old one-time plans kept their separate support year (SUPPORT_ANNUAL_INR).
     assert.equal(SUPPORT_ANNUAL_INR, 11_988);
@@ -310,7 +318,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.ok(!big.lines.some((l) => /additional shoot day/i.test(l.label)));
     const nine = siteQuote("premium", { city: "Manesar", extraAreas: 8 });
     const ten = siteQuote("premium", { city: "Manesar", extraAreas: 9 });
-    assert.ok(ten.taxableInr - nine.taxableInr <= 4_500 + EXTRA_HOUR_INR);
+    assert.ok(ten.taxableInr - nine.taxableInr <= 8_000 + EXTRA_HOUR_INR);
     // The big plans are several days on site from the start, shown and not billed as days.
     assert.equal(siteQuote("ultra", { city: "Manesar" }).shoot.days, 2);
     assert.equal(siteQuote("white_glove", { city: "Manesar" }).shoot.days, 3);
@@ -321,14 +329,21 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.deepEqual(
       bands.map((b) => [b.from, b.to, b.each, b.percentOff]),
       [
-        [1, 5, 4_500, 25],
-        [6, null, 4_000, 33],
+        [1, 5, 9_000, 0],
+        [6, 15, 8_000, 11],
+        [16, 30, 7_000, 22],
+        [31, 60, 6_000, 33],
+        [61, null, 5_000, 44],
       ]
     );
-    // Every band on every plan is cheaper than the plan's own per-area rate.
+    // The percentages are against the ₹9,000 start, on every plan: the first band
+    // is the reference and every later one is cheaper.
     for (const id of SITE_PLAN_ORDER) {
-      for (const b of discountBands(id)) assert.ok(b.percentOff > 0, `${id} ${b.each}`);
+      const b = discountBands(id);
+      assert.equal(b[0].percentOff, 0, id);
+      for (const band of b.slice(1)) assert.ok(band.percentOff > 0, `${id} ${band.each}`);
     }
+    assert.equal(extrasSaving("premium", 20), 20 * 9_000 - extraAreaCost("premium", 20));
   });
 
   it("totals the quote to the sum of the lines it showed, plus GST", () => {
