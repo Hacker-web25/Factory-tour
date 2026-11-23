@@ -601,11 +601,13 @@ export type SitePlanSpec = {
 };
 
 /*
- * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026) ──────────────────────────────┐
- * │ The owner's per-month prices: ₹3,560, ₹10,000, ₹13,542, ₹20,452.    │
- * │ Bought for life instead (the toggle on the plans page): about 4.7×  │
- * │ a year, just below a round figure — ₹1,99,999, ₹5,49,999,           │
- * │ ₹7,49,999, ₹11,99,999. Either way support, hosting & security is    │
+ * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026; re-priced 23 Nov 2026) ───────┐
+ * │ The owner's per-month prices: ₹2,968, ₹6,640, ₹9,652, ₹13,380 —    │
+ * │ not round, no run of nines, the first three under ₹10,000 so they  │
+ * │ read small (₹35,616, ₹79,680, ₹1,15,824, ₹1,60,560 a year).         │
+ * │ Bought for life instead (the toggle on the plans page): about 4.6×  │
+ * │ a year, just below a round figure — ₹1,64,999, ₹3,64,999,           │
+ * │ ₹5,34,999, ₹7,49,999. Either way support, hosting & security is     │
  * │ billed yearly on top (SUPPORT_ANNUAL_INR).                          │
  * │ The yearly charge is exactly 12 of them, so the card's per-month    │
  * │ figure and the bill always agree. The struck regular price is 2×    │
@@ -704,13 +706,13 @@ export const EXTRA_AREA_LADDER: ExtraAreaBand[] = [
 ];
 
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
-  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 3_560, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_99_999),
-  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 10_000, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 5_49_999),
-  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 13_542, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 7_49_999),
+  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 2_968, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_64_999),
+  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_640, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 3_64_999),
+  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_652, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 5_34_999),
   // White Glove also includes (22 Nov 2026): one free salesperson dashboard
   // (a Sales Team login) and one free update shoot of the factory every year.
   white_glove: {
-    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 20_452, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 11_99_999),
+    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 13_380, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 7_49_999),
     freeSalesLogins: 1,
     updateShoots: 1,
   },
@@ -1228,7 +1230,7 @@ export function renewalAmount(seats: number, seatInr: number, planYearlyInr = 0)
 
 /**
  * The yearly amount a site-plan order renews at, read back from its notes
- * ("…, renews yearly at ₹42,720 (yearly plan…)"). 0 = not a yearly plan.
+ * ("…, renews yearly at ₹35,616 (yearly plan…)"). 0 = not a yearly plan.
  */
 /** How a site-plan order was paid for, read back from its notes. */
 export function planBillingFromNotes(notes: string | null | undefined): PurchaseBilling | null {

@@ -136,37 +136,37 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
 describe("upgrade prices", () => {
   it("the yearly difference, for the months left, at the customer's own rate", () => {
     assert.deepEqual(upgradeQuote("light", "premium", "offer", 12), {
-      amountInr: 77_280,
-      yearlyDiffInr: 77_280,
+      amountInr: 44_064,
+      yearlyDiffInr: 44_064,
       months: 12,
       addAreas: 15,
       addVideos: 5,
       addPdfs: 30,
     });
     assert.deepEqual(upgradeQuote("light", "ultra", "offer", 6), {
-      amountInr: 59_892,
-      yearlyDiffInr: 1_19_784,
+      amountInr: 40_104,
+      yearlyDiffInr: 80_208,
       months: 6,
       addAreas: 40,
       addVideos: 8,
       addPdfs: 50,
     });
     // A customer who bought after the offer pays the regular difference.
-    assert.equal(upgradeQuote("light", "ultra", "regular", 12).amountInr, 3_25_008 - 85_440);
+    assert.equal(upgradeQuote("light", "ultra", "regular", 12).amountInr, 2_31_648 - 71_232);
     // The rate a workspace keeps: the offer if it bought on it.
     assert.equal(rateFor(true), "offer");
     assert.equal(rateFor(false), "regular");
   });
 
   it("the invoice line says what was bought, and what the workspace renews at from now on", () => {
-    const q = priceFor("plan_upgrade", { fromPlan: "light", toPlan: "ultra", existingScenes: 7, rate: "offer", monthsLeft: 6, planYearlyInr: 42_720 + 12_000 });
-    assert.equal(q.amountInr, 59_892);
+    const q = priceFor("plan_upgrade", { fromPlan: "light", toPlan: "ultra", existingScenes: 7, rate: "offer", monthsLeft: 6, planYearlyInr: 35_616 + 12_000 });
+    assert.equal(q.amountInr, 40_104);
     assert.equal(q.scenes, 47, "extras already bought are kept");
     assert.match(q.lines[0].title, /VPV Ultra/);
     assert.match(q.lines[0].detail ?? "", /6 months until your plan renews/);
     assert.match(q.lines[0].detail ?? "", /40 more areas/);
-    // Its extra areas keep renewing too: 54,720 + 1,19,784.
-    assert.equal(planYearlyFromNotes(q.description), 1_74_504);
+    // Its extra areas keep renewing too: 47,616 + 80,208.
+    assert.equal(planYearlyFromNotes(q.description), 1_27_824);
     assert.equal(sitePlanFromNotes(q.description), null, "an upgrade is not a new plan order");
   });
 
@@ -246,7 +246,7 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     const [org] = await w.q(`select site_plan, scene_quota, plan_yearly_inr, plan_offer_locked from public.organizations`);
     assert.equal(org.site_plan, "white_glove");
     assert.equal(Number(org.scene_quota), 103);
-    assert.equal(Number(org.plan_yearly_inr), 2_45_424 + 3 * 9_000);
+    assert.equal(Number(org.plan_yearly_inr), 1_60_560 + 3 * 9_000);
     assert.equal(org.plan_offer_locked, true);
     const [inv] = await w.q(`select description from public.billing_invoices`);
     assert.match(inv.description, /^White Glove — yearly plan, 103 areas, first 15 months/);
@@ -271,14 +271,14 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     await w.q(
       `insert into public.billing_orders (purpose, scenes, amount_paise, taxable_paise, gst_paise, gst_rate, buyer_email, buyer_name, buyer_company, buyer_state, org_id, status, notes)
        values ('basic_licence', 5, 100, 85, 15, 0.18, 'md@acme.in', 'MD', 'Acme', 'Haryana', $1, 'paid',
-               'VPV Light — 5 areas, Special offer, 2 hours shoot, cab Gurugram (free), renews yearly at ₹42,720 (yearly plan, year 1, support, hosting & security included)')`,
+               'VPV Light — 5 areas, Special offer, 2 hours shoot, cab Gurugram (free), renews yearly at ₹35,616 (yearly plan, year 1, support, hosting & security included)')`,
       [org.id]
     );
     const fs = await import("node:fs");
     await w.raw.exec(fs.readFileSync("supabase/plans_yearly.sql", "utf8"));
     const [r] = await w.q(`select site_plan, plan_yearly_inr, plan_offer_locked from public.organizations where id = $1`, [org.id]);
     assert.equal(r.site_plan, "light");
-    assert.equal(Number(r.plan_yearly_inr), 42_720);
+    assert.equal(Number(r.plan_yearly_inr), 35_616);
     assert.equal(r.plan_offer_locked, true);
   });
 
@@ -286,14 +286,14 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     const { org, admin } = await workspace({ plan: "light", quota: 5, supportUntil: at(182 * DAY) });
     const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "ultra" });
     assert.equal(o.status, 200, JSON.stringify(o.body));
-    assert.equal(o.body.amountPaise, toPaise(withGst(59_892).total));
+    assert.equal(o.body.amountPaise, toPaise(withGst(40_104).total));
     await w.payInBrowser(o.body);
     assert.equal((await w.poll(o.body.orderId)).body.status, "ready");
 
     const after = await orgRow(org.id);
     assert.equal(after.site_plan, "ultra");
     assert.equal(Number(after.scene_quota), 45, "5 + 40");
-    assert.equal(Number(after.plan_yearly_inr), 1_62_504, "renews at Ultra, at the offer rate it keeps");
+    assert.equal(Number(after.plan_yearly_inr), 1_15_824, "renews at Ultra, at the offer rate it keeps");
     const [inv] = await w.q(`select description from public.billing_invoices where org_id = $1`, [org.id]);
     assert.match(inv.description, /Upgrade to VPV Ultra/);
     assert.ok(w.gw.emailsTo("md@acme.in").some((m) => /plan is upgraded/i.test(m.subject)));
@@ -320,12 +320,12 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     // Premium, 300 days left (10 months), bought on the offer.
     const { admin } = await workspace({ plan: "premium", quota: 20 });
     const o = await order(admin, { purpose: "plan_upgrade", upgradeTo: "ultra", fromPlan: "light", sitePlanId: "light", rate: "offer" });
-    assert.equal(o.body.amountPaise, toPaise(withGst(Math.round((42_504 * 10) / 12)).total));
+    assert.equal(o.body.amountPaise, toPaise(withGst(Math.round((36_144 * 10) / 12)).total));
     // Bought after the offer: the regular difference.
     await w.reset();
-    const late = await workspace({ plan: "premium", quota: 20, offerLocked: false, yearly: 2_40_000 });
+    const late = await workspace({ plan: "premium", quota: 20, offerLocked: false, yearly: 1_59_360 });
     const r = await order(late.admin, { purpose: "plan_upgrade", upgradeTo: "ultra" });
-    assert.equal(r.body.amountPaise, toPaise(withGst(Math.round((85_008 * 10) / 12)).total));
+    assert.equal(r.body.amountPaise, toPaise(withGst(Math.round((72_288 * 10) / 12)).total));
   });
 
   it("a full refund of an upgrade puts the plan, the areas and the renewal amount back", async () => {
@@ -335,12 +335,12 @@ describe("plans in the workspace, upgrades and extra logins", () => {
     await w.poll(o.body.orderId);
     const up = await orgRow(org.id);
     assert.equal(up.site_plan, "premium");
-    assert.equal(Number(up.plan_yearly_inr), 1_20_000);
+    assert.equal(Number(up.plan_yearly_inr), 79_680);
     await w.deliver(w.gw.refundEvent("refund.processed", w.gw.makeRefund(paid.payment.id, Number(o.body.amountPaise))));
     const back = await orgRow(org.id);
     assert.equal(back.site_plan, "light");
     assert.equal(Number(back.scene_quota), 5);
-    assert.equal(Number(back.plan_yearly_inr), 42_720);
+    assert.equal(Number(back.plan_yearly_inr), 35_616);
   });
 
   it("extra logins: priced for the months left, added to the workspace, the renewal date unchanged", async () => {

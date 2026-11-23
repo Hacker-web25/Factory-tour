@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.04554eca.js";
+const JS_SRC = "/static/js/main.5b3182ff.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
