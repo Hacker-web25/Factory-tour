@@ -335,13 +335,59 @@ const CARE_BLOCK =
   '(0,Dt.jsx)("path",{d:"M12 3 19 6v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"}),(0,Dt.jsx)("path",{d:"m8.8 12.2 2.3 2.3 4.3-4.6"})]}),' +
   '(0,Dt.jsxs)("div",{children:[' +
   `(0,Dt.jsx)("p",{className:"vpv-care-t",children:${js(`${SUPPORT_NAME}: ${inr(SUPPORT_MONTHLY_INR)}/month`)}}),` +
-  `(0,Dt.jsx)("p",{className:"vpv-care-n",children:${js(`Billed yearly (${inr(SUPPORT_ANNUAL_INR)} + GST).`)}}),` +
-  `ln.active&&(0,Dt.jsxs)("p",{className:"vpv-care-n",children:[${js(`First ${LAUNCH_OFFER.freeMonths + 12} months `)},(0,Dt.jsx)("b",{className:"vpv-care-free",children:"FREE"}),${js(` for first ${LAUNCH_OFFER.limit} customers.`)}]})` +
+  `(0,Dt.jsx)("p",{className:"vpv-care-n",children:${js(`Billed yearly (${inr(SUPPORT_ANNUAL_INR)} + GST).`)}})` +
+  // 23 Nov 2026: "First 15 months FREE" moved to the free list under the price.
   ']})]})';
+
+/**
+ * What a card's buyer gets free (23 Nov 2026), under the price, one line each,
+ * like a delivery app's "Delivery fee ~~₹30~~ FREE": the 3 free months of the
+ * plan (yearly only: on a lifetime plan those months are support, already in
+ * the next line), the first 15 months of support, the factory visit, then the
+ * total the offer takes off this plan. Only while the first-20 offer runs.
+ */
+function freeFigures() {
+  const out: Record<string, { months: string; yearSave: string; lifeSave: string }> = {};
+  const support = SUPPORT_MONTHLY_INR * (12 + LAUNCH_OFFER.freeMonths);
+  for (const id of SITE_PLAN_ORDER) {
+    const p = SITE_PLANS[id];
+    const months = p.monthlyInr * LAUNCH_OFFER.freeMonths;
+    const shared = support + CAB_TRAVEL.amountInr;
+    out[id] = {
+      months: inr(months),
+      yearSave: inr(p.regularInr - p.priceInr + months + shared),
+      lifeSave: inr(p.regularLifetimeInr - p.lifetimeInr + shared),
+    };
+  }
+  return out;
+}
+export const FREE_FIGURES = freeFigures();
+const FREE_SUPPORT = inr(SUPPORT_MONTHLY_INR * (12 + LAUNCH_OFFER.freeMonths));
+
+function freeRow(label: string, worth: string, extra = "") {
+  return (
+    `(0,Dt.jsxs)("li",{className:"vpv-fr${extra}",children:[(0,Dt.jsx)("span",{className:"vpv-fr-l",children:${label}}),` +
+    `(0,Dt.jsx)("s",{className:"vpv-fr-w",children:${worth}}),(0,Dt.jsx)("b",{className:"vpv-fr-f",children:"FREE"})]})`
+  );
+}
+
+const FREE_BLOCK =
+  `ln.active&&(()=>{const f=(${JSON.stringify(FREE_FIGURES)})[t.id];return f&&(0,Dt.jsxs)("div",{className:"vpv-free","data-testid":\`\${o}-\${t.id}-free\`,children:[` +
+  `(0,Dt.jsx)("p",{className:"vpv-free-h",children:${js(`Free for our first ${LAUNCH_OFFER.limit}`)}}),` +
+  '(0,Dt.jsxs)("ul",{children:[' +
+  freeRow(js(`${LAUNCH_OFFER.freeMonths} months of the plan`), "f.months", " vpv-fr-yr") + "," +
+  freeRow(js(`${12 + LAUNCH_OFFER.freeMonths} months of support`), js(FREE_SUPPORT)) + "," +
+  freeRow(js("Factory visit"), js(inr(CAB_TRAVEL.amountInr))) +
+  ']}),' +
+  '(0,Dt.jsxs)("p",{className:"vpv-save vpv-save-yr",children:["You save ",(0,Dt.jsx)("b",{children:f.yearSave})," in year one"]}),' +
+  '(0,Dt.jsxs)("p",{className:"vpv-save vpv-save-life",children:["You save ",(0,Dt.jsx)("b",{children:f.lifeSave})]})' +
+  ']})})()';
 
 /** Under the plan's name: the price block, then the AOAs beside the support block. */
 const NOV21_CARD_TOP =
-  '(0,Dt.jsx)("div",{className:"vpv-pc-price",children:(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`})}),' +
+  '(0,Dt.jsxs)("div",{className:"vpv-pc-price",children:[(0,Dt.jsx)(ya,{plan:t,testPrefix:`${o}-${t.id}`}),' +
+  FREE_BLOCK +
+  ']}),' +
   '(0,Dt.jsxs)("div",{className:"vpv-pc-aoa",children:[(0,Dt.jsx)("p",{"data-testid":`${o}-${t.id}-aoas`,children:`${t.limits.aoas} AOAs`}),' +
   CARE_BLOCK +
   ']})';

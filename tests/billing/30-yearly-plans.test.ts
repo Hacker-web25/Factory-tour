@@ -30,11 +30,11 @@ describe("four yearly plans", () => {
     assert.deepEqual([...SITE_PLAN_ORDER], ["light", "premium", "ultra", "white_glove"]);
     assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name), ["VPV Light", "VPV Premium", "VPV Ultra", "White Glove"]);
     assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].scenes), [5, 20, 45, 100]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, true)), [2_968, 6_640, 9_652, 13_380]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, true)), [2_968, 6_470, 9_622, 13_380]);
     // The struck price: twice the offer, per month too.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, false)), [5_936, 13_280, 19_304, 26_760]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, false)), [5_936, 12_940, 19_244, 26_760]);
     // Billed yearly: exactly twelve of them.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].priceInr), [35_616, 79_680, 1_15_824, 1_60_560]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].priceInr), [35_616, 77_640, 1_15_464, 1_60_560]);
     for (const id of SITE_PLAN_ORDER) assert.ok(isYearlyPlan(id), id);
     for (const id of LEGACY_PLAN_ORDER) {
       assert.ok(!isYearlyPlan(id), id);
@@ -68,7 +68,7 @@ describe("four yearly plans", () => {
   it("reads a yearly plan and its renewal back from an order's description", () => {
     const d = priceFor("site_plan", { sitePlanId: "ultra", city: "Gurugram", extraAreas: 2, offerOpen: true }).description;
     assert.equal(sitePlanFromNotes(d), "ultra");
-    assert.equal(planYearlyFromNotes(d), 1_15_824 + 2 * 9_000);
+    assert.equal(planYearlyFromNotes(d), 1_15_464 + 2 * 9_000);
     assert.match(d, /Special offer/);
     assert.equal(sitePlanFromNotes("White Glove — 100 areas"), "white_glove");
     assert.equal(sitePlanFromNotes("VPV Basic licence — 7 scenes"), null);
@@ -80,7 +80,7 @@ describe("four yearly plans", () => {
   it("a coupon comes off the first year only: the renewal is the plan at its price", () => {
     const q = siteQuote("premium", { city: "Manesar", coupon: { code: "HALF", percentOff: 50, amountOffInr: null } });
     assert.ok(q.couponInr > 0);
-    assert.equal(q.yearlyInr, 79_680);
+    assert.equal(q.yearlyInr, 77_640);
   });
 });
 
