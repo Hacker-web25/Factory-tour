@@ -97,7 +97,7 @@ comment on column public.billing_orders.plan_yearly_before is
   'plan_upgrade: what it renewed at before, so a full refund can put it back.';
 
 -- Fill in workspaces already built from a yearly-plan order ("VPV Light —
--- …, renews yearly at ₹42,720 (yearly plan…)"), in case one was bought
+-- …, renews yearly at ₹35,616 (yearly plan…)"), in case one was bought
 -- before this ran: the plan, what it renews at, and whether it keeps the offer.
 update public.organizations o
    set site_plan = coalesce(o.site_plan,

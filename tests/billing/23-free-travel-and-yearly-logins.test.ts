@@ -22,16 +22,16 @@ import {
  * customer bought at.
  */
 describe("the new bill", () => {
-  it("Light for a Gurugram factory: ₹42,720 + GST (one year) and nothing else under the offer", () => {
+  it("Light for a Gurugram factory: ₹35,616 + GST (one year) and nothing else under the offer", () => {
     const q = siteQuote("light", { city: "Gurugram", offerOpen: true });
-    assert.equal(q.taxableInr, 42_720);
-    assert.equal(q.monthlyInr, 3_560);
+    assert.equal(q.taxableInr, 35_616);
+    assert.equal(q.monthlyInr, 2_968);
     assert.equal(q.lines.find((l) => l.kind === "travel")!.amountInr, 0);
     // Support, hosting & security is its own line, free for a founding customer…
     assert.equal(q.lines.find((l) => l.kind === "support")!.amountInr, 0);
     // …and ₹11,988 for customers 21 to 30.
     const later = siteQuote("light", { city: "Gurugram", offerOpen: true, founding: false });
-    assert.equal(later.taxableInr, 42_720 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(later.taxableInr, 35_616 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("a 100% coupon still leaves ₹1 + GST, because Razorpay cannot take ₹0", () => {
@@ -42,10 +42,10 @@ describe("the new bill", () => {
     });
     assert.equal(q.taxableInr, MIN_PAYABLE_INR);
     assert.equal(q.totalInr, withGst(1).total);
-    assert.equal(q.couponInr, 42_720 - 1);
+    assert.equal(q.couponInr, 35_616 - 1);
     // A smaller coupon is untouched by the floor.
     const ten = siteQuote("light", { city: "Gurugram", offerOpen: true, coupon: { code: "TEN", percentOff: 10, amountOffInr: null } });
-    assert.equal(ten.couponInr, 4_272);
+    assert.equal(ten.couponInr, 3_562);
   });
 
   it("logins go on the order notes with their yearly price, and are read back", () => {
@@ -63,10 +63,10 @@ describe("the new bill", () => {
 
   it("a renewal is the yearly plan plus support, plus each login at its locked price", () => {
     // A yearly plan renews at what the workspace pays for it, with support.
-    assert.equal(renewalAmount(0, 0, 42_720), 42_720 + SUPPORT_ANNUAL_INR);
-    assert.equal(renewalAmount(10, 199, 42_720), 42_720 + SUPPORT_ANNUAL_INR + 1_990);
-    const y = priceFor("support_renewal", { salesSeats: 10, seatInr: 199, planYearlyInr: 42_720, planId: "light" });
-    assert.equal(y.amountInr, 42_720 + SUPPORT_ANNUAL_INR + 1_990);
+    assert.equal(renewalAmount(0, 0, 35_616), 35_616 + SUPPORT_ANNUAL_INR);
+    assert.equal(renewalAmount(10, 199, 35_616), 35_616 + SUPPORT_ANNUAL_INR + 1_990);
+    const y = priceFor("support_renewal", { salesSeats: 10, seatInr: 199, planYearlyInr: 35_616, planId: "light" });
+    assert.equal(y.amountInr, 35_616 + SUPPORT_ANNUAL_INR + 1_990);
     assert.match(y.description, /^Yearly renewal of VPV Light — 1 year/);
     // …never shaped like a new plan order, which the special offer counts.
     assert.equal(sitePlanFromNotes(y.description), null);
@@ -109,7 +109,7 @@ describe("yearly logins through the real payment flow", () => {
     assert.equal(Number(org.sales_seats), 10);
     assert.equal(Number(org.sales_seat_inr), 199);
     assert.equal(org.site_plan, "light");
-    assert.equal(Number(org.plan_yearly_inr), 42_720);
+    assert.equal(Number(org.plan_yearly_inr), 35_616);
     assert.equal(org.plan_offer_locked, true);
   });
 
@@ -124,7 +124,7 @@ describe("yearly logins through the real payment flow", () => {
     );
     const body = await w.readJson(res);
     assert.equal(res.status, 200, JSON.stringify(body));
-    assert.equal(body.amountPaise, toPaise(withGst(42_720 + SUPPORT_ANNUAL_INR + 1_990).total));
+    assert.equal(body.amountPaise, toPaise(withGst(35_616 + SUPPORT_ANNUAL_INR + 1_990).total));
   });
 
   it("a plan without logins renews at the plan and support alone", async () => {
@@ -134,7 +134,7 @@ describe("yearly logins through the real payment flow", () => {
     await w.q(`update public.organizations set support_until = now() + interval '5 days' where id = $1`, [org.id]);
     const [admin] = await w.q(`select id from public.profiles where org_id = $1`, [org.id]);
     const res = await w.routes.order.POST(w.request("/api/billing/order", { as: admin.id, body: { purpose: "support_renewal", buyer: {} } }));
-    assert.equal((await w.readJson(res)).amountPaise, toPaise(withGst(42_720 + SUPPORT_ANNUAL_INR).total));
+    assert.equal((await w.readJson(res)).amountPaise, toPaise(withGst(35_616 + SUPPORT_ANNUAL_INR).total));
   });
 
   it("a yearly plan with no stored renewal amount is refused, never undercharged at the support fee", async () => {

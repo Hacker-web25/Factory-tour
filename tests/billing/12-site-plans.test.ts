@@ -99,11 +99,11 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // Hard numbers, so a silent edit to a plan price fails here rather than
     // in somebody's bank statement. 21 Nov 2026: four yearly plans, priced
     // per month by the owner; the yearly charge is exactly 12 months.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr), [3_560, 10_000, 13_542, 20_452]);
-    assert.equal(SITE_PLANS.light.priceInr, 42_720);
-    assert.equal(SITE_PLANS.premium.priceInr, 1_20_000);
-    assert.equal(SITE_PLANS.ultra.priceInr, 1_62_504);
-    assert.equal(SITE_PLANS.white_glove.priceInr, 2_45_424);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr), [2_968, 6_640, 9_652, 13_380]);
+    assert.equal(SITE_PLANS.light.priceInr, 35_616);
+    assert.equal(SITE_PLANS.premium.priceInr, 79_680);
+    assert.equal(SITE_PLANS.ultra.priceInr, 1_15_824);
+    assert.equal(SITE_PLANS.white_glove.priceInr, 1_60_560);
     for (const id of SITE_PLAN_ORDER) {
       assert.equal(SITE_PLANS[id].billing, "yearly", id);
       assert.equal(SITE_PLANS[id].priceInr, SITE_PLANS[id].monthlyInr * 12, id);
@@ -112,9 +112,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
     // The price per area still falls as the plans grow (it is no longer
     // printed on the cards, but the plans must stay sensible).
-    assert.equal(sitePerArea("light"), 8_544);
-    assert.equal(sitePerArea("premium"), 6_000);
-    assert.equal(sitePerArea("ultra"), 3_611);
+    assert.equal(sitePerArea("light"), 7_123);
+    assert.equal(sitePerArea("premium"), 3_984);
+    assert.equal(sitePerArea("ultra"), 2_574);
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       assert.ok(sitePerArea(SITE_PLAN_ORDER[i]) < sitePerArea(SITE_PLAN_ORDER[i - 1]), SITE_PLAN_ORDER[i]);
     }
@@ -133,9 +133,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(LAUNCH_OFFER.limit, 20);
     assert.equal(LAUNCH_OFFER.foundingLimit, 20, "there is no second tier");
     assert.equal(LAUNCH_OFFER.freeMonths, 3);
-    assert.equal(SITE_PLANS.light.regularInr, 85_440);
-    assert.equal(SITE_PLANS.ultra.regularInr, 3_25_008);
-    assert.equal(SITE_PLANS.white_glove.regularInr, 4_90_848);
+    assert.equal(SITE_PLANS.light.regularInr, 71_232);
+    assert.equal(SITE_PLANS.ultra.regularInr, 2_31_648);
+    assert.equal(SITE_PLANS.white_glove.regularInr, 3_21_120);
     for (const id of SITE_PLAN_ORDER) {
       const p = SITE_PLANS[id];
       assert.equal(p.priceInr, Math.round(p.regularInr * (1 - LAUNCH_OFFER.percent / 100)), id);
@@ -149,12 +149,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(TRAVEL_FEES.ncr.amountInr, 4_000);
 
     // Under the offer the cab is free: the plan price is the whole bill.
-    assert.equal(sitePlanQuote("light", "ncr").amountInr, 42_720);
-    assert.equal(sitePlanQuote("premium", "ncr").amountInr, 1_20_000);
-    assert.equal(sitePlanQuote("ultra", "ncr").amountInr, 1_62_504);
+    assert.equal(sitePlanQuote("light", "ncr").amountInr, 35_616);
+    assert.equal(sitePlanQuote("premium", "ncr").amountInr, 79_680);
+    assert.equal(sitePlanQuote("ultra", "ncr").amountInr, 1_15_824);
     // Once it closes: regular price + ₹4,000 cab.
-    assert.equal(sitePlanQuote("light", "ncr", false).amountInr, 85_440 + 4_000);
-    assert.equal(sitePlanQuote("ultra", "ncr", false).amountInr, 3_25_008 + 4_000);
+    assert.equal(sitePlanQuote("light", "ncr", false).amountInr, 71_232 + 4_000);
+    assert.equal(sitePlanQuote("ultra", "ncr", false).amountInr, 2_31_648 + 4_000);
   });
 
   it("keeps every upgrade path pointing UP", () => {
@@ -173,7 +173,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
       const via = SITE_PLANS[lo].priceInr + extraAreaCost(lo, need);
       assert.ok(via > SITE_PLANS[hi].priceInr, `${lo} + ${need} areas = ${via}, must exceed ${hi} ${SITE_PLANS[hi].priceInr}`);
     }
-    assert.equal(SITE_PLANS.light.priceInr + extraAreaCost("light", 15), 42_720 + 5 * 9_000 + 10 * 8_000);
+    assert.equal(SITE_PLANS.light.priceInr + extraAreaCost("light", 15), 35_616 + 5 * 9_000 + 10 * 8_000);
     // And the extras never cost more on a bigger plan.
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       const a = SITE_PLANS[SITE_PLAN_ORDER[i - 1]].extraAreaLadder[0].each;
@@ -254,9 +254,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
       assert.ok(!q.lines.some((l) => l.kind === "bonus"));
     }
     // What renews every year: the plan at today's price plus the extra areas.
-    assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 1_20_000);
-    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 2 }).yearlyInr, 1_20_000 + 2 * 9_000);
-    assert.equal(siteQuote("premium", { city: "Manesar", offerOpen: false }).yearlyInr, 2_40_000);
+    assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 79_680);
+    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 2 }).yearlyInr, 79_680 + 2 * 9_000);
+    assert.equal(siteQuote("premium", { city: "Manesar", offerOpen: false }).yearlyInr, 1_59_360);
     // The old one-time plans kept their separate support year (SUPPORT_ANNUAL_INR).
     assert.equal(SUPPORT_ANNUAL_INR, 11_988);
     assert.equal(siteQuote("control", { city: "Manesar", offerOpen: false }).supportInr, SUPPORT_ANNUAL_INR);
@@ -353,7 +353,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
     const sum = q.lines.reduce((t, l) => t + l.amountInr, 0);
     assert.equal(q.taxableInr, sum);
     assert.equal(q.gstInr, Math.round(sum * 0.18 * 100) / 100);
-    assert.equal(q.totalInr, q.taxableInr + q.gstInr);
+    // To the paisa: a float sum can differ from the rounded total in the last bit.
+    assert.equal(q.totalInr, Math.round((q.taxableInr + q.gstInr) * 100) / 100);
     assert.equal(q.totalAreas, SITE_PLANS.premium.scenes + 6);
     // 10 uploaded + 3 shot. Premium's allowance covers 5 of the uploads,
     // so only 5 of them are charged; every shot video is.
@@ -461,7 +462,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(row.scenes, SITE_PLANS.premium.scenes);
     assert.match(row.notes, /^VPV Premium — /);
     // A yearly plan says what it renews at, read back when the workspace is built.
-    assert.match(row.notes, /renews yearly at ₹1,20,000/);
+    assert.match(row.notes, /renews yearly at ₹79,680/);
     // The offer is open in a fresh world, and the order says it took it.
     assert.match(row.notes, /Special offer/);
   });
@@ -569,7 +570,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     const closed = siteQuote("premium", { city: "Manesar", offerOpen: false });
     assert.equal(closed.savingInr, 0);
     assert.ok(!closed.lines.some((l) => l.kind === "offer"));
-    assert.equal(closed.taxableInr, 2_40_000 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(closed.taxableInr, 1_59_360 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("charges the regular price for real once 20 customers have paid", async () => {
