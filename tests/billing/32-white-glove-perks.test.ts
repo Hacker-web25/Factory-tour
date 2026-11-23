@@ -93,13 +93,39 @@ describe("the plan cards on the marketing site (22 Nov 2026)", () => {
   const jsSrc = home.match(/const JS_SRC = "(\/static\/js\/main\.[0-9a-f]+\.js)";/)![1];
   const bundle = fs.readFileSync(path.join(process.cwd(), "public", jsSrc), "utf8");
 
-  it("puts the support block, with the free months, beside the AOAs on every card", () => {
+  it("puts the support block beside the AOAs on every card", () => {
     assert.ok(bundle.includes('className:"vpv-pc-care"'));
     assert.ok(bundle.includes("Support, hosting & security: ₹999/month"));
     assert.ok(bundle.includes("Billed yearly (₹11,988 + GST)."));
-    assert.ok(bundle.includes("First 15 months "), "the free months");
-    assert.ok(bundle.includes('className:"vpv-care-free",children:"FREE"'));
-    assert.ok(bundle.includes(" for first 20 customers."));
+    assert.ok(!bundle.includes('className:"vpv-care-free"'), "the free months moved to the list under the price (23 Nov)");
+  });
+
+  it("lists what each plan gets free under its price, worked out from the plan (23 Nov 2026)", async () => {
+    const { FREE_FIGURES } = await import("@/lib/site/bundleData");
+    const { SITE_PLANS, SITE_PLAN_ORDER, SUPPORT_MONTHLY_INR, LAUNCH_OFFER, inr } = await import("@/lib/pricing");
+    const { CAB_TRAVEL } = await import("@/lib/logistics");
+    for (const id of SITE_PLAN_ORDER) {
+      const p = SITE_PLANS[id];
+      const months = p.monthlyInr * LAUNCH_OFFER.freeMonths;
+      const shared = SUPPORT_MONTHLY_INR * 15 + CAB_TRAVEL.amountInr;
+      assert.equal(FREE_FIGURES[id].months, inr(months));
+      assert.equal(FREE_FIGURES[id].yearSave, inr(p.regularInr - p.priceInr + months + shared));
+      assert.equal(FREE_FIGURES[id].lifeSave, inr(p.regularLifetimeInr - p.lifetimeInr + shared));
+    }
+    assert.equal(FREE_FIGURES.white_glove.yearSave, "₹2,19,685");
+    assert.equal(FREE_FIGURES.white_glove.lifeSave, "₹7,73,305");
+    assert.ok(bundle.includes('className:"vpv-free"'));
+    assert.ok(bundle.includes("Free for our first 20"));
+    assert.ok(bundle.includes("3 months of the plan") && bundle.includes("15 months of support") && bundle.includes("Factory visit"));
+    assert.ok(bundle.includes('ln.active&&(()=>{const f='), "only while the offer runs");
+    assert.match(home, /html\.vpv-life \.vpv-save-yr,html\.vpv-life \.vpv-fr-yr\{display:none\}/, "lifetime hides the yearly-only lines");
+  });
+
+  it("keeps the founding block's code but does not show it", async () => {
+    const { SHOW_FOUNDING_BLOCK, PLAN_BILLING_SCRIPT } = await import("@/lib/site/planBilling");
+    assert.equal(SHOW_FOUNDING_BLOCK, false);
+    assert.match(PLAN_BILLING_SCRIPT, /,ON=false;/);
+    assert.ok(PLAN_BILLING_SCRIPT.includes("vpv-fo"), "the block is still there to bring back");
   });
 
   it("strikes the regular price as the larger figure and sets /month smaller", () => {

@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.5b3182ff.js";
+const JS_SRC = "/static/js/main.bf3e966e.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -83,6 +83,21 @@ const PLAN_CARD_CSS = [
   ".vpv-pc-name{margin:0;font-family:Fraunces,Georgia,'Times New Roman',serif;font-optical-sizing:auto;font-size:clamp(1.25rem,1.6vw,1.6rem);line-height:1.15;font-weight:700;letter-spacing:-.012em;color:#0b2a5b}",
   // the price: struck per month + offer tag, the big offer price per month, the yearly bill
   ".vpv-pc-price{margin-top:.9rem}",
+  // 23 Nov 2026: what the buyer gets free, under the price. One line each:
+  // the label, what it is worth struck through, a green FREE. Then one total.
+  ".vpv-free{margin:.85rem 0 0;padding:.7rem .8rem .75rem;border-radius:14px;background:linear-gradient(180deg,#F0FDF4,#F7FEF9);box-shadow:inset 0 0 0 1px #CDEFD9}",
+  ".vpv-free-h{margin:0 0 .4rem;font-size:.6875rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#15803d}",
+  ".vpv-free ul{list-style:none;margin:0;padding:0;display:grid;gap:.3rem}",
+  ".vpv-fr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:baseline;gap:.5rem;font-size:.875rem;line-height:1.3}",
+  ".vpv-fr-l{font-weight:700;color:#0b2a5b}",
+  ".vpv-fr-w{font-weight:700;color:#64748b;text-decoration:line-through;text-decoration-color:#e11d2e;text-decoration-thickness:2px;font-variant-numeric:tabular-nums}",
+  ".vpv-fr-f{font-size:.75rem;font-weight:900;letter-spacing:.06em;color:#16a34a}",
+  ".vpv-save{margin:.55rem 0 0;padding-top:.5rem;border-top:1px dashed #BBE5C9;font-size:.875rem;font-weight:600;color:#166534}",
+  ".vpv-save b{font-size:1.125rem;font-weight:800;letter-spacing:-.01em;color:#15803d;font-variant-numeric:tabular-nums}",
+  ".vpv-save-life{display:none}html.vpv-life .vpv-save-life{display:block}html.vpv-life .vpv-save-yr,html.vpv-life .vpv-fr-yr{display:none}",
+  ".vpv-pc-gold .vpv-free{background:linear-gradient(180deg,#FFFBEB,#FFFDF5);box-shadow:inset 0 0 0 1px #F1DFA8}",
+  ".vpv-pc-gold .vpv-save{border-top-color:#EAD28F}",
+  "@media (max-width:480px){.vpv-free{padding:.6rem .65rem .65rem}.vpv-fr{font-size:.78rem;gap:.35rem}.vpv-fr-f{font-size:.6875rem}}",
   ".vpv-pc .vpv-was{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .5rem;margin:0}",
   // 22 Nov 2026: the struck regular price is the bigger figure and the offer price
   // the smaller, so the eye reads what the buyer is saving first.

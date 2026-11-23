@@ -602,12 +602,12 @@ export type SitePlanSpec = {
 
 /*
  * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026; re-priced 23 Nov 2026) ───────┐
- * │ The owner's per-month prices: ₹2,968, ₹6,640, ₹9,652, ₹13,380 —    │
+ * │ The owner's per-month prices: ₹2,968, ₹6,470, ₹9,622, ₹13,380 —    │
  * │ not round, no run of nines, the first three under ₹10,000 so they  │
- * │ read small (₹35,616, ₹79,680, ₹1,15,824, ₹1,60,560 a year).         │
+ * │ read small (₹35,616, ₹77,640, ₹1,15,464, ₹1,60,560 a year).         │
  * │ Bought for life instead (the toggle on the plans page): about 4.6×  │
- * │ a year, just below a round figure — ₹1,64,999, ₹3,64,999,           │
- * │ ₹5,34,999, ₹7,49,999. Either way support, hosting & security is     │
+ * │ a year, just below a round figure — ₹1,64,450, ₹3,64,420,           │
+ * │ ₹5,34,400, ₹7,54,320. Either way support, hosting & security is     │
  * │ billed yearly on top (SUPPORT_ANNUAL_INR).                          │
  * │ The yearly charge is exactly 12 of them, so the card's per-month    │
  * │ figure and the bill always agree. The struck regular price is 2×    │
@@ -706,13 +706,13 @@ export const EXTRA_AREA_LADDER: ExtraAreaBand[] = [
 ];
 
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
-  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 2_968, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_64_999),
-  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_640, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 3_64_999),
-  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_652, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 5_34_999),
+  light: sold("light", "VPV Light", "Your plant, online and ready to show.", 2_968, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_64_450),
+  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_470, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 3_64_420),
+  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_622, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 5_34_400),
   // White Glove also includes (22 Nov 2026): one free salesperson dashboard
   // (a Sales Team login) and one free update shoot of the factory every year.
   white_glove: {
-    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 13_380, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 7_49_999),
+    ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 13_380, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 7_54_320),
     freeSalesLogins: 1,
     updateShoots: 1,
   },

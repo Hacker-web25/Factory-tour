@@ -37,6 +37,16 @@ import { CAB_TRAVEL } from "@/lib/logistics";
 
 const GOLD = "#E9C46A";
 
+/**
+ * The founding block (the navy-and-gold box above the cards) is HIDDEN since
+ * 23 Nov 2026: its "worth ₹X to ₹Y" ranges confused buyers about what they
+ * get free, so each card now lists its own free things under the price
+ * (FREE_BLOCK in lib/site/bundleData.ts). The owner likes the box's style and
+ * may bring it back: everything below (copy, CSS, meter, live count) is kept
+ * as it was. Set this to true to show it again.
+ */
+export const SHOW_FOUNDING_BLOCK = false;
+
 /* ─────────────── the figures the founding block quotes ─────────────── */
 
 const monthly = SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr);
@@ -243,7 +253,7 @@ const CAPTION = {
 
 export const PLAN_BILLING_SCRIPT = String.raw`(function(){
   var KEY="vpv.billing",CAP=${JSON.stringify(CAPTION)},FO=${JSON.stringify(FOUNDING_HTML)},TG=${JSON.stringify(TOGGLE_HTML)};
-  var LIM=${FOUNDING_COPY.limit},ON=${LAUNCH_OFFER.active ? "true" : "false"};
+  var LIM=${FOUNDING_COPY.limit},ON=${LAUNCH_OFFER.active && SHOW_FOUNDING_BLOCK ? "true" : "false"};
   var quiet=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var painted=null;
   function mode(){try{return sessionStorage.getItem(KEY)==="lifetime"?"lifetime":"annual"}catch(e){return "annual"}}

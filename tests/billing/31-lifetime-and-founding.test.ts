@@ -34,8 +34,8 @@ import { canBuyUpgrade, upgradeOptions } from "@/lib/entitlements";
  */
 describe("lifetime prices", () => {
   it("are the owner's just-below-round prices, with the struck price at twice that", () => {
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planPrice(id, true, "lifetime")), [1_64_999, 3_64_999, 5_34_999, 7_49_999]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => regularPlanPrice(id, "lifetime")), [3_29_998, 7_29_998, 10_69_998, 14_99_998]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planPrice(id, true, "lifetime")), [1_64_450, 3_64_420, 5_34_400, 7_54_320]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => regularPlanPrice(id, "lifetime")), [3_28_900, 7_28_840, 10_68_800, 15_08_640]);
     for (const id of SITE_PLAN_ORDER) {
       // 4.5 to 5 times the yearly offer price.
       const x = SITE_PLANS[id].lifetimeInr / SITE_PLANS[id].priceInr;
@@ -51,10 +51,10 @@ describe("lifetime prices", () => {
     assert.match(q.lines[0].note ?? "", /Pay once/);
     assert.equal(q.yearlyInr, 0, "only support renews");
     // Founding customer: support free for 15 months, cab free.
-    assert.equal(q.taxableInr, 3_64_999);
+    assert.equal(q.taxableInr, 3_64_420);
     // After the offer: the regular lifetime price.
     const closed = siteQuote("premium", { city: "Manesar", billing: "lifetime", offerOpen: false });
-    assert.equal(closed.taxableInr, 7_29_998 + 4_000 + SUPPORT_ANNUAL_INR);
+    assert.equal(closed.taxableInr, 7_28_840 + 4_000 + SUPPORT_ANNUAL_INR);
   });
 
   it("prices extra areas on a lifetime plan once, at five times the yearly price", () => {
@@ -75,7 +75,7 @@ describe("lifetime prices", () => {
 
     const yearly = priceFor("site_plan", { sitePlanId: "ultra", city: "Manesar", offerOpen: true, founding: false, billing: "annual" }).description;
     assert.equal(planBillingFromNotes(yearly), "annual");
-    assert.equal(planYearlyFromNotes(yearly), 1_15_824);
+    assert.equal(planYearlyFromNotes(yearly), 1_15_464);
     assert.equal(foundingFromNotes(yearly), false);
     assert.equal(planBillingFromNotes("VPV Authority — 8 areas, cab Manesar"), null, "an old one-time plan is neither");
   });
@@ -158,7 +158,7 @@ describe("lifetime and founding through the real payment flow", () => {
   it("a founding lifetime buyer pays the lifetime price once, and the workspace records it", async () => {
     const o = await open({ sitePlanId: "premium", billing: "lifetime" });
     assert.equal(o.status, 200, JSON.stringify(o.body));
-    assert.equal(o.body.amountPaise, toPaise(withGst(3_64_999).total));
+    assert.equal(o.body.amountPaise, toPaise(withGst(3_64_420).total));
     await w.payInBrowser(o.body);
     assert.equal((await w.poll(o.body.orderId)).body.status, "ready");
     const [org] = await w.q(`select site_plan, plan_billing, plan_yearly_inr, support_until from public.organizations`);
