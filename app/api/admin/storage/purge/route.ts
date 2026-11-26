@@ -17,7 +17,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export const PURGE_PHRASE = "DELETE FROM SUPABASE";
+// Not exported: a Next.js route file may only export its HTTP handlers and config fields (runtime, dynamic,
+// maxDuration...), so any other export fails the build. app/admin/storage/page.tsx has its own copy.
+const PURGE_PHRASE = "DELETE FROM SUPABASE";
 
 export async function POST(req: Request) {
   const guard = await storageGuard(req);
