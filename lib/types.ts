@@ -104,17 +104,8 @@ export type Tour = {
   fx_hover_card_scale?: number; // 0.5–2, size of the hover preview card
   fx_idle_spin?: boolean;      // slow showcase auto-rotate after inactivity
 
-  /** Languages the tour has been translated INTO. Source language is
-   *  implicit (always available). Populated by the editor's Translations
-   *  panel; consumed by the viewer's LanguagePicker. */
-  available_languages?: string[] | null;
-  /** BCP-47 primary tag of the source content. Defaults to 'en'. */
-  default_language?: string | null;
-
-  /** Subtitle overlay style for the ambient-audio transcript. Shape:
-   *  { enabled, position, fontSize, opacity, bgColor, textColor,
-   *    maxWidthPct }. See SubtitlesSection for defaults. */
-  subtitle_settings?: Record<string, unknown> | null;
+  // Languages and subtitles are NOT columns of this table. They live in the language
+  // service (Cloudflare D1) and are read through lib/language/client.ts and useT().
 
   created_at: string;
   updated_at: string;

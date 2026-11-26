@@ -2785,13 +2785,7 @@ export default function TourEditPage() {
       {previewMode && show("subtitles_translations") && (
         <>
           <LanguagePicker position="top-right" />
-          <SubtitleOverlay
-            settings={
-              (tour as unknown as { subtitle_settings?: any })
-                .subtitle_settings
-            }
-            tourId={tour.id}
-          />
+          <SubtitleOverlay />
         </>
       )}
     </div>

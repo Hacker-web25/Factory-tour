@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, publicUrl } from "@/lib/supabase";
+import { languageApi } from "@/lib/language/client";
 import { mediaStorage } from "@/lib/media";
 import type { Folder, Tour } from "@/lib/types";
 import TopBar from "@/components/TopBar";
@@ -218,6 +219,10 @@ export default function OwnerHome() {
 
   async function deleteTour(id: string) {
     if (!confirm("Delete this tour?")) return;
+    // Subtitles and translations live in Cloudflare, not in the tour's database. Clear them
+    // first (the permission check needs the tour to still exist). If this fails the tour is
+    // still deleted — a few unused rows left behind cost nothing.
+    await languageApi.purge(id).catch(() => {});
     await supabase.from("tours").delete().eq("id", id);
     load();
   }

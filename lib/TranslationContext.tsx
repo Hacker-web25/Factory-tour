@@ -3,168 +3,189 @@
 /**
  * TranslationContext
  * ------------------
- * Wrap the viewer with <TranslationProvider tour scenes hotspots /> and
- * every child can call `useT()` to translate a string synchronously.
+ * Wrap the viewer (or the editor) with <TranslationProvider tour scenes hotspots />
+ * and every child can call `useT()`:
  *
- * Design goals:
- * - Sync `t(str)` — safe in React render paths.
- * - Precompute all source-string hashes on mount so lookups are O(1).
- * - Ship one Supabase query per language change; cache in a Map.
- * - Fall back to the source string when a translation is missing.
+ *   t(text)          translate a tour string, synchronously, from the loaded map
+ *   tSub(text, from) translate one subtitle line spoken in language `from`
+ *   transcriptFor(url)  the subtitle lines of an audio file (null if it has none)
+ *   subtitleSettings, languages, lang / setLang, reload()
+ *
+ * Everything comes from /api/language (Cloudflare D1), never straight from Supabase.
+ * Reading is cheap: one small call for the settings, one for the strings of the
+ * language being viewed, and one per audio file that actually has subtitles.
+ * Visitors never write anything and never trigger a translation.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
-import {
-  collectTourTexts,
-  detectVisitorLanguage,
-  hashOfSync,
-  loadTranslations,
-  precomputeHashes,
-  translateAndCache,
-  type LangCode,
-} from "@/lib/i18n";
+import { detectVisitorLanguage, type LangCode } from "@/lib/i18n";
+import { audioKey } from "@/lib/language/audioKey";
+import { languageApi, type StoredConfig, type TranscriptRef } from "@/lib/language/client";
+import { hashText } from "@/lib/language/hash";
+import type { Segment } from "@/lib/language/segments";
+import { DEFAULT_SUBTITLE_SETTINGS, resolveSettings, type SubtitleSettings } from "@/lib/language/settings";
+
+export type LoadedTranscript = { segments: Segment[]; language: string };
 
 type TranslationCtx = {
   /** Currently active language. Always non-null. */
   lang: LangCode;
-  /** Change language — persists in URL (?lang=xx) so link-sharing works. */
+  /** Change language — persists in the URL (?lang=xx) so link-sharing works. */
   setLang: (l: LangCode) => void;
-  /** Languages the tour has been translated into (source is implicit). */
+  /** The language the tour was written in. */
+  sourceLang: LangCode;
+  /** Every language a visitor can pick: the source first, then the translations on offer. */
+  languages: LangCode[];
+  /** Only the extra languages (the source is implicit). */
   availableLanguages: LangCode[];
-  /** Translate a string synchronously. Returns source on miss. */
+  /** Translate a tour string synchronously. Returns the source text on a miss. */
   t: (source: string | null | undefined) => string;
-  /** True while translations are being fetched for the current lang. */
+  /** Translate a subtitle line that was spoken in `from`. */
+  tSub: (text: string | null | undefined, from: string) => string;
+  /** The subtitles of an audio file, or null when it has none (no network call is made then). */
+  transcriptFor: (audioUrl: string) => Promise<LoadedTranscript | null>;
+  /** Do any of this tour's audio files have subtitles? */
+  hasSubtitles: boolean;
+  subtitleSettings: SubtitleSettings;
+  /** True while the strings for the current language are being fetched. */
   loading: boolean;
+  /** The settings have arrived (or failed). */
+  ready: boolean;
+  /** Fetch everything again — the editor calls this after changing languages or subtitles. */
+  reload: () => void;
 };
 
 const Ctx = createContext<TranslationCtx | null>(null);
 
+const IDENTITY: TranslationCtx = {
+  lang: "en",
+  setLang: () => {},
+  sourceLang: "en",
+  languages: ["en"],
+  availableLanguages: [],
+  t: (s) => s ?? "",
+  tSub: (s) => s ?? "",
+  transcriptFor: async () => null,
+  hasSubtitles: false,
+  subtitleSettings: DEFAULT_SUBTITLE_SETTINGS,
+  loading: false,
+  ready: true,
+  reload: () => {},
+};
+
 export function useT(): TranslationCtx {
-  const ctx = useContext(Ctx);
-  if (!ctx) {
-    // Provider not mounted — return an identity implementation so components
-    // that use t() outside the viewer (e.g. editor previews) don't crash.
-    return {
-      lang: "en",
-      setLang: () => {},
-      availableLanguages: [],
-      t: (s) => s ?? "",
-      loading: false,
-    };
-  }
-  return ctx;
+  // Provider not mounted — an identity implementation, so components that
+  // use t() outside the viewer (e.g. editor previews) don't crash.
+  return useContext(Ctx) ?? IDENTITY;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MEDIA_BASE = (process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "").trim();
 
 export function TranslationProvider({
   tour,
-  scenes,
-  hotspots,
   children,
 }: {
-  tour: Pick<Tour, "id" | "title" | "description"> & {
-    available_languages?: string[] | null;
-    default_language?: string | null;
-  };
-  scenes: Pick<Scene, "name">[];
-  hotspots: Pick<Hotspot, "label" | "info_title" | "info_body" | "pdf_name">[];
+  tour: Pick<Tour, "id" | "title" | "description">;
+  /** Accepted for the existing call sites; the strings are found by the translations themselves, not collected here. */
+  scenes?: Pick<Scene, "name" | "description">[];
+  hotspots?: Pick<Hotspot, "label" | "info_title" | "info_body" | "pdf_name">[];
   children: React.ReactNode;
 }) {
-  const sourceLang = (tour.default_language as LangCode) || "en";
-  const availableLanguages = useMemo(
-    () => (tour.available_languages as LangCode[] | null) ?? [],
-    [tour.available_languages]
-  );
+  const [config, setConfig] = useState<StoredConfig | null>(null);
+  const [transcripts, setTranscripts] = useState<TranscriptRef[]>([]);
+  const [ready, setReady] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  // null until the visitor picks one (or the first load picks it for them)
+  const [langState, setLangState] = useState<LangCode | null>(null);
+  const firstLoad = useRef(true);
 
-  // Pick initial language: ?lang=xx > localStorage > auto-detect > source
-  const [lang, setLangState] = useState<LangCode>(() => {
-    if (typeof window === "undefined") return sourceLang;
-    const qp = new URLSearchParams(window.location.search).get("lang");
-    if (qp && (qp === sourceLang || availableLanguages.includes(qp))) return qp;
-    const stored = window.localStorage.getItem("factour:lang");
-    if (stored && (stored === sourceLang || availableLanguages.includes(stored))) {
-      return stored;
-    }
-    return detectVisitorLanguage([sourceLang, ...availableLanguages]);
-  });
+  const sourceLang = config?.default_language || "en";
+  const availableLanguages = useMemo(() => (config?.available_languages ?? []).filter((l) => l !== sourceLang), [config, sourceLang]);
+  const languages = useMemo(() => [sourceLang, ...availableLanguages], [sourceLang, availableLanguages]);
+  const subtitleSettings = useMemo(() => resolveSettings(config?.subtitle_settings), [config]);
 
-  const [translations, setTranslations] = useState<Map<string, string>>(
-    new Map()
-  );
-  const [loading, setLoading] = useState(false);
-
-  // Precompute hashes for every source string once. Subsequent renders
-  // read them synchronously via hashOfSync.
-  const allTexts = useMemo(
-    () => collectTourTexts(tour, scenes, hotspots),
-    [tour, scenes, hotspots]
-  );
-
+  // 1. The tour's language settings and which audio has subtitles.
   useEffect(() => {
-    let cancelled = false;
+    if (!UUID.test(tour.id)) {
+      // demo / offline tours have no language data
+      setReady(true);
+      return;
+    }
+    const ctrl = new AbortController();
     (async () => {
-      await precomputeHashes(allTexts);
-      if (cancelled) return;
-      if (lang === sourceLang) {
-        setTranslations(new Map());
-        return;
-      }
-      setLoading(true);
-      const map = await loadTranslations(allTexts, lang);
-      if (cancelled) return;
-      setTranslations(map);
-      setLoading(false);
-
-      // Background auto-translate: whenever the owner adds or edits a
-      // string AFTER their last translation pass, the cache is missing
-      // an entry for the new hash. Instead of forcing them to click the
-      // ↻ button in the editor, we detect gaps here and quietly fill
-      // them in via MyMemory, then refresh the map so the strings snap
-      // from source-language fallback to the real translation. Users
-      // may see one flash of English → target on first view.
-      const missing = allTexts.filter((tx) => {
-        const h = hashOfSync(tx);
-        return !!h && !map.has(h);
-      });
-      if (missing.length > 0 && tour.id) {
-        try {
-          await translateAndCache({
-            tourId: tour.id,
-            sourceTexts: missing,
-            targetLang: lang,
-            sourceLang,
-          });
-          if (cancelled) return;
-          const refreshed = await loadTranslations(allTexts, lang);
-          if (!cancelled) setTranslations(refreshed);
-        } catch (e) {
-          console.warn("[i18n] background auto-translate failed:", e);
+      try {
+        const res = await languageApi.config(tour.id, ctrl.signal);
+        if (ctrl.signal.aborted) return;
+        setConfig(res.config);
+        setTranscripts(res.transcripts);
+        if (firstLoad.current) {
+          firstLoad.current = false;
+          const offered = [res.config.default_language || "en", ...res.config.available_languages];
+          const qp = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("lang") : null;
+          let stored: string | null = null;
+          try {
+            stored = typeof window !== "undefined" ? window.localStorage.getItem("factour:lang") : null;
+          } catch {
+            /* storage blocked */
+          }
+          const pick = qp && offered.includes(qp) ? qp : stored && offered.includes(stored) ? stored : detectVisitorLanguage(offered);
+          setLangState(offered.includes(pick) ? pick : offered[0]);
         }
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") console.warn("[language] settings not available:", (e as Error)?.message);
+      } finally {
+        if (!ctrl.signal.aborted) setReady(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [allTexts, lang, sourceLang, tour.id]);
+    return () => ctrl.abort();
+  }, [tour.id, reloadToken]);
+
+  // A language that was removed in the editor must not stay selected.
+  const lang: LangCode = langState && (langState === sourceLang || availableLanguages.includes(langState)) ? langState : sourceLang;
+
+  // 2. The strings for the language being viewed. Also needed in the source language
+  //    when some audio was spoken in another language (its subtitles are translated into it).
+  const needMap = ready && !!config && (lang !== sourceLang || transcripts.some((tr) => tr.language !== lang));
+  const [translations, setTranslations] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!needMap || !UUID.test(tour.id)) {
+      setTranslations(new Map());
+      setLoading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setLoading(true);
+    languageApi
+      .translations(tour.id, lang, ctrl.signal)
+      .then((map) => {
+        if (!ctrl.signal.aborted) setTranslations(new Map(Object.entries(map)));
+      })
+      .catch((e) => {
+        if ((e as Error)?.name !== "AbortError") console.warn("[language] translations not available:", (e as Error)?.message);
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [needMap, tour.id, lang, reloadToken]);
 
   const setLang = useCallback(
     (l: LangCode) => {
       setLangState(l);
-      if (typeof window !== "undefined") {
+      if (typeof window === "undefined") return;
+      try {
         window.localStorage.setItem("factour:lang", l);
-        // Reflect in URL so link-shares carry the language.
-        const url = new URL(window.location.href);
-        if (l === sourceLang) url.searchParams.delete("lang");
-        else url.searchParams.set("lang", l);
-        window.history.replaceState({}, "", url.toString());
+      } catch {
+        /* storage blocked */
       }
+      // Reflect in the URL so link-shares carry the language.
+      const url = new URL(window.location.href);
+      if (l === sourceLang) url.searchParams.delete("lang");
+      else url.searchParams.set("lang", l);
+      window.history.replaceState({}, "", url.toString());
     },
     [sourceLang]
   );
@@ -173,18 +194,55 @@ export function TranslationProvider({
     (source: string | null | undefined): string => {
       if (!source) return "";
       if (lang === sourceLang) return source;
-      const h = hashOfSync(source);
-      if (!h) return source;
-      return translations.get(h) ?? source;
+      return translations.get(hashText(source)) ?? source;
     },
     [translations, lang, sourceLang]
   );
 
-  return (
-    <Ctx.Provider
-      value={{ lang, setLang, availableLanguages, t, loading }}
-    >
-      {children}
-    </Ctx.Provider>
+  const tSub = useCallback(
+    (text: string | null | undefined, from: string): string => {
+      if (!text) return "";
+      if (from === lang) return text;
+      return translations.get(hashText(text)) ?? text;
+    },
+    [translations, lang]
   );
+
+  // 3. Subtitles of one audio file, fetched the first time it plays — and only if it has any.
+  const knownKeys = useMemo(() => new Map(transcripts.map((tr) => [tr.key, tr])), [transcripts]);
+  const cache = useRef<Map<string, Promise<LoadedTranscript | null>>>(new Map());
+  useEffect(() => {
+    cache.current = new Map();
+  }, [tour.id, reloadToken]);
+
+  const transcriptFor = useCallback(
+    (audioUrl: string): Promise<LoadedTranscript | null> => {
+      const key = audioKey(audioUrl, { mediaBase: MEDIA_BASE });
+      if (!knownKeys.has(key)) return Promise.resolve(null);
+      let p = cache.current.get(key);
+      if (!p) {
+        p = languageApi
+          .transcript(tour.id, key)
+          .then((tr) => (tr && tr.segments.length > 0 ? { segments: tr.segments, language: tr.language } : null))
+          .catch((e) => {
+            console.warn("[language] subtitles not available:", (e as Error)?.message);
+            cache.current.delete(key); // let the next play try again
+            return null;
+          });
+        cache.current.set(key, p);
+      }
+      return p;
+    },
+    [knownKeys, tour.id]
+  );
+
+  const hasSubtitles = transcripts.length > 0 && subtitleSettings.enabled;
+  const reload = useCallback(() => setReloadToken((n) => n + 1), []);
+
+  const value = useMemo<TranslationCtx>(
+    () => ({ lang, setLang, sourceLang, languages, availableLanguages, t, tSub, transcriptFor, hasSubtitles, subtitleSettings, loading, ready, reload }),
+    [lang, setLang, sourceLang, languages, availableLanguages, t, tSub, transcriptFor, hasSubtitles, subtitleSettings, loading, ready, reload]
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

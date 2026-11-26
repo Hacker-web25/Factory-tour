@@ -284,7 +284,10 @@ function TourPlayerInner({
   autoplay = false,
   initialSceneId,
 }: Props) {
-  const { t } = useT();
+  const { t, sourceLang, hasSubtitles } = useT();
+  // The recording effect below is set up once; it reads the language when recording starts.
+  const sourceLangRef = useRef(sourceLang);
+  sourceLangRef.current = sourceLang;
   // Seed activeSceneId from initialSceneId when it matches a scene we
   // know about, otherwise fall back to the first scene in order.
   const resolveInitial = (list: Scene[]): string | null => {
@@ -448,12 +451,7 @@ function TourPlayerInner({
       setRecordingPromptOpen(false);
       if (!isRecordingSupported()) return;
       try {
-        recorder = await startRecording(
-          bcpForLang(
-            (tour as unknown as { default_language?: string | null })
-              .default_language ?? "en"
-          )
-        );
+        recorder = await startRecording(bcpForLang(sourceLangRef.current));
         if (cancelled) {
           recorder.cancel();
           recorder = null;
@@ -1291,12 +1289,7 @@ function TourPlayerInner({
           firing time-update events. Hidden when the presenter mutes
           audio via the speaker button below. */}
       {!audioMuted && subsOk && (
-        <SubtitleOverlay
-          settings={
-            (tour as unknown as { subtitle_settings?: any }).subtitle_settings
-          }
-          tourId={tour.id}
-        />
+        <SubtitleOverlay />
       )}
       <div className="flex-1 relative">
         {/* Scene container — stays mounted across ALL scene changes.
@@ -1529,9 +1522,7 @@ function TourPlayerInner({
               : null
           }
           audio={
-            ambientUrl ||
-            (subsOk && (tour as unknown as { subtitle_settings?: any })
-              .subtitle_settings)
+            ambientUrl || (subsOk && hasSubtitles)
               ? {
                   muted: audioMuted,
                   onToggle: () => setAudioMuted((v) => !v),
