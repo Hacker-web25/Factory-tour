@@ -88,7 +88,7 @@ export default function ViewerPill({
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { lang, setLang, availableLanguages } = useT();
+  const { lang, setLang, languages: allLangs } = useT();
 
   // Close popovers on outside click.
   useEffect(() => {
@@ -103,7 +103,6 @@ export default function ViewerPill({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open, langOpen]);
 
-  const allLangs = Array.from(new Set(["en", ...availableLanguages]));
   const showLang = allLangs.length > 1;
   const current = langMeta(lang);
 

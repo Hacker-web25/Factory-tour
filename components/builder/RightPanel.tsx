@@ -554,10 +554,10 @@ function LangTab({
         onPatchTour={onPatchTour}
       />
       <div className="border-t border-border pt-4">
-        <TranslationsSection tour={tour} onTourChange={onPatchTour} />
+        <TranslationsSection tour={tour} />
       </div>
       <div className="border-t border-border pt-4">
-        <SubtitlesSection tour={tour} onPatchTour={onPatchTour} />
+        <SubtitlesSection tour={tour} />
       </div>
     </div>
   );

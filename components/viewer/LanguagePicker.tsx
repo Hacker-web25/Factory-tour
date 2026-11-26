@@ -14,7 +14,7 @@ export default function LanguagePicker({
 }: {
   position?: "top-right" | "top-left" | "bottom-right" | "bottom-left";
 }) {
-  const { lang, setLang, availableLanguages, loading } = useT();
+  const { lang, setLang, languages, loading } = useT();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -28,8 +28,8 @@ export default function LanguagePicker({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  // Source lang ("en") is always available; combine with owner-added langs.
-  const all = Array.from(new Set(["en", ...availableLanguages]));
+  // The language the tour is written in, then the translations on offer.
+  const all = languages;
   if (all.length < 2) return null; // nothing to switch between
 
   const pos: React.CSSProperties = {

@@ -1,39 +1,31 @@
 /**
- * Translation infrastructure (Phase 1: static text).
+ * Languages and the list of texts a tour needs translated.
  *
- * Strategy
- * --------
- * - Every translatable string is identified by SHA-1 of its source text.
- * - Translations are cached forever in Supabase (`translations` table),
- *   keyed by (source_hash, target_lang). We never re-translate the same
- *   text twice.
- * - Owner clicks "Translate to Spanish, French, Hindi" once in the
- *   editor; we walk the tour, find every unique string, POST any that
- *   are missing to MyMemory (free public API), and insert the results.
- * - Viewer with ?lang=xx fetches all rows for their language on load
- *   and looks up rendered strings by hash. Missing rows → fall back
- *   to the source string.
+ * Where things live now
+ * ---------------------
+ * - Translations, subtitles and each tour's language settings are stored in
+ *   Cloudflare D1 (see cloudflare/language-worker.js), NOT in Supabase.
+ * - The browser talks to our own /api/language/* routes (lib/language/client.ts);
+ *   the routes check who may read or change the tour and then call the Worker.
+ * - Every string is found by lib/language/hash.ts (SHA-1 of the text), so a
+ *   viewer looks a string up without sending it anywhere.
+ * - Translation itself happens on the server (lib/language/engine.ts), which
+ *   checks every answer before it is saved.
  *
- * Why MyMemory? Free, no signup, no card, ~50k words/day per IP with an
- * email hint. Quality is fine for tour text (short strings, common
- * vocabulary). If you outgrow it, `translateOne` is the single call site
- * to swap for DeepL / Azure / Google.
+ * This file is import-safe on the server and in tests: it touches no database.
  */
 
-import { supabase } from "@/lib/supabase";
 import type { Hotspot, Scene, Tour } from "@/lib/types";
 
 // -----------------------------------------------------------------------------
-//  Supported target languages (ISO 639-1 primary tag + display name).
-//  Add any language MyMemory supports — full list at translated.net.
+//  Supported languages (ISO 639-1 primary tag + display name).
 // -----------------------------------------------------------------------------
 export type LangCode = string;
 export type LangMeta = { code: LangCode; name: string; nativeName: string };
 
-// If you want to add more, MyMemory supports every ISO 639-1 code — just
-// add the row here (native name + English name for the picker). Order
-// roughly reflects global speaker count so the most common ones bubble
-// up in the "Add language" list.
+// To add one, add a row here (English name + native name for the picker).
+// Order roughly reflects global speaker count so the most common ones
+// bubble up in the "Add language" list.
 export const SUPPORTED_LANGUAGES: LangMeta[] = [
   { code: "en",    name: "English",              nativeName: "English" },
   { code: "zh",    name: "Chinese (Simplified)", nativeName: "简体中文" },
@@ -111,283 +103,38 @@ export function langMeta(code: LangCode): LangMeta {
 }
 
 // -----------------------------------------------------------------------------
-//  Hashing — SHA-1 is short (40 hex), fast, and effectively collision-free
-//  for our string-count scale. Cached per session so we don't rehash the
-//  same string N times per render.
-// -----------------------------------------------------------------------------
-const hashCache = new Map<string, string>();
-
-export async function sha1(text: string): Promise<string> {
-  const cached = hashCache.get(text);
-  if (cached) return cached;
-  if (typeof crypto === "undefined" || !crypto.subtle) {
-    // SSR / very old browser — return the text itself, which is fine
-    // because the Postgres unique constraint is on (source_hash, lang).
-    return text;
-  }
-  const buf = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest("SHA-1", buf);
-  const hex = Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  hashCache.set(text, hex);
-  return hex;
-}
-
-/** Sync accessor — returns the previously-computed hash or empty string. */
-export function hashOfSync(text: string): string {
-  return hashCache.get(text) ?? "";
-}
-
-/** Batch-compute hashes for a bunch of strings up front so subsequent
- *  `hashOfSync` calls in render functions are free. */
-export async function precomputeHashes(texts: string[]): Promise<void> {
-  await Promise.all(texts.map((t) => sha1(t)));
-}
-
-// -----------------------------------------------------------------------------
 //  Collect every translatable string in a tour.
 // -----------------------------------------------------------------------------
+
+/** Words the viewer itself shows for a hotspot with no label of its own. */
+export const VIEWER_STRINGS = ["Video", "Voice note", "Person"] as const;
+
 export function collectTourTexts(
   tour: Pick<Tour, "title" | "description"> | null,
-  scenes: Pick<Scene, "name">[] | null,
-  hotspots: Pick<
-    Hotspot,
-    "label" | "info_title" | "info_body" | "pdf_name"
-  >[] | null
+  scenes: Pick<Scene, "name" | "description">[] | null,
+  hotspots:
+    | Pick<Hotspot, "label" | "info_title" | "info_body" | "pdf_name">[]
+    | null
 ): string[] {
   const set = new Set<string>();
-  if (tour?.title) set.add(tour.title);
-  if (tour?.description) set.add(tour.description);
-  for (const s of scenes ?? []) if (s.name) set.add(s.name);
-  for (const h of hotspots ?? []) {
-    if (h.label) set.add(h.label);
-    if (h.info_title) set.add(h.info_title);
-    if (h.info_body) set.add(h.info_body);
-    if (h.pdf_name) set.add(h.pdf_name);
-  }
-  return Array.from(set).filter((s) => s.trim().length > 0);
-}
-
-// -----------------------------------------------------------------------------
-//  MyMemory — free translation API.
-//  https://mymemory.translated.net/doc/spec.php
-//  GET /get?q=<text>&langpair=en|es&de=<email>
-// -----------------------------------------------------------------------------
-export type TranslateFn = (
-  text: string,
-  targetLang: LangCode,
-  sourceLang?: LangCode
-) => Promise<string>;
-
-// Read at call time so a .env change takes effect without a rebuild.
-const MYMEMORY_EMAIL =
-  (typeof process !== "undefined" &&
-    process.env.NEXT_PUBLIC_MYMEMORY_EMAIL) ||
-  "";
-
-/** Normalize a language code so MyMemory won't reject it. Accepts
- *  'en', 'zh-CN', etc. Rejects garbage like 'auto', empty, or 3+ letter
- *  codes that MyMemory doesn't support — falls back to 'en'. */
-function sanitizeLangCode(code: string | null | undefined): string {
-  if (!code) return "en";
-  const s = String(code).trim();
-  if (/^[a-z]{2}(-[A-Z]{2})?$/i.test(s)) return s;
-  return "en";
-}
-
-export const translateOne: TranslateFn = async (text, targetLang, sourceLang = "en") => {
-  const src = sanitizeLangCode(sourceLang);
-  const tgt = sanitizeLangCode(targetLang);
-  const params = new URLSearchParams({
-    q: text,
-    langpair: `${src}|${tgt}`,
-  });
-  if (MYMEMORY_EMAIL) params.set("de", MYMEMORY_EMAIL);
-  const res = await fetch(
-    `https://api.mymemory.translated.net/get?${params.toString()}`
-  );
-  if (!res.ok) throw new Error(`MyMemory HTTP ${res.status}`);
-  const data = (await res.json()) as {
-    responseData?: { translatedText?: string };
-    responseStatus?: number | string;
-    responseDetails?: string;
+  const add = (s: string | null | undefined) => {
+    if (typeof s === "string" && s.trim().length > 0) set.add(s);
   };
-  const raw = data.responseData?.translatedText;
-  if (!raw) throw new Error("MyMemory returned no translation");
-  const cleaned = raw.replace(/^MYMEMORY WARNING[^:]*:\s*/i, "").trim();
-  // Detect MyMemory error strings that would otherwise get cached as
-  // the "translation" and appear verbatim on screen.
-  const looksLikeError =
-    /INVALID (SOURCE|TARGET) LANGUAGE/i.test(cleaned) ||
-    /IS AN INVALID/i.test(cleaned) ||
-    (data.responseStatus && String(data.responseStatus) !== "200");
-  if (looksLikeError) {
-    throw new Error(
-      `MyMemory rejected the request (${data.responseDetails ?? cleaned.slice(0, 80)})`
-    );
+  add(tour?.title);
+  add(tour?.description);
+  for (const s of scenes ?? []) {
+    add(s.name);
+    // The scene rail shows the description after trimming (MenuOverlay).
+    add(s.description?.trim());
   }
-  return cleaned;
-};
-
-// -----------------------------------------------------------------------------
-//  Fetch existing translations for a set of source strings.
-// -----------------------------------------------------------------------------
-export async function loadTranslations(
-  sourceTexts: string[],
-  targetLang: LangCode
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  if (targetLang === "en" || sourceTexts.length === 0) return map;
-
-  await precomputeHashes(sourceTexts);
-  const hashes = sourceTexts.map((t) => hashOfSync(t)).filter(Boolean);
-  if (hashes.length === 0) return map;
-
-  // Fetch in chunks — Supabase `in` list has a URL-length cap.
-  const CHUNK = 200;
-  for (let i = 0; i < hashes.length; i += CHUNK) {
-    const slice = hashes.slice(i, i + CHUNK);
-    const { data, error } = await supabase
-      .from("translations")
-      .select("source_hash, translated_text")
-      .in("source_hash", slice)
-      .eq("target_lang", targetLang);
-    if (error) {
-      console.warn("[i18n] loadTranslations chunk error:", error.message);
-      continue;
-    }
-    for (const row of data ?? []) {
-      map.set(
-        (row as any).source_hash as string,
-        (row as any).translated_text as string
-      );
-    }
+  for (const h of hotspots ?? []) {
+    add(h.label);
+    add(h.info_title);
+    add(h.info_body);
+    add(h.pdf_name);
   }
-  return map;
-}
-
-// -----------------------------------------------------------------------------
-//  Translate a set of strings into a target language, writing the results
-//  to the cache table. Progressive: reports done/total after each string
-//  so the editor can show a progress bar.
-// -----------------------------------------------------------------------------
-export async function translateAndCache(opts: {
-  tourId: string;
-  sourceTexts: string[];
-  targetLang: LangCode;
-  sourceLang?: LangCode;
-  onProgress?: (done: number, total: number, currentText?: string) => void;
-  concurrency?: number;
-}): Promise<{ translated: number; failed: number }> {
-  const {
-    tourId,
-    sourceTexts,
-    targetLang,
-    sourceLang = "en",
-    onProgress,
-    concurrency = 3,
-  } = opts;
-
-  if (targetLang === sourceLang) return { translated: 0, failed: 0 };
-
-  // Skip strings that already have a translation cached.
-  const already = await loadTranslations(sourceTexts, targetLang);
-  const missing = sourceTexts.filter((t) => {
-    const h = hashOfSync(t);
-    return !!h && !already.has(h);
-  });
-  if (missing.length === 0) return { translated: 0, failed: 0 };
-
-  let done = 0;
-  let failed = 0;
-  const rowsToInsert: Array<{
-    source_hash: string;
-    source_text: string;
-    target_lang: string;
-    translated_text: string;
-    tour_id: string;
-  }> = [];
-
-  // Simple concurrency limiter — MyMemory tolerates a few parallel
-  // requests fine. `concurrency=3` is a safe default.
-  const queue = missing.slice();
-  async function worker() {
-    while (queue.length) {
-      const text = queue.shift()!;
-      try {
-        const translated = await translateOne(text, targetLang, sourceLang);
-        const h = await sha1(text);
-        rowsToInsert.push({
-          source_hash: h,
-          source_text: text,
-          target_lang: targetLang,
-          translated_text: translated,
-          tour_id: tourId,
-        });
-      } catch (err) {
-        console.warn("[i18n] translate failed for:", text, err);
-        failed++;
-      } finally {
-        done++;
-        onProgress?.(done, missing.length, text);
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: concurrency }, () => worker()));
-
-  // Write all new translations in one round-trip.
-  if (rowsToInsert.length > 0) {
-    // Chunk inserts to keep individual queries small.
-    const CHUNK = 200;
-    for (let i = 0; i < rowsToInsert.length; i += CHUNK) {
-      const slice = rowsToInsert.slice(i, i + CHUNK);
-      const { error } = await supabase
-        .from("translations")
-        .upsert(slice, { onConflict: "source_hash,target_lang" });
-      if (error) console.warn("[i18n] upsert error:", error.message);
-    }
-  }
-
-  return { translated: rowsToInsert.length, failed };
-}
-
-// -----------------------------------------------------------------------------
-//  Register a language as "available" on a tour so viewers see it in the
-//  language picker.
-// -----------------------------------------------------------------------------
-export async function markLanguageAvailable(
-  tourId: string,
-  lang: LangCode
-): Promise<void> {
-  const { data: existing } = await supabase
-    .from("tours")
-    .select("available_languages")
-    .eq("id", tourId)
-    .single();
-  const current = ((existing as any)?.available_languages as string[]) ?? [];
-  if (current.includes(lang)) return;
-  await supabase
-    .from("tours")
-    .update({ available_languages: [...current, lang] })
-    .eq("id", tourId);
-}
-
-export async function unmarkLanguageAvailable(
-  tourId: string,
-  lang: LangCode
-): Promise<void> {
-  const { data: existing } = await supabase
-    .from("tours")
-    .select("available_languages")
-    .eq("id", tourId)
-    .single();
-  const current = ((existing as any)?.available_languages as string[]) ?? [];
-  const next = current.filter((l) => l !== lang);
-  await supabase
-    .from("tours")
-    .update({ available_languages: next })
-    .eq("id", tourId);
+  for (const w of VIEWER_STRINGS) add(w);
+  return Array.from(set);
 }
 
 // -----------------------------------------------------------------------------
@@ -399,9 +146,12 @@ export function detectVisitorLanguage(availableLangs: LangCode[]): LangCode {
   const prefs =
     (navigator.languages && Array.from(navigator.languages)) ||
     (navigator.language ? [navigator.language] : []);
+  const byLower = new Map(availableLangs.map((l) => [l.toLowerCase(), l]));
   for (const raw of prefs) {
-    const primary = (raw || "").toLowerCase().split("-")[0];
-    if (availableLangs.includes(primary)) return primary;
+    const full = (raw || "").toLowerCase();
+    // "zh-TW" matches a tour offering zh-TW; "es-MX" falls back to es.
+    const hit = byLower.get(full) ?? byLower.get(full.split("-")[0]);
+    if (hit) return hit;
   }
   return "en";
 }
