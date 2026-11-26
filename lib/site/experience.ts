@@ -35,10 +35,12 @@ export const kuulaSceneUrl = (code: string): string =>
 /** The fallback, opened on its first real scene. */
 export const KUULA_DEMO_URL = kuulaSceneUrl(KUULA_FIRST_SCENE);
 
-/** The home page's scroll story shows one scene per part, in this order
- *  (exhibitions, conversion, international buyers, privacy, how VPV helps).
- *  `code` is the scene's id in the Kuula collection. To change a scene,
- *  swap its code; to add one, add a row (the story has five parts). */
+/** Scenes the /experience page cycles through, in this order
+ *  NOTE (Nov 2026): the homepage story no longer shows this live demo or posts
+ *  scenes here. Its seven parts use pictures and a short video instead (see
+ *  scripts/home-story/README.md). Only the /experience page and
+ *  components/site/HeroExperience.tsx still read this list; nothing on the
+ *  homepage depends on it. `code` is the scene's id in the Kuula collection. */
 export const KUULA_STORY_SCENES: { code: string; name: string }[] = [
   { code: KUULA_FIRST_SCENE, name: "Entrance" },
   { code: "5dmTG", name: "Quality control" },

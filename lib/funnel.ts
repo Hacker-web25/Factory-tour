@@ -286,7 +286,7 @@ export function recommendPlan(s: {
 
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords come with VPV Ultra, and expiry and device limits with White Glove."
+      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords, expiry and device limits come with VPV Ultra."
     );
   }
   if (bigPlant) {

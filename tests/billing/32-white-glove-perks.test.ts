@@ -26,11 +26,13 @@ describe("the order plans are shown in", () => {
   });
 });
 
-describe("what White Glove includes", () => {
-  it("has one free Sales Team login and one update shoot a year, and no other plan does", () => {
-    assert.equal(SITE_PLANS.white_glove.freeSalesLogins, 1);
-    assert.equal(SITE_PLANS.white_glove.updateShoots, 1);
-    for (const id of SITE_PLAN_ORDER.filter((p) => p !== "white_glove")) {
+describe("what Ultra and White Glove include (Ultra joined on 27 Nov 2026)", () => {
+  it("have one free Sales Team login and one update shoot a year, and no other plan does", () => {
+    for (const id of ["ultra", "white_glove"] as const) {
+      assert.equal(SITE_PLANS[id].freeSalesLogins, 1, id);
+      assert.equal(SITE_PLANS[id].updateShoots, 1, id);
+    }
+    for (const id of SITE_PLAN_ORDER.filter((p) => p !== "white_glove" && p !== "ultra")) {
       assert.equal(SITE_PLANS[id].freeSalesLogins, 0, id);
       assert.equal(SITE_PLANS[id].updateShoots, 0, id);
     }
@@ -38,23 +40,25 @@ describe("what White Glove includes", () => {
 
   it("counts the free login from the plan, and not for a plan we do not know", () => {
     assert.equal(includedSalesLogins("white_glove"), 1);
-    for (const id of ["light", "premium", "ultra", "confidence", "", null, undefined, "nonsense"]) {
+    assert.equal(includedSalesLogins("ultra"), 1);
+    for (const id of ["light", "premium", "confidence", "", null, undefined, "nonsense"]) {
       assert.equal(includedSalesLogins(id), 0, String(id));
     }
   });
 
-  it("opens the Sales Team features with no paid seat, only for White Glove", () => {
+  it("opens the Sales Team features with no paid seat, only for Ultra and White Glove", () => {
     const salesKeys = FEATURE_KEYS.filter((k) => accessTo({ plan: "basic", site_plan: "light", sales_seats: 0 }, k).state === "locked" &&
       (accessTo({ plan: "basic", site_plan: "light", sales_seats: 0 }, k) as { upgradeTo: string }).upgradeTo === "sales_team");
     assert.ok(salesKeys.length > 0, "there is at least one Sales Team feature");
     for (const k of salesKeys) {
       assert.equal(accessTo({ plan: "basic", site_plan: "white_glove", sales_seats: 0 }, k).state, "open", k);
-      assert.equal(accessTo({ plan: "basic", site_plan: "ultra", sales_seats: 0 }, k).state, "locked", k);
-      assert.equal(accessTo({ plan: "basic", site_plan: "ultra", sales_seats: 1 }, k).state, "open", k);
+      assert.equal(accessTo({ plan: "basic", site_plan: "ultra", sales_seats: 0 }, k).state, "open", k);
+      assert.equal(accessTo({ plan: "basic", site_plan: "premium", sales_seats: 0 }, k).state, "locked", k);
+      assert.equal(accessTo({ plan: "basic", site_plan: "premium", sales_seats: 1 }, k).state, "open", k);
     }
   });
 
-  it("shows both on the bill at no charge, and only on White Glove", () => {
+  it("shows both on the bill at no charge, and only on Ultra and White Glove", () => {
     const wg = siteQuote("white_glove", { city: "Manesar" });
     const login = wg.lines.find((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.salesLogin.row));
     const shoot = wg.lines.find((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.updateShoot.row));
@@ -66,7 +70,10 @@ describe("what White Glove includes", () => {
     assert.ok(regular.lines.some((l) => l.label.includes(PLAN_PERKS.updateShoot.row)), "still there once the offer ends");
 
     const ultra = siteQuote("ultra", { city: "Manesar" });
-    assert.ok(!ultra.lines.some((l) => l.label.includes(PLAN_PERKS.salesLogin.row) || l.label.includes(PLAN_PERKS.updateShoot.row)));
+    assert.ok(ultra.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.salesLogin.row)), "Ultra: login on the bill");
+    assert.ok(ultra.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.updateShoot.row)), "Ultra: update shoot on the bill");
+    const premium = siteQuote("premium", { city: "Manesar" });
+    assert.ok(!premium.lines.some((l) => l.label.includes(PLAN_PERKS.salesLogin.row) || l.label.includes(PLAN_PERKS.updateShoot.row)));
   });
 
   it("does not change what White Glove costs", () => {
