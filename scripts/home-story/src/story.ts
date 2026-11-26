@@ -1,15 +1,20 @@
 /**
  * Home page scroll story.
  *
- * The live 360° demo stays pinned on the right (on phones, at the top) while
- * the left side moves through five parts as the visitor scrolls:
+ * Seven parts, one scroll each. The text sits on the left; on the right
+ * (on phones, at the top) a picture, a small animation, a table or a video
+ * changes with each part. Since 27 Nov 2026 the live 360° demo is NOT shown
+ * here: the visitors who played with it for a minute left without reading
+ * anything else. The demo is still one click away (the "Demo" link in the
+ * header, /demo, and the link in part 6).
  *
- *   1  You are already investing in exhibitions and meeting buyers.
- *   2  What's the cost of not giving buyers enough confidence to buy from you?
- *      (a calculator: leads, value, conversion)
- *   3  Give international buyers the confidence to choose you.
- *   4  Show your factory only to buyers. Keep competitors out.
- *   5  How VPV helps: one answer to each of 2–4, then the call to action.
+ *   0  Problem  You meet hundreds of buyers at exhibitions ... yet conversion is low.
+ *   1  Why      Lack of trust: videos, brochures and video calls do not build enough.
+ *   2  Cost     How much is it costing you? The calculator, and four worked examples.
+ *   3  Proof    Mr. Anuj Anand's story (autoplaying, muted until tapped), the logos, the case studies.
+ *   4  Solution VPV: show your factory only to buyers, keep competitors out (the four link controls).
+ *   5  How it works
+ *   6  Order now in just 5 simple steps, and the button to the plans.
  *
  * Mounted by the loader in lib/site/home.ts into <div id="home-story">,
  * which the site bundle renders in place of the old home sections. If this
@@ -18,13 +23,14 @@
 import { metaFromInputs, type CalcInputs } from "@/lib/whyVpvCalc";
 import { track } from "@/lib/analytics/client";
 import CSS from "./story.css";
+import { CALC_CONVS, CALC_LEADS, CALC_VALUES, CASE_STUDIES_BUTTON, FACTORIES, ORDER_STEPS, PROOF, worked } from "./data";
 
 const CONV = 3; // the conversion part 2 asks about, and the slider's start
-const VALUES = [5, 10, 25, 50, 100, 500]; // lakh
+const VALUES = CALC_VALUES;
 const valueLabel = (v: number) => (v >= 100 ? `₹${v / 100}CR` : `₹${v}L`);
-const LEADS = { min: 100, max: 5_000, step: 50, start: 1_000 }; // over 5 years
+const LEADS = CALC_LEADS; // over 5 years
 const VALUE_START = 100; // lakh: ₹1 crore per lead to begin with
-const CONVS = { min: 1, max: 50 };
+const CONVS = CALC_CONVS;
 /** Save the calculator once the sliders have rested this long. */
 const SAVE_AFTER_MS = 1500;
 /** ₹5.03 Crore, ₹48.50 Lakh — two decimals, Indian grouping. */
@@ -36,20 +42,30 @@ const money = (inrAmount: number) => {
   if (inrAmount >= 1_00_00_000) return `₹${f(inrAmount / 1_00_00_000)} Crore`;
   return `₹${f(inrAmount / 1_00_000)} Lakh`;
 };
+/** The table's short form: ₹147 Cr, ₹6.5 Cr, ₹80 L. */
+const short = (inrAmount: number) => {
+  if (inrAmount >= 1_00_00_000) return `₹${(inrAmount / 1_00_00_000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+  return `₹${(inrAmount / 1_00_000).toLocaleString("en-IN", { maximumFractionDigits: 1 })} L`;
+};
 
 const arrow = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
-const check = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 const icon = {
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>',
   device: '<rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M6 18h6"/><rect x="17" y="8" width="5" height="12" rx="1"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',
-  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
-  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
-  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
-  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
-  chart: '<path d="M3 21h18"/><rect x="5" y="12" width="3" height="6" rx="1"/><rect x="10.5" y="8" width="3" height="10" rx="1"/><rect x="16" y="4" width="3" height="14" rx="1"/>',
-  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.2c2 .7 3.5 2.6 3.5 5.8"/>',
+  rupee: '<path d="M6 4h12M6 9h12M6 4c5 0 8 1.5 8 5s-3 5-8 5l9 6"/>',
+  down: '<path d="M4 7l6 6 4-4 6 6"/><path d="M14 15h6v-6"/>',
+  film: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3V9Z"/>',
+  brochure: '<path d="M4 5a2 2 0 0 1 2-2h11l3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  call: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.5"/>',
+  orbit: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><path d="M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  share: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  sound: '<path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
 };
 const svg = (d: string, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
@@ -57,12 +73,29 @@ const svg = (d: string, s = 20) => `<svg viewBox="0 0 24 24" width="${s}" height
 const words = (t: string, from = 0) => t.split(" ").map((w, i) => `<span class="hs-w"><span style="--i:${from + i}">${w}</span></span>`).join(" ");
 
 const PARTS = [
-  { id: "exhibitions", label: "Exhibitions", weight: 1.1 },
-  { id: "conversion", label: "Conversion", weight: 1.5 },
-  { id: "international", label: "International buyers", weight: 1.1 },
-  { id: "privacy", label: "Privacy", weight: 1.1 },
-  { id: "helps", label: "How VPV helps", weight: 1.5 },
+  { id: "problem", label: "The problem" },
+  { id: "trust", label: "Why" },
+  { id: "cost", label: "The cost" },
+  { id: "proof", label: "Proof" },
+  { id: "solution", label: "VPV" },
+  { id: "how", label: "How it works" },
+  { id: "order", label: "Order now" },
 ];
+const PART_COST = 2;
+const PART_PROOF = 3;
+
+const LOGOS_ALT =
+  "Logos of manufacturers that use VPV: Kilitch Drugs, GRKC, Yum-Way, Binayak Hi Tech Engineering, Kesaria Rubber Industries, Nandan GSE, ViR, Saa Vishnu Group, Param, Miicron, JFL, Ecoste, de'Smat, Garima Global, Grace Auto and EASA Elevators";
+
+const factoryRow = (f: (typeof FACTORIES)[number]) => {
+  const { won, lost } = worked(f);
+  return `<tr class="hs-fr hs-pop" style="--k:${FACTORIES.indexOf(f)}" data-f="${f.id}">
+    <th scope="row"><button type="button" class="hs-fbtn" data-f="${f.id}" aria-pressed="false" aria-label="${f.name}: load ${f.leads.toLocaleString("en-IN")} leads at ${valueLabel(f.lakh)} each and ${f.conv}% conversion into the calculator"><b>${f.name}</b><small>${f.leads.toLocaleString("en-IN")} leads × ${valueLabel(f.lakh)}</small><small class="hs-fnote">${f.note}</small></button></th>
+    <td>${f.conv}%</td>
+    <td class="hs-won-c">${short(won)}</td>
+    <td class="hs-lost-c">${short(lost)}</td>
+  </tr>`;
+};
 
 let styled = false;
 
@@ -81,22 +114,25 @@ export function mount(host: HTMLElement): () => void {
   sec.setAttribute("data-testid", "home-story");
   sec.innerHTML = `
   <div class="hs-pin">
-    ${["base", "conversion", "international", "privacy"].map((g) => `<div class="hs-glow hs-glow--${g}" aria-hidden="true"></div>`).join("")}
+    ${["base", "loss", "sky", "safe"].map((g) => `<div class="hs-glow hs-glow--${g}" aria-hidden="true"></div>`).join("")}
     <div class="hs-grid">
       <div class="hs-stage">
         <article class="hs-part" data-i="0" data-testid="home-story-hero">
           <p class="hs-eyebrow">Real Factories. Real Confidence.</p>
-          <h1 class="hs-h1 hs-h1--hero" data-testid="landing-heading">${words("You spend lakhs meeting global buyers in exhibitions.")}<span class="hs-red">${words("How much business are you losing", 8)} <span class="hs-mark">${words("after they leave?", 14)}<svg class="hs-scribble" viewBox="0 0 300 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C 60 5, 140 4, 297 9"/></svg></span></span></h1>
+          <h1 class="hs-h1 hs-h1--hero" data-testid="landing-heading">${words("You meet hundreds of buyers at exhibitions and generate opportunities worth crores,")} <span class="hs-red">${words("yet", 12)} <span class="hs-mark">${words("conversion is low.", 13)}<svg class="hs-scribble" viewBox="0 0 300 18" preserveAspectRatio="none" aria-hidden="true"><path d="M3 12 C 60 5, 140 4, 297 9"/></svg></span></span></h1>
           <p class="hs-lede hs-in" style="--d:14">Meeting a buyer is just the beginning. <strong>You need to give them enough proof, confidence and reasons to choose you</strong>, even after the exhibition is over.</p>
-          <div class="hs-ctas hs-in" style="--d:16">
-            <a class="hs-btn" href="/why-vpv" data-testid="home-story-why-vpv">Why VPV? ${arrow}</a>
-            <a class="hs-pill" href="/case-studies" data-testid="home-story-case-study"><span class="hs-play" aria-hidden="true"></span><span><b>80%+ conversion with VPV</b><small>Anuj Anand's story · See here</small></span></a>
-          </div>
-          <p class="hs-cue hs-in" style="--d:18" aria-hidden="true"><span></span>Scroll</p>
+          <p class="hs-cue hs-in" style="--d:16" aria-hidden="true"><span></span>Scroll</p>
         </article>
 
         <article class="hs-part" data-i="1">
-          <h2 class="hs-h2 hs-h2--calc">${words("What's the cost of not giving buyers enough confidence to buy from you?")}</h2>
+          <p class="hs-eyebrow">Why?</p>
+          <h2 class="hs-h2">${words("Lack of trust.")}</h2>
+          <p class="hs-body hs-in" style="--d:4">Corporate videos, brochures and video calls don't build enough of the trust buyers need.</p>
+          <p class="hs-body hs-body--em hs-in" style="--d:6"><strong>Buyers trust what they can see.</strong></p>
+        </article>
+
+        <article class="hs-part" data-i="2">
+          <h2 class="hs-h2 hs-h2--calc">${words("How much is it costing you?")}</h2>
           <div class="hs-calc hs-in" style="--d:4">
             <div class="hs-cq">
               <div class="hs-cq-head"><label class="hs-cq-t" for="hs-leads">Total Qualified Leads in 5 Years</label><input id="hs-leads-num" class="hs-val hs-leads-in" type="text" inputmode="numeric" autocomplete="off" maxlength="7" value="0" aria-label="Total qualified leads in 5 years: type a number from ${LEADS.min} to ${LEADS.max}"></div>
@@ -122,32 +158,20 @@ export function mount(host: HTMLElement): () => void {
           </div>
         </article>
 
-        <article class="hs-part" data-i="2">
-          <h2 class="hs-h2">${words("Give international buyers the confidence to choose you.")}</h2>
-          <p class="hs-body hs-in" style="--d:5">Walk an international buyer through your plant on Zoom, with no travel on either side. Send your VPV with your company profile, so they understand your capability before deciding on a physical audit.</p>
-          <div class="hs-map hs-in" style="--d:7" aria-hidden="true">
-            <svg viewBox="0 0 440 150">
-              <path class="hs-arc" style="--k:0" d="M300 104 Q255 40 190 58"/>
-              <path class="hs-arc" style="--k:1" d="M300 104 Q230 20 120 44"/>
-              <path class="hs-arc" style="--k:2" d="M300 104 Q190 10 64 66"/>
-              <path class="hs-arc" style="--k:3" d="M300 104 Q360 50 392 92"/>
-              <path class="hs-arc" style="--k:4" d="M300 104 Q286 48 330 30"/>
-              <path class="hs-arc" style="--k:5" d="M300 104 Q376 4 414 44"/>
-              <circle class="hs-home" cx="300" cy="104" r="7"/>
-              <circle class="hs-city" style="--k:0" cx="190" cy="58" r="5"/><circle class="hs-city" style="--k:1" cx="120" cy="44" r="5"/>
-              <circle class="hs-city" style="--k:2" cx="64" cy="66" r="5"/><circle class="hs-city" style="--k:3" cx="392" cy="92" r="5"/>
-              <circle class="hs-city" style="--k:4" cx="330" cy="30" r="5"/><circle class="hs-city" style="--k:5" cx="414" cy="44" r="5"/>
-              <text class="hs-tl hs-tl--home" x="300" y="130">Your factory</text>
-              <text class="hs-tl" style="--k:0" x="196" y="80">Dubai</text><text class="hs-tl" style="--k:1" x="120" y="30">Frankfurt</text>
-              <text class="hs-tl" style="--k:2" x="64" y="52">Paris</text><text class="hs-tl" style="--k:3" x="392" y="78">Singapore</text>
-              <text class="hs-tl" style="--k:4" x="330" y="16">Russia</text><text class="hs-tl" style="--k:5" x="414" y="30">USA</text>
-            </svg>
+        <article class="hs-part" data-i="3">
+          <p class="hs-eyebrow">Proof</p>
+          <h2 class="hs-h2 hs-h2--proof">${words("These manufacturers have already solved this.")}</h2>
+          <blockquote class="hs-quote hs-in" style="--d:5"><p>VPV became the bridge between us and our customers, and it builds our authority with every buyer.</p><footer>${PROOF.name}, Kesaria Rubber Industries</footer></blockquote>
+          <figure class="hs-logos hs-in" style="--d:7"><img src="/img/trusted-manufacturers.webp" width="1774" height="887" loading="lazy" decoding="async" alt="${LOGOS_ALT}" data-testid="home-story-logos"></figure>
+          <div class="hs-ctas hs-in" style="--d:9">
+            <a class="hs-btn" href="/case-studies" data-testid="home-story-case-study">${CASE_STUDIES_BUTTON} ${arrow}</a>
           </div>
         </article>
 
-        <article class="hs-part" data-i="3">
+        <article class="hs-part" data-i="4">
+          <p class="hs-eyebrow">VPV · Virtual Plant Visit</p>
           <h2 class="hs-h2">${words("Show your factory only to buyers. Keep competitors out.")}</h2>
-          <p class="hs-body hs-in" style="--d:5">Decide exactly who gets to see your factory.</p>
+          <p class="hs-body hs-in" style="--d:5">Your virtual factory tour, which your competition will not be able to see.</p>
           <ul class="hs-locks">
             ${[
               [icon.link, "One-time view links"],
@@ -158,29 +182,97 @@ export function mount(host: HTMLElement): () => void {
           </ul>
         </article>
 
-        <article class="hs-part" data-i="4">
-          <p class="hs-eyebrow">How VPV helps</p>
-          <h2 class="hs-h2">${words("Buyers trust what they can see.")}</h2>
-          <ol class="hs-answers">
-            ${[
-              [icon.zap, "Up to 70% Faster Deal Closures", "Buyers get all the key factory information they need, so decisions happen sooner."],
-              [icon.chart, "Up to 50% Increased Conversion Ratio", "More of your exhibition and online leads turn into real business."],
-              [icon.trophy, "Helps Differentiate from your competition", "Show real operations, scale and quality, something most competitors still don't."],
-            ].map(([ic, t, d], k) => `<li class="hs-ans hs-in" style="--d:${4 + k * 2}"><span class="hs-ic hs-ic--grad">${svg(ic, 20)}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}
-          </ol>
-          <div class="hs-ctas hs-in" style="--d:11">
+        <article class="hs-part" data-i="5">
+          <p class="hs-eyebrow">How it works</p>
+          <h2 class="hs-h2 hs-h2--how"><span class="hs-sent">${words("We shoot it.")}</span> <span class="hs-sent">${words("You share it.", 3)}</span> <span class="hs-sent">${words("Buyers walk through it.", 6)}</span></h2>
+          <p class="hs-body hs-in" style="--d:5">One link opens your whole factory, on any screen, with no travel on either side.</p>
+          <div class="hs-ctas hs-in" style="--d:7">
+            <a class="hs-link hs-link--keep" href="/how-it-works" data-testid="home-story-how">See it in detail ${arrow}</a>
+            <a class="hs-link hs-link--keep" href="/demo" data-testid="home-story-demo-link">Try the live demo ${arrow}</a>
+          </div>
+        </article>
+
+        <article class="hs-part" data-i="6">
+          <p class="hs-eyebrow">Order now</p>
+          <h2 class="hs-h2">${words("Order now in just 5 simple steps.")}</h2>
+          <p class="hs-body hs-in" style="--d:5">You do the first two, online. We do the rest.</p>
+          <div class="hs-ctas hs-in" style="--d:7">
             <a class="hs-btn" href="/plans" data-testid="home-story-cta">Find the Right VPV for Your Factory ${arrow}</a>
-            <a class="hs-link" href="/why-vpv">See everything VPV does ${arrow}</a>
           </div>
         </article>
       </div>
 
-      <div class="hs-demo" data-testid="home-story-demo">
-        <div class="hs-frame">
-          <iframe data-src="/experience" title="Live VPV: walk through a real factory in 360°" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay" allowfullscreen></iframe>
-          <button type="button" class="hs-guard" aria-label="Click to explore the live factory tour"></button>
+      <div class="hs-visual" data-testid="home-story-visual">
+        <div class="hs-vis" data-v="0">
+          <figure class="hs-photo">
+            <img src="/img/home-expo-tablet.webp" srcset="/img/home-expo-tablet-sm.webp 640w, /img/home-expo-tablet.webp 970w" sizes="(max-width:1023px) 90vw, 520px" width="970" height="578" decoding="async" fetchpriority="high" alt="Two buyers at an exhibition looking at a factory tour on a tablet">
+            <span class="hs-chip hs-chip--blue hs-pop hs-chip--a" style="--k:0">${svg(icon.users, 16)}Hundreds of buyers met</span>
+            <span class="hs-chip hs-chip--green hs-pop hs-chip--b" style="--k:1">${svg(icon.rupee, 16)}Opportunities worth crores</span>
+            <span class="hs-chip hs-chip--red hs-pop hs-chip--c" style="--k:2">${svg(icon.down, 16)}Conversion is low</span>
+          </figure>
         </div>
-        <p class="hs-hint">Drag to explore, click to experience</p>
+
+        <div class="hs-vis" data-v="1">
+          <div class="hs-card hs-trust">
+            <p class="hs-card-t">Trust built with the buyer</p>
+            <ul class="hs-meters">
+              ${[
+                [icon.film, "Corporate video", ".3"],
+                [icon.brochure, "Brochures", ".2"],
+                [icon.call, "Video calls", ".42"],
+              ].map(([ic, t, f], k) => `<li class="hs-meter-row hs-pop" style="--k:${k};--f:${f}"><span class="hs-ic">${svg(ic, 20)}</span><span class="hs-meter-main"><b>${t}</b><i class="hs-meter"><u></u></i></span><em>Not enough</em></li>`).join("")}
+            </ul>
+            <p class="hs-legend"><span class="hs-dash" aria-hidden="true"></span>Trust a buyer needs before placing an order</p>
+          </div>
+        </div>
+
+        <div class="hs-vis" data-v="2">
+          <div class="hs-card hs-tab">
+            <p class="hs-card-t">Four factories, one formula</p>
+            <p class="hs-card-s">Illustrative examples, worked out like the calculator. Tap a row to load it.</p>
+            <table class="hs-table" aria-label="Four example factories and what they lose to competition over five years">
+              <thead><tr><th scope="col">Factory</th><th scope="col">Converts</th><th scope="col">You win</th><th scope="col"><span class="hs-long">Lost to competition</span><span class="hs-brief">Lost</span></th></tr></thead>
+              <tbody>${FACTORIES.map(factoryRow).join("")}</tbody>
+            </table>
+            <p class="hs-card-n">Leads are over 5 years. Lost = the leads that did not convert, at the same business per lead.</p>
+          </div>
+        </div>
+
+        <div class="hs-vis hs-vis--video" data-v="3">
+          <div class="hs-vid">
+            <p class="hs-vid-tag"><span class="hs-play" aria-hidden="true"></span>80%+ conversion with VPV</p>
+            <div class="hs-vid-frame${PROOF.portrait ? " is-portrait" : ""}">
+              <iframe title="${PROOF.name}, ${PROOF.role}: his story with VPV" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              <button type="button" class="hs-vguard" aria-label="Click to use the video controls"></button>
+              <button type="button" class="hs-sound" aria-label="Turn on sound">${svg(icon.sound, 20)}<span>Tap for sound</span></button>
+            </div>
+            <p class="hs-vid-who"><b>${PROOF.name}</b><span>${PROOF.role}</span></p>
+          </div>
+        </div>
+
+        <div class="hs-vis" data-v="4">
+          <div class="hs-sol">
+            <img src="/img/home-buyer-tablet.webp" srcset="/img/home-buyer-tablet-sm.webp 640w, /img/home-buyer-tablet.webp 1066w" sizes="(max-width:1023px) 90vw, 540px" width="1066" height="705" loading="lazy" decoding="async" alt="A buyer looking at a VPV factory tour on a tablet, with information icons over the shop floor">
+            <span class="hs-chip hs-chip--green hs-pop hs-chip--d" style="--k:0">${svg(icon.check, 16)}Buyer: link opened</span>
+            <span class="hs-chip hs-chip--red hs-pop hs-chip--e" style="--k:1">${svg(icon.lock, 16)}Competitor: access blocked</span>
+          </div>
+        </div>
+
+        <div class="hs-vis" data-v="5">
+          <ol class="hs-flow">
+            ${[
+              [icon.camera, "We shoot your plant in 360°", "Our crew comes to you. Production keeps running."],
+              [icon.orbit, "We build your VPV", "Areas joined, information icons, your videos and your brand. Live at yourcompany.myvpv.com."],
+              [icon.share, "You share one link", "Buyers walk through your plant on their own screen. You decide who gets in."],
+            ].map(([ic, t, d], k) => `<li class="hs-flow-i hs-pop" style="--k:${k}"><span class="hs-ic hs-ic--grad">${svg(ic, 22)}</span><span><b>${t}</b><small>${d}</small></span></li>`).join("")}
+          </ol>
+        </div>
+
+        <div class="hs-vis" data-v="6">
+          <ol class="hs-steps5">
+            ${ORDER_STEPS.map((s, k) => `<li class="hs-s5 hs-pop" style="--k:${k}"><span class="hs-num">${k + 1}</span><span class="hs-s5-t"><b>${s.title}</b><small>${s.when}</small></span><em class="hs-who hs-who--${s.who === "You" ? "you" : "us"}">${s.who === "You" ? "You" : "We do it"}</em></li>`).join("")}
+          </ol>
+        </div>
       </div>
     </div>
     <div class="hs-steps" aria-hidden="true">${PARTS.map(() => "<i></i>").join("")}</div>
@@ -189,10 +281,14 @@ export function mount(host: HTMLElement): () => void {
 
   const $ = <T extends Element>(q: string) => sec.querySelector(q) as T;
   const parts = Array.from(sec.querySelectorAll<HTMLElement>(".hs-part"));
+  const visuals = Array.from(sec.querySelectorAll<HTMLElement>(".hs-vis"));
   const steps = Array.from(sec.querySelectorAll<HTMLElement>(".hs-steps i"));
   const pin = $<HTMLElement>(".hs-pin");
+  // The right-hand column (on phones, the strip across the top). The fit
+  // logic below shortens it on a small phone to make room for the text.
+  const frame = $<HTMLElement>(".hs-visual");
 
-  /* ---------- the calculator (part 2) ---------- */
+  /* ---------- the calculator (part 2, "How much is it costing you?") ---------- */
   const range = $<HTMLInputElement>(".hs-range--leads");
   const convRange = $<HTMLInputElement>(".hs-range--conv");
   const leadsIn = $<HTMLInputElement>(".hs-leads-in");
@@ -248,6 +344,7 @@ export function mount(host: HTMLElement): () => void {
     customChip.setAttribute("aria-pressed", String(customOn));
     customChip.setAttribute("aria-expanded", String(customOn));
     if (customBox.hidden === customOn) { customBox.hidden = !customOn; fitPart(); }
+    markExamples();
   };
   // Same event the Why VPV calculator sent, so the owner's calculator report,
   // journeys and interest scores keep working. Only after a real change.
@@ -305,53 +402,62 @@ export function mount(host: HTMLElement): () => void {
   addEventListener("pagehide", flush);
   document.addEventListener("visibilitychange", onHidden);
 
-  /* ---------- the demo stays usable without trapping the scroll ---------- */
-  // The tour takes wheel and touch input. A clear layer over it lets the page
-  // scroll past; one click (or tap) hands the tour the mouse until it leaves.
-  const frame = $<HTMLElement>(".hs-frame");
-  const guard = $<HTMLButtonElement>(".hs-guard");
-  const unlock = () => frame.classList.add("is-open");
-  const lock = () => frame.classList.remove("is-open");
-  guard.addEventListener("click", unlock);
-  // A mouse that moves over the tour hands it the mouse straight away, so the
-  // very first press can already drag. (A press on the clear layer could only
-  // open the tour, never start the drag, so coming back to it took two goes.)
-  // Not while the wheel is in use: a wheel over the tour keeps turning the
-  // story's parts, and touch still opens it with a tap.
-  let lastWheelAt = -1e4;
-  guard.addEventListener("wheel", () => { lastWheelAt = performance.now(); }, { passive: true });
-  guard.addEventListener("pointermove", (e) => {
-    if (e.pointerType !== "mouse" || performance.now() - lastWheelAt < 900) return;
-    if (Math.abs(e.movementX) + Math.abs(e.movementY) < 2) return;
-    unlock();
-  });
-  frame.addEventListener("mouseleave", lock);
-  const outside = (e: Event) => { if (!frame.contains(e.target as Node)) lock(); };
+  /* ---------- the four example factories ---------- */
+  // A row loads its numbers into the calculator, so the visitor sees the
+  // table's figures come alive (and can then change them). The row that
+  // matches the calculator's current numbers is marked.
+  const fbtns = Array.from(sec.querySelectorAll<HTMLButtonElement>(".hs-fbtn"));
+  const markExamples = () => {
+    fbtns.forEach((b) => {
+      const f = FACTORIES.find((x) => x.id === b.dataset.f)!;
+      const on = !customOn && f.leads === calc.leads && f.lakh === calc.valueLakh && f.conv === calc.conv;
+      b.setAttribute("aria-pressed", String(on));
+      b.closest("tr")?.classList.toggle("is-picked", on);
+    });
+  };
+  fbtns.forEach((b) => b.addEventListener("click", () => {
+    const f = FACTORIES.find((x) => x.id === b.dataset.f)!;
+    customOn = false;
+    calc.leads = f.leads; calc.valueLakh = f.lakh; calc.conv = f.conv;
+    range.value = String(f.leads); convRange.value = String(f.conv);
+    lastField = "leads";
+    changed();
+    // Nudge the eye to the left, where the figures just changed.
+    if (!reduced) { lossBox.classList.remove("hs-hit"); void lossBox.offsetWidth; lossBox.classList.add("hs-hit"); }
+  }));
+
+  /* ---------- part 3: the video ---------- */
+  // Browsers only autoplay a video that starts muted, so it starts muted and
+  // a large "Tap for sound" button turns the sound on (the tap is the
+  // gesture the browser wants). Same approach as /case-studies. It starts
+  // when the visitor reaches the part, pauses when they leave and picks up
+  // again when they come back, so it never plays to an empty room.
+  const vframe = $<HTMLElement>(".hs-vid-frame");
+  const viframe = $<HTMLIFrameElement>(".hs-vid-frame iframe");
+  const soundBtn = $<HTMLButtonElement>(".hs-sound");
+  let vStarted = false, vT0 = 0;
+  const ytSrc = (muted: boolean, start = 0) =>
+    `https://www.youtube-nocookie.com/embed/${PROOF.id}?autoplay=1&mute=${muted ? 1 : 0}&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}${start > 0 ? `&start=${start}` : ""}`;
+  const ytCmd = (func: "playVideo" | "pauseVideo") => {
+    try { viframe.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args: "" }), "*"); } catch { /* not loaded yet */ }
+  };
+  const startVideo = () => { if (vStarted) return; vStarted = true; vT0 = performance.now(); viframe.src = ytSrc(true); };
+  // The player takes the wheel and touch for itself, so the page could not
+  // scroll past it. A clear layer over it lets the page scroll; a click or
+  // tap hands the player the mouse (for its own controls) until the mouse
+  // leaves or a touch lands elsewhere.
+  const vguard = $<HTMLButtonElement>(".hs-vguard");
+  vguard.addEventListener("click", () => vframe.classList.add("is-open"));
+  vframe.addEventListener("mouseleave", () => vframe.classList.remove("is-open"));
+  const outside = (e: Event) => { if (!vframe.contains(e.target as Node)) vframe.classList.remove("is-open"); };
   document.addEventListener("touchstart", outside, { passive: true });
-
-  /* ---------- load the live tour after the page itself ---------- */
-  // The 360° tour pulls several MB of panoramas. Starting it only once the
-  // page has loaded lets the text, buttons and fonts arrive first, and keeps
-  // the browser's loading spinner from waiting on the tour.
-  const iframe = $<HTMLIFrameElement>(".hs-frame iframe");
-  const startTour = () => { if (!iframe.src) iframe.src = iframe.dataset.src || "/experience"; frame.classList.add("is-loading"); iframe.addEventListener("load", () => frame.classList.remove("is-loading"), { once: true }); };
-  const idle = (f: () => void) => ("requestIdleCallback" in window ? (window as unknown as { requestIdleCallback: (cb: () => void, o: { timeout: number }) => void }).requestIdleCallback(f, { timeout: 1200 }) : setTimeout(f, 300));
-  if (document.readyState === "complete") idle(startTour);
-  else addEventListener("load", () => idle(startTour), { once: true });
-
-  /* ---------- the tour changes scene as the story moves on ---------- */
-  // Each part of the story shows its own scene. The tour page (/experience)
-  // is on our own origin, so we simply tell it which part is showing; it
-  // does the swapping (components/site/HeroExperience.tsx). It says "ready"
-  // once it is listening, so a part reached before that is not lost.
-  const sendScene = (i: number) => {
-    try { iframe.contentWindow?.postMessage({ type: "vpv-hero-scene", index: i }, location.origin); } catch { /* the tour is not up yet */ }
-  };
-  const onTourMsg = (e: MessageEvent) => {
-    if (e.origin !== location.origin || e.source !== iframe.contentWindow) return;
-    if (e.data && e.data.type === "vpv-hero-ready") sendScene(Math.max(0, active));
-  };
-  addEventListener("message", onTourMsg);
+  soundBtn.addEventListener("click", () => {
+    vframe.classList.add("is-sound");
+    // Same video, same place, now with sound (a new load is the one thing a
+    // tap lets every browser do).
+    viframe.src = ytSrc(false, Math.max(0, Math.floor((performance.now() - vT0) / 1000)));
+    track("video_play", { id: PROOF.id, sound: true, label: "home_story_proof", path: "/" });
+  });
 
   /* ---------- scroll → active part ---------- */
   // Each part sits at its own stop: part 0 when the story first pins, the
@@ -364,21 +470,28 @@ export function mount(host: HTMLElement): () => void {
   const stopY = (i: number) => Math.round(sec.getBoundingClientRect().top + scrollY - headerH() + (i / (N - 1)) * span());
   const engaged = () => { const r = sec.getBoundingClientRect(); return r.top <= headerH() + 2 && r.bottom >= innerHeight - 2; };
   let active = -1;
+  const seen = new Set<number>();
   const setActive = (i: number) => {
     if (i === active) return;
     const dir = i > active ? "down" : "up";
-    parts.forEach((p, k) => {
+    const flip = (els: HTMLElement[]) => els.forEach((p, k) => {
       p.classList.toggle("is-active", k === i);
       p.classList.toggle("is-past", k < i);
       p.setAttribute("aria-hidden", String(k !== i));
       (p as HTMLElement & { inert: boolean }).inert = k !== i;
     });
+    flip(parts);
+    flip(visuals);
     sec.dataset.dir = dir;
     sec.dataset.part = PARTS[i].id;
     steps.forEach((s, k) => s.classList.toggle("on", k <= i));
-    if (i === 1 && active !== 1) { shown = 0; recalc(); } // the loss counts up each time part 2 arrives
+    if (i === PART_COST && active !== PART_COST) { shown = 0; recalc(); } // the loss counts up each time the cost part arrives
+    // The video starts when the visitor reaches it, rests when they leave.
+    if (i === PART_PROOF) { if (vStarted) ytCmd("playVideo"); else startVideo(); }
+    else if (active === PART_PROOF) ytCmd("pauseVideo");
+    // Where visitors stop reading: one event per part, per visit.
+    if (!seen.has(i)) { seen.add(i); track("section_view", { section: `home-${PARTS[i].id}`, path: "/" }); }
     active = i;
-    sendScene(i);
   };
   // A part that comes out taller than its space (a small phone, or a phone
   // set to a larger text size) must not run under the progress bar or off
@@ -408,6 +521,16 @@ export function mount(host: HTMLElement): () => void {
     parts.forEach((a) => {
       const m = overflow(a);
       if (m.by > 0) a.style.setProperty("zoom", String(Math.max(0.72, Math.floor((m.room / m.need) * 100) / 100)));
+    });
+    // The same for what is shown above the text on a phone: scaled down to
+    // the strip it has, never below 55%.
+    visuals.forEach((v) => {
+      const c = v.firstElementChild as HTMLElement | null;
+      if (!c) return;
+      c.style.removeProperty("zoom");
+      if (!phone.matches) return;
+      const room = frame.clientHeight - 6, need = c.offsetHeight;
+      if (need > room && room > 0) c.style.setProperty("zoom", String(Math.max(0.55, Math.floor((room / need) * 100) / 100)));
     });
   };
 
@@ -577,8 +700,8 @@ export function mount(host: HTMLElement): () => void {
     removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove);
     removeEventListener("touchend", onTouchEnd); removeEventListener("keydown", onKey);
     document.removeEventListener("touchstart", outside);
-    removeEventListener("message", onTourMsg);
     document.removeEventListener("visibilitychange", onHidden);
+    ytCmd("pauseVideo");
   }
   return dispose;
 }

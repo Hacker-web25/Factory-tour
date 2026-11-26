@@ -142,10 +142,10 @@ const GET: Deliverable[] = [
   { icon: I.server, tag: "Every plan", tagKind: "all", title: "Support, hosting & security", text: `Fast hosting, backups, security updates, and a real person to help by e-mail and phone, with a reply within 48 hours. ${inr(SUPPORT_MONTHLY_INR)}/month, billed yearly, on every plan.` },
   { icon: I.video, tag: "Premium and up", tagKind: "up", title: "Process videos", text: "Short videos of a process, like moulding or testing, that play inside the tour at the spot where it happens. They sit on your own YouTube channel." },
   { icon: I.file, tag: "Premium and up", tagKind: "up", title: "Lab reports & certificates", text: "Attach ISO, CE, GMP and test reports. Buyers open them inside the tour, right where they belong." },
-  { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium, password-protected links from Ultra, and link expiry time and limits on devices with White Glove." },
-  { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place. White Glove includes one free." },
+  { icon: I.lock, tag: "Premium and up", tagKind: "up", title: "Link controls", text: "One-time view links from Premium; password-protected links, link expiry time and limits on devices from Ultra." },
+  { icon: I.users, tag: "Optional, any plan", tagKind: "add", title: "Sales Team logins", text: "Each salesperson gets their own login to present the same VPV. You see their clients, deal stages and meetings in one place. Ultra and White Glove include one free." },
   { icon: I.star, tag: "White Glove", tagKind: "ent", title: "Mr. Nitin Gupta, personally", text: "A one-to-one planning session, then your plant filmed by Mr. Nitin Gupta himself." },
-  { icon: I.video, tag: "White Glove", tagKind: "ent", title: "A free update shoot every year", text: "If parts of your factory change, we come back once a year and reshoot those areas, and update your VPV. Cab travel included." },
+  { icon: I.video, tag: "Ultra and White Glove", tagKind: "ent", title: "A free update shoot every year", text: "If parts of your factory change, we come back once a year and reshoot those areas, and update your VPV. Cab travel included." },
 ];
 
 const BUYER = [

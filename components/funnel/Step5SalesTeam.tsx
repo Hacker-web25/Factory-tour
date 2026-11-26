@@ -48,6 +48,7 @@ import {
   includedSalesLogins,
   inr,
   inrLakhs,
+  isKnownPlanId,
   salesTeamMaths,
   seatPrice,
 } from "@/lib/pricing";
@@ -308,7 +309,7 @@ export default function Step5SalesTeam() {
                     className="mt-4 rounded-xl border border-[#E9C46A]/60 bg-[#FFF8E1] px-4 py-3 text-[13.5px] font-medium text-[#6B4A00]"
                     data-testid="included-login-note"
                   >
-                    ★ Your {SITE_PLANS.white_glove.name} plan already includes {includedSalesLogins(s.chosenPlan)} free salesperson
+                    ★ Your {isKnownPlanId(s.chosenPlan) ? SITE_PLANS[s.chosenPlan].name : "plan"} plan already includes {includedSalesLogins(s.chosenPlan)} free salesperson
                     dashboard. The logins below are for more salespeople.
                   </p>
                 )}

@@ -48,7 +48,7 @@ describe("four yearly plans", () => {
     }
   });
 
-  it("spreads the features like the seven plans: Light basic, Premium media + one-time, Ultra + passwords, White Glove everything + Mr. Gupta", () => {
+  it("spreads the features: Light basic, Premium media + one-time, Ultra every link control, White Glove adds Mr. Gupta", () => {
     assert.deepEqual(SITE_PLAN_ORDER.map(infoIconsLabel), [
       "20 information icons",
       "Unlimited information icons",
@@ -59,7 +59,7 @@ describe("four yearly plans", () => {
     assert.deepEqual(SITE_PLAN_ORDER.map(linkControlLabels), [
       [],
       ["One-time view link"],
-      ["One-time view link", "Password-protected link"],
+      ["One-time view link", "Password-protected link", "Control link expiry time", "Limit device access"],
       ["One-time view link", "Password-protected link", "Control link expiry time", "Limit device access"],
     ]);
     assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].personal), [false, false, false, true]);

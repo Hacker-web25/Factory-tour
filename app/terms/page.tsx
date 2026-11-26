@@ -46,6 +46,7 @@ import {
   VIDEO_SHOT_NOTE,
   discountBands,
   hoursLabel,
+  plansWithPerk,
   siteQuote,
   GST_LABEL,
   SUPPORT_ANNUAL_INR,
@@ -137,7 +138,7 @@ const sections: LegalSection[] = [
         <li>
           <B>Sales Team login</B>: a yearly login for one of your salespeople,
           optional on every Plan, and one is included free with{" "}
-          {SITE_PLANS.white_glove.name}.
+          {plansWithPerk("freeSalesLogins")}.
         </li>
         <li>
           <B>Workspace</B>: your business&rsquo;s private area of VPV, reached at{" "}
@@ -300,7 +301,7 @@ const sections: LegalSection[] = [
         </P>
         <P>
           <B>Sales Team logins.</B> On any Plan you may add a login for each of
-          your salespeople; {SITE_PLANS.white_glove.name} already includes{" "}
+          your salespeople; {plansWithPerk("freeSalesLogins")} already include{" "}
           {SITE_PLANS.white_glove.freeSalesLogins} login free, for as long as the
           Plan runs, and more can be added at the prices below. It gives your administrator (usually the MD) a sales
           dashboard: when and where each meeting started, the meetings held with
@@ -310,7 +311,7 @@ const sections: LegalSection[] = [
           Plan, the logins are offered for renewal on the same bill and you can
           untick them; how that works is under{" "}
           <L href="#support">Yearly renewal, support, hosting &amp; security</L>. A Workspace
-          cannot have more salespeople signed in than the logins paid for (and, on {SITE_PLANS.white_glove.name}, the one included). A
+          cannot have more salespeople signed in than the logins paid for (and, on {plansWithPerk("freeSalesLogins")}, the one included). A
           meeting&rsquo;s place is recorded only if the salesperson allows
           location in their browser; see{" "}
           <L href="#recording-ai">Location, and features that are switched off</L>.
@@ -521,8 +522,8 @@ const sections: LegalSection[] = [
           than one day.
         </li>
         <li>
-          <B>The free update shoot ({SITE_PLANS.white_glove.name}).</B>{" "}
-          {SITE_PLANS.white_glove.name} includes {SITE_PLANS.white_glove.updateShoots} update shoot every plan year,
+          <B>The free update shoot ({plansWithPerk("updateShoots")}).</B>{" "}
+          {plansWithPerk("updateShoots")} include {SITE_PLANS.white_glove.updateShoots} update shoot every plan year,
           free: if parts of your factory change, we come back and reshoot the
           areas already in your VPV, and update them. Ask for it from your
           dashboard or by writing to us; we contact you within{" "}

@@ -296,9 +296,9 @@ $$;
 -- Which link controls a workspace has:
 --   oneTime   one-time view links (view_limit, session_minutes)   Premium and up
 --   password  password-protected links (password_hash)            Ultra and up
---   expiry    link expiry time (expires_at)                       White Glove
---   devices   device limits (device_limit) and the e-mail gate    White Glove
--- The old Control and Enterprise, and the old monthly Pro and Ultra, have all.
+--   expiry    link expiry time (expires_at)                       Ultra and up (White Glove only before 27 Nov 2026)
+--   devices   device limits (device_limit) and the e-mail gate    Ultra and up (White Glove only before 27 Nov 2026)
+-- Ultra and White Glove (Ultra since 27 Nov 2026), the old Control and Enterprise, and the old monthly Pro and Ultra, have all.
 -- Must match linkControls in lib/pricing.ts.
 create or replace function public.org_link_controls(p_org uuid)
 returns jsonb
@@ -309,10 +309,8 @@ set search_path = public
 as $$
   select coalesce((
     select case
-      when o.plan in ('pro', 'ultra') or o.site_plan in ('white_glove', 'control', 'enterprise')
+      when o.plan in ('pro', 'ultra') or o.site_plan in ('ultra', 'white_glove', 'control', 'enterprise')
         then '{"oneTime": true, "password": true, "expiry": true, "devices": true}'::jsonb
-      when o.site_plan = 'ultra'
-        then '{"oneTime": true, "password": true, "expiry": false, "devices": false}'::jsonb
       when o.site_plan = 'premium'
         then '{"oneTime": true, "password": false, "expiry": false, "devices": false}'::jsonb
       else '{"oneTime": false, "password": false, "expiry": false, "devices": false}'::jsonb
@@ -385,8 +383,8 @@ begin
           using hint = case need
             when 'oneTime' then 'One-time view links start with VPV Premium.'
             when 'password' then 'Password-protected links start with VPV Ultra.'
-            when 'expiry' then 'Link expiry time comes with White Glove.'
-            else 'Device limits and the e-mail gate come with White Glove.'
+            when 'expiry' then 'Link expiry time starts with VPV Ultra.'
+            else 'Device limits and the e-mail gate start with VPV Ultra.'
           end,
           errcode = '42501';
       end if;

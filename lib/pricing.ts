@@ -572,10 +572,10 @@ export type SitePlanSpec = {
    * The link controls this plan has (the owner's split, 20 Nov 2026):
    *   oneTime   one-time view links          Premium and up
    *   password  password-protected links     Ultra and up
-   *   expiry    control a link's expiry time White Glove
-   *   devices   limit device access          White Glove
+   *   expiry    control a link's expiry time Ultra and up (White Glove only until 27 Nov 2026)
+   *   devices   limit device access          Ultra and up (White Glove only until 27 Nov 2026)
    * None is sold as an add-on. The e-mail gate before viewing, promised on
-   * no plan card, goes with `devices` (the plan that has every control).
+   * no plan card, goes with `devices` (the plans that have every control).
    */
   linkControls: LinkControls;
   /** Has at least one link control (Premium and up): what the funnel's
@@ -586,10 +586,10 @@ export type SitePlanSpec = {
   /** Mr. Nitin Gupta's personal discussion and shoot (level 3). */
   personal: boolean;
   /** Sales Team logins (salesperson dashboards) included free for as long as
-   *  the plan runs (White Glove: 1). More are sold at SALES_TEAM prices. */
+   *  the plan runs (Ultra and White Glove: 1). More are sold at SALES_TEAM prices. */
   freeSalesLogins: number;
   /** Update shoots included free every plan year: a reshoot of areas already
-   *  in the VPV, to update them (White Glove: 1). Does not carry over. */
+   *  in the VPV, to update them (Ultra and White Glove: 1). Does not carry over. */
   updateShoots: number;
   /** No longer sold; kept so workspaces that bought it keep working. */
   legacy?: boolean;
@@ -708,9 +708,15 @@ export const EXTRA_AREA_LADDER: ExtraAreaBand[] = [
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   light: sold("light", "VPV Light", "Your plant, online and ready to show.", 2_968, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_64_450),
   premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_470, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 3_64_420),
-  ultra: sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_622, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password"), Infinity, 5_34_400),
-  // White Glove also includes (22 Nov 2026): one free salesperson dashboard
-  // (a Sales Team login) and one free update shoot of the factory every year.
+  // Ultra and White Glove also include (22 Nov 2026 for White Glove; Ultra
+  // joined on 27 Nov 2026): one free salesperson dashboard (a Sales Team
+  // login) and one free update shoot of the factory every year. Ultra also
+  // has every link control since 27 Nov 2026 (it had one-time and password).
+  ultra: {
+    ...sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_622, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 5_34_400),
+    freeSalesLogins: 1,
+    updateShoots: 1,
+  },
   white_glove: {
     ...sold("white_glove", "White Glove", "Your plant, guided and filmed personally by Mr. Nitin Gupta.", 13_380, 100, 3, { videos: 20, pdfs: 150 }, 24, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 7_54_320),
     freeSalesLogins: 1,
@@ -818,19 +824,26 @@ export function isKnownPlanId(v: unknown): v is SitePlanId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
 }
 /**
- * What White Glove adds, in the words every screen uses (the plan card, the
- * funnel, the bill, the Terms), so they cannot drift apart.
+ * What a plan adds beyond its areas (Ultra and White Glove), in the words
+ * every screen uses (the plan card, the funnel, the bill, the Terms), so they
+ * cannot drift apart.
  */
 export const PLAN_PERKS = {
   salesLogin: {
     row: "1 free salesperson dashboard",
-    note: "A Sales Team login, free for as long as your White Glove plan runs. More logins can be added.",
+    note: "A Sales Team login, free for as long as your plan runs. More logins can be added.",
   },
   updateShoot: {
     row: "1 free update shoot every year",
     note: "Once a plan year we reshoot the areas of your factory that have changed and update your VPV. Cab travel included.",
   },
 };
+
+/** The names of the plans on sale that include a perk, as a sentence: "VPV Ultra and White Glove". */
+export function plansWithPerk(perk: "freeSalesLogins" | "updateShoots"): string {
+  const names = SITE_PLAN_ORDER.filter((id) => SITE_PLANS[id][perk] > 0).map((id) => SITE_PLANS[id].name);
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 /** Sales Team logins a plan includes free (0 for a plan that includes none, or an unknown plan). */
 export function includedSalesLogins(planId: string | null | undefined): number {
@@ -1609,7 +1622,7 @@ export function siteQuote(
     });
   }
 
-  // What White Glove includes beyond the areas: a free salesperson dashboard
+  // What Ultra and White Glove include beyond the areas: a free salesperson dashboard
   // and a free update shoot every year. Shown as free lines so the buyer
   // sees what they are getting on the bill itself.
   if (plan.freeSalesLogins > 0) {

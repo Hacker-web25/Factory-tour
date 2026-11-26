@@ -60,20 +60,22 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
     }
   });
 
-  it("link controls open one by one: one-time from Premium, passwords from Ultra, expiry and devices on White Glove", () => {
+  it("link controls open one by one: one-time from Premium, passwords, expiry and devices from Ultra", () => {
     const opens = (k: "link_one_time" | "link_password" | "link_expiry" | "link_devices" | "link_email_gate") =>
       ALL.filter((p) => canUse(ws(p), k));
     assert.deepEqual(opens("link_one_time"), ["premium", "ultra", "white_glove", "control", "enterprise"]);
     assert.deepEqual(opens("link_password"), ["ultra", "white_glove", "control", "enterprise"]);
-    assert.deepEqual(opens("link_expiry"), ["white_glove", "control", "enterprise"]);
-    assert.deepEqual(opens("link_devices"), ["white_glove", "control", "enterprise"]);
-    assert.deepEqual(opens("link_email_gate"), ["white_glove", "control", "enterprise"]);
+    // Ultra has every control since 27 Nov 2026.
+    assert.deepEqual(opens("link_expiry"), ["ultra", "white_glove", "control", "enterprise"]);
+    assert.deepEqual(opens("link_devices"), ["ultra", "white_glove", "control", "enterprise"]);
+    assert.deepEqual(opens("link_email_gate"), ["ultra", "white_glove", "control", "enterprise"]);
     // Locked: the pop-up offers the first plan this workspace can buy that has it…
     assert.deepEqual(accessTo(ws("light"), "link_one_time"), { state: "locked", upgradeTo: "premium" });
     assert.deepEqual(accessTo(ws("premium"), "link_password"), { state: "locked", upgradeTo: "ultra" });
     assert.deepEqual(accessTo(ws("confidence"), "link_password"), { state: "locked", upgradeTo: "ultra" });
-    // …and where only White Glove has it, names that plan (arranged with our team).
-    assert.deepEqual(accessTo(ws("ultra"), "link_expiry"), { state: "locked", upgradeTo: "white_glove" });
+    // …and a plan below Ultra is pointed at the first plan that has expiry and device limits.
+    assert.deepEqual(accessTo(ws("premium"), "link_expiry"), { state: "locked", upgradeTo: "ultra" });
+    assert.deepEqual(accessTo(ws("ultra"), "link_expiry"), { state: "open" });
   });
 
   it("the plan's allowances are the website's numbers", () => {
@@ -85,7 +87,8 @@ describe("entitlements: each plan gets exactly what the website promises", () =>
   });
 
   it("the Sales Team features open with logins, on any plan, and are offered without them", () => {
-    assert.deepEqual(accessTo(ws("ultra"), "sales_team"), { state: "locked", upgradeTo: "sales_team" });
+    assert.deepEqual(accessTo(ws("premium"), "sales_team"), { state: "locked", upgradeTo: "sales_team" });
+    assert.deepEqual(accessTo(ws("ultra"), "sales_team"), { state: "open" }, "Ultra includes one free login since 27 Nov 2026");
     assert.equal(canUse(ws("light", { sales_seats: 2 }), "sales_team"), true);
   });
 
@@ -451,8 +454,8 @@ describe("plans in the workspace, upgrades and extra logins", () => {
       return allowed();
     };
     assert.deepEqual(await on("premium"), ["view_limit", "session_minutes"]);
-    assert.deepEqual(await on("ultra"), ["view_limit", "session_minutes", "password_hash"]);
     const all = CONTROLS.map(([c]) => c);
+    assert.deepEqual(await on("ultra"), all, "Ultra has every control since 27 Nov 2026");
     assert.deepEqual(await on("white_glove"), all);
     assert.deepEqual(await on("control"), all, "the old Control keeps every control");
 

@@ -220,8 +220,10 @@ function salesNoteExpr(): string {
 
 /** The Sales Team add-on, in one sentence. */
 let SALES_WITHOUT_PERK = false;
+/** The wording on 22-26 Nov 2026, when only White Glove included the free login. */
+let SALES_PERK_WG_ONLY = false;
 function salesSentence(): string {
-  const perk = SALES_WITHOUT_PERK ? "" : " (White Glove includes one free)";
+  const perk = SALES_WITHOUT_PERK ? "" : SALES_PERK_WG_ONLY ? " (White Glove includes one free)" : " (VPV Ultra and White Glove include one free)";
   return `Sales Team logins, which give you a dashboard of every meeting they hold, are an optional yearly add-on${perk}: ${inr(SALES_TEAM.offerInr)} per salesperson per year for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`;
 }
 
@@ -694,28 +696,38 @@ function buildPatches(): [string, string][] {
 export function bundleTextPatches(): [string, string][] {
   const now = buildPatches();
   const saved = { limit: LAUNCH_OFFER.limit, foundingLimit: LAUNCH_OFFER.limit };
-  let before: [string, string][] = [];
-  try {
-    LAUNCH_OFFER.limit = 50;
-    LAUNCH_OFFER.limit = 50;
+  // The wordings a bundle could still carry, oldest first. Each one is
+  // rebuilt and every sentence that differs from today's gets a migration
+  // pair from that older wording to the current one.
+  const older: { limit: number; withoutPerk: boolean; wgOnly: boolean; plain: boolean }[] = [
     // The bundle on main predates the free White Glove login.
-    SALES_WITHOUT_PERK = true;
-    SALES_NOTE_PLAIN = true;
-    before = buildPatches();
-  } finally {
-    SALES_WITHOUT_PERK = false;
-    SALES_NOTE_PLAIN = false;
-    LAUNCH_OFFER.limit = saved.limit;
-    LAUNCH_OFFER.limit = saved.foundingLimit;
-  }
+    { limit: 50, withoutPerk: true, wgOnly: false, plain: true },
+    // 22-26 Nov 2026: the free login was White Glove's alone.
+    { limit: LAUNCH_OFFER.limit, withoutPerk: false, wgOnly: true, plain: false },
+  ];
   const migrations: [string, string][] = [];
   const nowTo = new Set(now.map(([, to]) => to));
-  for (const [, oldTo] of before) {
-    if (nowTo.has(oldTo)) continue;
-    // The pair at the same place in the current list.
-    const i = before.findIndex(([, t]) => t === oldTo);
-    const newTo = now[i]?.[1];
-    if (newTo && newTo !== oldTo && !migrations.some(([m]) => m === oldTo)) migrations.push([oldTo, newTo]);
+  for (const o of older) {
+    let before: [string, string][] = [];
+    try {
+      LAUNCH_OFFER.limit = o.limit;
+      SALES_WITHOUT_PERK = o.withoutPerk;
+      SALES_PERK_WG_ONLY = o.wgOnly;
+      SALES_NOTE_PLAIN = o.plain;
+      before = buildPatches();
+    } finally {
+      SALES_WITHOUT_PERK = false;
+      SALES_PERK_WG_ONLY = false;
+      SALES_NOTE_PLAIN = false;
+      LAUNCH_OFFER.limit = saved.limit;
+    }
+    for (const [, oldTo] of before) {
+      if (nowTo.has(oldTo)) continue;
+      // The pair at the same place in the current list.
+      const i = before.findIndex(([, t]) => t === oldTo);
+      const newTo = now[i]?.[1];
+      if (newTo && newTo !== oldTo && !migrations.some(([m]) => m === oldTo)) migrations.push([oldTo, newTo]);
+    }
   }
   return [...now, ...migrations].filter(([from, to]) => from !== to);
 }
