@@ -44,6 +44,10 @@ exists with its three tables. If it is ever recreated, run
 3. **Add the settings.** Worker → Settings → Variables and secrets → Add:
    - Secret `LANG_API_SECRET`: a long random text (32+ characters). Keep a copy for
      step 5. Never paste it into chat or commit it.
+   - Secret `BACKUP_SECRET` (needed for the nightly backup, see
+     `scripts/backup/README.md`): another 32+ random characters, **different** from
+     `LANG_API_SECRET`. It can only read the data for the backup and can do nothing
+     else. It goes into GitHub as `LANGUAGE_BACKUP_SECRET`, never into Vercel.
    - Optional text `LLM_MODEL`: the Workers AI chat model used as a translation
      fallback (default `@cf/google/gemma-4-26b-a4b-it`).
 4. **Copy the Worker address**, like `https://vpv-language.<your-name>.workers.dev`.

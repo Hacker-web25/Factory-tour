@@ -44,6 +44,25 @@ viewer  ──GET──▶ media Worker ──▶ R2   (not there yet? fetched f
 6. **Test.** In the tour builder upload one scene. Open it in the viewer. In
    Cloudflare → R2 → `vpv-media` the file should be listed.
 
+## Move the files that are still in Supabase, then empty Supabase
+
+Supabase Storage is small and expensive; Cloudflare is large and cheap. The owner
+page **/admin/storage** (Admin → *File storage*) shows, for `panoramas` and `tours`,
+how many files are in Supabase, how many are already in Cloudflare, and whether the
+two copies are identical (a fingerprint of every file is compared, not just names).
+
+1. **Update the Worker once.** Paste the newest `cloudflare/media-worker.js` into
+   the `vpv-media` Worker and Deploy. (It adds a private "list files" route that
+   only the website can use, and marks each reply `x-vpv-source: r2` or `supabase`.)
+2. Open **/admin/storage** as the platform owner → **Copy N files**. It copies in the
+   background; leave the tab open until the bar is full. Safe to stop and resume.
+3. Make sure a backup has run (scripts/backup/README.md).
+4. When the page says *ready*, **Free up Supabase** appears. It deletes from Supabase
+   only files that are verified identical in Cloudflare, and it needs the typed
+   phrase. After that the site keeps working from Cloudflare alone.
+
+Nothing is ever deleted automatically.
+
 ## Switch back
 
 Delete `NEXT_PUBLIC_MEDIA_BASE_URL` in Vercel and redeploy. New uploads go to

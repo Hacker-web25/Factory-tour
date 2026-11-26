@@ -30,7 +30,8 @@ export type AuditEvent =
   | "device.slot_full"
   | "device.slot_released"
   | "apply.submitted"
-  | "ratelimit.hit";
+  | "ratelimit.hit"
+  | "storage.purged";
 
 export async function logSecurityEvent(args: {
   event: AuditEvent;

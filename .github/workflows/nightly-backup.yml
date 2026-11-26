@@ -1,0 +1,69 @@
+# Nightly backup of everything that matters, into the private Cloudflare bucket
+# "vpv-backups": the Supabase database (and logins), every image and audio file,
+# and the subtitles/translations. See scripts/backup/README.md.
+#
+# Runs at 20:20 UTC every day (01:50 India time) and on demand from the Actions tab.
+# If any part fails the job turns red and GitHub emails the repository's admins.
+name: Nightly backup
+
+on:
+  schedule:
+    - cron: "20 20 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Never two backups at once.
+concurrency:
+  group: nightly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      # Supabase runs PostgreSQL 17. pg_dump must be at least as new as the server,
+      # so install the client that matches whatever the server is today.
+      - name: Install the matching PostgreSQL client
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          major="$(psql "$SUPABASE_DB_URL" -X -Atc 'show server_version_num' 2>/dev/null | awk '{ print int($1 / 10000) }')"
+          case "$major" in ''|*[!0-9]*) major=17; echo "::warning::could not ask the database which version it is; assuming 17" ;; esac
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-${major}"
+          echo "/usr/lib/postgresql/${major}/bin" >> "$GITHUB_PATH"
+          "/usr/lib/postgresql/${major}/bin/pg_dump" --version
+
+      # A pinned version, checked against its published fingerprint.
+      - name: Install rclone
+        run: |
+          v=v1.68.2
+          curl -fsSL -o /tmp/rclone.zip "https://github.com/rclone/rclone/releases/download/${v}/rclone-${v}-linux-amd64.zip"
+          echo "0e6fa18051e67fc600d803a2dcb10ddedb092247fc6eee61be97f64ec080a13c  /tmp/rclone.zip" | sha256sum -c -
+          unzip -q -o /tmp/rclone.zip -d /tmp/rclone
+          sudo install -m 0755 "/tmp/rclone/rclone-${v}-linux-amd64/rclone" /usr/local/bin/rclone
+          rclone version | head -n 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Back up
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          R2_ACCOUNT_ID: fffda717e383600b07859e2d6aa308d1 # not a secret: it is part of every R2 address
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          LANGUAGE_API_URL: ${{ secrets.LANGUAGE_API_URL }}
+          BACKUP_SECRET: ${{ secrets.LANGUAGE_BACKUP_SECRET }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: bash scripts/backup/backup.sh
