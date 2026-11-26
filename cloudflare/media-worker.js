@@ -15,6 +15,11 @@
  *   GET / HEAD   public. Pictures and sounds are public by design, as they were in Supabase.
  *   PUT          needs a short-lived token from the website (/api/media/sign) for that exact file.
  *   DELETE       needs such a token too (the website only issues them to the platform owner).
+ *   GET /_list   our own server only (a "list" token): the files in one bucket with their size and MD5
+ *                fingerprint. It is how /admin/storage proves a file really is in R2 before the Supabase copy goes.
+ *
+ * Every answer for a file carries "x-vpv-source": r2 when it came out of R2, supabase when it was only
+ * in the old place (and was just fetched from there). It is how we tell the two apart.
  *
  * The token is checked with the same HMAC the website signs with (lib/mediaToken.ts).
  * tests/billing/34-cloudflare-media.test.ts runs both against each other.
@@ -50,7 +55,7 @@ export async function verifyToken(secret, token, nowSeconds = Math.floor(Date.no
       typeof p.p !== "string" ||
       typeof p.e !== "number" ||
       typeof p.m !== "number" ||
-      (p.a !== "put" && p.a !== "del") ||
+      (p.a !== "put" && p.a !== "del" && p.a !== "list") ||
       p.e <= nowSeconds
     ) {
       return null;
@@ -74,7 +79,7 @@ function corsHeaders(request) {
     h.set("access-control-allow-origin", origin);
     h.set("vary", "Origin");
   }
-  h.set("access-control-expose-headers", "etag, content-length, content-range, accept-ranges");
+  h.set("access-control-expose-headers", "etag, content-length, content-range, accept-ranges, x-vpv-source");
   return h;
 }
 
@@ -130,6 +135,7 @@ async function read(request, env, ctx, url, key) {
     h.set("etag", obj.httpEtag);
     if (!h.get("cache-control")) h.set("cache-control", DEFAULT_CACHE);
     safeHeaders(h);
+    h.set("x-vpv-source", "r2");
     const partial = wantsRange && obj.range && obj.range.offset !== undefined;
     if (partial) {
       const start = obj.range.offset;
@@ -157,6 +163,7 @@ async function read(request, env, ctx, url, key) {
       }
       h.set("cache-control", DEFAULT_CACHE);
       safeHeaders(h);
+      h.set("x-vpv-source", "supabase");
 
       const length = Number(upstream.headers.get("content-length"));
       const canCopy =
@@ -224,6 +231,36 @@ async function write(request, env, ctx, url, key) {
   return reply(request, 200, "Saved");
 }
 
+/* ───────────────────────────── listing (our server only) ───────────────────────────── */
+
+/** GET /_list?bucket=panoramas&cursor=…  with a "list" slip for that bucket. No CORS: only our server asks. */
+async function list(request, env, url) {
+  const json = (status, body) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  if (request.method !== "GET") return json(405, { error: "method_not_allowed" });
+
+  const auth = request.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const slip = await verifyToken(env.UPLOAD_SECRET || "", token);
+  const bucket = url.searchParams.get("bucket") || "";
+  if (!slip || slip.a !== "list") return json(401, { error: "not_allowed" });
+  if (!BUCKETS.has(bucket) || slip.b !== bucket) return json(403, { error: "that slip is for a different bucket" });
+
+  const cursor = url.searchParams.get("cursor") || undefined;
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 1000, 1), 1000);
+  const page = await env.BUCKET.list({ prefix: `${bucket}/`, cursor, limit });
+  return json(200, {
+    objects: page.objects.map((o) => ({
+      key: o.key.slice(bucket.length + 1),
+      size: o.size,
+      etag: String(o.etag || "").replace(/"/g, ""),
+      uploaded: o.uploaded ? new Date(o.uploaded).toISOString() : null,
+    })),
+    truncated: Boolean(page.truncated),
+    cursor: page.truncated ? page.cursor : null,
+  });
+}
+
 /* ───────────────────────────── entry ───────────────────────────── */
 
 export default {
@@ -241,6 +278,7 @@ export default {
     }
 
     if (url.pathname === "/" || url.pathname === "") return reply(request, 200, "VPV media");
+    if (url.pathname === "/_list") return list(request, env, url);
 
     const key = objectKey(url);
     if (!key) return reply(request, 404, "Not found");

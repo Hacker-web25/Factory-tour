@@ -23,8 +23,8 @@ export type MediaTokenPayload = {
   m: number;
   /** 1 when an existing file with this name may be replaced */
   u: 0 | 1;
-  /** what the slip allows: write this file, or delete it */
-  a: "put" | "del";
+  /** what the slip allows: write this file, delete it, or (our server only) list a whole bucket */
+  a: "put" | "del" | "list";
 };
 
 const enc = new TextEncoder();
@@ -52,7 +52,7 @@ export async function signMediaToken(
     path: string;
     maxBytes: number;
     upsert: boolean;
-    action?: "put" | "del";
+    action?: "put" | "del" | "list";
     ttlSeconds?: number;
     now?: number;
   }
@@ -93,7 +93,7 @@ export async function verifyMediaToken(
       typeof payload.p !== "string" ||
       typeof payload.e !== "number" ||
       typeof payload.m !== "number" ||
-      (payload.a !== "put" && payload.a !== "del") ||
+      (payload.a !== "put" && payload.a !== "del" && payload.a !== "list") ||
       payload.e <= now
     ) {
       return null;

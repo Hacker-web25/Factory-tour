@@ -11,6 +11,10 @@
  *                   LANGUAGE_API_SECRET on Vercel
  *   LLM_MODEL       optional text. The Workers AI chat model used as a
  *                   translation fallback. Default: @cf/google/gemma-4-26b-a4b-it
+ *   BACKUP_SECRET   optional secret text, 32+ characters, DIFFERENT from
+ *                   LANG_API_SECRET. Lets the nightly backup job read every row
+ *                   through GET /backup, and do nothing else: it cannot
+ *                   translate, transcribe, change or delete anything.
  *
  * This Worker is PRIVATE: every call except "GET /" needs
  *   Authorization: Bearer <LANG_API_SECRET>
@@ -514,7 +518,8 @@ async function health(env) {
   } catch {
     d1 = false;
   }
-  return { version: VERSION, d1, tables, ai: Boolean(env.AI), llm_model: env.LLM_MODEL || DEFAULT_LLM, whisper_model: WHISPER_MODEL };
+  const backupReady = typeof env.BACKUP_SECRET === "string" && env.BACKUP_SECRET.length >= 24;
+  return { version: VERSION, d1, tables, backup: backupReady, ai: Boolean(env.AI), llm_model: env.LLM_MODEL || DEFAULT_LLM, whisper_model: WHISPER_MODEL };
 }
 
 async function stats(env) {
@@ -533,6 +538,89 @@ async function stats(env) {
   };
 }
 
+/* ───────────────────────────── nightly backup ──────────────────────── */
+
+// Every table this Worker stores, with the columns that make a row unique. The
+// order of `key` is the order of the table's PRIMARY KEY, which is what lets us
+// page through a table without ever skipping or repeating a row.
+// tests/language/07-backup.test.ts fails if language-schema.sql gains a table
+// that is not listed here, so a new table can never silently miss the backups.
+export const BACKUP_TABLES = {
+  tour_language: { key: ["tour_id"], page: 500 },
+  translations: { key: ["tour_id", "lang", "src_hash"], page: 300 },
+  transcripts: { key: ["tour_id", "audio_key"], page: 8 },
+};
+const BACKUP_MAX_PAGE_CHARS = 3_000_000;
+
+async function authorizeBackup(request, env) {
+  const secret = typeof env.BACKUP_SECRET === "string" ? env.BACKUP_SECRET : "";
+  if (secret.length < 24) throw new HttpError(503, "not_configured", "BACKUP_SECRET is missing or shorter than 24 characters.");
+  const header = request.headers.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token || !(await safeEqual(token, secret))) throw new HttpError(401, "unauthorized");
+}
+
+/** GET /backup            → what exists: each table's CREATE statement and row count.
+ *  GET /backup?table=T    → one page of rows, in primary-key order.
+ *  Read-only. The caller passes back `next` as `after` until `next` is null. */
+async function backup(env, url) {
+  const table = url.searchParams.get("table");
+  if (!table) {
+    const out = {};
+    for (const name of Object.keys(BACKUP_TABLES)) {
+      const def = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").bind(name).first();
+      const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${name}`).first("n");
+      out[name] = { key: BACKUP_TABLES[name].key, create_sql: def ? def.sql : null, count };
+    }
+    return { version: VERSION, tables: out };
+  }
+  if (!Object.prototype.hasOwnProperty.call(BACKUP_TABLES, table)) throw new HttpError(400, "bad_table");
+  const { key, page } = BACKUP_TABLES[table];
+
+  let limit = page;
+  const asked = url.searchParams.get("limit");
+  if (asked !== null) {
+    const n = Number(asked);
+    if (!Number.isInteger(n) || n < 1) throw new HttpError(400, "bad_limit");
+    limit = Math.min(n, page);
+  }
+
+  let after = null;
+  const rawAfter = url.searchParams.get("after");
+  if (rawAfter) {
+    try {
+      after = JSON.parse(rawAfter);
+    } catch {
+      throw new HttpError(400, "bad_cursor");
+    }
+    if (!Array.isArray(after) || after.length !== key.length || after.some((v) => typeof v !== "string" || v.length > 400)) {
+      throw new HttpError(400, "bad_cursor");
+    }
+  }
+
+  const cols = key.join(", ");
+  const where = after ? ` WHERE (${cols}) > (${key.map(() => "?").join(", ")})` : "";
+  const { results } = await env.DB.prepare(`SELECT * FROM ${table}${where} ORDER BY ${cols} LIMIT ${limit + 1}`)
+    .bind(...(after || []))
+    .all();
+  let rows = results || [];
+  let more = rows.length > limit;
+  rows = rows.slice(0, limit);
+
+  // Keep one answer to a sensible size even when a few rows are huge.
+  let chars = 0;
+  for (let i = 0; i < rows.length; i++) {
+    chars += JSON.stringify(rows[i]).length;
+    if (chars > BACKUP_MAX_PAGE_CHARS && i > 0) {
+      rows = rows.slice(0, i);
+      more = true;
+      break;
+    }
+  }
+  const last = rows[rows.length - 1];
+  return { table, rows, next: more && last ? key.map((c) => String(last[c])) : null };
+}
+
 /* ───────────────────────────── router ──────────────────────────────── */
 
 async function route(request, env) {
@@ -542,6 +630,14 @@ async function route(request, env) {
 
   if (pathname === "/" && (method === "GET" || method === "HEAD")) {
     return new Response("VPV language", { status: 200, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
+
+  // The backup route has its own, read-only secret, so the nightly job never
+  // needs the secret that can spend AI neurons or delete a tour's language data.
+  if (pathname === "/backup") {
+    if (method !== "GET") throw new HttpError(405, "method_not_allowed");
+    await authorizeBackup(request, env);
+    return json({ ok: true, ...(await backup(env, url)) });
   }
 
   await authorize(request, env);
