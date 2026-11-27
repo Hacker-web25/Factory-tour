@@ -21,7 +21,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { bundleCareData, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
+import { FREE_BLOCK_START, bundleCareData, bundleFreeFiguresJson, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
 
 const ROOT = process.cwd();
 const HOME_TS = path.join(ROOT, "lib/site/home.ts");
@@ -44,6 +44,8 @@ let src = fs.readFileSync(oldPath, "utf8");
 src = replaceRegion(src, "ln={active:", ",cn={name:", bundlePlanData());
 src = replaceRegion(src, "cn={name:", ",un={question:", bundleCareData());
 src = replaceRegion(src, "un={question:", ",dn=function(", bundleTravelData());
+// The "you save" figures inside the plan card's free list: one entry per plan on sale.
+src = replaceRegion(src, FREE_BLOCK_START, ")[t.id];return f&&", FREE_BLOCK_START + bundleFreeFiguresJson());
 
 // Apply every pair whose old text is present, then check every new text
 // landed. Checking only afterwards lets a later "migration" pair carry the

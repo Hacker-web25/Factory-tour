@@ -97,12 +97,12 @@ describe("site plans: the named packs sold by the marketing site", () => {
 
   it("charges plan + travel, in rupees we can read", () => {
     // Hard numbers, so a silent edit to a plan price fails here rather than
-    // in somebody's bank statement. 21 Nov 2026: four yearly plans, priced
-    // per month by the owner; the yearly charge is exactly 12 months.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr), [2_968, 6_470, 9_622, 13_380]);
+    // in somebody's bank statement. 21 Nov 2026: yearly plans, priced per
+    // month by the owner; the yearly charge is exactly 12 months. Since 27 Nov
+    // 2026 there are three (VPV Ultra was folded into Premium).
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].monthlyInr), [2_968, 6_470, 13_380]);
     assert.equal(SITE_PLANS.light.priceInr, 35_616);
     assert.equal(SITE_PLANS.premium.priceInr, 77_640);
-    assert.equal(SITE_PLANS.ultra.priceInr, 1_15_464);
     assert.equal(SITE_PLANS.white_glove.priceInr, 1_60_560);
     for (const id of SITE_PLAN_ORDER) {
       assert.equal(SITE_PLANS[id].billing, "yearly", id);
@@ -113,8 +113,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // The price per area still falls as the plans grow (it is no longer
     // printed on the cards, but the plans must stay sensible).
     assert.equal(sitePerArea("light"), 7_123);
-    assert.equal(sitePerArea("premium"), 3_882);
-    assert.equal(sitePerArea("ultra"), 2_566);
+    // Premium has 45 areas since 27 Nov 2026 (it was 20, at the same price).
+    assert.equal(sitePerArea("premium"), 1_725);
+    assert.equal(sitePerArea("white_glove"), 1_606);
     for (let i = 1; i < SITE_PLAN_ORDER.length; i++) {
       assert.ok(sitePerArea(SITE_PLAN_ORDER[i]) < sitePerArea(SITE_PLAN_ORDER[i - 1]), SITE_PLAN_ORDER[i]);
     }
@@ -134,7 +135,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     assert.equal(LAUNCH_OFFER.foundingLimit, 20, "there is no second tier");
     assert.equal(LAUNCH_OFFER.freeMonths, 3);
     assert.equal(SITE_PLANS.light.regularInr, 71_232);
-    assert.equal(SITE_PLANS.ultra.regularInr, 2_30_928);
+    assert.equal(SITE_PLANS.premium.regularInr, 1_55_280);
     assert.equal(SITE_PLANS.white_glove.regularInr, 3_21_120);
     for (const id of SITE_PLAN_ORDER) {
       const p = SITE_PLANS[id];
@@ -151,10 +152,9 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // Under the offer the cab is free: the plan price is the whole bill.
     assert.equal(sitePlanQuote("light", "ncr").amountInr, 35_616);
     assert.equal(sitePlanQuote("premium", "ncr").amountInr, 77_640);
-    assert.equal(sitePlanQuote("ultra", "ncr").amountInr, 1_15_464);
     // Once it closes: regular price + ₹4,000 cab.
     assert.equal(sitePlanQuote("light", "ncr", false).amountInr, 71_232 + 4_000);
-    assert.equal(sitePlanQuote("ultra", "ncr", false).amountInr, 2_30_928 + 4_000);
+    assert.equal(sitePlanQuote("premium", "ncr", false).amountInr, 1_55_280 + 4_000);
   });
 
   it("keeps every upgrade path pointing UP", () => {
@@ -182,7 +182,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     }
   });
 
-  it("sells extra areas at one price on all four plans, from ₹9,000, falling as more are added", () => {
+  it("sells extra areas at one price on all three plans, from ₹9,000, falling as more are added", () => {
     const ladders = SITE_PLAN_ORDER.map((id) => JSON.stringify(SITE_PLANS[id].extraAreaLadder));
     assert.equal(new Set(ladders).size, 1, "every plan has the same ladder");
     for (const planId of SITE_PLAN_ORDER) {
@@ -251,7 +251,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
       assert.match(q.lines[0].note ?? "", /billed yearly/);
       assert.equal(q.lines.find((l) => l.kind === "support")!.amountInr, SUPPORT_ANNUAL_INR);
       assert.equal(q.supportInr, SUPPORT_ANNUAL_INR);
-      assert.ok(!q.lines.some((l) => l.kind === "bonus"));
+      // (No "months free" line. Premium's own perks are free lines too, so look for that one.)
+      assert.ok(!q.lines.some((l) => l.kind === "bonus" && /months free/.test(l.label)));
     }
     // What renews every year: the plan at today's price plus the extra areas.
     assert.equal(siteQuote("premium", { city: "Manesar" }).yearlyInr, 77_640);
@@ -287,7 +288,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
   });
 
   it("includes 2 to 24 hours of shoot time by plan, and charges extra time by the hour", () => {
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => shootTimeFor(id).totalHours), [2, 7, 13, 24]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => shootTimeFor(id).totalHours), [2, 13, 24]);
     for (const id of SITE_PLAN_ORDER) {
       const q = siteQuote(id, { city: "Manesar" });
       assert.equal(q.shoot.extraHours, 0, id);
@@ -297,7 +298,7 @@ describe("site plans: the named packs sold by the marketing site", () => {
     // 4 extra areas = 60 minutes = exactly one extra hour.
     const one = siteQuote("premium", { city: "Manesar", extraAreas: 4 });
     assert.equal(one.shoot.extraHours, 1);
-    assert.equal(one.shoot.totalHours, 8);
+    assert.equal(one.shoot.totalHours, 14);
     const line = one.lines.find((l) => /extra shoot time/i.test(l.label));
     assert.ok(line);
     assert.equal(line!.amountInr, EXTRA_HOUR_INR);
@@ -309,18 +310,19 @@ describe("site plans: the named packs sold by the marketing site", () => {
   });
 
   it("shows a two-day shoot but never bills the same hours twice", () => {
-    assert.equal(siteQuote("premium", { city: "Manesar", extraAreas: 4 }).shoot.days, 1);
-    // 7 h + 5 areas (75 min → 2 h) = 9 h: past an 8-hour day.
-    const big = siteQuote("premium", { city: "Manesar", extraAreas: 5 });
+    assert.equal(siteQuote("light", { city: "Manesar", extraAreas: 4 }).shoot.days, 1);
+    // Light's 2 h + 25 areas (375 min → 7 h) = 9 h: past an 8-hour day.
+    assert.equal(siteQuote("light", { city: "Manesar", extraAreas: 24 }).shoot.days, 1);
+    const big = siteQuote("light", { city: "Manesar", extraAreas: 25 });
     assert.equal(big.shoot.days, 2);
     // Time is billed by the hour; no day fee on top, so one extra area can
     // never jump the total by ₹20,000.
     assert.ok(!big.lines.some((l) => /additional shoot day/i.test(l.label)));
-    const nine = siteQuote("premium", { city: "Manesar", extraAreas: 8 });
-    const ten = siteQuote("premium", { city: "Manesar", extraAreas: 9 });
+    const nine = siteQuote("light", { city: "Manesar", extraAreas: 28 });
+    const ten = siteQuote("light", { city: "Manesar", extraAreas: 29 });
     assert.ok(ten.taxableInr - nine.taxableInr <= 8_000 + EXTRA_HOUR_INR);
     // The big plans are several days on site from the start, shown and not billed as days.
-    assert.equal(siteQuote("ultra", { city: "Manesar" }).shoot.days, 2);
+    assert.equal(siteQuote("premium", { city: "Manesar" }).shoot.days, 2);
     assert.equal(siteQuote("white_glove", { city: "Manesar" }).shoot.days, 3);
   });
 
@@ -539,8 +541,8 @@ describe("site plans: the named packs sold by the marketing site", () => {
                 limit: async () => ({
                   data: [
                     ...Array.from({ length: n }, (_, i) => ({
-                      // The four yearly plans on sale, and the one-time plans sold before.
-                      notes: `${["VPV Light", "VPV Premium", "VPV Ultra", "White Glove", "VPV Confidence", "VPV Control"][i % 6]} — 8 areas`,
+                      // The three yearly plans on sale, and the one-time plans sold before.
+                      notes: `${["VPV Light", "VPV Premium", "White Glove", "VPV Confidence", "VPV Control", "VPV Authority"][i % 6]} — 8 areas`,
                     })),
                     { notes: "VPV Basic licence — 7 scenes (includes 1 year support and hosting)" },
                   ],

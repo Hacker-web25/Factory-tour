@@ -1,8 +1,9 @@
 /**
  * /terms — VPV Terms & Conditions.
  *
- * Covers the commercial model as sold today (21 Nov 2026): the four VPV
- * plans (Light, Premium, Ultra, White Glove), each bought either yearly (a
+ * Covers the commercial model as sold today (21 Nov 2026; three plans since
+ * 27 Nov 2026, when VPV Ultra was folded into Premium): the VPV
+ * plans (Light, Premium, White Glove), each bought either yearly (a
  * Plan Fee shown per month and billed yearly in advance) or once, for life;
  * plus the yearly Support Fee for support, hosting & security on every plan,
  * and optional yearly Sales Team logins. One offer, for the first 20
@@ -71,7 +72,7 @@ const support = SUPPORT_NAME.toLowerCase();
 export const metadata: Metadata = {
   title: "Terms & Conditions",
   description:
-    "The terms for VPV (Virtual Plant Visit): the four plans, yearly or lifetime, and what each includes, every fee and GST, the founding and special offers, the factory shoot and rescheduling, yearly renewal, price changes with prior notice, and how to complain.",
+    "The terms for VPV (Virtual Plant Visit): the plans, yearly or lifetime, and what each includes, every fee and GST, the founding and special offers, the factory shoot and rescheduling, yearly renewal, price changes with prior notice, and how to complain.",
   robots: { index: true, follow: true },
   alternates: { canonical: "/terms" },
 };
@@ -1107,7 +1108,7 @@ export default function TermsPage() {
         <Callout title={`What changed on ${POLICY.updated}`} tone="notice">
           <UL>
             <li>
-              The Plans are now four Plans ({SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name).join(", ")}), each
+              The Plans are now {SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name).join(", ")}, each
               bought <B>yearly</B> (shown per month, billed yearly in advance, extra AOAs renewing with the Plan) or{" "}
               <B>for life</B> (paid once), with the yearly Support Fee on both. Plans are no longer matched to your
               factory&rsquo;s covered area.

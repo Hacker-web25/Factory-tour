@@ -21,20 +21,22 @@ import {
 import { recommendPlan } from "@/lib/funnel";
 
 /**
- * 21 Nov 2026: four plans, billed YEARLY and shown per month (VPV Light,
- * VPV Premium, VPV Ultra, White Glove), with support, hosting & security
- * included; no factory area anywhere; the old one-time pricing closed.
+ * 21 Nov 2026: yearly plans, billed YEARLY and shown per month, with
+ * support, hosting & security included; no factory area anywhere; the old
+ * one-time pricing closed. 27 Nov 2026: VPV Ultra was withdrawn and
+ * everything in it went into VPV Premium, so the plans are VPV Light, VPV
+ * Premium and White Glove.
  */
-describe("four yearly plans", () => {
-  it("lists the four plans in order, with the owner's per-month prices and AOAs", () => {
-    assert.deepEqual([...SITE_PLAN_ORDER], ["light", "premium", "ultra", "white_glove"]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name), ["VPV Light", "VPV Premium", "VPV Ultra", "White Glove"]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].scenes), [5, 20, 45, 100]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, true)), [2_968, 6_470, 9_622, 13_380]);
+describe("three yearly plans", () => {
+  it("lists the three plans in order, with the owner's per-month prices and AOAs", () => {
+    assert.deepEqual([...SITE_PLAN_ORDER], ["light", "premium", "white_glove"]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].name), ["VPV Light", "VPV Premium", "White Glove"]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].scenes), [5, 45, 100]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, true)), [2_968, 6_470, 13_380]);
     // The struck price: twice the offer, per month too.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, false)), [5_936, 12_940, 19_244, 26_760]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planMonthly(id, false)), [5_936, 12_940, 26_760]);
     // Billed yearly: exactly twelve of them.
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].priceInr), [35_616, 77_640, 1_15_464, 1_60_560]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].priceInr), [35_616, 77_640, 1_60_560]);
     for (const id of SITE_PLAN_ORDER) assert.ok(isYearlyPlan(id), id);
     for (const id of LEGACY_PLAN_ORDER) {
       assert.ok(!isYearlyPlan(id), id);
@@ -48,29 +50,30 @@ describe("four yearly plans", () => {
     }
   });
 
-  it("spreads the features: Light basic, Premium media + one-time, Ultra every link control, White Glove adds Mr. Gupta", () => {
+  it("spreads the features: Light basic, Premium everything but Mr. Gupta, White Glove adds Mr. Gupta", () => {
     assert.deepEqual(SITE_PLAN_ORDER.map(infoIconsLabel), [
       "20 information icons",
       "Unlimited information icons",
       "Unlimited information icons",
-      "Unlimited information icons",
     ]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => [SITE_PLANS[id].videos, SITE_PLANS[id].pdfs]), [[0, 0], [5, 30], [8, 50], [20, 150]]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => [SITE_PLANS[id].videos, SITE_PLANS[id].pdfs]), [[0, 0], [8, 50], [20, 150]]);
     assert.deepEqual(SITE_PLAN_ORDER.map(linkControlLabels), [
       [],
-      ["One-time view link"],
       ["One-time view link", "Password-protected link", "Control link expiry time", "Limit device access"],
       ["One-time view link", "Password-protected link", "Control link expiry time", "Limit device access"],
     ]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].personal), [false, false, false, true]);
+    // Mr. Gupta's own time (the personal discussion and the personal shoot) is White Glove only.
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => SITE_PLANS[id].personal), [false, false, true]);
   });
 
   it("reads a yearly plan and its renewal back from an order's description", () => {
-    const d = priceFor("site_plan", { sitePlanId: "ultra", city: "Gurugram", extraAreas: 2, offerOpen: true }).description;
-    assert.equal(sitePlanFromNotes(d), "ultra");
-    assert.equal(planYearlyFromNotes(d), 1_15_464 + 2 * 9_000);
+    const d = priceFor("site_plan", { sitePlanId: "premium", city: "Gurugram", extraAreas: 2, offerOpen: true }).description;
+    assert.equal(sitePlanFromNotes(d), "premium");
+    assert.equal(planYearlyFromNotes(d), 77_640 + 2 * 9_000);
     assert.match(d, /Special offer/);
     assert.equal(sitePlanFromNotes("White Glove — 100 areas"), "white_glove");
+    // VPV Ultra was withdrawn on 27 Nov 2026; an order note that says so still reads as Premium.
+    assert.equal(sitePlanFromNotes("VPV Ultra — 8 areas"), "premium");
     assert.equal(sitePlanFromNotes("VPV Basic licence — 7 scenes"), null);
     // The seven plans of 20 Nov 2026 were never sold.
     assert.equal(sitePlanFromNotes("VPV Lite — 2 areas"), null);
@@ -90,18 +93,18 @@ describe("the funnel recommends without the factory's area", () => {
     assert.equal(recommendPlan({ aoaCount: 5 }).plan, "light");
     assert.equal(recommendPlan({ aoaCount: 6 }).plan, "premium");
     assert.equal(recommendPlan({ aoaCount: 3, pdfCount: 10 }).plan, "premium");
-    assert.equal(recommendPlan({ aoaCount: 30 }).plan, "ultra");
+    assert.equal(recommendPlan({ aoaCount: 30 }).plan, "premium");
   });
 
   it("wanting the link protected means Premium at least", () => {
     assert.equal(recommendPlan({ aoaCount: 3, wantsSharingControls: true }).plan, "premium");
   });
 
-  it("goes past Ultra with extra areas before it ever suggests White Glove", () => {
+  it("goes past Premium with extra areas before it ever suggests White Glove", () => {
     const fifty = recommendPlan({ aoaCount: 55 });
-    assert.equal(fifty.plan, "ultra");
+    assert.equal(fifty.plan, "premium");
     assert.equal(fifty.extraAreas, 10);
-    // Beyond what Ultra can reach with every extra area: White Glove.
+    // Beyond what Premium can reach with every extra area: White Glove.
     const big = recommendPlan({ aoaCount: 80 });
     assert.equal(big.plan, "white_glove");
     assert.equal(big.needsExtras, false);

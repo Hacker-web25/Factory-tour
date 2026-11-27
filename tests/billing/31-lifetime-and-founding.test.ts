@@ -34,8 +34,8 @@ import { canBuyUpgrade, upgradeOptions } from "@/lib/entitlements";
  */
 describe("lifetime prices", () => {
   it("are the owner's just-below-round prices, with the struck price at twice that", () => {
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planPrice(id, true, "lifetime")), [1_64_450, 3_64_420, 5_34_400, 7_54_320]);
-    assert.deepEqual(SITE_PLAN_ORDER.map((id) => regularPlanPrice(id, "lifetime")), [3_28_900, 7_28_840, 10_68_800, 15_08_640]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => planPrice(id, true, "lifetime")), [1_64_450, 3_64_420, 7_54_320]);
+    assert.deepEqual(SITE_PLAN_ORDER.map((id) => regularPlanPrice(id, "lifetime")), [3_28_900, 7_28_840, 15_08_640]);
     for (const id of SITE_PLAN_ORDER) {
       // 4.5 to 5 times the yearly offer price.
       const x = SITE_PLANS[id].lifetimeInr / SITE_PLANS[id].priceInr;
@@ -62,20 +62,20 @@ describe("lifetime prices", () => {
     for (const id of SITE_PLAN_ORDER) {
       assert.equal(extraAreaCost(id, 3, "lifetime"), extraAreaCost(id, 3, "annual") * 5, id);
     }
-    const q = siteQuote("ultra", { city: "Manesar", billing: "lifetime", extraAreas: 3 });
+    const q = siteQuote("premium", { city: "Manesar", billing: "lifetime", extraAreas: 3 });
     assert.equal(q.yearlyInr, 0);
   });
 
   it("writes the billing on the order notes, and reads it back", () => {
-    const life = priceFor("site_plan", { sitePlanId: "ultra", city: "Manesar", offerOpen: true, founding: true, billing: "lifetime" }).description;
+    const life = priceFor("site_plan", { sitePlanId: "premium", city: "Manesar", offerOpen: true, founding: true, billing: "lifetime" }).description;
     assert.equal(planBillingFromNotes(life), "lifetime");
     assert.equal(planYearlyFromNotes(life), 0, "a lifetime plan has nothing to renew");
-    assert.equal(sitePlanFromNotes(life), "ultra", "it still counts towards the offer");
+    assert.equal(sitePlanFromNotes(life), "premium", "it still counts towards the offer");
     assert.equal(foundingFromNotes(life), true);
 
-    const yearly = priceFor("site_plan", { sitePlanId: "ultra", city: "Manesar", offerOpen: true, founding: false, billing: "annual" }).description;
+    const yearly = priceFor("site_plan", { sitePlanId: "premium", city: "Manesar", offerOpen: true, founding: false, billing: "annual" }).description;
     assert.equal(planBillingFromNotes(yearly), "annual");
-    assert.equal(planYearlyFromNotes(yearly), 1_15_464);
+    assert.equal(planYearlyFromNotes(yearly), 77_640);
     assert.equal(foundingFromNotes(yearly), false);
     assert.equal(planBillingFromNotes("VPV Authority — 8 areas, cab Manesar"), null, "an old one-time plan is neither");
   });
@@ -87,12 +87,12 @@ describe("lifetime prices", () => {
 
   it("moves a lifetime plan up only by speaking with us", () => {
     const base = { plan: "basic" };
-    const facts = { ...base, site_plan: "premium", plan_billing: "lifetime" } as never;
+    const facts = { ...base, site_plan: "light", plan_billing: "lifetime" } as never;
     assert.deepEqual(upgradeOptions(facts), []);
-    assert.equal(canBuyUpgrade(facts, "ultra"), false);
-    const yearly = { ...base, site_plan: "premium", plan_billing: "annual" } as never;
-    assert.ok(upgradeOptions(yearly).includes("ultra"));
-    assert.equal(canBuyUpgrade(yearly, "ultra"), true);
+    assert.equal(canBuyUpgrade(facts, "premium"), false);
+    const yearly = { ...base, site_plan: "light", plan_billing: "annual" } as never;
+    assert.ok(upgradeOptions(yearly).includes("premium"));
+    assert.equal(canBuyUpgrade(yearly, "premium"), true);
   });
 });
 
@@ -201,7 +201,7 @@ describe("lifetime and founding through the real payment flow", () => {
     assert.equal(renew.status, 200, JSON.stringify(rb));
     assert.equal(rb.amountPaise, toPaise(withGst(SUPPORT_ANNUAL_INR).total));
 
-    const up = await ask({ purpose: "plan_upgrade", upgradeTo: "ultra" });
+    const up = await ask({ purpose: "plan_upgrade", upgradeTo: "white_glove" });
     assert.equal(up.status, 400);
     assert.equal((await w.readJson(up)).error, "invalid_upgrade");
   });

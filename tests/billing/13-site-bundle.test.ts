@@ -12,7 +12,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { bundleCareData, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
+import { FREE_BLOCK_START, bundleCareData, bundleFreeFiguresJson, bundlePlanData, bundleTextPatches, bundleTravelData } from "@/lib/site/bundleData";
 import { SITE_PLANS, SITE_PLAN_ORDER, planPrice } from "@/lib/pricing";
 
 const home = fs.readFileSync(path.join(process.cwd(), "lib/site/home.ts"), "utf8");
@@ -30,6 +30,10 @@ describe("the marketing site's bundle agrees with lib/pricing.ts", () => {
   it("carries the generated travel data, exactly", () => {
     assert.ok(bundle.includes(bundleTravelData()), "Travel data is stale. Run: npm run sync:site");
     assert.ok(bundle.includes(bundleCareData()), "Support fee data is stale. Run: npm run sync:site");
+  });
+
+  it("carries the card's \"you save\" figures for exactly the plans on sale", () => {
+    assert.ok(bundle.includes(FREE_BLOCK_START + bundleFreeFiguresJson() + ")[t.id]"), "Free-list figures are stale. Run: npm run sync:site");
   });
 
   it("has every hard-coded sentence patched", () => {

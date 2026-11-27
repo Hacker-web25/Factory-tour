@@ -17,7 +17,7 @@
  */
 
 import { canonicalIndianState } from "@/lib/indianStates";
-import { isSitePlanId, isTravelZone, type SitePlanId, type TravelZone } from "@/lib/pricing";
+import { soldPlanId, isTravelZone, type SitePlanId, type TravelZone } from "@/lib/pricing";
 
 /** The site's one storage key. */
 export const SITE_STATE_KEY = "myvpv:phase1:v1";
@@ -60,7 +60,8 @@ export function readHandoff(search?: string): Handoff {
     const q = new URLSearchParams(search);
     const p = q.get("plan");
     const t = q.get("travel");
-    if (isSitePlanId(p)) planId = p;
+    // soldPlanId: an old link or saved plan that says Ultra means Premium now.
+    if (soldPlanId(p)) planId = soldPlanId(p);
     if (isTravelZone(t)) travel = t;
   }
 
@@ -71,7 +72,7 @@ export function readHandoff(search?: string): Handoff {
       const a = (parsed.assessment ?? {}) as Record<string, unknown>;
       const c = (parsed.checkout ?? {}) as Record<string, unknown>;
 
-      if (!planId && isSitePlanId(a.selectedPlanId)) planId = a.selectedPlanId;
+      if (!planId && soldPlanId(a.selectedPlanId)) planId = soldPlanId(a.selectedPlanId);
       if (!travel && isTravelZone(a.travel)) travel = a.travel;
 
       buyer.name = str(c.contactName, 120);

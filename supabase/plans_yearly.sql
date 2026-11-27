@@ -309,10 +309,10 @@ set search_path = public
 as $$
   select coalesce((
     select case
-      when o.plan in ('pro', 'ultra') or o.site_plan in ('ultra', 'white_glove', 'control', 'enterprise')
+      -- Premium has every link control since 27 Nov 2026 (VPV Ultra was folded into
+      -- it). 'ultra' stays listed: an id that was never sold, but must not lose a control.
+      when o.plan in ('pro', 'ultra') or o.site_plan in ('premium', 'ultra', 'white_glove', 'control', 'enterprise')
         then '{"oneTime": true, "password": true, "expiry": true, "devices": true}'::jsonb
-      when o.site_plan = 'premium'
-        then '{"oneTime": true, "password": false, "expiry": false, "devices": false}'::jsonb
       else '{"oneTime": false, "password": false, "expiry": false, "devices": false}'::jsonb
     end
       from public.organizations o where o.id = p_org
@@ -382,9 +382,9 @@ begin
         raise exception 'sharing_controls_need_control'
           using hint = case need
             when 'oneTime' then 'One-time view links start with VPV Premium.'
-            when 'password' then 'Password-protected links start with VPV Ultra.'
-            when 'expiry' then 'Link expiry time starts with VPV Ultra.'
-            else 'Device limits and the e-mail gate start with VPV Ultra.'
+            when 'password' then 'Password-protected links start with VPV Premium.'
+            when 'expiry' then 'Link expiry time starts with VPV Premium.'
+            else 'Device limits and the e-mail gate start with VPV Premium.'
           end,
           errcode = '42501';
       end if;

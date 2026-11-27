@@ -1,17 +1,24 @@
--- VPV Ultra gets every link control (27 Nov 2026).
+-- VPV Premium gets every link control (27 Nov 2026).
 --
--- Until now Ultra had one-time and password links; expiry time and device
--- limits (and the e-mail gate that goes with them) were White Glove only.
--- Now Ultra has all four, so `org_link_controls` must say so, or the
--- `share_links_enforce_plan` trigger would still refuse an Ultra workspace
--- that sets an expiry or a device limit. Must match linkControls in
--- lib/pricing.ts. The free salesperson dashboard and the free yearly update
--- shoot are counted in code (includedSalesLogins, updateShoots), not here.
+-- VPV Ultra was folded into VPV Premium: Premium now has everything Ultra had,
+-- so `org_link_controls` must say that Premium has all four link controls
+-- (one-time, password, expiry time, device limit and the e-mail gate that goes
+-- with it). Without this, the `share_links_enforce_plan` trigger would still
+-- refuse a Premium workspace that sets a password, an expiry or a device limit.
+-- Must match linkControls in lib/pricing.ts. The free salesperson dashboard and
+-- the free yearly update shoot are counted in code (includedSalesLogins,
+-- updateShoots), not here.
 --
--- supabase/plans_yearly.sql now carries these same two functions, so running
--- it again does not undo this. A database that already ran plans_yearly.sql
--- needs only this file. Safe to run more than once; it only widens what
--- Ultra may do.
+-- THIS FILE REPLACES supabase/ultra_perks.sql, an earlier version of this change
+-- (it gave Ultra the controls) that has been removed from the repo. Run this one.
+-- If ultra_perks.sql was already run, run this too: it is the newer rule and is
+-- safe on top of it.
+--
+-- supabase/plans_yearly.sql carries these same two functions, so running it
+-- again does not undo this. A database that already ran plans_yearly.sql needs
+-- only this file. Safe to run more than once; it only widens what Premium may
+-- do (the live database had no Premium or Ultra workspace when this was
+-- written, so nobody's access changes today).
 
 create or replace function public.org_link_controls(p_org uuid)
 returns jsonb
@@ -22,10 +29,10 @@ set search_path = public
 as $$
   select coalesce((
     select case
-      when o.plan in ('pro', 'ultra') or o.site_plan in ('ultra', 'white_glove', 'control', 'enterprise')
+      -- Premium has every link control since 27 Nov 2026 (VPV Ultra was folded into
+      -- it). 'ultra' stays listed: an id that was never sold, but must not lose a control.
+      when o.plan in ('pro', 'ultra') or o.site_plan in ('premium', 'ultra', 'white_glove', 'control', 'enterprise')
         then '{"oneTime": true, "password": true, "expiry": true, "devices": true}'::jsonb
-      when o.site_plan = 'premium'
-        then '{"oneTime": true, "password": false, "expiry": false, "devices": false}'::jsonb
       else '{"oneTime": false, "password": false, "expiry": false, "devices": false}'::jsonb
     end
       from public.organizations o where o.id = p_org
@@ -78,9 +85,9 @@ begin
         raise exception 'sharing_controls_need_control'
           using hint = case need
             when 'oneTime' then 'One-time view links start with VPV Premium.'
-            when 'password' then 'Password-protected links start with VPV Ultra.'
-            when 'expiry' then 'Link expiry time starts with VPV Ultra.'
-            else 'Device limits and the e-mail gate start with VPV Ultra.'
+            when 'password' then 'Password-protected links start with VPV Premium.'
+            when 'expiry' then 'Link expiry time starts with VPV Premium.'
+            else 'Device limits and the e-mail gate start with VPV Premium.'
           end,
           errcode = '42501';
       end if;

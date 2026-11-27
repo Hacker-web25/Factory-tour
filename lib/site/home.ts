@@ -45,7 +45,7 @@ import { PLAN_ROWS } from "@/lib/site/bundleData";
 import { PLAN_BILLING_CSS, PLAN_BILLING_SCRIPT } from "@/lib/site/planBilling";
 
 const SITE = "https://myvpv.com";
-const JS_SRC = "/static/js/main.f7261ba2.js";
+const JS_SRC = "/static/js/main.b1cbd1b3.js";
 const CSS_HREF = "/static/css/main.cceb61ff.css";
 /** Brand blue, taken from .btn-primary in the build's stylesheet. */
 const BRAND = "#0b5cff";
@@ -66,7 +66,7 @@ const PLAN_CARD_HEAD_ROWS = 3;
  * year is billed at; then the AOAs, smaller than the price; then the
  * features. No factory area and no cost per AOA.
  *
- * All four sit in ONE row on a laptop; tablets and phones swipe through
+ * All the cards sit in ONE row on a laptop; tablets and phones swipe through
  * them, with plan chips on phones.
  *
  * White Glove: an ivory card in a fine double gold frame, the name in a
@@ -124,8 +124,8 @@ const PLAN_CARD_CSS = [
   // the Sales Team note under the plans
   ".vpv-sales-note{color:" + BRAND + ";font-weight:600}",
   ".vpv-pc-gold .vpv-billed{color:#7a6a4f}",
-  // one row of four on a laptop
-  "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(1320px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.4rem 1.3rem!important}.vpv-plans-grid>*>ul{font-size:.875rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.9375rem}}",
+  // one row on a laptop: a column per plan on sale (three since 27 Nov 2026) in a slightly narrower strip than four used
+  "@media (min-width:1024px){.vpv-plans-grid{grid-template-columns:repeat(" + SITE_PLAN_DISPLAY_ORDER.length + ",minmax(0,1fr))!important;gap:0 1rem!important;margin-left:50%;transform:translateX(-50%);width:min(" + (SITE_PLAN_DISPLAY_ORDER.length >= 4 ? 1320 : 1180) + "px,calc(100vw - 32px))}.vpv-plans-grid>*{grid-column:auto!important;grid-template-columns:minmax(0,1fr);padding:1.4rem 1.3rem!important}.vpv-plans-grid>*>ul{font-size:.875rem;line-height:1.4}.vpv-plans-grid .vpv-gold-line{font-size:.9375rem}}",
   // tablets and phones swipe
   ".vpv-pj{display:none}",
   "@media (max-width:1023px){.vpv-pj{display:flex;gap:.5rem;overflow-x:auto;margin:1.5rem -1rem -1.25rem;padding:.25rem 1rem .5rem;scrollbar-width:none}.vpv-pj::-webkit-scrollbar{display:none}" +
@@ -470,7 +470,7 @@ const AOA_HINT_SCRIPT = String.raw`(function(){
 })();`;
 
 /**
- * Phones swipe through the four plan cards. Above them, a row of chips
+ * Phones swipe through the plan cards. Above them, a row of chips
  * (each plan's name and price per month) jumps straight to the right card,
  * and follows the swipe. Built from the cards themselves, so it can never list a plan the
  * page does not show; re-runs when the page redraws.
