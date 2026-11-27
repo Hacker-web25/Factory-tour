@@ -85,7 +85,7 @@ describe("invoice: the printed rows", () => {
   });
 
   it("shows the special offer as its own negative row, never as a quietly smaller price", () => {
-    const q = siteQuote("ultra", { city: "Gurugram", offerOpen: true });
+    const q = siteQuote("premium", { city: "Gurugram", offerOpen: true });
     const lines = invoiceLinesFromQuote(q);
     const plan = lines.find((l) => l.title === q.plan.name);
     const discount = lines.find((l) => (l.amountInr ?? 0) < 0);
@@ -233,7 +233,7 @@ describe("invoice: end to end, from a real payment", () => {
 /* ───────────────────────────── fixtures ───────────────────────────── */
 
 function baseDoc(over: Partial<InvoiceDoc> = {}): InvoiceDoc {
-  const q = siteQuote("ultra", { city: "Noida", extraAreas: 2 });
+  const q = siteQuote("premium", { city: "Noida", extraAreas: 2 });
   const g = withGst(q.taxableInr);
   return {
     invoiceNo: "VPV/2026-27/0007",

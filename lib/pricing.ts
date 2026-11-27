@@ -425,7 +425,7 @@ export function fromPaise(paise: number): number {
 /**
  * The old self-serve scene ladder (a one-time "VPV Basic licence" priced by
  * the number of scenes, and its scene top-ups) is CLOSED since 21 Nov 2026:
- * everything new is one of the four yearly plans, so the order route refuses
+ * everything new is one of the yearly plans, so the order route refuses
  * both purposes and nobody can reach the old pricing by mistake.
  *
  * The billing tests open it on purpose (tests/billing/harness/world.ts):
@@ -462,8 +462,11 @@ export const OLD_SCENE_LADDER = { open: false };
 export const PLACEHOLDER_PRICES = false;
 
 /**
- * Since 21 Nov 2026 the site sells FOUR plans, billed YEARLY and shown per
- * month (VPV Light, VPV Premium, VPV Ultra and White Glove). A plan is no
+ * Since 21 Nov 2026 the site sells yearly plans, billed YEARLY and shown per
+ * month. Since 27 Nov 2026 there are THREE: VPV Light, VPV Premium and White
+ * Glove. (VPV Ultra was shown on the site from 21 to 27 Nov and never sold:
+ * the owner folded it into VPV Premium, which now has everything Ultra had,
+ * at Premium's own price. See RETIRED_PLAN_IDS.) A plan is no
  * longer a one-time fee plus a yearly support fee: the yearly plan price IS
  * the whole recurring charge, support, hosting & security included, and it
  * renews every year at the price the customer bought at.
@@ -477,7 +480,16 @@ export const PLACEHOLDER_PRICES = false;
  * Plans are no longer chosen by the factory's covered area (21 Nov 2026):
  * the area is gone from the plans, the cards, the funnel and the policies.
  */
-export type SoldPlanId = "light" | "premium" | "ultra" | "white_glove";
+export type SoldPlanId = "light" | "premium" | "white_glove";
+
+/**
+ * Plan ids that were shown on the site but have been withdrawn, and the plan
+ * each one became. Nobody bought "ultra" (checked on the live database on 27
+ * Nov 2026: no workspace, no order), but an order note or a stored value that
+ * still says Ultra must keep working, so it is read as Premium, which has
+ * everything Ultra had.
+ */
+export const RETIRED_PLAN_IDS: Record<string, SoldPlanId> = { ultra: "premium" };
 export type LegacyPlanId = "confidence" | "authority" | "control" | "enterprise";
 export type SitePlanId = SoldPlanId | LegacyPlanId;
 
@@ -571,9 +583,9 @@ export type SitePlanSpec = {
   /**
    * The link controls this plan has (the owner's split, 20 Nov 2026):
    *   oneTime   one-time view links          Premium and up
-   *   password  password-protected links     Ultra and up
-   *   expiry    control a link's expiry time Ultra and up (White Glove only until 27 Nov 2026)
-   *   devices   limit device access          Ultra and up (White Glove only until 27 Nov 2026)
+   *   password  password-protected links     Premium and up (Ultra and up until 27 Nov 2026)
+   *   expiry    control a link's expiry time Premium and up (White Glove only until 27 Nov 2026)
+   *   devices   limit device access          Premium and up (White Glove only until 27 Nov 2026)
    * None is sold as an add-on. The e-mail gate before viewing, promised on
    * no plan card, goes with `devices` (the plans that have every control).
    */
@@ -586,14 +598,14 @@ export type SitePlanSpec = {
   /** Mr. Nitin Gupta's personal discussion and shoot (level 3). */
   personal: boolean;
   /** Sales Team logins (salesperson dashboards) included free for as long as
-   *  the plan runs (Ultra and White Glove: 1). More are sold at SALES_TEAM prices. */
+   *  the plan runs (Premium and White Glove: 1). More are sold at SALES_TEAM prices. */
   freeSalesLogins: number;
   /** Update shoots included free every plan year: a reshoot of areas already
-   *  in the VPV, to update them (Ultra and White Glove: 1). Does not carry over. */
+   *  in the VPV, to update them (Premium and White Glove: 1). Does not carry over. */
   updateShoots: number;
   /** No longer sold; kept so workspaces that bought it keep working. */
   legacy?: boolean;
-  /** This plan's YEARLY price for each extra area. The four plans on sale
+  /** This plan's YEARLY price for each extra area. The plans on sale
    *  share one ladder (EXTRA_AREA_LADDER) since 22 Nov 2026; the plans no
    *  longer sold keep their own. On a yearly plan extra areas renew with
    *  the plan. */
@@ -601,24 +613,27 @@ export type SitePlanSpec = {
 };
 
 /*
- * ┌─ THE FOUR YEARLY PLANS (21 Nov 2026; re-priced 23 Nov 2026) ───────┐
- * │ The owner's per-month prices: ₹2,968, ₹6,470, ₹9,622, ₹13,380 —    │
- * │ not round, no run of nines, the first three under ₹10,000 so they  │
- * │ read small (₹35,616, ₹77,640, ₹1,15,464, ₹1,60,560 a year).         │
+ * ┌─ THE THREE YEARLY PLANS (21 Nov 2026; re-priced 23 Nov 2026) ──────┐
+ * │ The owner's per-month prices: ₹2,968, ₹6,470, ₹13,380 — not round,  │
+ * │ no run of nines, the first two under ₹10,000 so they read small     │
+ * │ (₹35,616, ₹77,640, ₹1,60,560 a year). (VPV Ultra, ₹9,622, was       │
+ * │ folded into Premium on 27 Nov 2026, price unchanged.)               │
  * │ Bought for life instead (the toggle on the plans page): about 4.6×  │
  * │ a year, just below a round figure — ₹1,64,450, ₹3,64,420,           │
- * │ ₹5,34,400, ₹7,54,320. Either way support, hosting & security is     │
- * │ billed yearly on top (SUPPORT_ANNUAL_INR).                          │
+ * │ ₹7,54,320. Either way support, hosting & security is billed         │
+ * │ yearly on top (SUPPORT_ANNUAL_INR).                                 │
  * │ The yearly charge is exactly 12 of them, so the card's per-month    │
  * │ figure and the bill always agree. The struck regular price is 2×    │
  * │ (the 50% special offer for the first 20 customers, kept for as long │
  * │ as they renew).                                                     │
  * │                                                                     │
- * │ Features follow the seven-plan spread: Light has what Plus had;     │
- * │ Premium and Ultra keep theirs; White Glove has what Signature had   │
- * │ (every link control and Mr. Gupta's own time).                      │
+ * │ Features: Light has what Plus had. Premium has everything Ultra     │
+ * │ had (45 areas, every link control, a free salesperson dashboard and │
+ * │ a free update shoot a year). White Glove has all of that and        │
+ * │ more of everything, plus Mr. Gupta's own time (a personal           │
+ * │ discussion and shoot), which no other plan has.                     │
  * │                                                                     │
- * │ Extras: one ladder for all four plans (EXTRA_AREA_LADDER, from      │
+ * │ Extras: one ladder for all three plans (EXTRA_AREA_LADDER, from     │
  * │ ₹9,000 an area); a plan plus enough extra areas to match the next   │
  * │ plan must cost MORE than the next plan (tests/billing/12).          │
  * └─────────────────────────────────────────────────────────────────────┘
@@ -691,7 +706,7 @@ const legacy = (
 });
 
 /**
- * The price of an extra area, the same on all four plans (22 Nov 2026): it
+ * The price of an extra area, the same on every plan on sale (22 Nov 2026): it
  * starts at ₹9,000 a year and falls as the buyer adds more. `upTo` is the
  * running count of extra areas the band reaches, so the first five cost
  * ₹9,000 each, the next ten ₹8,000, and so on. (The percentages the buyer
@@ -707,13 +722,15 @@ export const EXTRA_AREA_LADDER: ExtraAreaBand[] = [
 
 export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
   light: sold("light", "VPV Light", "Your plant, online and ready to show.", 2_968, 5, 0, { videos: 0, pdfs: 0 }, 2, EXTRA_AREA_LADDER, links(), 20, 1_64_450),
-  premium: sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_470, 20, 1, { videos: 5, pdfs: 30 }, 7, EXTRA_AREA_LADDER, links("oneTime"), Infinity, 3_64_420),
-  // Ultra and White Glove also include (22 Nov 2026 for White Glove; Ultra
-  // joined on 27 Nov 2026): one free salesperson dashboard (a Sales Team
-  // login) and one free update shoot of the factory every year. Ultra also
-  // has every link control since 27 Nov 2026 (it had one-time and password).
-  ultra: {
-    ...sold("ultra", "VPV Ultra", "Complete factory experience. Secure, controlled access and sharing.", 9_622, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 5_34_400),
+  // Premium (the "most popular" plan) is what VPV Ultra was, at Premium's own
+  // price (the owner, 27 Nov 2026: "remove the Ultra plan and give all
+  // features in Premium"): 45 areas, 8 process videos, 50 lab reports, 13
+  // shoot hours, every link control, one free salesperson dashboard (a Sales
+  // Team login) and one free update shoot of the factory every year. Premium
+  // and White Glove include the two free perks (White Glove since 22 Nov).
+  // Only White Glove has Mr. Gupta's personal discussion and shoot.
+  premium: {
+    ...sold("premium", "VPV Premium", "Every department, every process, in one walk-through.", 6_470, 45, 2, { videos: 8, pdfs: 50 }, 13, EXTRA_AREA_LADDER, links("oneTime", "password", "expiry", "devices"), Infinity, 3_64_420),
     freeSalesLogins: 1,
     updateShoots: 1,
   },
@@ -802,11 +819,11 @@ export const SITE_PLANS: Record<SitePlanId, SitePlanSpec> = {
 };
 
 /** The plans on sale, smallest first. */
-export const SITE_PLAN_ORDER: SoldPlanId[] = ["light", "premium", "ultra", "white_glove"];
+export const SITE_PLAN_ORDER: SoldPlanId[] = ["light", "premium", "white_glove"];
 
 /**
  * The order the plans are SHOWN to a buyer (22 Nov 2026): the dearest first,
- * White Glove, then Ultra, Premium, Light, so the first price a buyer
+ * White Glove, then Premium, Light, so the first price a buyer
  * anchors on is the top one and the others read as steps down from it.
  * SITE_PLAN_ORDER stays smallest to largest because upgrade and
  * recommendation logic depend on that order; only display code uses this.
@@ -824,7 +841,25 @@ export function isKnownPlanId(v: unknown): v is SitePlanId {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(SITE_PLANS, v);
 }
 /**
- * What a plan adds beyond its areas (Ultra and White Glove), in the words
+ * The plan a stored id means today: the id itself if it is a plan we know, the
+ * plan a withdrawn id became (RETIRED_PLAN_IDS), else null. Use this wherever
+ * an id is READ from the database, an order note or a visit saved earlier.
+ */
+export function canonicalPlanId(v: unknown): SitePlanId | null {
+  if (isKnownPlanId(v)) return v;
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(RETIRED_PLAN_IDS, v) ? RETIRED_PLAN_IDS[v] : null;
+}
+/**
+ * A plan ON SALE from an id that may be a withdrawn one: for a visit saved in
+ * the browser, or a link, from before VPV Ultra became Premium. Null if it is
+ * neither a plan on sale nor one that became one.
+ */
+export function soldPlanId(v: unknown): SoldPlanId | null {
+  if (isSitePlanId(v)) return v;
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(RETIRED_PLAN_IDS, v) ? RETIRED_PLAN_IDS[v] : null;
+}
+/**
+ * What a plan adds beyond its areas (Premium and White Glove), in the words
  * every screen uses (the plan card, the funnel, the bill, the Terms), so they
  * cannot drift apart.
  */
@@ -839,7 +874,7 @@ export const PLAN_PERKS = {
   },
 };
 
-/** The names of the plans on sale that include a perk, as a sentence: "VPV Ultra and White Glove". */
+/** The names of the plans on sale that include a perk, as a sentence: "VPV Premium and White Glove". */
 export function plansWithPerk(perk: "freeSalesLogins" | "updateShoots"): string {
   const names = SITE_PLAN_ORDER.filter((id) => SITE_PLANS[id][perk] > 0).map((id) => SITE_PLANS[id].name);
   return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
@@ -847,7 +882,8 @@ export function plansWithPerk(perk: "freeSalesLogins" | "updateShoots"): string 
 
 /** Sales Team logins a plan includes free (0 for a plan that includes none, or an unknown plan). */
 export function includedSalesLogins(planId: string | null | undefined): number {
-  return isKnownPlanId(planId) ? SITE_PLANS[planId].freeSalesLogins : 0;
+  const id = canonicalPlanId(planId);
+  return id ? SITE_PLANS[id].freeSalesLogins : 0;
 }
 
 /** Is this plan billed every year (true) or was it a one-time fee? */
@@ -873,11 +909,14 @@ export function infoIconsLabel(planId: SitePlanId): string {
  */
 export function sitePlanFromNotes(notes: string | null | undefined): SitePlanId | null {
   const n = notes ?? "";
-  return (Object.keys(SITE_PLANS) as SitePlanId[]).find((id) => n.startsWith(`${SITE_PLANS[id].name} — `)) ?? null;
+  const own = (Object.keys(SITE_PLANS) as SitePlanId[]).find((id) => n.startsWith(`${SITE_PLANS[id].name} — `));
+  if (own) return own;
+  // An order written while VPV Ultra was on the site reads as the plan it became.
+  return n.startsWith("VPV Ultra — ") ? RETIRED_PLAN_IDS.ultra : null;
 }
 
 /**
- * What White Glove adds to everything in Ultra: two things that cannot be
+ * What White Glove adds to everything in Premium: two things that cannot be
  * bought any other way, because they are one person's time.
  *
  * `short` is the line on a plan card; `long` is the sentence on the plan page
@@ -1622,7 +1661,7 @@ export function siteQuote(
     });
   }
 
-  // What Ultra and White Glove include beyond the areas: a free salesperson dashboard
+  // What Premium and White Glove include beyond the areas: a free salesperson dashboard
   // and a free update shoot every year. Shown as free lines so the buyer
   // sees what they are getting on the bill itself.
   if (plan.freeSalesLogins > 0) {
@@ -2066,7 +2105,7 @@ export function priceFor(
       // Both plans are yearly plans on sale (the order route refuses anything
       // else): the yearly difference, for the months left until renewal.
       const from: SitePlanId = isSitePlanId(opts.fromPlan) ? opts.fromPlan : "light";
-      const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "ultra";
+      const to: SitePlanId = isSitePlanId(opts.toPlan) ? opts.toPlan : "premium";
       const rate = opts.rate ?? (opts.offerOpen === false ? "regular" : "offer");
       const q = upgradeQuote(from, to, rate, opts.monthsLeft);
       const have = Math.max(0, Math.round(opts.existingScenes ?? 0));

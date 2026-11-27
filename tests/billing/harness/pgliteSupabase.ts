@@ -443,7 +443,7 @@ export async function createTestDb(repoRoot: string): Promise<TestDb> {
     "supabase/renewal_ladder.sql",
     "supabase/plan_features.sql",
     "supabase/plans_yearly.sql",
-    "supabase/ultra_perks.sql",
+    "supabase/premium_perks.sql",
   ];
   for (const f of files) {
     try {

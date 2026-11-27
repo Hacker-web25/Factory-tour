@@ -1,6 +1,6 @@
 /**
  * Step 3 of the funnel — the question that decides whether somebody buys
- * a plan with sharing controls (VPV Ultra and up).
+ * a plan with sharing controls (VPV Premium and up).
  *
  * Every manufacturer who has ever sent a factory video to a buyer has the
  * same worry: that it gets forwarded to a competitor. So that worry is the
@@ -11,9 +11,9 @@
  * Both answers are styled identically (see YesNo) — the point is to ask the
  * question plainly where it is relevant, not to shame anyone into "yes".
  *
- * One-time link expiry and share restrictions exist from Ultra up and
+ * One-time link expiry and share restrictions exist from Premium up and
  * cannot be bought as an add-on, so a "yes" here sends the recommendation
- * to Ultra (or larger) in recommendPlan().
+ * to Premium (or larger) in recommendPlan().
  */
 
 "use client";

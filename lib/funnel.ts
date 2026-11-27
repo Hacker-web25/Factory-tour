@@ -17,7 +17,7 @@
  * └───────────────────────────────────────────────────────────────────┘
  */
 
-import { RECOMMEND_EXTRA_AREA_LIMIT, SITE_PLAN_ORDER, SITE_PLANS, isPurchaseBilling, isSitePlanId, type PurchaseBilling, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { RECOMMEND_EXTRA_AREA_LIMIT, SITE_PLAN_ORDER, SITE_PLANS, isPurchaseBilling, soldPlanId, type PurchaseBilling, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 import { storedAttribution, trackFunnelStep } from "@/lib/analytics/client";
 
 /** Where the visitor has got to. Mirrors funnel_leads.stage. */
@@ -166,11 +166,12 @@ export function loadFunnel(): FunnelState {
     const parsed = JSON.parse(raw) as Partial<FunnelState>;
     // Spread over the defaults so a field added later is never undefined.
     const state = { ...EMPTY_FUNNEL, billing: toggledBilling(), ...parsed } as FunnelState & { plotBand?: unknown };
-    // A visit saved before the four yearly plans (21 Nov 2026) may name a
-    // plan that no longer exists: drop it, so the visitor is matched again
-    // instead of being sent to a plan we do not sell. The plant size it may
-    // carry is no longer asked or used.
-    if (state.chosenPlan !== null && !isSitePlanId(state.chosenPlan)) state.chosenPlan = null;
+    // A visit saved earlier may name a plan that no longer exists: a plan that
+    // was folded into another (VPV Ultra, now Premium, 27 Nov 2026) becomes
+    // that plan; any other is dropped, so the visitor is matched again instead
+    // of being sent to a plan we do not sell. The plant size it may carry is
+    // no longer asked or used.
+    if (state.chosenPlan !== null) state.chosenPlan = soldPlanId(state.chosenPlan);
     if (!isPurchaseBilling(state.billing)) state.billing = "annual";
     delete state.plotBand;
     return state;
@@ -286,7 +287,7 @@ export function recommendPlan(s: {
 
   if (wantsLink) {
     reasons.push(
-      "You asked to stop your VPV link being shared with competitors. One-time view links start with VPV Premium; passwords, expiry and device limits come with VPV Ultra."
+      "You asked to stop your VPV link being shared with competitors. One-time view links, passwords, expiry and device limits all come with VPV Premium."
     );
   }
   if (bigPlant) {

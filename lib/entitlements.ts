@@ -18,7 +18,7 @@
  * browser cannot open them.
  */
 
-import { SITE_PLANS, SITE_PLAN_ORDER, includedSalesLogins, isKnownPlanId, planPrice, type LinkControl, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
+import { SITE_PLANS, SITE_PLAN_ORDER, canonicalPlanId, includedSalesLogins, planPrice, type LinkControl, type SitePlanId, type SoldPlanId } from "@/lib/pricing";
 
 /**
  * Where a feature starts. "all" = every plan; "media" = plans with process
@@ -116,7 +116,7 @@ export const FEATURE_KEYS = Object.keys(ROLLOUT) as FeatureKey[];
 export type WorkspaceFacts = {
   /** organizations.plan — basic (every site plan), or the old pro / ultra. */
   plan?: string | null;
-  /** organizations.site_plan — which plan was bought (one of the four, or an older one). */
+  /** organizations.site_plan — which plan was bought (one on sale, or an older one). */
   site_plan?: string | null;
   /** organizations.plan_billing — "annual" or "lifetime" (plans on sale only). */
   plan_billing?: string | null;
@@ -136,8 +136,8 @@ export type WorkspaceFacts = {
  */
 export function effectivePlan(f: WorkspaceFacts): SitePlanId {
   if (f.plan === "pro" || f.plan === "ultra") return "enterprise";
-  const sp = String(f.site_plan ?? "");
-  return isKnownPlanId(sp) ? sp : "confidence";
+  // A stored "ultra" (withdrawn before anyone bought it) is read as Premium.
+  return canonicalPlanId(f.site_plan) ?? "confidence";
 }
 
 export type Access =
@@ -151,7 +151,7 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   const tier = ROLLOUT[key].tier;
   if (tier === "hidden") return { state: "hidden" };
   if (tier === "all") return { state: "open" };
-  // A bought login, or the free one a plan includes (White Glove).
+  // A bought login, or the free one a plan includes (Premium and White Glove).
   if (tier === "sales") {
     const logins = (f.sales_seats ?? 0) + (f.plan === "pro" || f.plan === "ultra" ? 0 : includedSalesLogins(f.site_plan));
     return logins > 0 ? { state: "open" } : { state: "locked", upgradeTo: "sales_team" };
@@ -221,8 +221,9 @@ export function canBuyUpgrade(f: WorkspaceFacts, to: SitePlanId): boolean {
 
 /**
  * The one plan the dashboard ever suggests: the first that opens features
- * this workspace does not have (Light → Premium; Premium → Ultra). Null on
- * Ultra and up, where nothing more is sold from the dashboard.
+ * this workspace does not have (Light → Premium). Null on Premium and up,
+ * where nothing more is sold from the dashboard (White Glove, with Mr.
+ * Gupta's own time, is arranged by talking to us).
  */
 export function nextPlan(f: WorkspaceFacts): SoldPlanId | null {
   const level = SITE_PLANS[effectivePlan(f)].level;

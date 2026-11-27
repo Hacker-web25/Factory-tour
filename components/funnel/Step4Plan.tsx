@@ -669,11 +669,11 @@ export default function Step4Plan() {
             aria-expanded={compare}
             className="text-[14px] font-medium text-vpv-blue underline underline-offset-2"
           >
-            {compare ? "Hide plan comparison" : "Compare all four plans"}
+            {compare ? "Hide plan comparison" : `Compare all ${SITE_PLAN_DISPLAY_ORDER.length === 3 ? "three" : SITE_PLAN_DISPLAY_ORDER.length} plans`}
           </button>
         </div>
         {compare && (
-          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {SITE_PLAN_DISPLAY_ORDER.map((id) => {
               const p = SITE_PLANS[id];
               const active = id === planId;

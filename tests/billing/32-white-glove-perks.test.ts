@@ -15,8 +15,8 @@ import {
  * two extras: one free salesperson dashboard and one free update shoot a year.
  */
 describe("the order plans are shown in", () => {
-  it("shows White Glove first, then Ultra, Premium, Light", () => {
-    assert.deepEqual(SITE_PLAN_DISPLAY_ORDER, ["white_glove", "ultra", "premium", "light"]);
+  it("shows White Glove first, then Premium, Light", () => {
+    assert.deepEqual(SITE_PLAN_DISPLAY_ORDER, ["white_glove", "premium", "light"]);
   });
 
   it("leaves the ascending order alone, which the rest of the code relies on", () => {
@@ -26,13 +26,13 @@ describe("the order plans are shown in", () => {
   });
 });
 
-describe("what Ultra and White Glove include (Ultra joined on 27 Nov 2026)", () => {
-  it("have one free Sales Team login and one update shoot a year, and no other plan does", () => {
-    for (const id of ["ultra", "white_glove"] as const) {
+describe("what Premium and White Glove include (Premium took Ultra's perks on 27 Nov 2026)", () => {
+  it("have one free Sales Team login and one update shoot a year, and Light does not", () => {
+    for (const id of ["premium", "white_glove"] as const) {
       assert.equal(SITE_PLANS[id].freeSalesLogins, 1, id);
       assert.equal(SITE_PLANS[id].updateShoots, 1, id);
     }
-    for (const id of SITE_PLAN_ORDER.filter((p) => p !== "white_glove" && p !== "ultra")) {
+    for (const id of SITE_PLAN_ORDER.filter((p) => p !== "white_glove" && p !== "premium")) {
       assert.equal(SITE_PLANS[id].freeSalesLogins, 0, id);
       assert.equal(SITE_PLANS[id].updateShoots, 0, id);
     }
@@ -40,25 +40,27 @@ describe("what Ultra and White Glove include (Ultra joined on 27 Nov 2026)", () 
 
   it("counts the free login from the plan, and not for a plan we do not know", () => {
     assert.equal(includedSalesLogins("white_glove"), 1);
+    assert.equal(includedSalesLogins("premium"), 1);
+    // VPV Ultra was withdrawn; a stray stored "ultra" counts as Premium.
     assert.equal(includedSalesLogins("ultra"), 1);
-    for (const id of ["light", "premium", "confidence", "", null, undefined, "nonsense"]) {
+    for (const id of ["light", "confidence", "", null, undefined, "nonsense"]) {
       assert.equal(includedSalesLogins(id), 0, String(id));
     }
   });
 
-  it("opens the Sales Team features with no paid seat, only for Ultra and White Glove", () => {
+  it("opens the Sales Team features with no paid seat, only for Premium and White Glove", () => {
     const salesKeys = FEATURE_KEYS.filter((k) => accessTo({ plan: "basic", site_plan: "light", sales_seats: 0 }, k).state === "locked" &&
       (accessTo({ plan: "basic", site_plan: "light", sales_seats: 0 }, k) as { upgradeTo: string }).upgradeTo === "sales_team");
     assert.ok(salesKeys.length > 0, "there is at least one Sales Team feature");
     for (const k of salesKeys) {
       assert.equal(accessTo({ plan: "basic", site_plan: "white_glove", sales_seats: 0 }, k).state, "open", k);
+      assert.equal(accessTo({ plan: "basic", site_plan: "premium", sales_seats: 0 }, k).state, "open", k);
       assert.equal(accessTo({ plan: "basic", site_plan: "ultra", sales_seats: 0 }, k).state, "open", k);
-      assert.equal(accessTo({ plan: "basic", site_plan: "premium", sales_seats: 0 }, k).state, "locked", k);
-      assert.equal(accessTo({ plan: "basic", site_plan: "premium", sales_seats: 1 }, k).state, "open", k);
+      assert.equal(accessTo({ plan: "basic", site_plan: "light", sales_seats: 1 }, k).state, "open", k);
     }
   });
 
-  it("shows both on the bill at no charge, and only on Ultra and White Glove", () => {
+  it("shows both on the bill at no charge, and only on Premium and White Glove", () => {
     const wg = siteQuote("white_glove", { city: "Manesar" });
     const login = wg.lines.find((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.salesLogin.row));
     const shoot = wg.lines.find((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.updateShoot.row));
@@ -69,11 +71,11 @@ describe("what Ultra and White Glove include (Ultra joined on 27 Nov 2026)", () 
     const regular = siteQuote("white_glove", { city: "Manesar", offerOpen: false });
     assert.ok(regular.lines.some((l) => l.label.includes(PLAN_PERKS.updateShoot.row)), "still there once the offer ends");
 
-    const ultra = siteQuote("ultra", { city: "Manesar" });
-    assert.ok(ultra.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.salesLogin.row)), "Ultra: login on the bill");
-    assert.ok(ultra.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.updateShoot.row)), "Ultra: update shoot on the bill");
     const premium = siteQuote("premium", { city: "Manesar" });
-    assert.ok(!premium.lines.some((l) => l.label.includes(PLAN_PERKS.salesLogin.row) || l.label.includes(PLAN_PERKS.updateShoot.row)));
+    assert.ok(premium.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.salesLogin.row)), "Premium: login on the bill");
+    assert.ok(premium.lines.some((l) => l.kind === "bonus" && l.label.includes(PLAN_PERKS.updateShoot.row)), "Premium: update shoot on the bill");
+    const light = siteQuote("light", { city: "Manesar" });
+    assert.ok(!light.lines.some((l) => l.label.includes(PLAN_PERKS.salesLogin.row) || l.label.includes(PLAN_PERKS.updateShoot.row)));
   });
 
   it("does not change what White Glove costs", () => {
@@ -86,7 +88,7 @@ describe("the recommendation does not move with the wider slider", () => {
   it("still sends a plant past the largest plan plus 15 extra areas to White Glove", async () => {
     const { recommendPlan } = await import("@/lib/funnel");
     const at60 = recommendPlan({ aoaCount: 60, pdfCount: 0, wantsSharingControls: false });
-    assert.equal(at60.plan, "ultra");
+    assert.equal(at60.plan, "premium");
     assert.equal(at60.extraAreas, 15);
     const at61 = recommendPlan({ aoaCount: 61, pdfCount: 0, wantsSharingControls: false });
     assert.equal(at61.plan, "white_glove");

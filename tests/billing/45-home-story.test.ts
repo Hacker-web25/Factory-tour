@@ -137,16 +137,17 @@ describe("the proof video", () => {
   });
 });
 
-describe("Ultra's link controls in the database", () => {
-  it("are the same in ultra_perks.sql as in plans_yearly.sql, and both give Ultra every control", () => {
+describe("Premium's link controls in the database", () => {
+  it("are the same in premium_perks.sql as in plans_yearly.sql, and both give Premium every control", () => {
     const fnOf = (sql: string) => {
       const a = sql.indexOf("create or replace function public.org_link_controls");
       return sql.slice(a, sql.indexOf("grant execute on function public.org_link_controls", a)).replace(/\s+/g, " ").trim();
     };
     const yearly = read("supabase/plans_yearly.sql");
-    const perks = read("supabase/ultra_perks.sql");
+    const perks = read("supabase/premium_perks.sql");
     assert.equal(fnOf(perks), fnOf(yearly));
-    assert.ok(fnOf(yearly).includes("o.site_plan in ('ultra', 'white_glove', 'control', 'enterprise')"));
-    assert.ok(!/when o\.site_plan = 'ultra'/.test(fnOf(yearly)), "no separate, smaller Ultra case");
+    assert.ok(fnOf(yearly).includes("o.site_plan in ('premium', 'ultra', 'white_glove', 'control', 'enterprise')"));
+    assert.ok(!/when o\.site_plan = 'premium'/.test(fnOf(yearly)), "no separate, smaller Premium case");
+    assert.ok(!fs.existsSync(path.join(process.cwd(), "supabase/ultra_perks.sql")), "ultra_perks.sql was replaced by premium_perks.sql");
   });
 });

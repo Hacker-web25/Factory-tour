@@ -28,6 +28,7 @@ import {
   TRAVEL_FEES,
   LINK_CONTROLS,
   PLAN_PERKS,
+  plansWithPerk,
   discountBands,
   infoIconsLabel,
   planPrice,
@@ -179,8 +180,8 @@ function offerSentence(): string {
   );
 }
 /**
- * 22 Nov 2026: the plans are shown dearest first (White Glove, Ultra, Premium,
- * Light). Only the places that LIST the plans read `vpvSd` (see
+ * 22 Nov 2026: the plans are shown dearest first (White Glove, Premium, Light;
+ * Ultra was between them until 27 Nov 2026). Only the places that LIST the plans read `vpvSd` (see
  * bundlePlanData); the code that reasons about them keeps the ascending `sn`.
  */
 const NOV22_ORDER: [string, string][] = [
@@ -222,8 +223,12 @@ function salesNoteExpr(): string {
 let SALES_WITHOUT_PERK = false;
 /** The wording on 22-26 Nov 2026, when only White Glove included the free login. */
 let SALES_PERK_WG_ONLY = false;
+/** The wording on 27 Nov 2026, when VPV Ultra and White Glove included it. */
+let SALES_PERK_ULTRA = false;
 function salesSentence(): string {
-  const perk = SALES_WITHOUT_PERK ? "" : SALES_PERK_WG_ONLY ? " (White Glove includes one free)" : " (VPV Ultra and White Glove include one free)";
+  const names = plansWithPerk("freeSalesLogins");
+  const now = ` (${names} include${names.includes(" and ") ? "" : "s"} one free)`; // "VPV Premium and White Glove include one free"
+  const perk = SALES_WITHOUT_PERK ? "" : SALES_PERK_WG_ONLY ? " (White Glove includes one free)" : SALES_PERK_ULTRA ? " (VPV Ultra and White Glove include one free)" : now;
   return `Sales Team logins, which give you a dashboard of every meeting they hold, are an optional yearly add-on${perk}: ${inr(SALES_TEAM.offerInr)} per salesperson per year for our first ${LAUNCH_OFFER.limit} customers, ${inr(SALES_TEAM.regularInr)} after that.`;
 }
 
@@ -253,8 +258,6 @@ const NOV20_REWORDING: [string, string][] = [
 /** Sentences that quote a plan's figures, as the last sync wrote them (the
  *  four plans of 17 Nov 2026), paired with what they say now. */
 function NOV20_FIGURES(): [string, string][] {
-  const ultra = SITE_PLANS.ultra;
-  const bands = discountBands("ultra");
   return [
     [
       "Every plan lets you add extra areas, and each one costs less than the last. On VPV Control, extra areas start at ₹4,500 and fall to ₹3,400. You see the price of every extra area, and the total, before you pay.",
@@ -310,7 +313,7 @@ function NOV21_REWORDING(list: [string, string][]): [string, string][] {
     [oldYa, NOV21_PRICE],
     ['Dr=e=>`${e.name} (${e.area}): "${e.tagline}" ', 'Dr=e=>`${e.name}: "${e.tagline}" '],
     ['"One-time investment, lifetime trust."', JSON.stringify(PLANS_HEADING)],
-    ['title:"Seven plans, sized to your factory"', 'title:"Four plans for your factory"'],
+    ['title:"Seven plans, sized to your factory"', `title:${js(`${planCountWord()} plans for your factory`)}`],
     // 22 Nov 2026: VPV Premium is the most popular plan: a blue frame and a tag.
     [
       '"vpv-pc relative flex flex-col rounded-2xl border bg-white p-6 shadow-sm "+(t.gold?"vpv-pc-gold ":"")+',
@@ -322,6 +325,12 @@ function NOV21_REWORDING(list: [string, string][]): [string, string][] {
     ],
   ];
 }
+
+/** How many plans are on sale, as a word, for the home page's "Three plans for your factory".
+ *  An older sync set PLAN_COUNT_WORD to what the bundle said then ("Four"). */
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+let PLAN_COUNT_WORD: string | null = null;
+const planCountWord = () => PLAN_COUNT_WORD ?? COUNT_WORDS[SITE_PLAN_ORDER.length] ?? String(SITE_PLAN_ORDER.length);
 
 /** The plans page heading (21 Nov 2026): the plans are no longer one-time. */
 export const PLANS_HEADING = "Simple plans. Lifetime trust.";
@@ -364,6 +373,9 @@ function freeFigures() {
   return out;
 }
 export const FREE_FIGURES = freeFigures();
+/** The "you save" figures as the card's free list carries them: one entry per plan on sale. The sync
+ *  rewrites this object in place (a figure, or a plan, that changes must not strand the bundle). */
+export const bundleFreeFiguresJson = (): string => JSON.stringify(FREE_FIGURES);
 const FREE_SUPPORT = inr(SUPPORT_MONTHLY_INR * (12 + LAUNCH_OFFER.freeMonths));
 
 function freeRow(label: string, worth: string, extra = "") {
@@ -373,8 +385,10 @@ function freeRow(label: string, worth: string, extra = "") {
   );
 }
 
+/** Where the figures start inside the free list's code (the sync finds it by this text). */
+export const FREE_BLOCK_START = "ln.active&&(()=>{const f=(";
 const FREE_BLOCK =
-  `ln.active&&(()=>{const f=(${JSON.stringify(FREE_FIGURES)})[t.id];return f&&(0,Dt.jsxs)("div",{className:"vpv-free","data-testid":\`\${o}-\${t.id}-free\`,children:[` +
+  `${FREE_BLOCK_START}${bundleFreeFiguresJson()})[t.id];return f&&(0,Dt.jsxs)("div",{className:"vpv-free","data-testid":\`\${o}-\${t.id}-free\`,children:[` +
   `(0,Dt.jsx)("p",{className:"vpv-free-h",children:${js(`Free for our first ${LAUNCH_OFFER.limit}`)}}),` +
   '(0,Dt.jsxs)("ul",{children:[' +
   freeRow(js(`${LAUNCH_OFFER.freeMonths} months of the plan`), "f.months", " vpv-fr-yr") + "," +
@@ -422,8 +436,6 @@ const NOV21_SUPPORT: [string, string][] = [];
 
 function buildPatches(): [string, string][] {
   const conf = SITE_PLANS.light;
-  const ctrl = SITE_PLANS.ultra;
-  const ctrlBands = discountBands("ultra");
   const travelLong = `${travelSentence()} Shoot time beyond what your plan includes is ${inr(EXTRA_HOUR_INR)} an hour.`;
   const travelShort = `is ${travelPrice()}, by cab, for factories in ${SERVICE_CITY_LIST}. We are coming to more cities soon.`;
   const list: [string, string][] = [
@@ -669,7 +681,6 @@ function buildPatches(): [string, string][] {
     if (next !== to && !nov21.some(([m]) => m === to)) nov21.push([to, next]);
   }
   // Figures the bundle carries from the seven plans, to the four.
-  const ultraBands = discountBands("ultra");
   nov21.push(
     [
       "Every plan lets you add extra areas, and each one costs less than the last. On VPV Ultra, extra areas start at ₹4,500 and fall to ₹4,000. You see the price of every extra area, and the total, before you pay.",
@@ -699,11 +710,13 @@ export function bundleTextPatches(): [string, string][] {
   // The wordings a bundle could still carry, oldest first. Each one is
   // rebuilt and every sentence that differs from today's gets a migration
   // pair from that older wording to the current one.
-  const older: { limit: number; withoutPerk: boolean; wgOnly: boolean; plain: boolean }[] = [
+  const older: { limit: number; withoutPerk: boolean; wgOnly: boolean; plain: boolean; ultra: boolean }[] = [
     // The bundle on main predates the free White Glove login.
-    { limit: 50, withoutPerk: true, wgOnly: false, plain: true },
+    { limit: 50, withoutPerk: true, wgOnly: false, plain: true, ultra: false },
     // 22-26 Nov 2026: the free login was White Glove's alone.
-    { limit: LAUNCH_OFFER.limit, withoutPerk: false, wgOnly: true, plain: false },
+    { limit: LAUNCH_OFFER.limit, withoutPerk: false, wgOnly: true, plain: false, ultra: false },
+    // 27 Nov 2026: four plans; VPV Ultra and White Glove included the free login.
+    { limit: LAUNCH_OFFER.limit, withoutPerk: false, wgOnly: false, plain: false, ultra: true },
   ];
   const migrations: [string, string][] = [];
   const nowTo = new Set(now.map(([, to]) => to));
@@ -714,10 +727,14 @@ export function bundleTextPatches(): [string, string][] {
       SALES_WITHOUT_PERK = o.withoutPerk;
       SALES_PERK_WG_ONLY = o.wgOnly;
       SALES_NOTE_PLAIN = o.plain;
+      SALES_PERK_ULTRA = o.ultra;
+      PLAN_COUNT_WORD = o.ultra ? "Four" : null;
       before = buildPatches();
     } finally {
       SALES_WITHOUT_PERK = false;
       SALES_PERK_WG_ONLY = false;
+      SALES_PERK_ULTRA = false;
+      PLAN_COUNT_WORD = null;
       SALES_NOTE_PLAIN = false;
       LAUNCH_OFFER.limit = saved.limit;
     }
