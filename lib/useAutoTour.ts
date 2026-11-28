@@ -12,10 +12,16 @@
 import { useEffect, useRef } from "react";
 import type { Hotspot, Scene, Tour } from "./types";
 
+/** How long a unit's divider card stays up when nobody set a time for it. */
+export const DIVIDER_SECONDS = 3;
+
 export function sceneDuration(scene: Scene | null, tour: Tour): number {
-  if (!scene) return tour.auto_tour_interval ?? 6;
+  const fallback = tour.auto_tour_interval ?? 6;
+  if (!scene) return fallback;
   const per = scene.auto_tour_duration;
-  return per && per > 0 ? per : tour.auto_tour_interval ?? 6;
+  if (per && per > 0) return per;
+  // A divider card is a chapter slate, not a room: a few seconds is enough.
+  return scene.is_divider ? Math.min(DIVIDER_SECONDS, fallback) : fallback;
 }
 
 export function useAutoTour({

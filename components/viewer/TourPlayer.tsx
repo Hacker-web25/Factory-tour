@@ -14,6 +14,7 @@ import FlatViewer from "@/components/panorama/FlatViewer";
 import MenuOverlay from "@/components/viewer/MenuOverlay";
 import { playHotspotSound } from "@/lib/soundEffects";
 import { useAutoTour } from "@/lib/useAutoTour";
+import { dividerUnitKey, hiddenByCollapse, isDivider, unitKey } from "@/lib/units";
 import { Ruler } from "lucide-react";
 import { loadOfflineTour } from "@/lib/offlineTourData";
 import MeasureTool from "@/components/viewer/MeasureTool";
@@ -764,6 +765,24 @@ function TourPlayerInner({
   // Whether the bottom scene-thumbnail strip is hidden (toggled from the
   // pill). Kept per-tab; a fresh tab starts with the strip visible.
   const [stripHidden, setStripHidden] = useState(false);
+  // Units folded up to their divider tile in the bottom strip (double-click a divider).
+  const [foldedUnits, setFoldedUnits] = useState<Set<string>>(new Set());
+  const toggleUnit = (key: string) =>
+    setFoldedUnits((f) => {
+      const n = new Set(f);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const stripScenes = useMemo(() => hiddenByCollapse(scenes, foldedUnits), [scenes, foldedUnits]);
+  const unitSizes = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const x of scenes) {
+      const k = unitKey(x);
+      if (k && !isDivider(x)) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [scenes]);
 
   // Effect 1: create/destroy the audio element only when the URL or trim
   // window changes. Trim is honoured by seeking to trim_start on load and
@@ -1590,16 +1609,23 @@ function TourPlayerInner({
               }}
               className="h-20 bg-white/80 backdrop-blur-xl border-t border-white/60 flex items-center gap-2 px-3 overflow-x-auto panel-scroll"
             >
-              {scenes.map((s) => (
+              {stripScenes.map((s) => {
+                const divider = isDivider(s);
+                const dKey = divider ? dividerUnitKey(s) : "";
+                const isFolded = divider && foldedUnits.has(dKey);
+                return (
                 <button
                   key={s.id}
                   onClick={() => navigateTo(s.id, { cinematic: false })}
+                  onDoubleClick={divider ? () => toggleUnit(dKey) : undefined}
+                  aria-expanded={divider ? !isFolded : undefined}
+                  data-divider={divider ? "true" : undefined}
                   className={`shrink-0 w-24 h-14 rounded-lg overflow-hidden border-2 transition-all relative group ${
                     activeSceneId === s.id
                       ? "border-vpv-blue shadow-[0_6px_18px_-8px_rgba(20,104,216,0.6)]"
                       : "border-vpv-line hover:border-vpv-blue/40"
                   }`}
-                  title={s.name}
+                  title={divider ? `${s.name}: double-click to ${isFolded ? "show" : "hide"} this unit's scenes` : s.name}
                   tabIndex={stripHidden ? -1 : 0}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1625,8 +1651,26 @@ function TourPlayerInner({
                   >
                     {s.name}
                   </div>
+                  {divider && (
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      aria-label={`${isFolded ? "Show" : "Hide"} the scenes of ${s.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUnit(dKey);
+                      }}
+                      className="absolute top-0.5 left-0.5 flex items-center gap-0.5 rounded bg-black/80 px-1 text-[8.5px] font-bold leading-[14px] text-white"
+                    >
+                      <span className={`inline-block transition-transform ${isFolded ? "" : "rotate-90"}`} aria-hidden>
+                        ›
+                      </span>
+                      {isFolded ? `+${unitSizes.get(dKey) ?? 0}` : "Unit"}
+                    </span>
+                  )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

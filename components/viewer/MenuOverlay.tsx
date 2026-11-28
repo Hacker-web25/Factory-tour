@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { useT } from "@/lib/TranslationContext";
+import { countAreas, groupByUnit } from "@/lib/units";
 
 type ThumbSize = "sm" | "md" | "lg";
 
@@ -104,7 +105,7 @@ export default function MenuOverlay({
           style={{ width: railWidth(thumbSize), zIndex: 31 }}
         >
           <PanelHeader
-            count={scenes.length}
+            count={countAreas(scenes)}
             pinned
             onPinToggle={() => {
               setPinned(false);
@@ -172,7 +173,7 @@ export default function MenuOverlay({
             className="rounded-2xl bg-white/75 backdrop-blur-2xl border border-white/60 shadow-[0_20px_60px_-20px_rgba(11,61,145,0.4)] overflow-hidden flex flex-col"
           >
             <PanelHeader
-              count={scenes.length}
+              count={countAreas(scenes)}
               pinned={false}
               onPinToggle={() => {
                 setPinned(true);
@@ -275,47 +276,56 @@ function SceneList({
   showDescription: boolean;
   onSelect: (id: string) => void;
 }) {
-  const groups = useMemo(() => {
-    const map = new Map<string, Scene[]>();
-    for (const s of scenes) {
-      const key = (s.folder ?? "").trim() || "__root__";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
-    }
-    return Array.from(map.entries()).map(([key, list]) => ({
-      key,
-      label: key === "__root__" ? null : key,
-      scenes: list,
-    }));
-  }, [scenes]);
+  const { t } = useT();
+  // One group per folder (a unit). A unit that starts with a divider card shows
+  // that divider as its heading: click the heading to open the card.
+  const groups = useMemo(() => groupByUnit(scenes), [scenes]);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const toggle = (key: string) => setCollapsed((c) => ({ ...c, [key]: !c[key] }));
 
   return (
     <ul className="space-y-0.5">
       {groups.map((g) => {
         const isFolder = g.label !== null;
         const isCollapsed = !!collapsed[g.key];
+        const divider = g.divider;
+        const dividerActive = !!divider && divider.id === activeSceneId;
         return (
           <li key={g.key}>
             {isFolder && (
-              <button
-                onClick={() =>
-                  setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))
-                }
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] uppercase tracking-wide text-vpv-muted hover:text-vpv-navy"
+              <div
+                className={`flex items-center rounded-lg ${
+                  divider
+                    ? dividerActive
+                      ? "bg-vpv-blue text-white"
+                      : "bg-vpv-tint/60 text-vpv-navy hover:bg-vpv-tint"
+                    : "text-vpv-muted hover:text-vpv-navy"
+                }`}
+                data-unit={divider ? "divider" : "folder"}
               >
-                {isCollapsed ? (
-                  <ChevronRight size={12} />
-                ) : (
-                  <ChevronDown size={12} />
-                )}
-                <Folder size={12} />
-                <span className="truncate flex-1 text-left">{g.label}</span>
-                <span className="text-[10px] text-vpv-muted/60">
+                <button
+                  onClick={() => toggle(g.key)}
+                  className="pl-2 pr-1 py-1.5 shrink-0"
+                  aria-expanded={!isCollapsed}
+                  aria-label={`${isCollapsed ? "Show" : "Hide"} ${g.label}`}
+                >
+                  {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                </button>
+                <button
+                  onClick={() => (divider ? onSelect(divider.id) : toggle(g.key))}
+                  title={divider ? `Open ${g.label}` : undefined}
+                  className={`flex-1 min-w-0 flex items-center gap-1.5 py-1.5 pr-1 text-left uppercase tracking-wide ${
+                    divider ? "text-[11.5px] font-bold" : "text-[11px]"
+                  }`}
+                >
+                  {!divider && <Folder size={12} className="shrink-0" />}
+                  <span className="truncate">{t(g.label as string)}</span>
+                </button>
+                <span className={`pr-2 text-[10px] ${dividerActive ? "text-white/80" : "text-vpv-muted/70"}`}>
                   {g.scenes.length}
                 </span>
-              </button>
+              </div>
             )}
             {(!isFolder || !isCollapsed) && (
               <ul className={isFolder ? "space-y-0.5 pl-3" : "space-y-0.5"}>
