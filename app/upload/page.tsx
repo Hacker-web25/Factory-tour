@@ -4,6 +4,7 @@
 // Next.js 14 App Router prerender rules.
 export const dynamic = "force-dynamic";
 
+import { captureTimeOfFile } from "@/lib/captureTime";
 import { ensurePreview } from "@/lib/scenePreview";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -132,17 +133,23 @@ function UploadPage() {
       // The small tile image, made from the file in hand (lib/scenePreview).
       ensurePreview(path, file);
 
-      const { data: newScene, error: sceneErr } = await supabase
-        .from("scenes")
-        .insert({
-          tour_id: tourId,
-          name: file.name.replace(/\.[^.]+$/, ""),
-          image_path: path,
-          order_index: nextOrder++,
-          is_flat: items[i].isFlat,
-        })
-        .select()
-        .single();
+      // When the photo was taken, so the Units tool can tell which photos were
+      // shot together. A missing time never stops an upload.
+      const taken = await captureTimeOfFile(file);
+      const row: Record<string, unknown> = {
+        tour_id: tourId,
+        name: file.name.replace(/\.[^.]+$/, ""),
+        image_path: path,
+        order_index: nextOrder++,
+        is_flat: items[i].isFlat,
+      };
+      if (taken) row.captured_at = taken.at;
+      let { data: newScene, error: sceneErr } = await supabase.from("scenes").insert(row).select().single();
+      if (sceneErr && row.captured_at && /captured_at/.test(sceneErr.message)) {
+        // The database has not had supabase/scene_units.sql run yet: save without the time.
+        delete row.captured_at;
+        ({ data: newScene, error: sceneErr } = await supabase.from("scenes").insert(row).select().single());
+      }
       if (sceneErr || !newScene) {
         updateItem(i, {
           status: "error",

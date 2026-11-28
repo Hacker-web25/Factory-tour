@@ -4,8 +4,9 @@ import { formatBytes } from "@/lib/formatBytes";
 import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { useState } from "react";
 import type { Scene } from "@/lib/types";
-import { Plus, Trash2, LayoutGrid, Pencil, Crown } from "lucide-react";
+import { Plus, Trash2, LayoutGrid, Pencil, Crown, Layers, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { dividerUnitKey, isDivider, unitKey } from "@/lib/units";
 
 export default function SceneStrip({
   scenes,
@@ -21,6 +22,7 @@ export default function SceneStrip({
   basicSceneCap,
   sizes,
   lowRes,
+  onOpenUnits,
 }: {
   scenes: Scene[];
   activeId: string | null;
@@ -34,8 +36,24 @@ export default function SceneStrip({
   sizes?: Record<string, number | null>;
   /** Scenes saved below full resolution: [width, height]. */
   lowRes?: Record<string, [number, number]>;
+  /** Opens the Units tool (divider cards, grouping, numbering). */
+  onOpenUnits?: () => void;
 }) {
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // Units folded up to their divider tile (double-click a divider to fold or open its unit).
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const toggleUnit = (key: string) =>
+    setFolded((f) => {
+      const n = new Set(f);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const unitSizes = new Map<string, number>();
+  for (const x of scenes) {
+    const k = unitKey(x);
+    if (k && !isDivider(x)) unitSizes.set(k, (unitSizes.get(k) ?? 0) + 1);
+  }
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [gridOpen, setGridOpen] = useState(false);
 
@@ -69,6 +87,12 @@ export default function SceneStrip({
         {/* Scrolling thumbnail row (leaves room for the right-side actions) */}
         <div className="flex-1 flex items-center gap-1 overflow-x-auto panel-scroll py-2">
           {scenes.map((s, i) => {
+            // A folded unit shows only its divider tile. Indexes stay those of the full list.
+            const key = unitKey(s);
+            if (!isDivider(s) && key && folded.has(key)) return null;
+            const divider = isDivider(s);
+            const dKey = divider ? dividerUnitKey(s) : "";
+            const isFolded = divider && folded.has(dKey);
             const isDragging = dragFrom === i;
             const hiddenFromBasic =
               typeof basicSceneCap === "number" && i >= basicSceneCap;
@@ -131,6 +155,7 @@ export default function SceneStrip({
                     setDropAt(null);
                   }}
                   onClick={() => onSelect(s.id)}
+                  onDoubleClick={divider ? () => toggleUnit(dKey) : undefined}
                   className={`relative shrink-0 w-24 h-[60px] rounded-md overflow-hidden cursor-grab active:cursor-grabbing group transition-all duration-200 ${
                     activeId === s.id
                       ? "ring-2 ring-accent"
@@ -144,7 +169,11 @@ export default function SceneStrip({
                     transition:
                       "transform 220ms cubic-bezier(0.2, 0.9, 0.35, 1.1), opacity 180ms",
                   }}
-                  title={`Drag onto panorama to create a "go to ${s.name}" hotspot`}
+                  title={
+                    divider
+                      ? `${s.name}: double-click to ${isFolded ? "show" : "hide"} this unit's scenes`
+                      : `Drag onto panorama to create a "go to ${s.name}" hotspot`
+                  }
                 >
                   <ScenePreviewImg
                     imagePath={s.image_path}
@@ -157,6 +186,22 @@ export default function SceneStrip({
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent text-[10px] px-1.5 py-0.5 truncate text-white">
                     {s.name}
                   </div>
+                  {divider && (
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleUnit(dKey);
+                      }}
+                      aria-label={`${isFolded ? "Show" : "Hide"} the scenes of ${s.name}`}
+                      className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-black/80 px-1 text-[8.5px] font-bold uppercase leading-[14px] tracking-wider text-white cursor-pointer"
+                      data-testid="unit-chip"
+                    >
+                      <ChevronRight size={8} className={`transition-transform ${isFolded ? "" : "rotate-90"}`} />
+                      {isFolded ? `+${unitSizes.get(dKey) ?? 0}` : "Unit"}
+                    </span>
+                  )}
                   {hiddenFromBasic && (
                     <div
                       className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-amber-300/95 text-black text-[8.5px] font-bold uppercase tracking-wider shadow"
@@ -222,6 +267,11 @@ export default function SceneStrip({
           >
             <Pencil size={11} /> Edit tour
           </button>
+          {onOpenUnits && (
+            <button onClick={onOpenUnits} className="chip" title="Group scenes into units with divider cards and numbering">
+              <Layers size={11} /> Units
+            </button>
+          )}
           <button
             onClick={() => setGridOpen(true)}
             className="chip"

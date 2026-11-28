@@ -165,6 +165,14 @@ export type Scene = {
   /** Optional grouping label for the scene index menu. Scenes with the same
    *  folder name are grouped together (with a collapsible header). */
   folder: string | null;
+  /** True for a unit divider card (the white "HEAD OFFICE" picture that starts a
+   *  unit). Not an area. Needs supabase/scene_units.sql; absent before it is run. */
+  is_divider?: boolean;
+  /** Short code that numbers the unit's scenes (HO, R&D). Set on the divider. */
+  unit_code?: string | null;
+  /** When the photo was taken, read from the file at upload. Groups photos
+   *  shot together into units. */
+  captured_at?: string | null;
   /** Short description shown under the scene name in the pinned scene rail
    *  (viewer-side). Free-text, optional. */
   description?: string | null;

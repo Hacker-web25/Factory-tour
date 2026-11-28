@@ -15,6 +15,10 @@ import SubtitleOverlay from "@/components/viewer/SubtitleOverlay";
 import LanguagePicker from "@/components/viewer/LanguagePicker";
 import RightPanel from "@/components/builder/RightPanel";
 import SceneStrip from "@/components/builder/SceneStrip";
+import UnitsModal from "@/components/builder/UnitsModal";
+import { storeDividerCard } from "@/lib/dividerImage";
+import { mediaStorage } from "@/lib/media";
+import { applyUnits, buildUnitsPlan, undoUnits, type PlanOptions, type PlanUnit, type UnitsContext, type UnitsUndo } from "@/lib/unitsPlan";
 import ShareModal from "@/components/builder/ShareModal";
 import { useOrgPlan } from "@/lib/planAccess";
 import { useEntitlements } from "@/lib/useEntitlements";
@@ -186,6 +190,8 @@ function sceneSavePayload(s: Scene): Record<string, unknown> {
     tripod_size: s.tripod_size ?? 30,
     camera_height: s.camera_height ?? 1.6,
     folder: s.folder ?? null,
+    is_divider: s.is_divider ?? false,
+    unit_code: s.unit_code ?? null,
     description: (s as any).description ?? null,
     image_adjustments: (s as any).image_adjustments ?? null,
   };
@@ -264,6 +270,9 @@ export default function TourEditPage() {
   );
   const [pasteModalOpen, setPasteModalOpen] = useState(false);
   const [menuBuilderOpen, setMenuBuilderOpen] = useState(false);
+  const [unitsOpen, setUnitsOpen] = useState(false);
+  const unitsUndoRef = useRef<UnitsUndo | null>(null);
+  const [unitsCanUndo, setUnitsCanUndo] = useState(false);
   // On mount, sync from localStorage (SSR-safe — hooks always run in the
   // browser here because the whole page is "use client").
   useEffect(() => {
@@ -1935,6 +1944,100 @@ export default function TourEditPage() {
     return false;
   }
 
+  /* ------------------------------------------------------------ Units ---- */
+
+  /** Gives the scenes this order (0, 1, 2…) and saves the ones that moved. */
+  async function writeSceneOrder(ids: string[]) {
+    const cur = scenesRef.current;
+    const before = new Map(cur.map((x) => [x.id, x.order_index]));
+    const listed = new Set(ids);
+    const byId = new Map(cur.map((x) => [x.id, x]));
+    const ordered = [...ids.map((id) => byId.get(id)).filter((x): x is Scene => !!x), ...cur.filter((x) => !listed.has(x.id))].map(
+      (x, i) => ({ ...x, order_index: i }),
+    );
+    for (const x of ordered) guardSceneFields(x.id, ["order_index"]);
+    scenesRef.current = ordered;
+    setScenes(ordered);
+    await Promise.all(
+      ordered
+        .filter((x) => before.get(x.id) !== x.order_index)
+        .map((x) => supabase.from("scenes").update({ order_index: x.order_index }).eq("id", x.id)),
+    );
+  }
+
+  function unitsContext(): UnitsContext {
+    return {
+      tourId,
+      getScenes: () => scenesRef.current,
+      makeDividerPicture: (title) => storeDividerCard(tourId, title),
+      async insertScene(row) {
+        const { data, error } = await supabase.from("scenes").insert(row).select().single();
+        if (error || !data) {
+          if (error && /Could not find the '[^']+' column/i.test(error.message)) {
+            throw new Error("Units need a one-time database update first: run supabase/scene_units.sql.");
+          }
+          console.error("[units] insert divider", error);
+          return null;
+        }
+        const added = data as Scene;
+        scenesRef.current = sortScenes([...scenesRef.current, added]);
+        setScenes((list) => (list.some((x) => x.id === added.id) ? list : sortScenes([...list, added])));
+        return added;
+      },
+      changeScene: onSceneChange,
+      writeOrder: writeSceneOrder,
+      async deleteScene(id) {
+        pendingSceneChangesRef.current.delete(id);
+        await supabase.from("scenes").delete().eq("id", id);
+        scenesRef.current = scenesRef.current.filter((x) => x.id !== id);
+        setScenes((list) => list.filter((x) => x.id !== id));
+        setActiveSceneId((cur) => (cur === id ? null : cur));
+      },
+      async removeFile(path) {
+        await mediaStorage("panoramas").remove([path]);
+      },
+    };
+  }
+
+  async function applyUnitsFromModal(units: PlanUnit[], opts: PlanOptions) {
+    const plan = buildUnitsPlan(scenesRef.current, units, opts);
+    const undo = await applyUnits(unitsContext(), plan);
+    unitsUndoRef.current = undo;
+    setUnitsCanUndo(true);
+    await flushPendingScenes();
+  }
+
+  async function undoUnitsFromModal() {
+    const undo = unitsUndoRef.current;
+    if (!undo) return;
+    await undoUnits(unitsContext(), undo);
+    unitsUndoRef.current = null;
+    setUnitsCanUndo(false);
+    await flushPendingScenes();
+  }
+
+  /** Reads when each stored photo was taken, for tours uploaded before this existed. */
+  async function readCaptureTimes(): Promise<number> {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (!token) throw new Error("Please sign in again.");
+    const res = await fetch(`/api/capture-times?tour=${tourId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error("Could not read the photos just now. Try again in a moment.");
+    const body = (await res.json()) as { times?: Record<string, { at: string } | null> };
+    const found = new Map<string, string>();
+    for (const x of scenesRef.current) {
+      const t = body.times?.[x.id];
+      if (t?.at && !x.captured_at) found.set(x.id, t.at);
+    }
+    if (found.size === 0) return 0;
+    const patch = (x: Scene) => (found.has(x.id) ? { ...x, captured_at: found.get(x.id)! } : x);
+    scenesRef.current = scenesRef.current.map(patch);
+    setScenes((list) => list.map(patch));
+    // Saved for next time. If the database update has not been run, the times still work for this visit.
+    await Promise.all(Array.from(found, ([id, at]) => supabase.from("scenes").update({ captured_at: at }).eq("id", id)));
+    return found.size;
+  }
+
   async function onSceneDelete(id: string) {
     if (!confirm("Delete scene?")) return;
     pendingSceneChangesRef.current.delete(id);
@@ -2685,7 +2788,20 @@ export default function TourEditPage() {
         basicSceneCap={orgPlan === "basic" ? orgSceneCap : undefined}
         sizes={tourSizes?.scenes}
         lowRes={lowResIds}
+        onOpenUnits={() => setUnitsOpen(true)}
       />
+
+      {unitsOpen && (
+        <UnitsModal
+          scenes={scenes}
+          columnsReady={scenes.length === 0 || scenes.some((x) => Object.prototype.hasOwnProperty.call(x, "is_divider"))}
+          canUndo={unitsCanUndo}
+          onClose={() => setUnitsOpen(false)}
+          onApply={applyUnitsFromModal}
+          onUndo={undoUnitsFromModal}
+          onReadTimes={readCaptureTimes}
+        />
+      )}
 
       {shareOpen && (
         <ShareModal tour={tour} onClose={() => setShareOpen(false)} />
