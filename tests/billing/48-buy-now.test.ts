@@ -24,6 +24,7 @@ import {
   taxSplit,
 } from "@/lib/buyNow";
 import { COMPANY } from "@/lib/company";
+import { PLAN_BILLING_SCRIPT, PLAN_BILLING_CSS } from "@/lib/site/planBilling";
 import { invoiceBodyHtml } from "@/lib/billingDocs";
 
 /** A GSTIN with a correct check character, for a state code and a PAN. */
@@ -427,5 +428,29 @@ describe("Buy now through the real order route", () => {
       const doc = await loadInvoiceDoc(w.sb as never, orderId);
       assert.equal(doc!.deliveryAddress, null);
     });
+  });
+});
+
+describe("the Get MyVPV button on each plan card", () => {
+  it("is added under each card's feature list, not as a separate section", () => {
+    const js = String(PLAN_BILLING_SCRIPT);
+    assert.ok(js.includes("vpv-pc-buy"), "the script adds the button");
+    assert.ok(js.includes("Get MyVPV"), "the button says Get MyVPV");
+    assert.ok(js.includes("plans-page-card-"), "it reads the plan id from each card");
+    assert.ok(js.includes("/buy?plan="), "it links to the Buy now page");
+    assert.ok(!js.includes("buy-now-strip") && !js.includes("vpv-bn"), "the old separate strip is gone");
+    assert.ok(!String(PLAN_BILLING_CSS).includes(".vpv-bn"), "and so are its styles");
+  });
+
+  it("follows the Annually / Lifetime switch", () => {
+    const js = String(PLAN_BILLING_SCRIPT);
+    assert.ok(/querySelectorAll\("\.vpv-pc-buy"\)/.test(js), "paint() updates every button's link");
+    assert.ok(js.includes('"&billing="'), "the billing mode is part of the link");
+  });
+
+  it("is still, and shows a focus ring, when motion is reduced", () => {
+    const css = String(PLAN_BILLING_CSS);
+    assert.ok(css.includes(".vpv-pc-buy:focus-visible"));
+    assert.ok(/prefers-reduced-motion[^}]*\.vpv-pc-buy/.test(css.replace(/\n/g, "")), "no transition under reduced motion");
   });
 });
