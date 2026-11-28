@@ -150,6 +150,18 @@ const sections: LegalSection[] = [
               "14 days.",
             ],
             [
+              <code key="m8" className="text-[12.5px]">vpv_hi</code>,
+              "Cookie — functional",
+              "Set only when you open the personal link printed on a letter or card we sent you (myvpv.com/hi/…). It holds your first name so the welcome screen can greet you, and nothing else. It is not passed to Google Analytics or Microsoft Clarity, and it is not used to follow you around the site.",
+              "One hour.",
+            ],
+            [
+              <code key="m9" className="text-[12.5px]">vpv_hi_seen</code>,
+              "Session storage — functional",
+              "Remembers, in this tab only, that the welcome screen has already been shown, so it does not play again as you move between pages.",
+              "Until you close the tab.",
+            ],
+            [
               <code key="m7" className="text-[12.5px]">vpv.cookie.notice.v1</code>,
               "Local storage — your choice",
               "Remembers that you answered the cookie notice, so it is not shown again.",

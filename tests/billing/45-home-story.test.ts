@@ -60,7 +60,7 @@ describe("the home page story (27 Nov 2026)", () => {
   });
 
   it("only sends events the server accepts", () => {
-    for (const name of ["section_view", "video_play", "calculator_used"]) {
+    for (const name of ["section_view", "video_play", "calculator_used", "story_dwell"]) {
       assert.ok(EVENT_NAME_SET.has(name), name);
       assert.ok(story.includes(`"${name}"`), `${name} is sent`);
     }

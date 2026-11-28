@@ -18,6 +18,7 @@ import {
 } from "@/lib/analytics/attribution";
 import { makeWorld, freshIp, type World } from "./harness/world";
 import { VISITOR_HEADER } from "@/lib/analytics/attribution";
+import { __resetScanCacheForTests } from "@/lib/server/scanRedirect";
 
 /* ── pure helpers ─────────────────────────────────────────────────── */
 
@@ -185,6 +186,8 @@ describe("/q/<code> — the link on the pamphlet", () => {
   after(async () => w.reset?.());
 
   beforeEach(async () => {
+    // The redirect remembers a lookup for a minute; each test edits the table.
+    __resetScanCacheForTests();
     await w.q("delete from public.campaign_scans");
     await w.q("delete from public.campaign_codes");
     await w.q("delete from public.site_visitors");

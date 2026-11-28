@@ -46,6 +46,17 @@ export const EVENT_NAMES = [
   "video_play",
   "tour_opened",
 
+  /* How the home page story was READ, not just reached. section_view says a
+     part came on screen; story_dwell says how many seconds each of the seven
+     parts held them, how far down they got, how often they went back up, and
+     how much they played with the calculator. */
+  "story_dwell",
+
+  /* The personal welcome that a scanned letter opens with: did they watch it
+     or tap it away? Only people who scanned their own QR ever see it. */
+  "welcome_seen",
+  "welcome_skipped",
+
   /* How big they say the business is. The /why-vpv calculator saves the
      visitor's numbers a moment after they stop moving a slider; the owner's
      report ranks visitors by the size they typed. */
@@ -81,6 +92,20 @@ export const EVENT_NAME_SET: ReadonlySet<string> = new Set(EVENT_NAMES);
 export function isKnownEvent(name: unknown): name is EventName {
   return typeof name === "string" && EVENT_NAME_SET.has(name);
 }
+
+/**
+ * The seven parts of the home page story, in order. scripts/home-story/src/story.ts
+ * names the same ids (a test checks they agree); story_dwell carries one key per id.
+ */
+export const HOME_PARTS = [
+  { id: "problem", label: "The problem" },
+  { id: "trust", label: "Why trust matters" },
+  { id: "cost", label: "The cost calculator" },
+  { id: "proof", label: "The proof video" },
+  { id: "solution", label: "VPV" },
+  { id: "how", label: "How it works" },
+  { id: "order", label: "Order now" },
+] as const;
 
 /* ─────────────────────────── the funnel ladder ──────────────────────────── */
 

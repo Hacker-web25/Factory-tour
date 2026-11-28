@@ -288,6 +288,9 @@ export function trackFunnelStep(step: string, meta?: Record<string, unknown>): v
  * break silently and not be missed for a month.
  */
 
+/** The welcome is reported once per page load, however many times watchSignals restarts. */
+let welcomeSent = false;
+
 /** Three clicks inside a second within 40px: jabbing at something dead. */
 const RAGE_WINDOW_MS = 1000;
 const RAGE_RADIUS_PX = 40;
@@ -485,6 +488,19 @@ export function watchSignals(path: string): () => void {
     io = null;
   }
 
+  // The personal welcome reports when it ends (see public/welcome/welcome.js),
+  // on an event and, if it finished before we were listening, on a global.
+  const onWelcome = (d: { skipped?: boolean; ms?: number; ink?: boolean } | undefined) => {
+    if (welcomeSent || !d || hasOptedOut()) return;
+    welcomeSent = true;
+    const m = { ms: Math.min(60000, Math.max(0, Math.round(d.ms ?? 0))), ink: !!d.ink };
+    if (d.skipped) track("welcome_skipped", m);
+    else track("welcome_seen", m);
+  };
+  const onWelcomeEvent = (e: Event) => onWelcome((e as CustomEvent).detail);
+  window.addEventListener("vpv:welcome", onWelcomeEvent);
+  onWelcome((window as unknown as { __vpvWelcome?: { skipped?: boolean; ms?: number; ink?: boolean } }).__vpvWelcome);
+
   document.addEventListener("click", onClick, true);
   document.addEventListener("focusin", onFocusIn, true);
   document.addEventListener("submit", onSubmit, true);
@@ -516,5 +532,6 @@ export function watchSignals(path: string): () => void {
     window.removeEventListener("beforeprint", onPrint);
     window.removeEventListener("scroll", onScroll);
     window.removeEventListener("pagehide", abandon);
+    window.removeEventListener("vpv:welcome", onWelcomeEvent);
   };
 }
