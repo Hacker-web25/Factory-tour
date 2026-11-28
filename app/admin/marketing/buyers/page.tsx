@@ -1,10 +1,12 @@
 /**
  * /admin/marketing/buyers — what each person did after scanning THEIR QR.
  *
- * Paste a list of buyers, get a code and a link for each, put the links into
- * the QR tool, print. When a buyer scans theirs this page shows whether they
- * opened it, what they read, how long they stayed, and how far they got, so
- * the follow-up call can open with the thing they were reading.
+ * Paste a list of buyers and get, for each, a link with their own name on our
+ * own domain (myvpv.com/hi/aryan-k7m2xq) plus the files to print: a PNG and an
+ * SVG of their QR, a spreadsheet, and one letter page each. When a buyer scans
+ * theirs they are welcomed by name, and this page shows whether they opened it,
+ * what they read, how long they stayed, and how far they got, so the follow-up
+ * call can open with the thing they were reading.
  *
  * Platform owner only.
  */
@@ -15,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { greetingName } from "@/lib/hiLinks";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import {
   formatDuration,
@@ -25,7 +28,9 @@ import {
 } from "@/lib/buyerReport";
 
 type Batch = { name: string; count: number };
-type MadeRow = { name: string; company: string | null; code: string; url: string };
+type MadeRow = { name: string; company: string | null; code: string; url: string; greeting?: string | null };
+/** "hi": personal letters (the link carries their name); "plain": the older /q/ codes. */
+type Style = "hi" | "plain";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const when = (iso: string | null) =>
@@ -80,7 +85,17 @@ export default function BuyersPage() {
   const [destination, setDestination] = useState("/");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [made, setMade] = useState<{ rows: MadeRow[]; csv: string; campaign: string; overflow: number } | null>(null);
+  const [style, setStyle] = useState<Style>("hi");
+  const [packBusy, setPackBusy] = useState(false);
+  const [made, setMade] = useState<{
+    rows: MadeRow[];
+    csv: string;
+    campaign: string;
+    overflow: number;
+    style: Style;
+    /** Which batch or print run to ask the pack route for. */
+    packQuery: string;
+  } | null>(null);
 
   const token = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -182,7 +197,7 @@ export default function BuyersPage() {
       const res = await fetch("/api/admin/marketing/people", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ text, campaign, prefix, destination, folderSlug }),
+        body: JSON.stringify({ text, campaign, prefix, destination, folderSlug, style }),
       });
       const d = (await res.json()) as {
         ok?: boolean;
@@ -190,19 +205,54 @@ export default function BuyersPage() {
         csv?: string;
         overflow?: number;
         campaign?: string;
+        folder?: { slug: string } | null;
         message?: string;
       };
       if (!res.ok || !d.ok) {
         setFormError(d.message ?? "Could not make those codes.");
         return;
       }
-      setMade({ rows: d.rows ?? [], csv: d.csv ?? "", campaign: d.campaign ?? campaign, overflow: d.overflow ?? 0 });
+      const name = d.campaign ?? campaign;
+      setMade({
+        rows: d.rows ?? [],
+        csv: d.csv ?? "",
+        campaign: name,
+        overflow: d.overflow ?? 0,
+        style,
+        packQuery: d.folder?.slug ? `folder=${encodeURIComponent(d.folder.slug)}` : `batch=${encodeURIComponent(name)}`,
+      });
       setText("");
       await load(batch);
     } catch {
       setFormError("Could not reach the server.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** The print pack: QR images, letter pages and the spreadsheet, built from what is in the database. */
+  async function downloadPack(query: string, fallbackName: string) {
+    setPackBusy(true);
+    setFormError(null);
+    try {
+      const res = await fetch(`/api/admin/marketing/people/pack?${query}`, {
+        headers: { Authorization: `Bearer ${await token()}` },
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { message?: string };
+        setFormError(d.message ?? "Could not build the print pack.");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${slug(fallbackName)}-letters.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch {
+      setFormError("Could not reach the server.");
+    } finally {
+      setPackBusy(false);
     }
   }
 
@@ -241,7 +291,7 @@ export default function BuyersPage() {
         <Link href="/admin/marketing" className="text-[13px] text-slate-500 hover:text-vpv-blue">← Marketing</Link>
         <h1 className="mt-3 text-[28px] font-semibold tracking-tight">Buyers</h1>
         <p className="mt-2 max-w-3xl text-[14.5px] leading-relaxed text-slate-600">
-          One personal QR per buyer. Paste your list, take the links into your QR tool, and this page
+          One personal QR per buyer. Paste your list, print the letters, and this page
           shows who opened theirs, what they read, how long they stayed and how far they got.
           Opening is counted on our own server; time and reading depth come from the page, so someone
           who chose &ldquo;Decline&rdquo; on the cookie notice shows as opened with no time.
@@ -250,7 +300,7 @@ export default function BuyersPage() {
         {/* ── Make codes ──────────────────────────────────────────── */}
         <div className="mt-8 rounded-2xl border border-vpv-line bg-white p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-[16px] font-semibold">Make a personal code for each buyer</h2>
+            <h2 className="text-[16px] font-semibold">Make a personal letter for each buyer</h2>
             <button
               type="button"
               onClick={() => setShowForm((v) => !v)}
@@ -262,16 +312,52 @@ export default function BuyersPage() {
 
           {showForm && (
             <form onSubmit={makeCodes} className="mt-4">
-              <label className="block">
+              <div role="group" aria-label="Kind of QR" className="inline-flex rounded-full border border-vpv-line bg-vpv-canvas p-1">
+                {(
+                  [
+                    ["hi", "Personal letter"],
+                    ["plain", "Plain code"],
+                  ] as [Style, string][]
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={style === k}
+                    onClick={() => setStyle(k)}
+                    className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors ${
+                      style === k ? "bg-white text-vpv-blue shadow-sm" : "text-slate-500 hover:text-vpv-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 max-w-3xl text-[12.5px] leading-relaxed text-slate-500">
+                {style === "hi" ? (
+                  <>
+                    The QR opens <span className="font-mono">myvpv.com/hi/aryan-k7m2xq</span>: our own domain with
+                    their own name, so it looks safe to open, and the page welcomes them by name.
+                  </>
+                ) : (
+                  <>The older kind: a link like myvpv.com/q/GGN-7K3QX9 with no name in it and no welcome.</>
+                )}
+              </p>
+              <label className="mt-4 block">
                 <span className="text-[12.5px] font-medium text-slate-600">
-                  Buyers, one per line: name, then the company (optional)
+                  {style === "hi"
+                    ? "Buyers, one per line: name, then the company (optional). Or paste from a spreadsheet with a header row."
+                    : "Buyers, one per line: name, then the company (optional)"}
                 </span>
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={7}
                   required
-                  placeholder={"Aryan, Acme Pumps\nMeera Shah, Shah Castings\nR. Kulkarni"}
+                  placeholder={
+                    style === "hi"
+                      ? "Name, Company, Greeting name\nDr. Rajesh Kumar Sharma, Sharma Forge, Rajesh\nAryan Kapoor, Kapoor Pumps\nMeera Shah"
+                      : "Aryan, Acme Pumps\nMeera Shah, Shah Castings\nR. Kulkarni"
+                  }
                   className="mt-1 w-full rounded-xl border border-vpv-line bg-white px-3 py-2 font-mono text-[13px] outline-none focus:border-vpv-blue"
                 />
               </label>
@@ -316,16 +402,18 @@ export default function BuyersPage() {
                     />
                   </label>
                 )}
-                <label className="block">
-                  <span className="text-[12.5px] font-medium text-slate-600">Code starts with (optional)</span>
-                  <input
-                    value={prefix}
-                    onChange={(e) => setPrefix(e.target.value.toUpperCase())}
-                    placeholder="GGN"
-                    maxLength={10}
-                    className="mt-1 w-full rounded-xl border border-vpv-line bg-white px-3 py-2 text-[14px] uppercase outline-none focus:border-vpv-blue"
-                  />
-                </label>
+                {style === "plain" && (
+                  <label className="block">
+                    <span className="text-[12.5px] font-medium text-slate-600">Code starts with (optional)</span>
+                    <input
+                      value={prefix}
+                      onChange={(e) => setPrefix(e.target.value.toUpperCase())}
+                      placeholder="GGN"
+                      maxLength={10}
+                      className="mt-1 w-full rounded-xl border border-vpv-line bg-white px-3 py-2 text-[14px] uppercase outline-none focus:border-vpv-blue"
+                    />
+                  </label>
+                )}
                 <label className="block">
                   <span className="text-[12.5px] font-medium text-slate-600">Lands on</span>
                   <input
@@ -337,9 +425,20 @@ export default function BuyersPage() {
                 </label>
               </div>
               <p className="mt-3 text-[12.5px] text-slate-500">
-                Codes are random (for example GGN-7K3QX9) and never contain a name, because the code is
-                shared with Google and Microsoft so recordings can be filtered by it. Names stay in this
-                database only.
+                {style === "hi" ? (
+                  <>
+                    The code on the end of the link is random. It is the only part passed to Google and
+                    Microsoft, so recordings can be filtered by it; the name never is. Names stay in this
+                    database, and the welcome is read from here, not from the link. To greet someone by a
+                    name other than their first, add a <strong>Greeting name</strong> column (with a header row).
+                  </>
+                ) : (
+                  <>
+                    Codes are random (for example GGN-7K3QX9) and never contain a name, because the code is
+                    shared with Google and Microsoft so recordings can be filtered by it. Names stay in this
+                    database only.
+                  </>
+                )}
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button
@@ -347,7 +446,7 @@ export default function BuyersPage() {
                   disabled={busy}
                   className="rounded-full bg-vpv-grad px-5 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
                 >
-                  {busy ? "Making…" : "Make codes"}
+                  {busy ? "Making…" : style === "hi" ? "Make letters" : "Make codes"}
                 </button>
                 {formError && <span className="text-[13px] text-red-700">{formError}</span>}
               </div>
@@ -357,7 +456,8 @@ export default function BuyersPage() {
           {made && (
             <div className="mt-5 rounded-xl border border-vpv-line bg-vpv-canvas p-4">
               <p className="text-[14px] font-semibold">
-                {made.rows.length} code{made.rows.length === 1 ? "" : "s"} made for &ldquo;{made.campaign}&rdquo;
+                {made.rows.length} {made.style === "hi" ? "letter" : "code"}
+                {made.rows.length === 1 ? "" : "s"} made for &ldquo;{made.campaign}&rdquo;
               </p>
               {made.overflow > 0 && (
                 <p className="mt-1 text-[13px] text-amber-700">
@@ -365,23 +465,60 @@ export default function BuyersPage() {
                   2,000 people. Paste the rest as a second batch.
                 </p>
               )}
-              <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
-                Download the file and give each person&rsquo;s <strong>link</strong> to your QR tool as the
-                address their QR opens. Keep this file: it is the only list that connects a code to a name
-                outside this database.
-              </p>
-              <button
-                type="button"
-                onClick={downloadCsv}
-                className="mt-3 rounded-full bg-vpv-grad px-5 py-2 text-[13.5px] font-semibold text-white"
-              >
-                Download CSV (name, company, code, link)
-              </button>
+              {made.style === "hi" ? (
+                <>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
+                    The print pack has everything for printing: a <strong>PNG</strong> and an{" "}
+                    <strong>SVG</strong> of each QR (put these in your own letter), one{" "}
+                    <strong>letter page</strong> per person with their name and QR, and a{" "}
+                    <strong>spreadsheet</strong> of names, codes and links. You can download it again any
+                    time from the batch list below.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={packBusy}
+                      onClick={() => void downloadPack(made.packQuery, made.campaign)}
+                      className="rounded-full bg-vpv-grad px-5 py-2 text-[13.5px] font-semibold text-white disabled:opacity-50"
+                    >
+                      {packBusy ? "Building the pack…" : "Download print pack (.zip)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadCsv}
+                      className="rounded-full border border-vpv-line bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 hover:bg-vpv-canvas"
+                    >
+                      Spreadsheet only (.csv)
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">
+                    Download the file and give each person&rsquo;s <strong>link</strong> to your QR tool as the
+                    address their QR opens. Keep this file: it is the only list that connects a code to a name
+                    outside this database.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={downloadCsv}
+                    className="mt-3 rounded-full bg-vpv-grad px-5 py-2 text-[13.5px] font-semibold text-white"
+                  >
+                    Download CSV (name, company, code, link)
+                  </button>
+                </>
+              )}
               <ul className="mt-3 max-h-44 overflow-auto font-mono text-[12px] text-slate-600">
                 {made.rows.slice(0, 50).map((r) => (
                   <li key={r.code}>
                     {r.name}
                     {r.company ? ` · ${r.company}` : ""} → {r.url}
+                    {made.style === "hi" && (
+                      <span className="text-slate-400">
+                        {" "}
+                        (welcome {greetingName(r.name, r.greeting) ?? "—"})
+                      </span>
+                    )}
                   </li>
                 ))}
                 {made.rows.length > 50 && <li>…and {made.rows.length - 50} more, all in the file</li>}
@@ -418,6 +555,17 @@ export default function BuyersPage() {
             >
               Refresh
             </button>
+            {batch && (
+              <button
+                type="button"
+                disabled={packBusy}
+                onClick={() => void downloadPack(`batch=${encodeURIComponent(batch)}`, batch)}
+                className="rounded-full border border-vpv-line px-4 py-1.5 text-[13px] font-semibold text-vpv-blue hover:bg-white disabled:opacity-50"
+              >
+                {packBusy ? "Building…" : "Download print pack"}
+              </button>
+            )}
+            {!showForm && formError && <span className="text-[13px] text-red-700">{formError}</span>}
           </div>
         )}
 

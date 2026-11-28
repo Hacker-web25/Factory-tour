@@ -17,6 +17,11 @@
  *
  * The whole batch is created or none of it is: a half-made batch would leave
  * some printed QRs pointing at nothing.
+ *
+ * Send `style: "hi"` for the personal letters: each person gets a bare random
+ * code and the link myvpv.com/hi/<first name>-<code>, and the list may carry
+ * a header row with a "Greeting name" column (see lib/hiPeople.ts). The files
+ * to print come from GET /api/admin/marketing/people/pack.
  */
 
 import { clean, fail, json, readJson } from "@/lib/server/billingGuard";
@@ -29,6 +34,8 @@ import {
   peopleCsv,
   personLabel,
 } from "@/lib/personCodes";
+import { parseHiPeople, type HiPerson } from "@/lib/hiPeople";
+import { letterUrl, lettersCsv, makeBareCodes } from "@/lib/hiPrint";
 import type { FolderRow } from "@/lib/campaignFolders";
 
 export const runtime = "nodejs";
@@ -47,7 +54,18 @@ export async function POST(req: Request) {
   if (!read.ok) return fail(read.status, read.error);
   const b = read.body;
 
-  const { people, overflow } = parsePeople(b.text);
+  // "hi" = the personal letters: a header row and a Greeting column are allowed,
+  // and the link is /hi/<first name>-<code>. Anything else is the plain /q/ batch.
+  const hi = b.style === "hi";
+  let people: HiPerson[];
+  let overflow: number;
+  if (hi) {
+    ({ people, overflow } = parseHiPeople(b.text));
+  } else {
+    const plain = parsePeople(b.text);
+    overflow = plain.overflow;
+    people = plain.people.map((p) => ({ ...p, greeting: null, phone: null, email: null }));
+  }
   if (!people.length) {
     return fail(400, "no_people", "Paste at least one name, one person per line.");
   }
@@ -81,7 +99,7 @@ export async function POST(req: Request) {
     return fail(400, "bad_destination", "The destination must be a path on myvpv.com, like /plans.");
   }
   const prefix = cleanPrefix(b.prefix);
-  const source = clean(b.source, 60) || folder?.channel || "pamphlet";
+  const source = clean(b.source, 60) || folder?.channel || (hi ? "letter" : "pamphlet");
   const medium = clean(b.medium, 60) || "qr";
 
   // Every code already in use, so a new one can never collide. Codes are
@@ -93,7 +111,7 @@ export async function POST(req: Request) {
 
   let codes: string[];
   try {
-    codes = makeCodes(people.length, prefix, taken);
+    codes = hi ? makeBareCodes(people.length, taken) : makeCodes(people.length, prefix, taken);
   } catch {
     return fail(500, "no_codes", "Could not find enough unused codes; try a different prefix.");
   }
@@ -121,6 +139,11 @@ export async function POST(req: Request) {
     campaign,
     person_name: p.name,
     person_company: p.company,
+    // Optional columns are only sent when there is something to put in them,
+    // so a list without greetings or contacts works before their migrations are run.
+    ...(p.greeting ? { greeting_name: p.greeting } : {}),
+    ...(p.phone ? { recipient_phone: p.phone } : {}),
+    ...(p.email ? { recipient_email: p.email } : {}),
     ...(folder ? { folder_id: folder.id, print_seq: seqFrom + i + 1 } : {}),
   }));
 
@@ -136,10 +159,46 @@ export async function POST(req: Request) {
           await sb.from("campaign_codes").delete().in("code", inserted.slice(j, j + 500));
         }
       }
-      if (isMissingColumn(error)) return fail(409, "migration_needed", MIGRATION_HINT);
+      if (isMissingColumn(error)) {
+        if (/greeting_name/.test(error.message)) {
+          return fail(409, "migration_needed", "Run supabase/hi_links.sql in the Supabase SQL editor: it adds the Greeting name column.");
+        }
+        if (/recipient_(phone|email)/.test(error.message)) {
+          return fail(409, "migration_needed", "Run supabase/campaign_folders.sql in the Supabase SQL editor: it adds the phone and e-mail columns.");
+        }
+        return fail(409, "migration_needed", MIGRATION_HINT);
+      }
       return fail(500, "write_failed", error.message);
     }
     for (const r of chunk) inserted.push(r.code);
+  }
+
+  if (hi) {
+    const letters = rows.map((r, i) => ({
+      seq: folder ? seqFrom + i + 1 : i + 1,
+      name: r.person_name,
+      company: r.person_company,
+      code: r.code,
+      greeting: people[i]!.greeting,
+      phone: people[i]!.phone,
+      email: people[i]!.email,
+    }));
+    return json({
+      ok: true,
+      style: "hi",
+      count: letters.length,
+      overflow,
+      campaign,
+      folder: folder ? { slug: folder.slug, name: folder.name } : null,
+      rows: letters.map((l) => ({
+        name: l.name,
+        company: l.company,
+        code: l.code,
+        greeting: l.greeting,
+        url: letterUrl(l),
+      })),
+      csv: lettersCsv(letters),
+    });
   }
 
   const out = rows.map((r) => ({
