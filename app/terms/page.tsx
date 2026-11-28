@@ -42,6 +42,7 @@ import {
   MINUTES_PER_EXTRA_AREA,
   SALES_TEAM,
   MIN_PAYABLE_INR,
+  SECURITY_ADDON,
   SITE_PLANS,
   SITE_PLAN_ORDER,
   VIDEO_SHOT_NOTE,
@@ -236,7 +237,11 @@ const sections: LegalSection[] = [
           link control comes only with the Plans listed above that include it
           (and all of them with {SITE_PLANS.control.name} and{" "}
           {SITE_PLANS.enterprise.name}, for customers who bought them before
-          20 November 2026), and none is sold separately. No sharing control can stop a Viewer from taking a
+          20 November 2026). The one exception is the {SECURITY_ADDON.name}{" "}
+          add-on for a yearly {SITE_PLANS.light.name} Plan: {inr(SECURITY_ADDON.monthlyInr)} a
+          month, billed yearly ({inr(SECURITY_ADDON.yearlyInr)} plus GST a year).
+          It switches the link controls on for as long as it is paid for,
+          renews with your Plan, and is not available on a lifetime Plan. No sharing control can stop a Viewer from taking a
           screenshot or recording their own screen.
         </P>
         <P>

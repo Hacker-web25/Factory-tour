@@ -29,9 +29,12 @@
 import {
   LAUNCH_OFFER,
   SITE_PLANS,
+  SITE_PLAN_DISPLAY_ORDER,
   SITE_PLAN_ORDER,
   SUPPORT_MONTHLY_INR,
   inr,
+  planMonthly,
+  planPrice,
 } from "@/lib/pricing";
 import { CAB_TRAVEL } from "@/lib/logistics";
 
@@ -200,8 +203,29 @@ export const PLAN_BILLING_CSS = [
   "@keyframes vpvFoIn{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}",
   "@media (max-width:639px){.vpv-fo{padding:20px 16px;border-radius:22px}.vpv-fo-in{gap:18px}.vpv-fo-p{font-size:12.5px}.vpv-fo-grid{gap:8px}.vpv-fo-b{padding:11px 11px 10px;border-radius:15px}.vpv-fo-ic{width:30px;height:30px;border-radius:9px}.vpv-fo-ic svg{width:16px;height:16px}.vpv-fo-tag{font-size:9.5px;padding:2px 6px}.vpv-fo-b h3{margin-top:.5rem;font-size:14px}.vpv-fo-b p:not(.vpv-fo-worth){display:none}.vpv-fo-b .vpv-fo-worth{font-size:11.5px;padding-top:.35rem}.vpv-fo-seats{grid-template-columns:repeat(20,minmax(0,1fr));gap:3px}.vpv-fo-seat{width:auto;height:auto;aspect-ratio:1}.vpv-fo-cta{padding:10px 16px;font-size:14px}.vpv-bt-opt{font-size:14.5px}.vpv-bt{gap:10px}}",
 
+  // ── the Buy now strip (plans page only), under the three plan cards
+  ".vpv-bn{max-width:1240px;margin:1.5rem auto 0;border-radius:22px;padding:20px 22px;background:#fff;box-shadow:0 1px 2px rgba(11,42,91,.06),0 20px 44px -28px rgba(11,42,91,.35),inset 0 0 0 1px #E2E8F0;position:relative;overflow:hidden}",
+  ".vpv-bn::before{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#0B3D91,#1468D8 55%,#19B8F2)}",
+  // Same width as the plan cards above it (home.ts centres and widens the grid on laptops).
+  "@media (min-width:1024px){.vpv-bn{margin:1.5rem 0 0 50%;transform:translateX(-50%);width:min(" + (SITE_PLAN_DISPLAY_ORDER.length >= 4 ? 1320 : 1180) + "px,calc(100vw - 32px));max-width:none;box-sizing:border-box}}",
+  ".vpv-bn-in{display:grid;gap:16px}",
+  "@media (min-width:980px){.vpv-bn-in{grid-template-columns:minmax(0,.9fr) minmax(0,2.1fr);align-items:center;gap:26px}}",
+  ".vpv-bn-eyebrow{margin:0;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#1468D8}",
+  ".vpv-bn-h{margin:.35rem 0 0;font-size:clamp(1.15rem,1.6vw,1.4rem);line-height:1.2;font-weight:800;letter-spacing:-.02em;color:#0B2A5B}",
+  ".vpv-bn-p{margin:.4rem 0 0;font-size:13px;line-height:1.5;color:#526071;max-width:30rem}",
+  ".vpv-bn-p a{color:#1468D8;font-weight:600;text-decoration:underline;text-underline-offset:3px}",
+  ".vpv-bn-row{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr))}",
+  ".vpv-bn-btn{display:flex;flex-direction:column;gap:2px;padding:13px 15px;border-radius:16px;text-decoration:none;color:#0B2A5B;background:#F4F8FD;box-shadow:inset 0 0 0 1px #E2E8F0;transition:transform .22s cubic-bezier(.22,1,.36,1),box-shadow .22s,background .22s}",
+  ".vpv-bn-btn:hover{transform:translateY(-2px);background:#EAF2FE;box-shadow:inset 0 0 0 1px #1468D8,0 14px 26px -18px rgba(20,104,216,.8)}",
+  ".vpv-bn-btn:focus-visible{outline:2px solid #1468D8;outline-offset:3px}",
+  ".vpv-bn-name{font-size:15px;font-weight:800;letter-spacing:-.01em}",
+  ".vpv-bn-price{font-size:12.5px;color:#526071;font-variant-numeric:tabular-nums}",
+  ".vpv-bn-pl{display:none}html.vpv-life .vpv-bn-pl{display:inline}html.vpv-life .vpv-bn-pa{display:none}",
+  ".vpv-bn-go{margin-top:6px;font-size:13.5px;font-weight:800;color:#1468D8}",
+  "@media (max-width:760px){.vpv-bn{padding:18px 14px;border-radius:18px}.vpv-bn-row{grid-template-columns:1fr}.vpv-bn-btn{flex-direction:row;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 10px;padding:12px 14px}.vpv-bn-go{margin-top:0}}",
+
   // ── less motion, if asked
-  "@media (prefers-reduced-motion:reduce){.vpv-pa,.vpv-pl,.vpv-bt *,.vpv-fo,.vpv-fo *{transition:none!important;animation:none!important}.vpv-pa,.vpv-pl{filter:none!important;transform:none!important}.vpv-fo::after{display:none}}",
+  "@media (prefers-reduced-motion:reduce){.vpv-pa,.vpv-pl,.vpv-bt *,.vpv-fo,.vpv-fo *,.vpv-bn-btn{transition:none!important;animation:none!important}.vpv-bn-btn:hover{transform:none}.vpv-pa,.vpv-pl{filter:none!important;transform:none!important}.vpv-fo::after{display:none}}",
 ].join("");
 
 /* ─────────────────────────────── behaviour ─────────────────────────────── */
@@ -246,13 +270,32 @@ const TOGGLE_HTML =
   `<button type="button" class="vpv-bt-opt" data-v="lifetime" aria-pressed="false">Lifetime <span class="vpv-bt-chip">Pay once</span></button>` +
   `</div><p class="vpv-bt-cap" data-cap></p>`;
 
+/** Plan name and the price the card shows in each mode, for the Buy now buttons. */
+const BUY_HTML =
+  `<div class="vpv-bn-in"><div>` +
+  `<p class="vpv-bn-eyebrow">Buy now</p>` +
+  `<h2 class="vpv-bn-h">Know which plan you want? Buy it today.</h2>` +
+  `<p class="vpv-bn-p">One page: your plan, extras, GST invoice details and payment, with a live total. Not sure which plan fits? <a href="/assessment">Take the two-minute assessment</a>.</p>` +
+  `</div><div class="vpv-bn-row">` +
+  SITE_PLAN_DISPLAY_ORDER.map((id) => {
+    const p = SITE_PLANS[id];
+    return (
+      `<a class="vpv-bn-btn" href="/buy?plan=${id}&amp;billing=annual" data-plan="${id}" data-testid="buy-now-${id}">` +
+      `<span class="vpv-bn-name">${p.name}</span>` +
+      `<span class="vpv-bn-price"><span class="vpv-bn-pa">${inr(planMonthly(id, LAUNCH_OFFER.active))}/month + GST</span>` +
+      `<span class="vpv-bn-pl">${inr(planPrice(id, LAUNCH_OFFER.active, "lifetime"))} once + GST</span></span>` +
+      `<span class="vpv-bn-go">Buy ${p.name} <span aria-hidden="true">→</span></span></a>`
+    );
+  }).join("") +
+  `</div></div>`;
+
 const CAPTION = {
   annual: "Shown per month, billed yearly. Support, hosting & security billed yearly on every plan.",
   lifetime: "One payment, your plan for life. Support, hosting & security billed yearly on every plan.",
 };
 
 export const PLAN_BILLING_SCRIPT = String.raw`(function(){
-  var KEY="vpv.billing",CAP=${JSON.stringify(CAPTION)},FO=${JSON.stringify(FOUNDING_HTML)},TG=${JSON.stringify(TOGGLE_HTML)};
+  var KEY="vpv.billing",CAP=${JSON.stringify(CAPTION)},FO=${JSON.stringify(FOUNDING_HTML)},TG=${JSON.stringify(TOGGLE_HTML)},BN=${JSON.stringify(BUY_HTML)};
   var LIM=${FOUNDING_COPY.limit},ON=${LAUNCH_OFFER.active && SHOW_FOUNDING_BLOCK ? "true" : "false"};
   var quiet=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var painted=null;
@@ -265,6 +308,7 @@ export const PLAN_BILLING_SCRIPT = String.raw`(function(){
       var c=t.parentNode&&t.parentNode.querySelector("[data-cap]");if(c&&c.textContent!==CAP[m]){c.classList.add("swap");setTimeout(function(){c.textContent=CAP[m];c.classList.remove("swap")},quiet?0:180)}});
     [].forEach.call(document.querySelectorAll(".vpv-pa"),function(e){e.setAttribute("aria-hidden",life?"true":"false")});
     [].forEach.call(document.querySelectorAll(".vpv-pl"),function(e){e.setAttribute("aria-hidden",life?"false":"true")});
+    [].forEach.call(document.querySelectorAll(".vpv-bn-btn"),function(a){a.setAttribute("href","/buy?plan="+a.getAttribute("data-plan")+"&billing="+m)});
     if(painted!==m){painted=m;try{window.dispatchEvent(new CustomEvent("vpv:billing",{detail:m}))}catch(e){}}
   }
   function sparks(t){if(quiet)return;var k=t.querySelector(".vpv-bt-knob");if(!k)return;for(var i=0;i<9;i++){var s=document.createElement("span"),a=(Math.PI*2*i)/9+Math.random()*.4,d=22+Math.random()*16;s.className="vpv-bt-spark";s.style.setProperty("--x",(Math.cos(a)*d).toFixed(1)+"px");s.style.setProperty("--y",(Math.sin(a)*d).toFixed(1)+"px");k.appendChild(s);setTimeout(function(n){return function(){n.remove()}}(s),760)}}
@@ -310,6 +354,10 @@ export const PLAN_BILLING_SCRIPT = String.raw`(function(){
         var w=document.createElement("div");w.className="vpv-bt-wrap";w.innerHTML=TG;
         var before=g.previousElementSibling&&g.previousElementSibling.className==="vpv-pj"?g.previousElementSibling:g;
         par.insertBefore(w,before);wire(w.querySelector(".vpv-bt"));
+      }
+      if(onPlans()&&!par.querySelector(":scope > .vpv-bn")){
+        var bn=document.createElement("section");bn.className="vpv-bn";bn.setAttribute("aria-label","Buy now");bn.setAttribute("data-testid","buy-now-strip");bn.innerHTML=BN;
+        par.insertBefore(bn,g.nextSibling);
       }
       if(ON&&onPlans()&&!par.querySelector(":scope > .vpv-fo")){
         var b=document.createElement("section");b.className="vpv-fo loading";b.setAttribute("aria-label","Founding offer");b.setAttribute("data-testid","founding-offer");b.innerHTML=FO;

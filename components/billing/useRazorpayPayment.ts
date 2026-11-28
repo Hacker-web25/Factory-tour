@@ -313,7 +313,14 @@ export function useRazorpayPayment(
       upgradeTo?: SitePlanId;
       /** A coupon code the buyer entered. The server checks it. */
       coupon?: string;
-      buyer?: Partial<Buyer>;
+      /** The Security features add-on (Light, paid yearly). The server decides whether it applies. */
+      securityAddon?: boolean;
+      /** Buy now (/buy): the shoot details, the terms and the marketing consent. The server checks every one. */
+      buy?: boolean;
+      details?: Record<string, unknown>;
+      termsAccepted?: boolean;
+      marketingConsent?: boolean;
+      buyer?: Partial<Buyer & { address: string }>;
     }) => {
       if (lock.current) return; // double-click / second tab race: ignore
       lock.current = true;
@@ -351,6 +358,14 @@ export function useRazorpayPayment(
               renewLogins: args.renewLogins,
               upgradeTo: args.upgradeTo,
               coupon: args.coupon,
+              // Paid every year or once for life. It was accepted above but never sent, so a
+              // buyer who chose Lifetime was priced as yearly by the server.
+              billing: args.billing,
+              securityAddon: args.securityAddon,
+              buy: args.buy,
+              details: args.details,
+              termsAccepted: args.termsAccepted,
+              marketingConsent: args.marketingConsent,
               buyer: args.buyer ?? {},
             }),
           },

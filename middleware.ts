@@ -56,6 +56,7 @@ const APEX_ONLY_PATHS = [
   // to the apex.
   ...SITE_PATHS.filter((p) => p !== "/"),
   "/checkout",       // paying for a plan chosen on the site
+  "/buy",            // Buy now: the one-page checkout
   "/login",
   "/signup",
   "/setup",          // post-signup org creation (you sign in on the apex)

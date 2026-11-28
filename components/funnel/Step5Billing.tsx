@@ -970,7 +970,7 @@ export type SlugStatus = {
  * name, show it exactly as a buyer will type it, say at once whether it
  * is free, and refuse to take money until it is.
  */
-function WorkspaceAddressCard({
+export function WorkspaceAddressCard({
   company,
   slug,
   onChange,

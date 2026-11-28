@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailShell, esc, sendEmail, type EmailAttachment } from "@/lib/server/email";
 import { COMPANY, POLICY } from "@/lib/company";
+import { deliveryAddressFor } from "@/lib/buyNow";
 import { SUPPORT_ANNUAL_INR, SUPPORT_GRACE_DAYS, fromPaise, inr, inr2, type InvoiceLine } from "@/lib/pricing";
 import {
   creditNoteBodyHtml,
@@ -497,6 +498,20 @@ export async function loadInvoiceDoc(sb: SupabaseClient, orderId: string): Promi
       .select("created_at, buyer_phone, line_items")
       .eq("id", orderId)
       .maybeSingle();
+    // Where the crew shot, when that is not the billing address (Rule 46: the
+    // address of delivery). Read on its own: a database without
+    // supabase/security_addon.sql has no such column, and that must never cost
+    // a customer their invoice.
+    let deliveryAddress: string | null = null;
+    try {
+      const { data: shoot } = await sb.from("billing_orders").select("shoot_address").eq("id", orderId).maybeSingle();
+      deliveryAddress = deliveryAddressFor(
+        (inv.bill_to_address as string) ?? null,
+        ((shoot as { shoot_address?: string | null } | null)?.shoot_address ?? null) as string | null
+      );
+    } catch {
+      /* no shoot address: the invoice simply prints without one */
+    }
     return {
       invoiceNo: inv.invoice_no as string,
       issuedAt: inv.issued_at as string,
@@ -524,6 +539,7 @@ export async function loadInvoiceDoc(sb: SupabaseClient, orderId: string): Promi
       paidAt: (pay?.created_at as string) ?? (inv.issued_at as string) ?? null,
       billToPhone: (ord?.buyer_phone as string) ?? null,
       lines: Array.isArray(ord?.line_items) ? (ord!.line_items as InvoiceLine[]) : [],
+      deliveryAddress,
     };
   } catch {
     return null; // the plain invoice e-mail is the fallback

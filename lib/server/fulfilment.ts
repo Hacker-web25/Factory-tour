@@ -50,6 +50,7 @@ import {
   clampScenes,
   fromPaise,
   seatsFromOrderNotes,
+  securityAddonFromNotes,
   planYearlyFromNotes,
   planBillingFromNotes,
   foundingFromNotes,
@@ -60,6 +61,7 @@ import {
   sitePlanFromNotes,
 } from "@/lib/pricing";
 import { COMPANY } from "@/lib/company";
+import { SHOOT_WINDOWS, type BuyDetails } from "@/lib/buyNow";
 import { RESERVED_SLUGS, slugProblem, slugify, workspaceSlug } from "@/lib/slugs";
 
 export type OrderRow = {
@@ -334,6 +336,10 @@ async function fulfilBasicLicence(sb: SupabaseClient, row: OrderRow): Promise<Fu
   await rememberSalesSeats(sb, row, orgId);
   // Which plan this was: it decides the workspace's features.
   await rememberSitePlan(sb, row, orgId);
+  // The Security features add-on (Light): it opens the link controls.
+  await rememberSecurityAddon(sb, row, orgId);
+  // A Buy now order carries the shoot site and dates: tell the founders, who call within two working days.
+  await tellFoundersAboutShoot(sb, row);
 
   // 4. Done. Anything after this point is notification, retried separately.
   await markProvisioned(sb, row.id, orgId);
@@ -381,6 +387,45 @@ async function rememberSitePlan(sb: SupabaseClient, row: OrderRow, orgId: string
         billing === "lifetime"
           ? `${row.buyer_company} bought ${SITE_PLANS[plan].name} for life, but that could not be saved on the workspace (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_billing = 'lifetime' for this workspace.`
           : `${row.buyer_company} bought ${SITE_PLANS[plan].name} (renews yearly at ₹${yearlyInr.toLocaleString("en-IN")}) but the renewal amount could not be saved (${(e as Error).message.slice(0, 120)}). Run supabase/plans_yearly.sql, then set organizations.plan_billing = 'annual', plan_yearly_inr = ${yearlyInr}, plan_offer_locked = ${offerLocked} for this workspace; until then its renewal is refused.`,
+    }).catch(() => undefined);
+  }
+}
+
+async function tellFoundersAboutShoot(sb: SupabaseClient, row: OrderRow): Promise<void> {
+  try {
+    // The claimed row carries every column of the order, so no extra read is needed.
+    const full = row as OrderRow & { buy_details?: BuyDetails | null; shoot_address?: string | null };
+    const d = full.buy_details;
+    if (!d || d.v !== 1) return;
+    const when =
+      d.window === "from_date" ? `on or after ${d.fromDate}` : (SHOOT_WINDOWS.find((w) => w.id === d.window)?.label ?? d.window).toLowerCase();
+    await alertFounders(sb, {
+      kind: "buy_now_shoot_to_book",
+      severity: "info",
+      orderId: row.id,
+      detail:
+        `New Buy now order from ${row.buyer_company} <${row.buyer_email}>. Call to agree the shoot date. ` +
+        `Shoot at: ${full.shoot_address ?? "see order"}. ` +
+        `On site: ${d.siteContactName}, ${d.siteContactPhone}. Wants it: ${when}.` +
+        (d.notes ? ` Notes: ${d.notes}` : ""),
+    });
+  } catch {
+    /* the order is built either way; the details are on the order itself */
+  }
+}
+
+async function rememberSecurityAddon(sb: SupabaseClient, row: OrderRow, orgId: string): Promise<void> {
+  if (!securityAddonFromNotes((row as { notes?: string | null }).notes)) return;
+  try {
+    const { error } = await sb.from("organizations").update({ security_addon: true }).eq("id", orgId);
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    // Paid for, so never fail the build; a person finishes it (the renewal amount is already saved with the plan).
+    await alertFounders(sb, {
+      kind: "security_addon_not_saved",
+      severity: "critical",
+      orderId: row.id,
+      detail: `${row.buyer_company} paid for the Security features add-on but it could not be switched on (${(e as Error).message.slice(0, 120)}). Run supabase/security_addon.sql, then set organizations.security_addon = true for this workspace.`,
     }).catch(() => undefined);
   }
 }

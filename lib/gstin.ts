@@ -93,3 +93,53 @@ export function panFromGstin(value: string): string | null {
   if (!validGstin(value)) return null;
   return value.trim().toUpperCase().slice(2, 12);
 }
+
+/**
+ * The GST state code for a state name, as printed beside the name on an
+ * invoice ("Maharashtra (27)"). Rule 46 asks for the state AND its code on
+ * the invoice of an unregistered buyer, and the place of supply "along with
+ * the name of the State" on an inter-state one; printing both everywhere
+ * costs nothing and keeps one rule. Dadra and Nagar Haveli and Daman and Diu
+ * has two historic codes; the merged territory uses 26.
+ */
+export function stateCodeFor(state: string | null | undefined): string | null {
+  const want = (state ?? "").trim().toLowerCase();
+  if (!want) return null;
+  let found: string | null = null;
+  for (const [code, name] of Object.entries(GSTIN_STATE_BY_CODE)) {
+    if (name.toLowerCase() === want) found = code; // the later code wins: 26, not 25
+  }
+  return found;
+}
+
+/** "Maharashtra (27)", or the name alone when it has no GST code (a blank stays blank). */
+export function stateWithCode(state: string | null | undefined): string {
+  const name = (state ?? "").trim();
+  if (!name) return "";
+  const code = stateCodeFor(name);
+  return code ? `${name} (${code})` : name;
+}
+
+/**
+ * What kind of taxpayer a GSTIN is, from the fourth character of the PAN
+ * inside it. Shown beside a GSTIN the buyer just typed so a wrong number
+ * (somebody else's, or a partner's personal one) is spotted before the
+ * invoice is issued, not by the buyer's accountant afterwards.
+ */
+export function gstinEntityLabel(value: string): string | null {
+  const pan = panFromGstin(value);
+  if (!pan) return null;
+  const kinds: Record<string, string> = {
+    C: "Company",
+    F: "Firm or LLP",
+    P: "Proprietor or individual",
+    H: "Hindu undivided family",
+    A: "Association of persons",
+    B: "Body of individuals",
+    T: "Trust",
+    L: "Local authority",
+    J: "Artificial juridical person",
+    G: "Government",
+  };
+  return kinds[pan[3]] ?? null;
+}

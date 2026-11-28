@@ -26,7 +26,7 @@
 
 import PDFDocument from "pdfkit";
 import { COMPANY } from "@/lib/company";
-import { panFromGstin } from "@/lib/gstin";
+import { panFromGstin, stateWithCode } from "@/lib/gstin";
 import { GST_LABEL, inr2, type InvoiceLine } from "@/lib/pricing";
 import { amountInWords, invoiceLines, type InvoiceDoc } from "@/lib/billingDocs";
 import assets from "@/lib/server/invoiceAssets.json";
@@ -176,15 +176,22 @@ function billTo(doc: Doc, d: InvoiceDoc, y0: number): number {
     d.billTo.email,
     d.billToPhone ?? "",
     d.billTo.gstin ? `GSTIN: ${d.billTo.gstin}` : "",
+    d.billTo.state ? `State: ${stateWithCode(d.billTo.state)}` : "",
   ].filter(Boolean);
   doc.font("regular").fontSize(8.6).fillColor(MUTED).text(lines.join("\n"), M, y, { width: 300, lineGap: 1.6 });
+  // Where the crew shoots, when that is not the billing address (Rule 46: the
+  // address of delivery, where it differs).
+  if (d.deliveryAddress) {
+    const dy = label(doc, "Shoot site (address of delivery)", M, doc.y + 8, 300);
+    doc.font("regular").fontSize(8.6).fillColor(MUTED).text(d.deliveryAddress, M, dy, { width: 300, lineGap: 1.6 });
+  }
   const leftBottom = doc.y;
 
   // Place of supply sits opposite, because it is what decides IGST vs CGST+SGST.
   const bw = 236;
   const bx = M + W - bw;
   let ry = label(doc, "Place of supply", bx, y0, bw);
-  doc.font("semibold").fontSize(9.5).fillColor(INK).text(d.placeOfSupply || d.billTo.state || "—", bx, ry, { width: bw });
+  doc.font("semibold").fontSize(9.5).fillColor(INK).text(stateWithCode(d.placeOfSupply || d.billTo.state) || "—", bx, ry, { width: bw });
   ry = doc.y + 6;
   doc.font("regular").fontSize(8).fillColor(MUTED)
     .text(
@@ -195,6 +202,8 @@ function billTo(doc: Doc, d: InvoiceDoc, y0: number): number {
       ry,
       { width: bw }
     );
+  doc.font("regular").fontSize(7.6).fillColor(MUTED)
+    .text("Tax payable on reverse charge: No", bx, doc.y + 4, { width: bw });
   if (!d.billTo.gstin) {
     doc.font("regular").fontSize(7.6).fillColor(MUTED)
       .text("No GSTIN was given for this order, so no input tax credit can be claimed against it.", bx, doc.y + 4, { width: bw });
@@ -346,7 +355,19 @@ function closing(doc: Doc, d: InvoiceDoc, y0: number): number {
     doc.text(`${i + 1}.  ${steps[i]}`, rx, ry, { width: colW, lineGap: 1.4 });
     ry = doc.y + 3;
   }
-  return Math.max(leftBottom, ry) + 10;
+  y = Math.max(leftBottom, ry) + 8;
+
+  // Rule 46 asks for the supplier's signature. This invoice is issued
+  // electronically under the Information Technology Act, 2000, in the name of
+  // the registered supplier and the person authorised to sign for it.
+  const sw = 230;
+  const sx = M + W - sw;
+  doc.font("semibold").fontSize(8.6).fillColor(INK).text(`For ${d.seller.name}`, sx, y, { width: sw, align: "right" });
+  doc.font("regular").fontSize(8).fillColor(MUTED)
+    .text("Authorised signatory", sx, doc.y + 1, { width: sw, align: "right" });
+  doc.font("regular").fontSize(6.8).fillColor("#94A3B8")
+    .text("Issued electronically under the Information Technology Act, 2000", sx, doc.y + 1.5, { width: sw, align: "right" });
+  return Math.max(doc.y, y) + 8;
 }
 
 /** Drawn at the bottom of every page, so a second page is never anonymous. */
@@ -358,7 +379,7 @@ function footer(doc: Doc, page: number): void {
     .join("   |   ");
   doc.font("regular").fontSize(8).fillColor(MUTED).text(bits, M, y + 8, { width: W, align: "center" });
   doc.font("regular").fontSize(7).fillColor("#94A3B8")
-    .text(`This is a computer-generated tax invoice and needs no signature.   ·   Page ${page}`, M, y + 21, { width: W, align: "center" });
+    .text(`This is an electronically issued tax invoice (Information Technology Act, 2000).   ·   Page ${page}`, M, y + 21, { width: W, align: "center" });
   // Put the cursor back at the top: every section below positions itself,
   // but PDFKit still decides when to break a page from where it thinks it is.
   doc.x = M;
