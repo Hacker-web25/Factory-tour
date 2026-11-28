@@ -122,6 +122,8 @@ export type WorkspaceFacts = {
   plan_billing?: string | null;
   /** Sales Team logins paid for. */
   sales_seats?: number | null;
+  /** The Security features add-on (VPV Light with the link controls, ₹5,000/month billed yearly). */
+  security_addon?: boolean | null;
   /** The signed-in person's role. The platform owner (our team) sees everything. */
   role?: string | null;
 };
@@ -159,6 +161,8 @@ export function accessTo(f: WorkspaceFacts, key: FeatureKey): Access {
   const has = (p: SitePlanId) =>
     tier === "media" ? SITE_PLANS[p].level >= 1 : SITE_PLANS[p].linkControls[ROLLOUT[key].control!];
   if (has(effectivePlan(f))) return { state: "open" };
+  // The Security features add-on opens every link control on a plan that has none.
+  if (tier === "link" && f.security_addon) return { state: "open" };
   // The first plan this workspace can move up to that has it; failing that,
   // the first plan on sale that has it (White Glove, and any move from a
   // plan sold before 21 Nov 2026, are arranged with our team, so the pop-up

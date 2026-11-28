@@ -125,7 +125,7 @@ export default function Step3Security() {
 
         <Card className="mt-8">
           <SectionTitle icon={ShieldCheck} title="Do you want these controls on your VPV?">
-            They are part of VPV Premium and up (more controls on each larger plan) and are not sold separately. Answer
+            They are part of VPV Premium and up (more controls on each larger plan). VPV Light can add them for ₹5,000 a month, billed yearly. Answer
             honestly: if your tour is something you would happily put on your
             website, you do not need them and we will not recommend them.
           </SectionTitle>

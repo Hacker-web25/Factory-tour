@@ -13,7 +13,7 @@
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "www", "app", "api", "admin", "auth", "cdn", "static", "assets",
   "mail", "email", "docs", "help", "support", "blog", "status",
-  "login", "dashboard", "apply", "billing", "pay", "checkout",
+  "login", "dashboard", "apply", "billing", "pay", "checkout", "buy",
 ]);
 
 /** Company name → URL-safe label (a-z, 0-9, single hyphens, ≤ 40 chars). */

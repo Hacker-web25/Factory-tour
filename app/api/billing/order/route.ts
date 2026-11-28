@@ -58,6 +58,8 @@ import { orgSalesSeats } from "@/lib/server/salesSeats";
 import { comingSoonTitle, logisticsFor } from "@/lib/logistics";
 import type { Coupon } from "@/lib/pricing";
 import { canonicalIndianState } from "@/lib/indianStates";
+import { cleanPhone, parseBuyDetails, type DetailsResult } from "@/lib/buyNow";
+import { COMPANY, POLICY } from "@/lib/company";
 import { stateFromGstin } from "@/lib/gstin";
 import { slugProblem, workspaceSlug } from "@/lib/slugs";
 import {
@@ -88,6 +90,8 @@ import {
   clampExtraAreas,
   clampExtraVideos,
   clampSalesSeats,
+  SECURITY_ADDON,
+  securityAddonApplies,
   monthsUntil,
   seatPrice,
   PLACEHOLDER_PRICES,
@@ -188,6 +192,17 @@ export async function POST(req: Request) {
   // named pack, so everything downstream sees the purpose it already knows.
   const stored: PurchasePurpose = storedPurpose(purpose as RequestPurpose);
 
+  // "Buy now": the one-page checkout (/buy). It is the same plan order, plus the
+  // shoot site and who to call. The details are checked HERE, whatever the page
+  // showed, and stored with the order.
+  const isBuy = purpose === "site_plan" && body.buy === true;
+  let buyParsed: Extract<DetailsResult, { ok: true }> | null = null;
+  if (isBuy) {
+    const got = parseBuyDetails(body.details);
+    if (!got.ok) return fail(400, got.error, got.message);
+    buyParsed = got;
+  }
+
   // The old self-serve scene ladder (a one-time Basic licence and its
   // top-ups) is no longer sold: since 21 Nov 2026 everything new is one of
   // the four yearly plans. Refused here, whatever page or script asks, so
@@ -278,6 +293,19 @@ export async function POST(req: Request) {
   if (parts.pincode && !/^[1-9][0-9]{5}$/.test(parts.pincode)) {
     return fail(400, "bad_pincode", "That PIN code does not look right.");
   }
+  if (buyParsed) {
+    // The parts are the SHOOT site (where the crew drives); the invoice's billing
+    // address is the one the buyer typed for it, never a fallback to the site.
+    parts.line = buyParsed.details.shoot.line;
+    parts.city = buyParsed.details.shoot.city;
+    parts.pincode = buyParsed.details.shoot.pincode;
+    if (typed.address.length < 8) {
+      return fail(400, "bad_address", "Please give your billing address: it is printed on your tax invoice.");
+    }
+    if (!cleanPhone(typed.phone)) {
+      return fail(400, "bad_phone", "Please give a phone number we can reach you on (10 digits).");
+    }
+  }
   if (!typed.address && parts.line) {
     typed.address = [parts.line, parts.city, [typed.state, parts.pincode].filter(Boolean).join(" ")]
       .filter(Boolean)
@@ -318,6 +346,16 @@ export async function POST(req: Request) {
   if (!org) {
     if (isDisposableEmail(buyer.email)) {
       return fail(400, "bad_email", "Please use a permanent work e-mail address.");
+    }
+    if (isBuy) {
+      // The terms, and a confirmed e-mail address: the workspace, the invoice and
+      // the first password all go there. Checked on the server, not on the page.
+      if (body.termsAccepted !== true) {
+        return fail(400, "terms_required", "Please accept the Terms and the Privacy Policy to continue.");
+      }
+      if (!(await emailRecentlyVerified(sb, buyer.email))) {
+        return fail(403, "email_not_verified", "Please confirm your e-mail address with the code we send you, then try again.");
+      }
     }
     const rlEmail = await billingRateLimit(sb, `billing-order:email:${limiterEmail(buyer.email)}`, 12, 3600);
     if (!rlEmail.allowed) {
@@ -366,6 +404,7 @@ export async function POST(req: Request) {
   let selfVideos = 0;
   let shotVideos = 0;
   let salesSeats = 0;
+  let securityAddon = false;
   // A renewal pays for the Sales Team logins unless the customer says not to.
   // Support alone is a real choice: the logins then stop on their own date.
   const renewLogins = body.renewLogins !== false;
@@ -386,7 +425,7 @@ export async function POST(req: Request) {
     // The older /checkout page and the marketing site's pay bridge still send
     // the two-zone answer, so either is accepted — but one of them must be
     // there, or we would be guessing at the travel charge.
-    siteCity = clean(body.city, 80);
+    siteCity = buyParsed ? buyParsed.shootCity : clean(body.city, 80);
     if (!siteCity && !isTravelZone(travel)) {
       return fail(400, "invalid_travel", "Please tell us which city your factory is in.");
     }
@@ -407,6 +446,17 @@ export async function POST(req: Request) {
     selfVideos = clampExtraVideos(body.selfVideos);
     shotVideos = clampExtraVideos(body.shotVideos);
     salesSeats = clampSalesSeats(body.salesSeats);
+    // Security features: the add-on for a plan with no link controls, paid yearly.
+    if (body.securityAddon === true) {
+      if (!securityAddonApplies(sitePlanId, billing)) {
+        return fail(
+          400,
+          "addon_not_available",
+          "Security features are already part of Premium and White Glove, and the add-on is for a yearly VPV Light plan."
+        );
+      }
+      securityAddon = true;
+    }
   } else if (purpose === "basic_licence") {
     if (!isValidSceneCount(body.scenes)) return fail(400, "invalid_scenes", "Please choose between 2 and 20 scenes.");
     scenesWanted = body.scenes;
@@ -432,6 +482,15 @@ export async function POST(req: Request) {
       return fail(400, "invalid_upgrade", "Please choose a plan above the one you have.");
     }
     toPlan = want;
+    // Light with the Security features add-on moves to Premium by talking to us: Premium
+    // includes the features, so what is already paid for the add-on has to be settled by a person.
+    if (await orgSecurityAddon(sb, orgId)) {
+      return fail(
+        400,
+        "invalid_upgrade",
+        "Your workspace has the Security features add-on. Please write to support@myvpv.com and we will move you to Premium and settle the add-on with you."
+      );
+    }
     // A plan bought for life has no yearly price to prorate: moving it up is
     // arranged with our team.
     if ((await orgYearly(sb, orgId)).billing === "lifetime") {
@@ -511,6 +570,11 @@ export async function POST(req: Request) {
     founding: offer ? offer.founding : undefined,
     billing,
     salesSeats: purpose === "support_renewal" ? (renewLogins ? renewalSeats.seats : 0) : salesSeats,
+    securityAddon,
+    securityInr:
+      purpose === "support_renewal" && yearly.billing !== "lifetime" && (await orgSecurityAddon(sb, orgId))
+        ? SECURITY_ADDON.yearlyInr
+        : undefined,
     seatInr: purpose === "seat_topup" ? topupSeatInr : renewalSeats.seatInr,
     fromPlan,
     toPlan,
@@ -661,6 +725,30 @@ export async function POST(req: Request) {
         () => undefined,
         () => undefined
       );
+  }
+
+  // The Buy now details: the shoot site, who to call, the dates, the consent.
+  // NOT best-effort: the founders book the shoot from these and the invoice prints
+  // the site, so an order that cannot save them stops before any payment.
+  if (buyParsed) {
+    const details = {
+      ...buyParsed.details,
+      consent: {
+        termsAt: new Date().toISOString(),
+        policiesUpdated: POLICY.updated,
+        marketing: body.marketingConsent === true,
+      },
+    };
+    const { error: detailsErr } = await sb
+      .from("billing_orders")
+      .update({ buy_details: details, shoot_address: buyParsed.shootLine })
+      .eq("id", order.id)
+      .eq("status", "created");
+    if (detailsErr) {
+      // eslint-disable-next-line no-console
+      console.error("[billing] buy-now details not saved (run supabase/security_addon.sql):", detailsErr.message);
+      return fail(503, "buy_unavailable", "Buying online is being set up. Please try again shortly or write to " + COMPANY.emails.support + ".");
+    }
   }
 
   // The rows the tax invoice will print, frozen from the very quote this
@@ -962,4 +1050,32 @@ async function orgLoginsEnd(sb: SupabaseClient, orgId: string | null, supportUnt
   const { data, error } = await sb.from("organizations").select("sales_seats_until").eq("id", orgId).maybeSingle();
   const own = !error && data ? ((data as { sales_seats_until?: string | null }).sales_seats_until ?? null) : null;
   return own ?? supportUntil ?? null;
+}
+
+/** Is the Security features add-on on this workspace? Read on its own so an older database (no column) answers no. */
+async function orgSecurityAddon(sb: SupabaseClient, orgId: string | null): Promise<boolean> {
+  if (!orgId) return false;
+  const { data, error } = await sb.from("organizations").select("security_addon").eq("id", orgId).maybeSingle();
+  if (error || !data) return false;
+  return Boolean((data as { security_addon?: boolean | null }).security_addon);
+}
+
+/** How long a confirmed e-mail address counts for a Buy now order. */
+const EMAIL_PROOF_MS = 60 * 60_000;
+
+/**
+ * Has this address confirmed a code recently? The code is single-use and goes
+ * only to the address, so a confirmed one in the last hour is proof the buyer
+ * can read that inbox. (/api/funnel/otp/verify marks it consumed.)
+ */
+async function emailRecentlyVerified(sb: SupabaseClient, email: string): Promise<boolean> {
+  const since = new Date(Date.now() - EMAIL_PROOF_MS).toISOString();
+  const { data, error } = await sb
+    .from("funnel_otp")
+    .select("id")
+    .eq("email", email.toLowerCase())
+    .gt("consumed_at", since)
+    .limit(1);
+  if (error) return false; // cannot tell: never let an unconfirmed address through
+  return Boolean(data && data.length > 0);
 }

@@ -65,6 +65,9 @@ export async function loadWorkspaceFacts(force = false): Promise<{ orgId: string
     facts.plan_billing = (pb as { plan_billing?: string | null } | null)?.plan_billing ?? null;
     const { data: seats } = await supabase.from("organizations").select("sales_seats").eq("id", orgId).maybeSingle();
     facts.sales_seats = Number((seats as { sales_seats?: number } | null)?.sales_seats ?? 0) || 0;
+    // The Security features add-on (supabase/security_addon.sql); read on its own so an older database still loads.
+    const { data: sec } = await supabase.from("organizations").select("security_addon").eq("id", orgId).maybeSingle();
+    facts.security_addon = Boolean((sec as { security_addon?: boolean | null } | null)?.security_addon);
   }
   cache = { at: Date.now(), orgId, facts };
   return cache;

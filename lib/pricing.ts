@@ -1234,6 +1234,40 @@ export function extraAreaRows(planId: SitePlanId, offerOpen = LAUNCH_OFFER.activ
 /* ─────────────────────── Sales team ─────────────────────────────── */
 
 /**
+ * SECURITY FEATURES for VPV Light (the owner, 28 Nov 2026): Light has no link
+ * controls, and a buyer who wants them without moving up to Premium can add
+ * them for ₹5,000 a month, billed yearly (₹60,000 + GST a year). Premium and
+ * White Glove already include every link control (one-time view links, passwords,
+ * expiry time, device limits), so for them this is never sold.
+ *
+ * It is a yearly line like the extra areas: it renews with the plan, so it is
+ * part of `yearlyInr` and of organizations.plan_yearly_inr. It is offered on a
+ * plan paid YEARLY only: a plan bought for life has no yearly amount to carry
+ * it. Light plus this add-on costs more than Premium, which includes it and
+ * much more; the buy page says so plainly.
+ */
+export const SECURITY_ADDON = {
+  name: "Security features",
+  monthlyInr: 5_000,
+  yearlyInr: 5_000 * 12,
+  /** What it switches on, in the words the plan cards use. */
+  includes: "One-time view links, password-protected links, link expiry time and device limits",
+  /** Written into the order notes, and read back by fulfilment. */
+  noteTag: "security add-on",
+} as const;
+
+/** Can this plan, bought this way, take the Security features add-on? */
+export function securityAddonApplies(planId: SitePlanId, billing: PurchaseBilling = "annual"): boolean {
+  const p = SITE_PLANS[planId];
+  return Boolean(p) && !p.legacy && p.billing === "yearly" && !p.sharingControls && billing === "annual";
+}
+
+/** Was the add-on bought with this order? Read back from its notes. */
+export function securityAddonFromNotes(notes: string | null | undefined): boolean {
+  return (notes ?? "").includes(`, ${SECURITY_ADDON.noteTag} ₹`);
+}
+
+/**
  * The Sales Team add-on: a login for each salesperson, with the MD's sales
  * dashboard — every meeting's start time and place, meetings per client,
  * and how far each deal has moved.
@@ -1533,6 +1567,8 @@ export type SiteQuote = {
   shootDays: number;
   /** Sales-team logins on this order, 0 when none. */
   salesSeats: number;
+  /** The Security features add-on is on this order (yearly, renews with the plan). */
+  securityAddon: boolean;
   lines: QuoteLine[];
   /** Sum of the lines, GST excluded. */
   taxableInr: number;
@@ -1594,6 +1630,8 @@ export function siteQuote(
     billing?: PurchaseBilling;
     /** Sales-team logins bought with the plan. */
     salesSeats?: number;
+    /** The Security features add-on (Light, paid yearly). Ignored where it does not apply. */
+    securityAddon?: boolean;
     /** A coupon the caller has already checked is valid. */
     coupon?: Coupon | null;
   } = {}
@@ -1739,6 +1777,17 @@ export function siteQuote(
     }
   }
 
+  // Security features for a plan that has no link controls: yearly, renews with the plan.
+  const securityAddon = Boolean(opts.securityAddon) && securityAddonApplies(planId, billing);
+  if (securityAddon) {
+    lines.push({
+      kind: "extra",
+      label: `${SECURITY_ADDON.name} (add-on)`,
+      amountInr: SECURITY_ADDON.yearlyInr,
+      note: `${SECURITY_ADDON.includes}. ${inr(SECURITY_ADDON.monthlyInr)}/month, billed yearly. Renews yearly with your plan`,
+    });
+  }
+
   // The coupon, on everything above: plan, offer, extras, time, sales team.
   const coupon = opts.coupon ?? null;
   let couponInr = 0;
@@ -1826,12 +1875,15 @@ export function siteQuote(
     available,
     supportInr,
     monthlyInr,
-    yearlyInr: yearly ? planPrice(planId, offerOpen) + extraAreaCost(planId, extraAreas) : 0,
+    yearlyInr: yearly
+      ? planPrice(planId, offerOpen) + extraAreaCost(planId, extraAreas) + (securityAddon ? SECURITY_ADDON.yearlyInr : 0)
+      : 0,
     couponInr,
     coupon: couponInr > 0 ? coupon : null,
     shoot,
     shootDays: shoot.days,
     salesSeats,
+    securityAddon,
     lines,
     taxableInr: g.taxable,
     gstInr: g.gst,
@@ -2080,6 +2132,10 @@ export function priceFor(
     /** site_plan: paid every year (default) or once for life. */
     billing?: PurchaseBilling;
     salesSeats?: number;
+    /** site_plan: the Security features add-on (Light, paid yearly). */
+    securityAddon?: boolean;
+    /** support_renewal: the part of planYearlyInr that is the Security features add-on. */
+    securityInr?: number;
     /** Renewal only: the price per sales login the customer bought at. */
     seatInr?: number;
     /** Looked up and checked by the order route. */
@@ -2221,6 +2277,7 @@ export function priceFor(
         founding: opts.founding,
         billing: opts.billing,
         salesSeats: opts.salesSeats,
+        securityAddon: opts.securityAddon,
         coupon: opts.coupon,
       });
       // "lifetime" right after the areas is how fulfilment knows a plan was
@@ -2244,6 +2301,10 @@ export function priceFor(
       // The coupon's code is how lib/server/coupons.ts counts its uses, so
       // it is written in a fixed shape.
       if (q.coupon) parts.push(`coupon ${q.coupon.code}`);
+      // Read back by securityAddonFromNotes() when the workspace is built, so the
+      // workspace gets the link controls (and the renewal, which is already in
+      // yearlyInr, is explained on its invoice).
+      if (q.securityAddon) parts.push(`${SECURITY_ADDON.noteTag} ${inr(SECURITY_ADDON.yearlyInr)}/yr`);
       // Read back by planYearlyFromNotes() when the workspace is built, so the
       // renewal charges what this customer pays now, every year.
       if (q.yearlyInr > 0) parts.push(`renews yearly at ${inr(q.yearlyInr)}`);
@@ -2264,6 +2325,8 @@ export function priceFor(
       // A yearly plan renews at what the workspace pays for it; a plan bought
       // before 21 Nov 2026 (one-time fee) renews support alone.
       const yearlyInr = Math.max(0, Math.round(opts.planYearlyInr ?? 0));
+      // The Security features add-on is inside that yearly amount; the invoice shows it on its own row.
+      const securityInr = yearlyInr > 0 ? Math.min(yearlyInr, Math.max(0, Math.round(opts.securityInr ?? 0))) : 0;
       const planName = opts.planId && isKnownPlanId(opts.planId) ? SITE_PLANS[opts.planId].name : "VPV";
       const logins = seats > 0 && each > 0 ? `, with sales team ${seats} login${seats === 1 ? "" : "s"} at ${inr(each)}/yr` : "";
       // Never "<plan name> — …": that shape is how a NEW plan order is
@@ -2280,11 +2343,22 @@ export function priceFor(
             ? [
                 {
                   title: `${planName} — one more year`,
-                  detail: `Your yearly plan, renewed for one year at the price you pay (${inr(Math.round(yearlyInr / 12))}/month, billed yearly).`,
+                  detail: `Your yearly plan, renewed for one year at the price you pay (${inr(Math.round((yearlyInr - securityInr) / 12))}/month, billed yearly).`,
                   qty: 1,
-                  unitInr: yearlyInr,
-                  amountInr: yearlyInr,
+                  unitInr: yearlyInr - securityInr,
+                  amountInr: yearlyInr - securityInr,
                 },
+                ...(securityInr > 0
+                  ? [
+                      {
+                        title: `${SECURITY_ADDON.name} (add-on) — one more year`,
+                        detail: `${SECURITY_ADDON.includes}. ${inr(Math.round(securityInr / 12))}/month, billed yearly.`,
+                        qty: 1,
+                        unitInr: securityInr,
+                        amountInr: securityInr,
+                      },
+                    ]
+                  : []),
               ]
             : []),
           {

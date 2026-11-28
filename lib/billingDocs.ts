@@ -16,6 +16,7 @@
 
 import { esc } from "@/lib/server/email";
 import { inr2, type InvoiceLine } from "@/lib/pricing";
+import { stateWithCode } from "@/lib/gstin";
 
 export type Party = {
   name: string;
@@ -54,6 +55,12 @@ export type InvoiceDoc = {
   lines?: InvoiceLine[];
   /** The buyer's phone, when we have it. */
   billToPhone?: string | null;
+  /**
+   * Where the crew shoots, when that is not the billing address: Rule 46
+   * asks for the address of delivery on the invoice when it differs. Null
+   * when the site is the billing address (nothing to add).
+   */
+  deliveryAddress?: string | null;
 };
 
 /* ───────────────────────── amount in words ────────────────────────── */
@@ -188,14 +195,14 @@ function parties(seller: Party, billTo: InvoiceDoc["billTo"]): string {
     seller.name,
     ...seller.addressLines,
     seller.gstin ? `GSTIN: ${seller.gstin}` : "",
-    seller.state ? `State: ${seller.state}` : "",
+    seller.state ? `State: ${stateWithCode(seller.state)}` : "",
   ];
   const buyerLines = [
     billTo.name,
     billTo.address ?? "",
     billTo.email,
     billTo.gstin ? `GSTIN: ${billTo.gstin}` : "",
-    billTo.state ? `State: ${billTo.state}` : "",
+    billTo.state ? `State: ${stateWithCode(billTo.state)}` : "",
   ];
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;"><tr>
     ${partyBlock("From", sellerLines)}${partyBlock("Billed to", buyerLines)}</tr></table>`;
@@ -248,7 +255,9 @@ export function invoiceBodyHtml(
     ${box(
       line("Tax invoice no.", `<strong style="color:#0C1017;">${esc(d.invoiceNo)}</strong>`) +
         line("Invoice date", esc(dateStr(d.issuedAt))) +
-        (d.placeOfSupply ? line("Place of supply", esc(d.placeOfSupply)) : "") +
+        (d.placeOfSupply ? line("Place of supply", esc(stateWithCode(d.placeOfSupply))) : "") +
+        line("Tax payable on reverse charge", "No") +
+        (d.deliveryAddress ? line("Shoot site (address of delivery)", esc(d.deliveryAddress)) : "") +
         (d.paymentId ? line("Payment reference", `<span style="font-family:ui-monospace,Menlo,monospace;">${esc(d.paymentId)}</span>`) : "") +
         (d.paymentLabel ? line("Paid by", esc(d.paymentLabel), { last: true }) : "")
     )}
