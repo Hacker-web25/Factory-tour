@@ -6,14 +6,29 @@
  *
  * The grouping is worked out in the background (lib/units.ts): dividers already
  * in the tour first, then the codes in the names, then the time each photo was
- * taken. The person only names each unit and presses Apply. Nothing is saved
- * until then, and the last Apply can be undone.
+ * taken. That is only a first guess: the person decides the groups themselves by
+ * splitting between any two scenes, typing how many scenes go in each unit
+ * ("3, 2, 4"), or asking for equal groups. Then they name each unit and press
+ * Apply. Nothing is saved until then, and the last Apply can be undone.
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Check, Clock, Layers, Loader2, Undo2, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, Layers, Loader2, Scissors, Undo2, X } from "lucide-react";
 import type { Scene } from "@/lib/types";
-import { capturedMs, planUnitRenames, proposeUnits, suggestCode, type Sensitivity } from "@/lib/units";
+import ScenePreviewImg from "@/components/ScenePreviewImg";
+import {
+  capturedMs,
+  contentScenes,
+  cutsEqual,
+  cutsEvery,
+  cutsFromSizes,
+  parseSizes,
+  planUnitRenames,
+  proposeCuts,
+  suggestCode,
+  unitsFromCuts,
+  type Sensitivity,
+} from "@/lib/units";
 import { buildUnitsPlan, unitIsReady, type PlanOptions, type PlanUnit } from "@/lib/unitsPlan";
 
 type Edit = { title?: string; code?: string; addDivider?: boolean; redraw?: boolean };
@@ -39,49 +54,70 @@ export default function UnitsModal({ scenes, columnsReady, canUndo, onClose, onA
   const [space, setSpace] = useState(false);
   const [keepRoom, setKeepRoom] = useState(true);
   const [edits, setEdits] = useState<Record<string, Edit>>({});
-  const [joined, setJoined] = useState<Set<string>>(new Set());
+  // null = the automatic grouping; otherwise the scenes the person has chosen to start a unit.
+  const [cuts, setCuts] = useState<string[] | null>(null);
+  const [showScenes, setShowScenes] = useState(scenes.length <= 80);
+  const [equalN, setEqualN] = useState("2");
+  const [everyN, setEveryN] = useState("5");
+  const [sizesText, setSizesText] = useState("");
   const [busy, setBusy] = useState<"apply" | "undo" | "times" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const byId = useMemo(() => new Map(scenes.map((s) => [s.id, s])), [scenes]);
   const withTimes = useMemo(() => scenes.filter((s) => capturedMs(s) != null).length, [scenes]);
-  const proposal = useMemo(() => proposeUnits(scenes, sensitivity), [scenes, sensitivity]);
+  const proposal = useMemo(() => proposeCuts(scenes, sensitivity), [scenes, sensitivity]);
+  const hasDividers = proposal.basis === "dividers";
+  const content = useMemo(() => contentScenes(scenes), [scenes]);
+  const position = useMemo(() => new Map(content.map((s, i) => [s.id, i + 1])), [content]);
+  const byHand = cuts !== null;
+  const cutIds = cuts ?? proposal.cutIds;
 
   // Changing how finely to split starts the grouping again.
   useEffect(() => {
     setEdits({});
-    setJoined(new Set());
+    setCuts(null);
   }, [sensitivity]);
 
-  /** The proposal with the person's joins and edits applied. */
-  const units: PlanUnit[] = useMemo(() => {
-    const out: PlanUnit[] = [];
-    for (const u of proposal.units) {
-      const prev = out[out.length - 1];
-      if (prev && joined.has(u.key) && !u.dividerId && !prev.dividerId) {
-        prev.memberIds = [...prev.memberIds, ...u.memberIds];
-        continue;
-      }
-      const e = edits[u.key] ?? {};
-      const title = e.title ?? u.title;
-      out.push({
-        ...u,
-        title,
-        code: e.code ?? (u.code || suggestCode(title)),
-        addDivider: e.addDivider ?? true,
-        redraw: e.redraw ?? false,
-        memberIds: [...u.memberIds],
-      });
-    }
-    return out;
-  }, [proposal, edits, joined]);
+  /** The units that follow from the starting points, with the person's names and choices applied. */
+  const units: PlanUnit[] = useMemo(
+    () =>
+      unitsFromCuts(scenes, cutIds).map((u) => {
+        const e = edits[u.key] ?? {};
+        const title = e.title ?? u.title;
+        return {
+          ...u,
+          title,
+          code: e.code ?? (u.code || suggestCode(title)),
+          addDivider: e.addDivider ?? true,
+          redraw: e.redraw ?? false,
+          memberIds: [...u.memberIds],
+        };
+      }),
+    [scenes, cutIds, edits]
+  );
 
   const opts: PlanOptions = { direction, space, keepRoom };
   const plan = useMemo(() => buildUnitsPlan(scenes, units, opts), [scenes, units, direction, space, keepRoom]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = units.filter(unitIsReady).length;
 
   const setEdit = (key: string, patch: Edit) => setEdits((m) => ({ ...m, [key]: { ...m[key], ...patch } }));
+  /** Start a new unit at this scene, or stop it starting one. */
+  const toggleCut = (id: string) => setCuts((c) => ((c ?? cutIds).includes(id) ? (c ?? cutIds).filter((x) => x !== id) : [...(c ?? cutIds), id]));
+
+  const equalCount = Math.floor(Number(equalN));
+  const everyCount = Math.floor(Number(everyN));
+  const sizes = parseSizes(sizesText);
+  const sizesTotal = sizes ? sizes.reduce((a, b) => a + b, 0) : 0;
+  const sizesHint = !sizesText.trim()
+    ? "e.g. 3, 2, 4: the first 3 scenes, then the next 2, then the next 4"
+    : !sizes
+      ? "Type whole numbers, like 3, 2, 4"
+      : sizesTotal > content.length
+        ? `That is ${sizesTotal} scenes and there are ${content.length}; the extra is ignored`
+        : sizesTotal < content.length
+          ? `${sizesTotal} scenes, and the other ${content.length - sizesTotal} make one more unit`
+          : `${sizesTotal} scenes: all of them`;
 
   async function run(kind: "apply" | "undo" | "times", fn: () => Promise<void>) {
     setBusy(kind);
@@ -96,14 +132,16 @@ export default function UnitsModal({ scenes, columnsReady, canUndo, onClose, onA
     }
   }
 
-  const basisText =
-    proposal.basis === "dividers"
-      ? `Found ${proposal.units.length} unit${proposal.units.length === 1 ? "" : "s"} from the dividers already in this tour.`
+  const n = units.length;
+  const basisText = byHand
+    ? `${n} unit${n === 1 ? "" : "s"}, grouped by you. Change them with the tools and Split here buttons below.`
+    : proposal.basis === "dividers"
+      ? `Found ${n} unit${n === 1 ? "" : "s"} from the dividers already in this tour. You can still split any of them further.`
       : proposal.basis === "names"
-        ? `Found ${proposal.units.length} groups from the codes in the scene names.`
+        ? `Guessed ${n} groups from the codes in the scene names. Check them, and change them if they are wrong.`
         : proposal.basis === "time"
-          ? `Found ${proposal.units.length} groups from the time the photos were taken.`
-          : "No clear groups found, so everything is one group. Name it below, or ask for more groups.";
+          ? `Guessed ${n} groups from the time the photos were taken. Check them, and change them if they are wrong.`
+          : "No groups could be guessed, so everything is one group. Divide the scenes yourself with the tools below.";
 
   const canReadTimes = proposal.basis !== "dividers" && withTimes / Math.max(1, scenes.length) < 0.6;
 
@@ -143,7 +181,7 @@ export default function UnitsModal({ scenes, columnsReady, canUndo, onClose, onA
 
           {(proposal.basis !== "dividers" || canReadTimes) && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]">
-            {proposal.basis !== "dividers" && (
+            {proposal.basis !== "dividers" && withTimes / Math.max(1, scenes.length) >= 0.6 && (
               <label className="flex items-center gap-2 text-neutral-400">
                 Groups
                 <span className="text-neutral-600">fewer</span>
@@ -195,6 +233,90 @@ export default function UnitsModal({ scenes, columnsReady, canUndo, onClose, onA
               <input type="checkbox" checked={keepRoom} onChange={(e) => setKeepRoom(e.target.checked)} className="accent-accent" />
               Keep room names after the number
             </label>
+          </div>
+
+          {!hasDividers && content.length > 1 && (
+            <div className="rounded border border-border bg-panelSoft/30 px-3 py-2.5 space-y-2 text-[12px] text-neutral-300">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold text-neutral-200">Divide the scenes yourself</span>
+                <span className="flex items-center gap-1.5">
+                  <button className="chip" onClick={() => setCuts([])} title="Put every scene in one unit, then split it where you want">
+                    One unit
+                  </button>
+                  {byHand && proposal.basis !== "none" && (
+                    <button className="chip" onClick={() => setCuts(null)} title="Go back to the groups that were guessed">
+                      Back to the guess
+                    </button>
+                  )}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <label htmlFor="units-sizes" className="text-neutral-400 w-full sm:w-auto sm:min-w-[7.5rem]">
+                  Scenes in each unit
+                </label>
+                <input
+                  id="units-sizes"
+                  value={sizesText}
+                  onChange={(e) => setSizesText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && sizes) setCuts(cutsFromSizes(scenes, sizes));
+                  }}
+                  inputMode="numeric"
+                  placeholder="3, 2, 4"
+                  className={`${INPUT} w-36`}
+                />
+                <button className="chip" disabled={!sizes} onClick={() => sizes && setCuts(cutsFromSizes(scenes, sizes))}>
+                  Set
+                </button>
+                <span className="text-[11px] text-neutral-500 min-w-0 basis-full sm:basis-auto sm:flex-1">{sizesHint}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <span className="text-neutral-400 w-full sm:w-auto sm:min-w-[7.5rem]">Or split</span>
+                <label className="flex items-center gap-1.5">
+                  into
+                  <input
+                    value={equalN}
+                    onChange={(e) => setEqualN(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    inputMode="numeric"
+                    aria-label="Number of equal groups"
+                    className={`${INPUT} w-12 text-center`}
+                  />
+                  equal groups
+                </label>
+                <button className="chip" disabled={!(equalCount >= 1)} onClick={() => setCuts(cutsEqual(scenes, equalCount))}>
+                  Set
+                </button>
+                <span className="text-neutral-600 mx-1">·</span>
+                <label className="flex items-center gap-1.5">
+                  a new unit every
+                  <input
+                    value={everyN}
+                    onChange={(e) => setEveryN(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    inputMode="numeric"
+                    aria-label="Scenes per unit"
+                    className={`${INPUT} w-12 text-center`}
+                  />
+                  scenes
+                </label>
+                <button className="chip" disabled={!(everyCount >= 1)} onClick={() => setCuts(cutsEvery(scenes, everyCount))}>
+                  Set
+                </button>
+              </div>
+              <div className="text-[11px] text-neutral-500">
+                Or press <Scissors size={10} className="inline -mt-0.5" /> Split here beside any scene below to start a new unit there. Nothing changes in the tour until you press Apply.
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-[11.5px] text-neutral-500">
+            <span>
+              {n} unit{n === 1 ? "" : "s"} · {content.length} scene{content.length === 1 ? "" : "s"}
+            </span>
+            <button className="text-accent hover:underline" onClick={() => setShowScenes((v) => !v)} aria-pressed={showScenes}>
+              {showScenes ? "Hide the scenes" : "Show the scenes"}
+            </button>
           </div>
 
           <ul className="space-y-2">
@@ -249,15 +371,36 @@ export default function UnitsModal({ scenes, columnsReady, canUndo, onClose, onA
                         Add a divider card
                       </label>
                     )}
-                    {i > 0 && !u.dividerId && !units[i - 1].dividerId && proposal.basis !== "dividers" && (
-                      <button
-                        className="text-accent hover:underline"
-                        onClick={() => setJoined((j) => new Set(j).add(u.key))}
-                      >
+                    {i > 0 && !u.dividerId && (
+                      <button className="text-accent hover:underline" onClick={() => toggleCut(u.memberIds[0])}>
                         Join with the unit above
                       </button>
                     )}
                   </div>
+
+                  {showScenes && members.length > 0 && (
+                    <ol className="mt-2 ml-7 border-l border-border/70 pl-2.5 space-y-0.5">
+                      {members.map((m, k) => (
+                        <li key={m.id} className="flex items-center gap-2 text-[11.5px] min-h-[24px]">
+                          <span className="w-6 shrink-0 text-right tabular-nums text-neutral-600">{position.get(m.id)}</span>
+                          <span className="w-10 h-5 shrink-0 rounded-sm overflow-hidden bg-black/40">
+                            <ScenePreviewImg imagePath={m.image_path} thumbnailPath={m.thumbnail_path} alt="" className="w-full h-full object-cover" />
+                          </span>
+                          <span className="flex-1 min-w-0 truncate text-neutral-300">{m.name}</span>
+                          {k > 0 && (
+                            <button
+                              onClick={() => toggleCut(m.id)}
+                              className="shrink-0 flex items-center gap-1 text-accent hover:underline"
+                              aria-label={`Start a new unit at ${m.name}`}
+                              title="Start a new unit at this scene"
+                            >
+                              <Scissors size={11} /> Split here
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
 
                   {!incomplete && steps.length > 0 && (
                     <div className="mt-1.5 pl-7 text-[11px] text-neutral-500 truncate">
