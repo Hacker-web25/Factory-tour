@@ -39,6 +39,7 @@ import { AOA_HINT, LAUNCH_OFFER, SITE_PLANS, SITE_PLAN_DISPLAY_ORDER } from "@/l
 import { SERVICE_CITY_LIST } from "@/lib/logistics";
 import { PAY_BRIDGE_SCRIPT } from "@/lib/site/payBridge";
 import { measureScriptTag } from "@/lib/site/measure";
+import { welcomeGateTag } from "@/lib/welcome/gate";
 import { SITE_HEADER_CSS, SITE_HEADER_FONT_HREF, SITE_HEADER_SCRIPT, siteHeaderHtml } from "@/lib/site/header";
 import { SITE_PATHS } from "@/lib/site/paths";
 import { PLAN_ROWS } from "@/lib/site/bundleData";
@@ -545,6 +546,7 @@ ${isHome || page.path === "/plans" ? `<script type="application/ld+json">${servi
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>\
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>\
 <script>${ERROR_GUARD}</script>\
+${welcomeGateTag()}\
 <script defer="defer" src="${JS_SRC}"></script>\
 <link href="${CSS_HREF}" rel="stylesheet"/>\
 <link href="${SITE_HEADER_FONT_HREF}" rel="stylesheet"/>\

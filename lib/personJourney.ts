@@ -41,6 +41,7 @@ import { inrLakhs } from "@/lib/pricing";
 import { calcFigures, inputsFromMeta } from "@/lib/whyVpvCalc";
 import {
   FUNNEL_STAGES,
+  HOME_PARTS,
   STAGE_RANK,
   pageLabel,
   pagePath,
@@ -120,6 +121,12 @@ export type JourneyStop = {
   scroll: number | null;
   sections: string[];
   actions: string[];
+  /** Home page story only: seconds spent on each part, by part id. */
+  reading?: Record<string, number>;
+  /** Home page story only: the furthest part reached, 1–7. */
+  deepestPart?: number;
+  /** Home page story only: how many times the calculator's numbers were changed. */
+  storyTouches?: number;
 };
 
 export type JourneyVisit = {
@@ -266,8 +273,22 @@ export function describeEvent(
     case "page_time":
     case "scroll_depth":
     case "section_view":
+    case "story_dwell":
     case "form_field_blur":
       return null;
+
+    case "welcome_seen": {
+      const t = num(m, "ms");
+      return { title: "Watched the welcome animation", detail: t ? `${(t / 1000).toFixed(1)} s` : null, tone: "good" };
+    }
+    case "welcome_skipped": {
+      const t = num(m, "ms");
+      return {
+        title: "Tapped past the welcome animation",
+        detail: t !== null ? `after ${(t / 1000).toFixed(1)} s` : null,
+        tone: "neutral",
+      };
+    }
 
     case "cta_click":
       return { title: label ? `Clicked “${label}”` : "Clicked a button", detail: null, tone: "neutral" };
@@ -307,7 +328,9 @@ export function describeEvent(
       const f = calcFigures(i);
       return {
         title: "Tried the Why VPV calculator",
-        detail: `${i.leads.toLocaleString("en-IN")} leads × ${inrLakhs(i.valueLakh * 1_00_000)}, converting ${i.conv}%: ${inrLakhs(f.opportunity)} a year`,
+        detail:
+          `${i.leads.toLocaleString("en-IN")} leads × ${inrLakhs(i.valueLakh * 1_00_000)}, converting ${i.conv}%: ${inrLakhs(f.opportunity)} a year` +
+          ((num(m, "saves") ?? 0) > 1 ? ` · ${num(m, "saves")} different sets of numbers so far` : ""),
         tone: "good",
       };
     }
@@ -528,6 +551,19 @@ export function personJourney(input: {
           if (sec && !s.sections.includes(sec)) s.sections.push(sec);
           break;
         }
+        case "story_dwell": {
+          const s = stopFor(path, m.t);
+          const r = (s.reading ??= {});
+          for (const part of HOME_PARTS) {
+            const v = num(e.meta, part.id);
+            if (v !== null && v > 0) r[part.id] = (r[part.id] ?? 0) + Math.min(900, Math.round(v));
+          }
+          const d = num(e.meta, "deepest");
+          if (d !== null && d >= 1) s.deepestPart = Math.max(s.deepestPart ?? 0, Math.min(HOME_PARTS.length, Math.round(d)));
+          const t = num(e.meta, "touches");
+          if (t !== null && t > 0) s.storyTouches = (s.storyTouches ?? 0) + Math.min(500, Math.round(t));
+          break;
+        }
         case "form_field_blur": {
           const f = str(e.meta, "field", 60);
           const s = stopFor(path, m.t);
@@ -551,6 +587,18 @@ export function personJourney(input: {
       if (s.seconds !== null && s.seconds > 0) bits.push(`${formatSeconds(s.seconds)} on the page`);
       else if (s.seconds === 0) bits.push("left almost at once");
       if (s.scroll !== null) bits.push(`read ${s.scroll}% of it`);
+      if (s.deepestPart) {
+        const part = HOME_PARTS[s.deepestPart - 1];
+        bits.push(`reached part ${s.deepestPart} of ${HOME_PARTS.length}${part ? ` (${part.label})` : ""}`);
+      }
+      if (s.reading) {
+        const top = HOME_PARTS.map((part) => ({ label: part.label, secs: s.reading![part.id] ?? 0 }))
+          .filter((x) => x.secs >= 2)
+          .sort((a, b) => b.secs - a.secs)
+          .slice(0, 4);
+        if (top.length) bits.push(`longest on ${top.map((x) => `${x.label} ${formatSeconds(x.secs)}`).join(", ")}`);
+      }
+      if (s.storyTouches) bits.push(`changed the calculator ${s.storyTouches} time${s.storyTouches === 1 ? "" : "s"}`);
       const filled = s.actions.filter((a) => a.startsWith("filled "));
       if (filled.length) bits.push(`${filled.map((a) => a.slice(7)).join(", ")} filled in`);
       items.push({

@@ -305,6 +305,46 @@ export function mount(host: HTMLElement): () => void {
   const customUnit = $<HTMLSelectElement>(".hs-custom-unit");
   // Leads here are over five years; the stored event keeps the Why VPV
   // calculator's leads-a-year, so the owner's report reads the same.
+  /* ---------- what they did, for the owner's journey page ---------- */
+  // Seconds on each of the seven parts (only while the page is in front of
+  // them), how often they moved between parts, how far down the story they got
+  // and how much they played with the calculator. Sent as one `story_dwell`
+  // event whenever the page is hidden or left, as what happened SINCE the last
+  // one (like page_time), so the journey page can simply add them up.
+  // Every key is a number; /api/track keeps twelve at most, and this is twelve.
+  const dwell: Record<string, number> = {};
+  let dwellSince = document.visibilityState === "visible" ? performance.now() : 0;
+  let dwellPart = -1, moves = 0, deepest = 0, touches = 0, customs = 0, saveCount = 0;
+  const DWELL_CAP_S = 900; // a tab left open on one part is not 40 minutes of reading
+  // Only while the story is on screen: past it, the last part is not being read.
+  const onScreen = () => { const r = sec.getBoundingClientRect(); return r.bottom > 80 && r.top < innerHeight - 80; };
+  const dwellTick = () => {
+    const now = performance.now();
+    if (dwellPart >= 0 && dwellSince && onScreen()) {
+      const id = PARTS[dwellPart].id;
+      dwell[id] = Math.min(DWELL_CAP_S, (dwell[id] || 0) + (now - dwellSince) / 1000);
+    }
+    dwellSince = document.visibilityState === "visible" ? now : 0;
+  };
+  const sendDwell = (beacon: boolean) => {
+    dwellTick();
+    const meta: Record<string, number> = {};
+    let total = 0;
+    for (const p of PARTS) {
+      const secs = Math.round(dwell[p.id] || 0);
+      if (secs > 0) { meta[p.id] = secs; total += secs; }
+    }
+    if (!total && !moves && !touches) return; // nothing new since the last one
+    meta.deepest = deepest; // 1 to 7: the furthest part they reached
+    meta.moves = moves;
+    meta.touches = touches;
+    meta.custom = customs;
+    meta.total = total;
+    for (const k of Object.keys(dwell)) delete dwell[k];
+    moves = 0; touches = 0; customs = 0;
+    track("story_dwell", meta, { beacon, path: "/" });
+  };
+
   const calc = { leads: LEADS.start, valueLakh: VALUE_START, conv: CONV };
   let customOn = false;
   const inputs = (): CalcInputs => ({ leads: Math.max(1, Math.round(calc.leads / 5)), valueLakh: Math.min(10_000, Math.max(0.1, calc.valueLakh)), conv: calc.conv, lift: 5 });
@@ -352,9 +392,9 @@ export function mount(host: HTMLElement): () => void {
     clearTimeout(saveTimer);
     if (!touched) return;
     touched = false;
-    track("calculator_used", metaFromInputs(inputs(), { field: lastField }), { beacon, path: "/" });
+    track("calculator_used", metaFromInputs(inputs(), { field: lastField, saves: ++saveCount }), { beacon, path: "/" });
   };
-  const changed = () => { touched = true; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), SAVE_AFTER_MS); recalc(); };
+  const changed = () => { touched = true; touches++; clearTimeout(saveTimer); saveTimer = window.setTimeout(() => save(), SAVE_AFTER_MS); recalc(); };
   range.addEventListener("input", () => { calc.leads = Number(range.value); lastField = "leads"; changed(); });
   // The box beside the slider takes a typed number too. Once what is typed is
   // inside the slider's range the figures follow it; on Enter or leaving the
@@ -389,16 +429,17 @@ export function mount(host: HTMLElement): () => void {
   };
   customChip.addEventListener("click", () => {
     customOn = true;
+    customs++;
     recalc();
     customInput.focus();
     applyCustom();
   });
   customInput.addEventListener("input", applyCustom);
   customUnit.addEventListener("change", applyCustom);
-  const flush = () => save(true);
+  const flush = () => { save(true); sendDwell(true); };
   // Phones often skip pagehide when a tab is swiped away; hidden is the last
-  // reliable moment to send.
-  const onHidden = () => { if (document.visibilityState === "hidden") flush(); };
+  // reliable moment to send. Coming back, the clock for the current part restarts.
+  const onHidden = () => { if (document.visibilityState === "hidden") flush(); else dwellSince = performance.now(); };
   addEventListener("pagehide", flush);
   document.addEventListener("visibilitychange", onHidden);
 
@@ -473,6 +514,10 @@ export function mount(host: HTMLElement): () => void {
   const seen = new Set<number>();
   const setActive = (i: number) => {
     if (i === active) return;
+    dwellTick(); // close the books on the part they are leaving
+    if (active >= 0) moves++;
+    dwellPart = i;
+    if (i + 1 > deepest) deepest = i + 1;
     const dir = i > active ? "down" : "up";
     const flip = (els: HTMLElement[]) => els.forEach((p, k) => {
       p.classList.toggle("is-active", k === i);
@@ -666,6 +711,7 @@ export function mount(host: HTMLElement): () => void {
   };
 
   const onScroll = () => {
+    dwellTick(); // credit the part they were on up to this moment
     pin.style.setProperty("--hs-top", headerH() + "px");
     // While gliding to a part, that part stays shown (no flicker back to
     // the one being left). Otherwise (scrollbar, keys, a resize) the part

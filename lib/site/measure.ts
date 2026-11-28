@@ -254,6 +254,19 @@ if(FIELD&&!SUBMITTED&&!out()){send("form_abandon",{field:FIELD},T.path);}
 FIELD=null
 }
 
+/* The personal welcome (public/welcome/welcome.js) reports when it ends, on
+   an event and, in case it finished before this script was listening, on a
+   global. Once per page, and never for anyone who opted out. */
+var WELCOMED=false;
+function welcomed(d){
+if(WELCOMED||!d||out())return;
+WELCOMED=true;
+var m={ms:Math.min(60000,Math.max(0,Math.round(d.ms||0))),ink:!!d.ink};
+if(d.skipped)send("welcome_skipped",m);else send("welcome_seen",m)
+}
+window.addEventListener("vpv:welcome",function(e){welcomed(e&&e.detail)});
+if(window.__vpvWelcome)welcomed(window.__vpvWelcome);
+
 load();
 view();
 tag();setTimeout(tag,2000);setTimeout(tag,6000);

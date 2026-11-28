@@ -1,191 +1,26 @@
 /**
- * GET /q/<code> — the link behind every printed QR code.
+ * GET /q/<code> — the link behind every QR code printed so far.
  *
- * This is what the pamphlet points at. It does three things and then gets
- * out of the way:
+ * This is what the pamphlets and letters already in people's hands point at,
+ * so it keeps working exactly as before. The work itself lives in
+ * lib/server/scanRedirect.ts, shared with the new personal link /hi/<name>-<code>:
+ * one lookup, redirect, then the bookkeeping after the visitor has gone.
  *
- *   1. logs the scan SERVER-SIDE, so it counts even when the visitor
- *      blocks every script (roughly a third of them do, which is why
- *      Google Analytics alone cannot tell you what a print run achieved);
- *   2. stamps the visitor with first-touch attribution, so the order they
- *      place three weeks later still traces back to this pamphlet;
- *   3. redirects to the real page with utm_* attached, so Google Analytics
- *      groups the visit exactly the way our own tables do.
- *
- * IT ALWAYS REDIRECTS. A code that is unknown, archived, or arrives while
- * the database is down still lands the visitor on the homepage. The one
- * thing a printed QR code must never do is show an error: the pamphlet is
- * already in somebody's hand and cannot be reissued.
- *
- * The destination is always a path on myvpv.com (enforced by isSafePath
- * here and by a CHECK constraint on the column), so a code can never be
- * turned into an open redirect that lends our domain to a phishing page.
+ * IT ALWAYS REDIRECTS. See scanRedirect.ts for why, and for why this runs on
+ * the Edge runtime next to the database instead of as an ordinary function.
  */
 
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
-import { getClientIp } from "@/lib/getClientIp";
-import { escapeLike } from "@/lib/server/billingGuard";
-import { isSafePath, normaliseCode } from "@/lib/analytics/attribution";
-import { isEmailCode } from "@/lib/personCodes";
-import {
-  geoFrom,
-  recordScan,
-  setVisitorDevice,
-  touchVisitor,
-  visitorIdFrom,
-} from "@/lib/server/analytics";
+import { scanRedirect } from "@/lib/server/scanRedirect";
 
-export const runtime = "nodejs";
+// Edge: no cold start. A printed code is scanned a few times a day, which is
+// the worst case for an ordinary serverless function: cold almost every time.
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
-
-const SITE = "https://myvpv.com";
-
-/** 302, never 301: a permanent redirect would be cached by the browser and
- *  by every proxy in between, and the second scan would never reach us. */
-function send(to: URL | string, coupon?: string): NextResponse {
-  const res = NextResponse.redirect(to, 302);
-  res.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
-  // An e-mail campaign's shared coupon rides along, so the buyer does not have
-  // to type it. Readable by the billing page, which checks it with the server.
-  if (coupon) {
-    res.cookies.set("vpv_coupon", coupon, {
-      maxAge: 14 * 24 * 60 * 60,
-      path: "/",
-      sameSite: "lax",
-      secure: true,
-    });
-  }
-  return res;
-}
+// Next to the database (Supabase is in Seoul), so the one lookup that stands
+// between the scan and the redirect takes milliseconds instead of a round trip
+// across an ocean.
+export const preferredRegion = "icn1";
 
 export async function GET(req: Request, { params }: { params: { code: string } }) {
-  const origin = (() => {
-    try {
-      return new URL(req.url).origin;
-    } catch {
-      return SITE;
-    }
-  })();
-  const home = new URL("/", origin);
-
-  const code = normaliseCode(params.code);
-  if (!code) return send(home);
-
-  const sb = supabaseAdmin();
-  if (!sb) return send(home); // never strand a scan
-
-  type Row = {
-    code: string;
-    destination: string;
-    source: string;
-    medium: string;
-    campaign: string | null;
-    active: boolean;
-  };
-
-  let row: Row | null = null;
-  try {
-    // Exact first; then case-insensitively, because a code may be typed in
-    // by hand from the print rather than scanned. escapeLike matters: "_"
-    // is a LIKE wildcard and codes are allowed to contain it.
-    const exact = await sb
-      .from("campaign_codes")
-      .select("code, destination, source, medium, campaign, active")
-      .eq("code", code)
-      .maybeSingle();
-    row = (exact.data as Row | null) ?? null;
-    if (!row) {
-      const loose = await sb
-        .from("campaign_codes")
-        .select("code, destination, source, medium, campaign, active")
-        .ilike("code", escapeLike(code))
-        .limit(1)
-        .maybeSingle();
-      row = (loose.data as Row | null) ?? null;
-    }
-  } catch {
-    return send(home);
-  }
-
-  if (!row || !row.active || !isSafePath(row.destination)) return send(home);
-
-  // Where they are actually going, with the campaign stamped on the URL.
-  const dest = new URL(row.destination, origin);
-  dest.searchParams.set("utm_source", row.source);
-  dest.searchParams.set("utm_medium", row.medium);
-  if (row.campaign) dest.searchParams.set("utm_campaign", row.campaign);
-  // Our own code, read back by the tracker and the funnel.
-  dest.searchParams.set("vpv", row.code);
-
-  // An e-mail campaign's shared coupon, if it has one that can still be used.
-  // Only e-mail codes look it up, so the QR and print scans do no extra work,
-  // and a failure here can never stop the redirect: an e-mailed link must land.
-  let coupon: string | undefined;
-  if (isEmailCode(row.code)) {
-    try {
-      const f = await sb.from("campaign_codes").select("folder_id").eq("code", row.code).maybeSingle();
-      const folderId = (f.data as { folder_id: string | null } | null)?.folder_id;
-      if (folderId) {
-        const ec = await sb.from("email_campaigns").select("coupon_code").eq("folder_id", folderId).maybeSingle();
-        const couponCode = (ec.data as { coupon_code: string | null } | null)?.coupon_code;
-        if (couponCode) {
-          const c = await sb.from("coupons").select("active, expires_at").eq("code", couponCode).maybeSingle();
-          const cd = c.data as { active: boolean; expires_at: string | null } | null;
-          if (cd?.active && (!cd.expires_at || new Date(cd.expires_at).getTime() > Date.now())) {
-            coupon = couponCode;
-            dest.searchParams.set("coupon", couponCode);
-          }
-        }
-      }
-    } catch {
-      /* no coupon: the visitor still arrives */
-    }
-  }
-
-  const headers = req.headers;
-  const geo = geoFrom(headers);
-  const visitorId = visitorIdFrom(headers);
-  const referrer = headers.get("referer");
-
-  await Promise.allSettled([
-    recordScan(
-      sb,
-      {
-        code: row.code,
-        visitorId,
-        referrer,
-        userAgent: headers.get("user-agent"),
-        ip: getClientIp(headers),
-      },
-      geo
-    ),
-    visitorId
-      ? touchVisitor(
-          sb,
-          visitorId,
-          {
-            source: row.source,
-            medium: row.medium,
-            campaign: row.campaign,
-            code: row.code,
-            referrer,
-            landingPath: row.destination,
-          },
-          geo,
-          // The page view on the other side of this redirect is the visit.
-          // Counting it here too would double every scan.
-          false
-        )
-      : Promise.resolve(),
-  ]);
-
-  // After touchVisitor, never before: this fills blanks on a row that call
-  // has just created. Awaited like the rest — the redirect is already built
-  // and a scan we cannot attribute to a device is a scan half recorded.
-  if (visitorId) {
-    await setVisitorDevice(sb, visitorId, headers.get("user-agent"));
-  }
-
-  return send(dest, coupon);
+  return scanRedirect(req, [params.code]);
 }

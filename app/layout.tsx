@@ -9,6 +9,7 @@ import UpgradePrompt from "@/components/billing/UpgradePrompt";
 import HiddenPageGuard from "@/components/billing/HiddenPageGuard";
 import Analytics from "@/components/analytics/Analytics";
 import CookieNotice from "@/components/analytics/CookieNotice";
+import WelcomeGate from "@/components/welcome/WelcomeGate";
 import {
   BING_SITE_VERIFICATION,
   GOOGLE_SITE_VERIFICATION,
@@ -129,6 +130,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        {/* The personal welcome for someone who scanned their own printed QR.
+            Does nothing for anyone else. */}
+        <WelcomeGate />
+      </head>
       <body className="font-sans">
 
         {/* Runs once, keeps the user signed in across reloads but signs
