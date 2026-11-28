@@ -7,6 +7,8 @@
  *   • proposeUnits   — work out where the units are, without asking the person
  *                      to do any sums (dividers already in the tour, then the
  *                      names, then the time each photo was taken)
+ *   • unitsFromCuts  — the same units from starting points the person chose by
+ *                      hand (split here, equal groups, "3, 2, 4" scenes…)
  *   • planUnitRenames — HO15, HO14 … HO1 for a unit, keeping room names
  *   • layoutDividerText — fit big black text on a white card
  *   • unitKey / hiddenByCollapse / groupByUnit — what the menu and the bottom
@@ -107,12 +109,24 @@ export function parseCodedName(name: string): CodedName | null {
   return { code, num: Number(m[2]), room: m[3].trim() };
 }
 
+/**
+ * A sequence number someone typed in front of a room name by hand: "01-Outside",
+ * "2. Lobby", "3) Store", "06 (Cafe)". It is dropped, because the new numbering
+ * replaces it. A number with no separator ("3D Lab", "2 Floor Store") is kept.
+ */
+function withoutLeadingNumber(n: string): string {
+  const m = /^(?:\d{1,3}\s*[-–—_.:)]+\s*|0\d{1,2}\s+)(?=\S)/.exec(n);
+  return m ? n.slice(m[0].length).trim() : n;
+}
+
 /** The room part of a name, or "" when it is only a code and a number or a camera name. */
 export function extractRoom(name: string): string {
   const n = name.trim();
   if (!n || isCameraName(n)) return "";
   const parsed = parseCodedName(n);
-  const room = parsed ? parsed.room : n;
+  let room = parsed ? parsed.room : withoutLeadingNumber(n);
+  const wrapped = /^\(([^()]+)\)$/.exec(room);
+  if (wrapped) room = wrapped[1].trim();
   // "6" alone is left over from a typo, not a room name.
   return /[A-Za-z]/.test(room) ? room : "";
 }
@@ -240,47 +254,30 @@ function tidyTitle(s: string): string {
   return s.trim().replace(/\s+/g, " ");
 }
 
-/**
- * Where the units are. Dividers that already exist win, then a change in the
- * code the names use ("F12" then "HO 15"), then a long pause between photos.
- */
-export function proposeUnits(all: readonly UnitScene[], sensitivity: Sensitivity = 3): Proposal {
-  const sorted = sortScenes(all);
-  if (!sorted.length) return { units: [], basis: "none" };
+/** A scene that heads a unit: a real divider, or a flat scene that looks like one made by hand. */
+function isHead(s: UnitScene): boolean {
+  return isDivider(s) || looksLikeDivider(s);
+}
 
-  const hasDividers = sorted.some((s) => isDivider(s) || looksLikeDivider(s));
-  if (hasDividers) {
-    const units: ProposedUnit[] = [];
-    let cur: ProposedUnit | null = null;
-    const finish = () => {
-      if (cur && (cur.dividerId || cur.memberIds.length)) units.push(cur);
-    };
-    sorted.forEach((s) => {
-      if (isDivider(s) || looksLikeDivider(s)) {
-        finish();
-        cur = {
-          key: `d-${s.id}`,
-          title: tidyTitle(s.name),
-          code: (s.unit_code ?? "").trim(),
-          dividerId: s.id,
-          legacyDivider: !isDivider(s),
-          memberIds: [],
-        };
-      } else {
-        if (!cur) cur = { key: "start", title: "", code: "", dividerId: null, legacyDivider: false, memberIds: [] };
-        cur.memberIds.push(s.id);
-      }
-    });
-    finish();
-    const byId = new Map(sorted.map((s) => [s.id, s]));
-    for (const u of units) {
-      if (!u.code) {
-        const names = u.memberIds.map((id) => byId.get(id)!.name);
-        u.code = inferCode(names) ?? suggestCode(u.title);
-      }
-    }
-    return { units, basis: "dividers" };
-  }
+/** The scenes a unit is made of, in order: everything except dividers. */
+export function contentScenes<T extends UnitScene>(all: readonly T[]): T[] {
+  return sortScenes(all).filter((s) => !isHead(s));
+}
+
+/**
+ * Where the units start, as the ids of the scenes that begin one without a
+ * divider of their own (a divider always begins its own unit, and the first
+ * scene always begins the first). Dividers already in the tour win, then a
+ * change in the code the names use ("F12" then "HO 15"), then a long pause
+ * between photos.
+ */
+export function proposeCuts(
+  all: readonly UnitScene[],
+  sensitivity: Sensitivity = 3
+): { cutIds: string[]; basis: Proposal["basis"] } {
+  const sorted = sortScenes(all);
+  if (!sorted.length) return { cutIds: [], basis: "none" };
+  if (sorted.some(isHead)) return { cutIds: [], basis: "dividers" };
 
   // No dividers: look for where the names change code, and where time jumps.
   const breaks = new Set<number>();
@@ -298,26 +295,98 @@ export function proposeUnits(all: readonly UnitScene[], sensitivity: Sensitivity
     for (const i of tb) breaks.add(i);
     basis = basis === "names" ? "names" : "time";
   }
+  const cutIds = [...breaks].sort((a, b) => a - b).map((i) => sorted[i].id);
+  return { cutIds, basis: cutIds.length ? basis : "none" };
+}
 
+/**
+ * The units that follow from a set of starting points: every divider begins one,
+ * and so does every scene in `cutIds`. This is what lets the person decide by hand
+ * which scenes go together.
+ */
+export function unitsFromCuts(all: readonly UnitScene[], cutIds: Iterable<string>): ProposedUnit[] {
+  const sorted = sortScenes(all);
+  const cut = new Set(cutIds);
+  const byId = new Map(sorted.map((s) => [s.id, s]));
   const units: ProposedUnit[] = [];
-  let start = 0;
-  const cuts = [...breaks].sort((a, b) => a - b);
-  cuts.push(sorted.length);
-  for (const end of cuts) {
-    const chunk = sorted.slice(start, end);
-    if (chunk.length) {
-      units.push({
-        key: `g-${chunk[0].id}`,
-        title: "",
-        code: inferCode(chunk.map((s) => s.name)) ?? "",
-        dividerId: null,
-        legacyDivider: false,
-        memberIds: chunk.map((s) => s.id),
-      });
+  let cur: ProposedUnit | null = null;
+  const finish = () => {
+    if (cur && (cur.dividerId || cur.memberIds.length)) units.push(cur);
+  };
+  for (const s of sorted) {
+    if (isHead(s)) {
+      finish();
+      cur = {
+        key: `d-${s.id}`,
+        title: tidyTitle(s.name),
+        code: (s.unit_code ?? "").trim(),
+        dividerId: s.id,
+        legacyDivider: !isDivider(s),
+        memberIds: [],
+      };
+    } else {
+      if (!cur || cut.has(s.id)) {
+        finish();
+        cur = { key: `g-${s.id}`, title: "", code: "", dividerId: null, legacyDivider: false, memberIds: [] };
+      }
+      cur.memberIds.push(s.id);
     }
-    start = end;
   }
-  return { units, basis: units.length > 1 ? basis : "none" };
+  finish();
+  for (const u of units) {
+    if (!u.code) {
+      const names = u.memberIds.map((id) => byId.get(id)!.name);
+      u.code = inferCode(names) ?? suggestCode(u.title);
+    }
+  }
+  return units;
+}
+
+/** Where the units are, worked out without asking the person to do any sums. */
+export function proposeUnits(all: readonly UnitScene[], sensitivity: Sensitivity = 3): Proposal {
+  const { cutIds, basis } = proposeCuts(all, sensitivity);
+  return { units: unitsFromCuts(all, cutIds), basis };
+}
+
+/* ------------------------------------------------- deciding the groups by hand */
+
+/**
+ * Numbers typed for "how many scenes in each unit": "3, 2, 4", "3 2 4" and
+ * "3+2+4" all mean the same. Null when there is nothing usable.
+ */
+export function parseSizes(text: string): number[] | null {
+  const parts = text.split(/[^0-9]+/).filter(Boolean).map(Number);
+  if (!parts.length || parts.some((n) => !Number.isInteger(n) || n < 1 || n > 5000)) return null;
+  return parts;
+}
+
+/** Starting points for units of the given sizes; whatever is left over makes one last unit. */
+export function cutsFromSizes(all: readonly UnitScene[], sizes: readonly number[]): string[] {
+  const list = contentScenes(all);
+  const out: string[] = [];
+  let at = 0;
+  for (const n of sizes) {
+    at += Math.max(1, Math.floor(n));
+    if (at >= list.length) break;
+    out.push(list[at].id);
+  }
+  return out;
+}
+
+/** Starting points for `groups` units of nearly the same size (the first ones take the extra scene). */
+export function cutsEqual(all: readonly UnitScene[], groups: number): string[] {
+  const n = contentScenes(all).length;
+  const g = Math.min(Math.max(1, Math.floor(groups)), Math.max(1, n));
+  const base = Math.floor(n / g);
+  const extra = n % g;
+  return cutsFromSizes(all, Array.from({ length: g }, (_, i) => base + (i < extra ? 1 : 0)));
+}
+
+/** Starting points for a new unit every `size` scenes. */
+export function cutsEvery(all: readonly UnitScene[], size: number): string[] {
+  const n = contentScenes(all).length;
+  const each = Math.max(1, Math.floor(size));
+  return cutsFromSizes(all, Array.from({ length: Math.ceil(n / each) }, () => each));
 }
 
 /* ------------------------------------------------------------- menu & strip */
