@@ -1,6 +1,7 @@
 "use client";
 
 import DraftField from "@/components/builder/DraftField";
+import { useSceneNameSuggest } from "@/lib/useSceneNameSuggest";
 import ScenePreviewImg from "@/components/ScenePreviewImg";
 import { countOrgMedia, reportLimit, requestUpgrade, useEntitlements } from "@/lib/useEntitlements";
 import { useEffect, useRef, useState } from "react";
@@ -213,6 +214,7 @@ export default function RightPanel({
           <PhotoTab
             tour={tour}
             scene={scene}
+            scenes={scenes}
             onStartAddHotspot={(d) => {
               onStartAddHotspot(d);
             }}
@@ -701,6 +703,7 @@ function AddonsTab({
 function PhotoTab({
   tour,
   scene,
+  scenes,
   onStartAddHotspot,
   onSceneChange,
   onPublishToggle,
@@ -710,6 +713,8 @@ function PhotoTab({
 }: {
   tour: Tour;
   scene: Scene;
+  /** Every scene of the tour, so the name box can learn from the other names. */
+  scenes: Scene[];
   onStartAddHotspot: (d: Partial<Hotspot>) => void;
   onSceneChange: (s: Scene) => void;
   onPublishToggle: () => Promise<void>;
@@ -721,6 +726,8 @@ function PhotoTab({
   // send back a copy of the scene from when typing started.
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
+  // "Lab" → "Laboratory", from the tour's other names and the names used across myvpv.
+  const names = useSceneNameSuggest(scenes, scene.id);
   return (
     <div className="space-y-5 text-sm">
       {/* Scene rename at the top so it's easy to find */}
@@ -732,6 +739,8 @@ function PhotoTab({
           key={`name-${scene.id}`}
           value={scene.name}
           onCommit={(v) => onSceneChange({ ...sceneRef.current, name: v })}
+          suggest={names.suggest}
+          onSuggestFocus={names.warm}
           placeholder="Give this scene a name"
           className="w-full bg-panelSoft border border-border rounded px-2 py-1.5 text-sm outline-none focus:border-accent"
         />
