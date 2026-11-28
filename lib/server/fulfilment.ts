@@ -406,8 +406,7 @@ async function tellFoundersAboutShoot(sb: SupabaseClient, row: OrderRow): Promis
       detail:
         `New Buy now order from ${row.buyer_company} <${row.buyer_email}>. Call to agree the shoot date. ` +
         `Shoot at: ${full.shoot_address ?? "see order"}. ` +
-        `On site: ${d.siteContactName}, ${d.siteContactPhone}. Wants it: ${when}.` +
-        (d.notes ? ` Notes: ${d.notes}` : ""),
+        `On site: ${d.siteContactName}, ${d.siteContactPhone}. Wants it: ${when}.`,
     });
   } catch {
     /* the order is built either way; the details are on the order itself */

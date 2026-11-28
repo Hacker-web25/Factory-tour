@@ -8,6 +8,11 @@
  * every detail we need to deliver it: who is buying, the GST particulars for the
  * invoice, where the crew shoots, the extras, and payment.
  *
+ * The plan and the way to pay (yearly or lifetime) are chosen on /plans with the
+ * Get MyVPV button and are fixed here: this is the page for paying, not for
+ * choosing again. Without a plan in the link (or in this tab's draft) the buyer
+ * is sent to /plans.
+ *
  * It sells nothing the assessment does not: the same plans, extra areas, videos,
  * sales logins, coupon and special offer, priced by the same function
  * (siteQuote in lib/pricing.ts), plus the Security features add-on for VPV Light.
@@ -25,6 +30,7 @@ import {
   Camera,
   Check,
   Film,
+  Gift,
   Info,
   Layers,
   Lock,
@@ -48,7 +54,6 @@ import {
   SALES_TEAM,
   SECURITY_ADDON,
   SITE_PLANS,
-  SITE_PLAN_DISPLAY_ORDER,
   SUPPORT_ANNUAL_INR,
   SUPPORT_MONTHLY_INR,
   SUPPORT_NAME,
@@ -108,7 +113,6 @@ type Form = {
   siteContactPhone: string;
   window: ShootWindowId;
   fromDate: string;
-  notes: string;
   slug: string;
   /** The exact address a code was confirmed for. */
   verifiedEmail: string;
@@ -142,12 +146,13 @@ const EMPTY: Form = {
   siteContactPhone: "",
   window: "asap",
   fromDate: "",
-  notes: "",
   slug: "",
   verifiedEmail: "",
 };
 
 const KEY = "vpv:buy:v1";
+/** The plain price, struck out with a red line. */
+const STRUCK: React.CSSProperties = { textDecorationLine: "line-through", textDecorationColor: "#DC2626", textDecorationThickness: "2px" };
 const norm = (e: string) => e.trim().toLowerCase();
 // A light check for the form; the server checks again (and refuses throw-away addresses).
 const validEmail = (e: string) => e.length <= 254 && /^[^\s@<>"',;:()[\]\\]+@[^\s@<>"',;:()[\]\\]+\.[^\s@<>"',;:()[\]\\]{2,}$/.test(e.trim()) && !e.includes("..");
@@ -204,12 +209,18 @@ export default function BuyNow() {
   });
 
   // The plan and the way to pay come from the plans page (?plan=light&billing=lifetime);
-  // anything typed earlier in this tab is restored under them.
+  // anything typed earlier in this tab is restored under them. They are fixed on this
+  // page: with no plan in the link and none in this tab's draft, go and choose one.
   useEffect(() => {
     const saved = load();
     const planQ = soldPlanId(params.get("plan"));
+    const chosen = planQ ?? soldPlanId(saved.plan);
+    if (!chosen) {
+      router.replace("/plans");
+      return;
+    }
     const billingQ = params.get("billing") === "lifetime" ? "lifetime" : params.get("billing") === "annual" ? "annual" : null;
-    const merged: Form = { ...EMPTY, ...saved, ...(planQ ? { plan: planQ } : {}), ...(billingQ ? { billing: billingQ } : {}) };
+    const merged: Form = { ...EMPTY, ...saved, plan: chosen, ...(billingQ ? { billing: billingQ } : {}) };
     if (!merged.slug) merged.slug = workspaceSlug(merged.company);
     setF(merged);
     if (merged.verifiedEmail && norm(merged.verifiedEmail) === norm(merged.email)) setOtp("verified");
@@ -257,9 +268,8 @@ export default function BuyNow() {
     shoot: { line: site.line, city: site.city, state: site.state, pincode: site.pincode, landmark: f.sameSite ? "" : f.landmark },
     window: f.window,
     fromDate: f.fromDate,
-    notes: f.notes,
   };
-  const detailsCheck = useMemo(() => parseBuyDetails(details), [details.siteContactName, details.siteContactPhone, site.line, site.city, site.state, site.pincode, f.landmark, f.window, f.fromDate, f.notes, f.sameSite]); // eslint-disable-line react-hooks/exhaustive-deps
+  const detailsCheck = useMemo(() => parseBuyDetails(details), [details.siteContactName, details.siteContactPhone, site.line, site.city, site.state, site.pincode, f.landmark, f.window, f.fromDate, f.sameSite]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── the bill ── */
 
@@ -482,6 +492,8 @@ export default function BuyNow() {
     );
   }
 
+  // Only strike a price out when an offer or coupon really takes something off it.
+  const hasStrike = quote.regularTotalInr > quote.totalInr + 0.004;
   const comparison = f.plan === "light" && f.security && addonAllowed;
   const lightPlus = planPrice("light", offerOpen) + SECURITY_ADDON.yearlyInr;
   const premium = SITE_PLANS.premium;
@@ -500,58 +512,43 @@ export default function BuyNow() {
           Buy your VPV today, in one page.
         </h1>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-slate-600">
-          Choose your plan, tell us where to shoot and how to bill you, and pay. Not sure which plan fits? The{" "}
-          <Link href="/assessment" className="font-medium text-vpv-blue underline underline-offset-2">
-            two-minute assessment
-          </Link>{" "}
-          recommends one.
+          You chose {plan.name}. Tell us where to shoot and how to bill you, add any extras, and pay.
         </p>
       </div>
 
       <div id="buy-form" className="mx-auto grid max-w-6xl gap-8 px-5 pb-28 lg:grid-cols-[minmax(0,1fr)_380px] lg:pb-16">
         <div id="buy-fields" className="space-y-6">
           {/* ───────── 1. plan ───────── */}
-          <Section n={1} icon={Layers} title="Your plan" aside={<BillingSwitch value={f.billing} onChange={(v) => set("billing", v)} />}>
-            <div role="radiogroup" aria-label="Plan" className="grid gap-3 sm:grid-cols-3">
-              {SITE_PLAN_DISPLAY_ORDER.map((id) => {
-                const p = SITE_PLANS[id];
-                const on = f.plan === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => set("plan", id)}
-                    className={`flex h-full flex-col rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vpv-blue/40 ${
-                      on ? "border-vpv-blue bg-vpv-tint/60 shadow-[0_10px_26px_-16px_rgba(20,104,216,0.8)]" : "border-vpv-line bg-white hover:border-vpv-blue/40"
-                    }`}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="text-[15px] font-semibold text-vpv-ink">{p.name}</span>
-                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${on ? "border-vpv-blue bg-vpv-blue text-white" : "border-slate-300"}`}>
-                        {on && <Check className="h-3 w-3" strokeWidth={3} aria-hidden />}
-                      </span>
-                    </span>
-                    <span className="mt-2 block text-[22px] font-semibold leading-none tabular-nums text-vpv-navy">
-                      {f.billing === "lifetime" ? inr(planPrice(id, offerOpen, "lifetime")) : inr(planMonthly(id, offerOpen))}
-                    </span>
-                    <span className="mt-1 block text-[12px] leading-snug text-slate-500">
-                      {f.billing === "lifetime" ? "once, + GST" : `per month + GST, billed yearly (${inr(planPrice(id, offerOpen))})`}
-                    </span>
-                    <span className="mt-3 block text-[12.5px] leading-relaxed text-slate-600">
-                      {p.scenes} areas
-                      {p.videos > 0 ? ` · ${p.videos} process videos` : ""}
-                      {p.pdfs > 0 ? ` · ${p.pdfs} lab reports` : ""}
-                      {` · ${hoursLabel(p.shootHours)} of shoot time`}
-                    </span>
-                    <span className="mt-auto flex flex-wrap gap-1.5 pt-3">
-                      <Chip on={p.sharingControls}>Security features</Chip>
-                      <Chip on={p.freeSalesLogins > 0}>{p.freeSalesLogins > 0 ? `${p.freeSalesLogins} salesperson` : "No salesperson"}</Chip>
-                    </span>
-                  </button>
-                );
-              })}
+          <Section
+            n={1}
+            icon={Layers}
+            title="Your plan"
+            aside={<span className="rounded-full bg-vpv-tint px-3 py-1 text-[12.5px] font-semibold text-vpv-navy">{f.billing === "lifetime" ? "Lifetime, pay once" : "Billed yearly"}</span>}
+          >
+            <div className="rounded-2xl border border-vpv-blue bg-vpv-tint/60 p-5 shadow-[0_10px_26px_-16px_rgba(20,104,216,0.8)]" data-testid="buy-plan">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[19px] font-semibold text-vpv-ink">{plan.name}</p>
+                  <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-slate-600">
+                    {plan.scenes} areas
+                    {plan.videos > 0 ? ` · ${plan.videos} process videos` : ""}
+                    {plan.pdfs > 0 ? ` · ${plan.pdfs} lab reports` : ""}
+                    {` · ${hoursLabel(plan.shootHours)} of shoot time`}
+                  </p>
+                </div>
+                <div className="sm:shrink-0 sm:text-right">
+                  <p className="text-[26px] font-semibold leading-none tabular-nums text-vpv-navy">
+                    {f.billing === "lifetime" ? inr(planPrice(f.plan, offerOpen, "lifetime")) : inr(planMonthly(f.plan, offerOpen))}
+                  </p>
+                  <p className="mt-1.5 text-[12px] leading-snug text-slate-500">
+                    {f.billing === "lifetime" ? "once, + GST" : `per month + GST, billed yearly (${inr(planPrice(f.plan, offerOpen))})`}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Chip on={plan.sharingControls}>Security features</Chip>
+                <Chip on={plan.freeSalesLogins > 0}>{plan.freeSalesLogins > 0 ? `${plan.freeSalesLogins} salesperson` : "No salesperson"}</Chip>
+              </div>
             </div>
             <p className="mt-3 text-[12.5px] leading-relaxed text-slate-500">
               {f.billing === "lifetime"
@@ -600,7 +597,7 @@ export default function BuyNow() {
                       Add for {inr(SECURITY_ADDON.monthlyInr)}/month
                     </label>
                   ) : (
-                    <span className="max-w-[16rem] text-right text-[12.5px] text-slate-500">For a plan you pay yearly. On a lifetime plan, choose Premium, which includes them.</span>
+                    <span className="max-w-[16rem] text-right text-[12.5px] text-slate-500">Only with a plan you pay yearly. VPV Premium includes them.</span>
                   )}
                 </div>
                 {addonAllowed && (
@@ -612,7 +609,8 @@ export default function BuyNow() {
                   <p className="mt-3 flex gap-2 rounded-xl bg-vpv-canvas px-3.5 py-3 text-[13px] leading-relaxed text-slate-700">
                     <Info className="mt-0.5 h-4 w-4 shrink-0 text-vpv-blue" aria-hidden />
                     <span>
-                      Light with Security features is {inr(lightPlus)} a year. {premium.name} is {inr(planPrice("premium", offerOpen))} a year and already includes them, with {premium.scenes} areas, {premium.videos} process videos, a salesperson login and a free update shoot. Choose what suits you.
+                      Light with Security features is {inr(lightPlus)} a year. {premium.name} is {inr(planPrice("premium", offerOpen))} a year and already includes them, with {premium.scenes} areas, {premium.videos} process videos, a salesperson login and a free update shoot. If that suits you better, pick it on the{" "}
+                      <Link href="/plans" className="font-medium text-vpv-blue underline underline-offset-2">plans page</Link>.
                     </span>
                   </p>
                 )}
@@ -831,16 +829,6 @@ export default function BuyNow() {
                 </div>
               )}
               <p className="mt-3 text-[12.5px] text-slate-500">We call you within two working days of payment to fix the exact day.</p>
-              <div className="mt-4">
-                <Field label="Anything our crew should know?" hint="Optional: shifts, visitor passes, areas that are off limits.">
-                  <textarea
-                    value={f.notes}
-                    onChange={(e) => set("notes", e.target.value.slice(0, 500))}
-                    rows={3}
-                    className="w-full rounded-xl border border-vpv-line bg-white px-3.5 py-2.5 text-[15px] text-vpv-ink outline-none transition-colors placeholder:text-slate-400 focus:border-vpv-blue focus:ring-2 focus:ring-vpv-blue/15"
-                  />
-                </Field>
-              </div>
             </div>
           </Section>
 
@@ -881,28 +869,43 @@ export default function BuyNow() {
                 The special offer for our first {LAUNCH_OFFER.limit} customers has just closed, so the total below is the regular price. Press Pay again when you are happy with it.
               </p>
             )}
-            <ul className="mt-4 divide-y divide-vpv-line text-[13.5px]">
-              {quote.lines.map((l, i) => (
-                <li key={`${l.label}-${i}`} className="flex items-start justify-between gap-3 py-2.5">
-                  <span className="min-w-0 text-slate-700">
-                    {l.label}
-                    {l.note && l.kind !== "plan" && <span className="block text-[11.5px] leading-snug text-slate-500">{l.note}</span>}
-                  </span>
-                  <span className={`shrink-0 tabular-nums ${l.amountInr < 0 ? "text-emerald-700" : "text-vpv-ink"}`}>
-                    {l.regularInr && l.amountInr === 0 ? (
-                      <>
-                        <s className="mr-1 text-slate-400">{inr(l.regularInr)}</s>Free
-                      </>
-                    ) : l.amountInr === 0 ? (
-                      "Included"
-                    ) : l.amountInr < 0 ? (
-                      `−${inr(-l.amountInr)}`
-                    ) : (
-                      inr(l.amountInr)
-                    )}
-                  </span>
-                </li>
-              ))}
+            <ul className="mt-4 text-[13.5px]" data-testid="buy-lines">
+              {quote.lines.map((l, i) => {
+                // What we give you for nothing (the free months, the perks, the cab, the first
+                // support year) is set in gold, so it is the first thing the eye finds.
+                const free = l.amountInr === 0;
+                const prevFree = i > 0 && quote.lines[i - 1].amountInr === 0;
+                return (
+                  <li
+                    key={`${l.label}-${i}`}
+                    data-free={free ? "true" : undefined}
+                    className={
+                      free
+                        ? "my-1.5 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-r from-[#FFF9E6] via-[#FEF2CF] to-[#FBE6A6]/80 px-3 py-2.5 ring-1 ring-inset ring-[#DDB650]/60"
+                        : `flex items-start justify-between gap-3 py-2.5 ${i > 0 && !prevFree ? "border-t border-vpv-line" : ""}`
+                    }
+                  >
+                    <span className={`min-w-0 ${free ? "font-medium text-[#4E3500]" : "text-slate-700"}`}>
+                      {free && <Gift className="-mt-0.5 mr-1.5 inline h-3.5 w-3.5 text-[#B07A00]" aria-hidden />}
+                      {l.label}
+                      {l.note && l.kind !== "plan" && <span className={`block text-[11.5px] leading-snug ${free ? "font-normal text-[#765710]" : "text-slate-500"}`}>{l.note}</span>}
+                    </span>
+                    <span className={`shrink-0 tabular-nums ${free ? "font-semibold text-[#7A4B00]" : l.amountInr < 0 ? "text-emerald-700" : "text-vpv-ink"}`}>
+                      {l.regularInr && l.amountInr === 0 ? (
+                        <>
+                          <s className="mr-1 font-normal text-[#9C7E2C]">{inr(l.regularInr)}</s>Free
+                        </>
+                      ) : l.amountInr === 0 ? (
+                        "Included"
+                      ) : l.amountInr < 0 ? (
+                        `−${inr(-l.amountInr)}`
+                      ) : (
+                        inr(l.amountInr)
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
 
             <dl className="mt-4 space-y-1.5 border-t border-vpv-line pt-4 text-[13.5px]">
@@ -919,9 +922,20 @@ export default function BuyNow() {
               ) : (
                 <Row k="GST @ 18%" v={inr2(quote.gstInr)} />
               )}
-              <div className="flex items-baseline justify-between gap-3 border-t border-vpv-line pt-3">
-                <dt className="text-[15px] font-semibold text-vpv-ink">Total to pay</dt>
-                <dd className="text-[24px] font-semibold tabular-nums text-vpv-navy" data-testid="buy-total">{inr2(quote.totalInr)}</dd>
+              <div className="flex items-end justify-between gap-3 border-t border-vpv-line pt-3">
+                <dt className="pb-1 text-[15px] font-semibold text-vpv-ink">Total to pay</dt>
+                <dd className="text-right">
+                  {hasStrike && (
+                    <span className="block text-[17px] font-medium tabular-nums text-slate-500" style={STRUCK} data-testid="buy-total-regular">
+                      <span className="sr-only">Regular price, with no offer: </span>
+                      {inr2(quote.regularTotalInr)}
+                    </span>
+                  )}
+                  <span className="block text-[26px] font-semibold leading-tight tabular-nums text-vpv-navy" data-testid="buy-total">
+                    {hasStrike && <span className="sr-only">With your offers: </span>}
+                    {inr2(quote.totalInr)}
+                  </span>
+                </dd>
               </div>
             </dl>
             {placeState && <p className="mt-2 text-[12px] text-slate-500">Place of supply: {stateWithCode(placeState)}.</p>}
@@ -976,7 +990,15 @@ export default function BuyNow() {
         <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
           <div>
             <p className="text-[11.5px] text-slate-500">Total with GST</p>
-            <p className="text-[19px] font-semibold tabular-nums text-vpv-navy">{inr2(quote.totalInr)}</p>
+            <p className="flex items-baseline gap-2">
+              {hasStrike && (
+                <span className="text-[13px] tabular-nums text-slate-500" style={STRUCK}>
+                  <span className="sr-only">Regular price: </span>
+                  {inr2(quote.regularTotalInr)}
+                </span>
+              )}
+              <span className="text-[19px] font-semibold tabular-nums text-vpv-navy">{inr2(quote.totalInr)}</span>
+            </p>
           </div>
           <PayButton onClick={() => void onPay()} busy={pay.busy || pendingPay} total={quote.totalInr} compact />
         </div>
@@ -1045,26 +1067,6 @@ function ExtraRow({ title, note, hint, icon: Icon = Film, children }: { title: s
         <p className="mt-1 text-[12.5px] leading-relaxed text-slate-600">{note}</p>
       </div>
       {children}
-    </div>
-  );
-}
-
-function BillingSwitch({ value, onChange }: { value: PurchaseBilling; onChange: (v: PurchaseBilling) => void }) {
-  const opt = (v: PurchaseBilling, label: string) => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={value === v}
-      onClick={() => onChange(v)}
-      className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors ${value === v ? "bg-vpv-navy text-white" : "text-slate-600 hover:text-vpv-navy"}`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div role="radiogroup" aria-label="How you pay" className="inline-flex rounded-full border border-vpv-line bg-white p-1">
-      {opt("annual", "Yearly")}
-      {opt("lifetime", "Lifetime, pay once")}
     </div>
   );
 }

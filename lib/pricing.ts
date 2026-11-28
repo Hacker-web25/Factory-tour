@@ -1575,6 +1575,16 @@ export type SiteQuote = {
   gstInr: number;
   /** What the card is actually charged. */
   totalInr: number;
+  /**
+   * What this same order would cost with every offer and any coupon taken
+   * away: the plan at its regular price, the first support year and the cab
+   * charged, sales logins at the regular price (the same figure without GST and
+   * with it). Equal
+   * to taxableInr / totalInr once the offer has closed and with no coupon,
+   * which is how a screen knows there is nothing to strike out.
+   */
+  regularTaxableInr: number;
+  regularTotalInr: number;
   /** The headline number on the slider. */
   perAreaInr: number;
 };
@@ -1858,6 +1868,13 @@ export function siteQuote(
   const taxableInr = taxableBeforeFloor;
   const g = withGst(taxableInr);
 
+  // The same bill with the offers and the coupon taken away. Each line that
+  // is discounted to less carries its full price (regularInr); the offer and
+  // coupon lines are the discounts themselves, so they drop out.
+  const regular = withGst(
+    lines.reduce((sum, l) => (l.kind === "offer" || l.kind === "coupon" ? sum : sum + (l.regularInr ?? l.amountInr)), 0)
+  );
+
   return {
     plan,
     billing,
@@ -1888,6 +1905,8 @@ export function siteQuote(
     taxableInr: g.taxable,
     gstInr: g.gst,
     totalInr: g.total,
+    regularTaxableInr: regular.taxable,
+    regularTotalInr: regular.total,
     perAreaInr: sitePerArea(planId, extraAreas, offerOpen, billing),
   };
 }
