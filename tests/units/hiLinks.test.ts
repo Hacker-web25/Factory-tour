@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { codeCandidates, decodeGreeting, greetingName, hiSlug, hiUrl, slugifyName } from "@/lib/hiLinks";
+import { WELCOME_MARK, WELCOME_SAYS_NAME, codeCandidates, decodeGreeting, greetingName, hiSlug, hiUrl, slugifyName, welcomeCookieValue } from "@/lib/hiLinks";
 
 describe("slugifyName — the name part of a link", () => {
   it("is the first name, lower case, letters and digits only", () => {
@@ -83,5 +83,29 @@ describe("decodeGreeting", () => {
     assert.equal(decodeGreeting("%E0%A4%A"), null);
     assert.equal(decodeGreeting(""), null);
     assert.equal(decodeGreeting(undefined), null);
+  });
+});
+
+describe("welcomeCookieValue", () => {
+  it("the welcome says only \"welcome\" by default: no name is ever put in the cookie", () => {
+    assert.equal(WELCOME_SAYS_NAME, false);
+    assert.equal(welcomeCookieValue("Aryan Kapoor", "Aryan"), WELCOME_MARK);
+    assert.equal(welcomeCookieValue("Dr. Rajesh Kumar Sharma"), WELCOME_MARK);
+    assert.equal(WELCOME_MARK.length, 1);
+  });
+  it("any person with a name against their code gets it, even one the greeting rules could not use", () => {
+    assert.equal(welcomeCookieValue("R. K."), WELCOME_MARK);
+    assert.equal(welcomeCookieValue("राजेश"), WELCOME_MARK);
+  });
+  it("nobody gets it for a code with no person", () => {
+    assert.equal(welcomeCookieValue(null), null);
+    assert.equal(welcomeCookieValue(""), null);
+    assert.equal(welcomeCookieValue("   "), null);
+    assert.equal(welcomeCookieValue(undefined, "Rajesh"), null);
+  });
+  it("brings the name back when the switch is turned on", () => {
+    assert.equal(welcomeCookieValue("Dr. Rajesh Kumar Sharma", null, true), "Rajesh");
+    assert.equal(welcomeCookieValue("Aryan Kapoor", "Aryan ji", true), "Aryan ji");
+    assert.equal(welcomeCookieValue(null, null, true), null);
   });
 });

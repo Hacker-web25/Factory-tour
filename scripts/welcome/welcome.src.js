@@ -52,7 +52,8 @@
       var m = document.cookie.match(/(?:^|;\s*)vpv_hi=([^;]*)/);
       if (!m) return "";
       var v = decodeURIComponent(m[1]).replace(/\s+/g, " ").trim().slice(0, 24);
-      return v;
+      // "1" is the marker the redirect sets when the welcome does not use a name.
+      return v === "1" ? "" : v;
     } catch (e) {
       return "";
     }
@@ -299,10 +300,14 @@
   /* ── the timeline ───────────────────────────────────────────────────── */
 
   var T_START = 140;
-  var T_WORD = 850;
+  // The word on its own (the normal case: the welcome does not use a name) is
+  // written a little slower and held a little longer, so the whole thing still
+  // lasts about two seconds. With a name after it, the word is quicker.
+  var ALONE = !name;
+  var T_WORD = ALONE ? 1250 : 850;
   var T_NAME = 560;
   var T_GAP = 110;
-  var T_HOLD = 380;
+  var T_HOLD = ALONE ? 520 : 380;
   var T_DOT = 70; // each late stroke (i-dot, t-bar)
 
   function plan(wd, t0, dur) {

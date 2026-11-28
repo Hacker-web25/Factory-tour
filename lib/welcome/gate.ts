@@ -10,9 +10,9 @@
  * The test is two things at once:
  *   • the address carries our campaign code (?vpv=…), which only the scan
  *     redirect puts there, AND
- *   • the first-party greeting cookie from that redirect is present (it holds
- *     the first name, lives an hour, and exists only for a code that has a
- *     name against it). See lib/hiLinks.ts.
+ *   • the first-party welcome cookie from that redirect is present (it holds a
+ *     plain marker, no name, lives an hour, and exists only for a code that has
+ *     a person against it). See lib/hiLinks.ts.
  * and it is skipped when this tab has already shown the welcome once.
  *
  * What it does when both are true is deliberately tiny: paint a plain blue
@@ -35,7 +35,7 @@ import { HI_COOKIE } from "@/lib/hiLinks";
 /** Where the overlay script is served from (public/welcome/welcome.js). */
 export const WELCOME_SCRIPT = "/welcome/welcome.js";
 /** Bump when welcome.js changes, so a browser that cached the old one fetches the new. */
-export const WELCOME_VERSION = "1";
+export const WELCOME_VERSION = "2";
 /** Marks the sessionStorage entry that stops the welcome repeating in one tab. */
 export const WELCOME_SEEN_KEY = "vpv_hi_seen";
 
