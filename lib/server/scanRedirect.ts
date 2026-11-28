@@ -39,7 +39,7 @@ import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { getClientIp } from "@/lib/getClientIp";
 import { isSafePath, normaliseCode } from "@/lib/analytics/attribution";
 import { isEmailCode } from "@/lib/personCodes";
-import { HI_COOKIE, HI_COOKIE_MAX_AGE, greetingName } from "@/lib/hiLinks";
+import { HI_COOKIE, HI_COOKIE_MAX_AGE, welcomeCookieValue } from "@/lib/hiLinks";
 import {
   geoFrom,
   recordScan,
@@ -215,9 +215,10 @@ function send(to: URL | string, opts: { coupon?: string; greeting?: string | nul
       secure: true,
     });
   }
-  // The name the welcome writes. Not HttpOnly: the page's own script reads it.
-  // It rides in a cookie rather than the address, so the name never reaches
-  // Google Analytics or Clarity.
+  // Tells the page to play the welcome. Not HttpOnly: the page's own script
+  // reads it. By default it holds only a marker (no name: see WELCOME_SAYS_NAME
+  // in lib/hiLinks.ts), and it rides in a cookie rather than the address, so a
+  // name can never reach Google Analytics or Clarity either way.
   if (opts.greeting) {
     // Passed raw: Next percent-encodes the value itself (encoding it here too
     // would turn "Rajesh ji" into "Rajesh%2520ji"). The page decodes it once.
@@ -332,7 +333,7 @@ export async function scanRedirect(req: Request, candidates: string[]): Promise<
 
   const res = send(dest, {
     coupon,
-    greeting: greetingName(row.person_name, row.greeting_name),
+    greeting: welcomeCookieValue(row.person_name, row.greeting_name),
   });
   // Where waitUntil does not exist the work is awaited here, before returning.
   if (pending) await pending;

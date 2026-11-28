@@ -4,7 +4,7 @@
  * Paste a list of buyers and get, for each, a link with their own name on our
  * own domain (myvpv.com/hi/aryan-k7m2xq) plus the files to print: a PNG and an
  * SVG of their QR, a spreadsheet, and one letter page each. When a buyer scans
- * theirs they are welcomed by name, and this page shows whether they opened it,
+ * theirs they get a short welcome, and this page shows whether they opened it,
  * what they read, how long they stayed, and how far they got, so the follow-up
  * call can open with the thing they were reading.
  *
@@ -17,7 +17,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { greetingName } from "@/lib/hiLinks";
 import { getMyProfile, type Profile } from "@/lib/auth";
 import {
   formatDuration,
@@ -336,10 +335,10 @@ export default function BuyersPage() {
                 {style === "hi" ? (
                   <>
                     The QR opens <span className="font-mono">myvpv.com/hi/aryan-k7m2xq</span>: our own domain with
-                    their own name, so it looks safe to open, and the page welcomes them by name.
+                    their own name, so it looks safe to open, and the page opens with a short welcome.
                   </>
                 ) : (
-                  <>The older kind: a link like myvpv.com/q/GGN-7K3QX9 with no name in it and no welcome.</>
+                  <>The older kind: a link like myvpv.com/q/GGN-7K3QX9, with no name in the link.</>
                 )}
               </p>
               <label className="mt-4 block">
@@ -429,8 +428,9 @@ export default function BuyersPage() {
                   <>
                     The code on the end of the link is random. It is the only part passed to Google and
                     Microsoft, so recordings can be filtered by it; the name never is. Names stay in this
-                    database, and the welcome is read from here, not from the link. To greet someone by a
-                    name other than their first, add a <strong>Greeting name</strong> column (with a header row).
+                    database. The welcome says only &ldquo;welcome&rdquo;, never a name. To show a different
+                    name in the link than the first one, add a <strong>Greeting name</strong> column (with a
+                    header row).
                   </>
                 ) : (
                   <>
@@ -513,12 +513,6 @@ export default function BuyersPage() {
                   <li key={r.code}>
                     {r.name}
                     {r.company ? ` · ${r.company}` : ""} → {r.url}
-                    {made.style === "hi" && (
-                      <span className="text-slate-400">
-                        {" "}
-                        (welcome {greetingName(r.name, r.greeting) ?? "—"})
-                      </span>
-                    )}
                   </li>
                 ))}
                 {made.rows.length > 50 && <li>…and {made.rows.length - 50} more, all in the file</li>}

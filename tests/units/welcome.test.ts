@@ -86,13 +86,13 @@ describe("the gate", () => {
     assert.equal(run({ search: "?vpv=K7M2XQ", cookie: "a=b" }).added.length, 0);
   });
   it("does nothing for someone who has the cookie but no code in the address", () => {
-    assert.equal(run({ search: "", cookie: `${HI_COOKIE}=Aryan` }).added.length, 0);
+    assert.equal(run({ search: "", cookie: `${HI_COOKIE}=1` }).added.length, 0);
   });
   it("does nothing a second time in the same tab", () => {
-    assert.equal(run({ search: "?vpv=K7M2XQ", cookie: `${HI_COOKIE}=Aryan`, seen: true }).added.length, 0);
+    assert.equal(run({ search: "?vpv=K7M2XQ", cookie: `${HI_COOKIE}=1`, seen: true }).added.length, 0);
   });
   it("covers the page and fetches the script for a person who scanned their own QR", () => {
-    const { added, timers } = run({ search: "?utm_source=letter&vpv=K7M2XQ", cookie: `x=1; ${HI_COOKIE}=Aryan; y=2` });
+    const { added, timers } = run({ search: "?utm_source=letter&vpv=K7M2XQ", cookie: `x=1; ${HI_COOKIE}=1; y=2` });
     const cover = added.find((e) => e.id === "vpv-hi-cover");
     const script = added.find((e) => e.tag === "script");
     assert.ok(cover && /html::before/.test(cover.textContent ?? ""), "a CSS-only cover, so nothing is inserted into React's tree");

@@ -14,9 +14,15 @@ import path from "node:path";
 import { makeWorld, freshIp, type World } from "./harness/world";
 import { VISITOR_HEADER } from "@/lib/analytics/attribution";
 import { __resetScanCacheForTests } from "@/lib/server/scanRedirect";
-import { HI_COOKIE, decodeGreeting } from "@/lib/hiLinks";
+import { HI_COOKIE, WELCOME_MARK } from "@/lib/hiLinks";
 
 const VID = "22222222-2222-4222-8222-222222222222";
+
+/** The value of the welcome cookie in a response, or null when there is none. */
+const welcomeCookie = (res: Response): string | null => {
+  const m = (res.headers.get("set-cookie") ?? "").match(new RegExp(`${HI_COOKIE}=([^;]+)`));
+  return m ? m[1]! : null;
+};
 
 /** Count how many times `table` is read while `fn` runs. */
 async function readsOf(w: World, table: string, fn: () => Promise<unknown>): Promise<number> {
@@ -90,12 +96,12 @@ describe("/hi/<name>-<code> — the personal link", () => {
     assert.ok(!/aryan|kapoor/i.test(to), `the destination leaked a name: ${to}`);
   });
 
-  it("hands the greeting over in a cookie, skipping the title: Dr. Aryan -> Aryan", async () => {
+  it("tells the page to play the welcome with a plain marker, and puts no name in the cookie", async () => {
     const res = await hi("aryan-k7m2xq");
     const c = res.headers.get("set-cookie") ?? "";
-    assert.ok(c.includes(`${HI_COOKIE}=`), "the greeting cookie is set");
-    const val = c.match(new RegExp(`${HI_COOKIE}=([^;]+)`))![1];
-    assert.equal(decodeGreeting(val), "Aryan");
+    assert.ok(c.includes(`${HI_COOKIE}=`), "the welcome cookie is set");
+    assert.equal(welcomeCookie(res), WELCOME_MARK);
+    assert.ok(!/aryan|kapoor/i.test(c), `a name leaked into the cookie: ${c}`);
     assert.match(c, /max-age=3600/i, "it lives an hour, long enough for the first page load and no longer");
   });
 
@@ -103,8 +109,7 @@ describe("/hi/<name>-<code> — the personal link", () => {
     for (const slug of ["zzz-k7m2xq", "k7m2xq", "ARYAN-K7M2XQ", "aryan-kapor-k7m2xq"]) {
       const res = await hi(slug);
       assert.equal(new URL(res.headers.get("location")!).searchParams.get("vpv"), "K7M2XQ", slug);
-      const c = res.headers.get("set-cookie") ?? "";
-      assert.equal(decodeGreeting(c.match(new RegExp(`${HI_COOKIE}=([^;]+)`))![1]), "Aryan", slug);
+      assert.equal(welcomeCookie(res), WELCOME_MARK, slug);
     }
   });
 
@@ -115,11 +120,10 @@ describe("/hi/<name>-<code> — the personal link", () => {
     assert.equal(to.searchParams.get("vpv"), "GGN-ABC234");
   });
 
-  it("greets people who scan the older /q/<code> letters too", async () => {
+  it("welcomes people who scan the older /q/<code> letters too", async () => {
     const res = await q("K7M2XQ");
     assert.equal(res.status, 302);
-    const c = res.headers.get("set-cookie") ?? "";
-    assert.equal(decodeGreeting(c.match(new RegExp(`${HI_COOKIE}=([^;]+)`))![1]), "Aryan");
+    assert.equal(welcomeCookie(res), WELCOME_MARK);
   });
 
   it("records the scan and the first touch, exactly as /q does", async () => {
@@ -175,12 +179,24 @@ describe("/hi/<name>-<code> — the personal link", () => {
     assert.equal((await w.q("select visitor_id from public.campaign_scans"))[0]!.visitor_id, null);
   });
 
-  it("uses the 'greeting name' override when the owner filled one in", async () => {
+  it("never puts a typed 'greeting name' in the cookie either", async () => {
     await w.q("update public.campaign_codes set greeting_name = 'Rajesh ji' where code = 'GGN-ABC234'");
     __resetScanCacheForTests();
     const res = await hi("rajesh-ggn-abc234");
-    const c = res.headers.get("set-cookie") ?? "";
-    assert.equal(decodeGreeting(c.match(new RegExp(`${HI_COOKIE}=([^;]+)`))![1]), "Rajesh ji");
+    assert.equal(welcomeCookie(res), WELCOME_MARK);
+    assert.ok(!/rajesh/i.test(res.headers.get("set-cookie") ?? ""));
+  });
+
+  it("gives a person with only initials for a name the welcome too: it never needed the name", async () => {
+    await w.q("update public.campaign_codes set person_name = 'R. K.' where code = 'GGN-ABC234'");
+    __resetScanCacheForTests();
+    assert.equal(welcomeCookie(await hi("rajesh-ggn-abc234")), WELCOME_MARK);
+  });
+
+  it("gives no welcome to a code with nobody against it", async () => {
+    await w.q("update public.campaign_codes set person_name = null where code = 'GGN-ABC234'");
+    __resetScanCacheForTests();
+    assert.equal(welcomeCookie(await hi("rajesh-ggn-abc234")), null);
   });
 });
 
@@ -191,7 +207,7 @@ describe("/hi before hi_links.sql has been run", () => {
   });
   after(async () => w.reset?.());
 
-  it("still redirects, and still greets by first name, when the override column does not exist", async () => {
+  it("still redirects, and still plays the welcome, when the override column does not exist", async () => {
     __resetScanCacheForTests();
     await w.q("alter table public.campaign_codes drop column if exists greeting_name");
     await w.q(
@@ -205,7 +221,6 @@ describe("/hi before hi_links.sql has been run", () => {
     );
     assert.equal(res.status, 302);
     assert.equal(new URL(res.headers.get("location")!).searchParams.get("vpv"), "K7M2XQ");
-    const c = res.headers.get("set-cookie") ?? "";
-    assert.equal(decodeGreeting(c.match(new RegExp(`${HI_COOKIE}=([^;]+)`))![1]), "Aryan");
+    assert.equal(welcomeCookie(res), WELCOME_MARK);
   });
 });

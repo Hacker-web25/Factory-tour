@@ -19,15 +19,23 @@
  *     because the redirect swaps the whole link for /?vpv=<code>. The name
  *     never reaches either of them.
  *
- *   • The greeting itself travels in a short-lived first-party cookie (HI_COOKIE),
- *     not in the address bar, for the same reason.
+ *   • The welcome itself is a plain "welcome": it does NOT say the person's name
+ *     (WELCOME_SAYS_NAME is false) because a name written on the screen reads
+ *     as "we are tracking you". The first-party cookie (HI_COOKIE) therefore
+ *     holds only a marker, WELCOME_MARK, that says "this visitor came from their
+ *     own letter". Set WELCOME_SAYS_NAME to true to bring the name back: the
+ *     cookie then holds the greeting name instead.
  *
  * Pure and dependency-free: it runs in the edge redirect, in the admin
  * generator and in tests.
  */
 
-/** The cookie the redirect sets so the landing page can say "welcome Aryan". */
+/** The cookie the redirect sets so the landing page knows to play the welcome. */
 export const HI_COOKIE = "vpv_hi";
+/** Whether the welcome writes the person's name after the word. Off: it only says "welcome". */
+export const WELCOME_SAYS_NAME = false;
+/** What the cookie holds when the welcome does not use a name: no personal data at all. */
+export const WELCOME_MARK = "1";
 /** One hour is plenty: it only has to survive the redirect and the first page load. */
 export const HI_COOKIE_MAX_AGE = 60 * 60;
 
@@ -92,6 +100,21 @@ export function greetingName(personName: unknown, override?: unknown): string | 
 export function hiSlug(name: unknown, code: string): string {
   const n = slugifyName(greetingName(name));
   return n ? `${n}-${code.toLowerCase()}` : code.toLowerCase();
+}
+
+/**
+ * What the redirect puts in HI_COOKIE, or null for no welcome. The welcome is
+ * for a person who scanned THEIR letter, so it needs a name against the code
+ * (we only know it is a letter, not who the visitor is, until then). With
+ * WELCOME_SAYS_NAME off the value is just WELCOME_MARK; with it on, the name.
+ */
+export function welcomeCookieValue(
+  personName: unknown,
+  override?: unknown,
+  saysName: boolean = WELCOME_SAYS_NAME
+): string | null {
+  if (saysName) return greetingName(personName, override);
+  return typeof personName === "string" && personName.trim() ? WELCOME_MARK : null;
 }
 
 /** The full link for a person. */

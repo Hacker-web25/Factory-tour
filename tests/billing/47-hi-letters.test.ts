@@ -16,7 +16,7 @@ import { unzipSync, strFromU8 } from "fflate";
 import { makeWorld, freshIp, type World } from "./harness/world";
 import { VISITOR_HEADER } from "@/lib/analytics/attribution";
 import { __resetScanCacheForTests } from "@/lib/server/scanRedirect";
-import { HI_COOKIE, decodeGreeting } from "@/lib/hiLinks";
+import { HI_COOKIE, WELCOME_MARK } from "@/lib/hiLinks";
 
 const VID = "22222222-2222-4222-8222-222222222222";
 const LIST = [
@@ -93,9 +93,8 @@ describe("personal letters: list → codes → scan → print pack", () => {
     assert.equal(aryan.greeting_name, null, "no override typed: the first name is used");
   });
 
-  it("every printed link works: it lands on the site and greets the person the way we chose", async () => {
+  it("every printed link works: it lands on the site and plays the welcome, with no name in it", async () => {
     const { body } = await make();
-    const expected: Record<string, string> = { "Dr. Rajesh Kumar Sharma": "Rajesh", "Aryan Kapoor": "Aryan", "Meera Shah": "Meera" };
     for (const r of body.rows) {
       __resetScanCacheForTests();
       const out = await scan(r.url.split("/hi/")[1]!);
@@ -105,8 +104,9 @@ describe("personal letters: list → codes → scan → print pack", () => {
       assert.equal(to.searchParams.get("vpv")?.toUpperCase(), r.code);
       assert.equal(/aryan|meera|rajesh|kapoor|shah|sharma/i.test(to.toString()), false, "no name in the address that Google and Clarity see");
       const cookie = (out.headers.getSetCookie?.() ?? []).find((c) => c.startsWith(`${HI_COOKIE}=`));
-      assert.ok(cookie, "the greeting cookie is set");
-      assert.equal(decodeGreeting(cookie!.split(";")[0]!.slice(HI_COOKIE.length + 1)), expected[r.name]);
+      assert.ok(cookie, "the welcome cookie is set");
+      assert.equal(cookie!.split(";")[0]!.slice(HI_COOKIE.length + 1), WELCOME_MARK);
+      assert.ok(!/aryan|meera|rajesh|kapoor|shah|sharma/i.test(cookie!), "no name in the cookie");
     }
   });
 
@@ -115,8 +115,7 @@ describe("personal letters: list → codes → scan → print pack", () => {
     const meera = body.rows.find((r: { name: string }) => r.name === "Meera Shah");
     const out = await scan(`someone-else-${meera.code.toLowerCase()}`);
     assert.equal(out.status, 302);
-    const cookie = (out.headers.getSetCookie?.() ?? []).find((c) => c.startsWith(`${HI_COOKIE}=`))!;
-    assert.equal(decodeGreeting(cookie.split(";")[0]!.slice(HI_COOKIE.length + 1)), "Meera");
+    assert.equal(new URL(out.headers.get("location")!).searchParams.get("vpv")?.toUpperCase(), meera.code);
   });
 
   it("returns a spreadsheet with the link for each person", async () => {

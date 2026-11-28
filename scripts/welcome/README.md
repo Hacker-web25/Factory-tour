@@ -1,13 +1,14 @@
 # The personal welcome
 
 When someone scans the QR printed on **their own** letter, the page opens with
-"welcome" and their first name written out by an invisible pen, over translucent
-blue glass, in about two seconds. Everyone else (Google, a shared link, a
+"welcome" written out by an invisible pen, over translucent blue glass, in about
+two seconds. It says only "welcome": a name on the screen reads as "we are
+tracking you". (`WELCOME_SAYS_NAME` in `lib/hiLinks.ts` brings the name back.) Everyone else (Google, a shared link, a
 returning customer) gets the normal page and never downloads any of this.
 
 ```
 scan  →  /hi/aryan-k7m2xq  →  one DB lookup  →  302 to /?utm…&vpv=K7M2XQ
-                                              + cookie vpv_hi=Aryan (1 hour)
+                                              + cookie vpv_hi=1 (1 hour; a marker, no name)
 page  →  tiny gate (lib/welcome/gate.ts) sees ?vpv= AND the cookie
       →  paints a blue CSS cover, fetches /welcome/welcome.js
       →  overlay writes the words, dissolves into the page
@@ -50,6 +51,6 @@ and look for gaps; add the letter to `k` if one appears.
 * If the script never arrives, the cover disappears after four seconds.
 * It writes `window` event `vpv:welcome` (`{skipped, ms, ink, reduced}`) when it
   finishes; the tracker turns that into `welcome_seen` / `welcome_skipped`.
-* The cookie holds only a first name, lives an hour, and is documented on
+* The cookie holds only the marker "1" (no name), lives an hour, and is documented on
   `/cookies`. The name is never in the address, so it never reaches Google
   Analytics or Clarity.

@@ -152,7 +152,7 @@ const sections: LegalSection[] = [
             [
               <code key="m8" className="text-[12.5px]">vpv_hi</code>,
               "Cookie — functional",
-              "Set only when you open the personal link printed on a letter or card we sent you (myvpv.com/hi/…). It holds your first name so the welcome screen can greet you, and nothing else. It is not passed to Google Analytics or Microsoft Clarity, and it is not used to follow you around the site.",
+              "Set only when you open the personal link printed on a letter or card we sent you (myvpv.com/hi/…). It holds a single character that tells the page to play a short welcome animation. It holds no name or any other detail about you, it is not passed to Google Analytics or Microsoft Clarity, and it is not used to follow you around the site.",
               "One hour.",
             ],
             [
