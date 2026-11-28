@@ -40,7 +40,6 @@ const DETAILS = {
   siteContactPhone: "9811111111",
   shoot: { line: "Plot 44, Sector 7, IMT Manesar", city: "Manesar", state: "Haryana", pincode: "122052", landmark: "" },
   window: "asap",
-  notes: "",
 };
 
 describe("the Security features add-on", () => {
@@ -195,8 +194,9 @@ describe("the Buy now details", () => {
     assert.equal(cleanPhone("+91 98111 11111"), "+919811111111");
     assert.equal(cleanPhone("98111-11111"), "9811111111");
     assert.equal(cleanPhone("12345"), "");
-    const r = parseBuyDetails({ ...DETAILS, notes: "Gate\u0000 2\n\nside" });
-    assert.equal(r.ok && r.details.notes, "Gate 2 side");
+    const r = parseBuyDetails({ ...DETAILS, siteContactName: "Ravi\u0000 Kumar\n\n", notes: "an old browser may still send this" });
+    assert.equal(r.ok && r.details.siteContactName, "Ravi Kumar");
+    assert.equal(r.ok && "notes" in r.details, false, "the crew-notes box is gone, so nothing is kept");
     assert.equal(composeAddress({ line: "A", city: "B", pincode: "110001" }), "A, B, 110001");
   });
 
@@ -452,5 +452,46 @@ describe("the Get MyVPV button on each plan card", () => {
     const css = String(PLAN_BILLING_CSS);
     assert.ok(css.includes(".vpv-pc-buy:focus-visible"));
     assert.ok(/prefers-reduced-motion[^}]*\.vpv-pc-buy/.test(css.replace(/\n/g, "")), "no transition under reduced motion");
+  });
+});
+
+describe("the plain price struck out beside the total to pay", () => {
+  it("is the same order with every offer taken away (Premium, yearly, first 20)", () => {
+    const q = siteQuote("premium", { offerOpen: true, founding: true, billing: "annual" });
+    // Pays: half the plan. Plain: the whole plan plus the first support year, which the first 20 get free.
+    assert.equal(q.taxableInr, 77_640);
+    assert.equal(q.totalInr, 91_615.2);
+    assert.equal(q.regularTaxableInr, 155_280 + SUPPORT_ANNUAL_INR);
+    assert.deepEqual(withGst(q.regularTaxableInr).total, q.regularTotalInr);
+    assert.equal(q.regularTotalInr, 197_376.24);
+    assert.ok(q.regularTotalInr > q.totalInr);
+  });
+
+  it("puts the free cab and the sales logins back at their full price, and ignores a coupon", () => {
+    const base = siteQuote("premium", { offerOpen: true, founding: true, city: "Gurugram", salesSeats: 2 });
+    const cab = base.lines.find((l) => l.kind === "travel")!;
+    assert.equal(cab.amountInr, 0, "free for the first 20");
+    assert.ok((cab.regularInr ?? 0) > 0);
+    assert.equal(base.regularTaxableInr, 155_280 + SUPPORT_ANNUAL_INR + (cab.regularInr ?? 0) + 2 * 999);
+    const coupon = { code: "TEST10", percentOff: 10, amountOffInr: null };
+    const withCoupon = siteQuote("premium", { offerOpen: true, founding: true, city: "Gurugram", salesSeats: 2, coupon });
+    assert.ok(withCoupon.totalInr < base.totalInr, "the coupon lowers what is paid");
+    assert.equal(withCoupon.regularTotalInr, base.regularTotalInr, "but not the plain price");
+  });
+
+  it("works for a lifetime plan too", () => {
+    const q = siteQuote("light", { offerOpen: true, founding: true, billing: "lifetime" });
+    assert.ok(q.regularTotalInr > q.totalInr);
+    assert.equal(q.regularTaxableInr, SITE_PLANS.light.regularLifetimeInr + SUPPORT_ANNUAL_INR);
+  });
+
+  it("equals the total once the offer has closed, so nothing is struck out", () => {
+    for (const id of ["light", "premium", "white_glove"] as const) {
+      for (const billing of ["annual", "lifetime"] as const) {
+        const q = siteQuote(id, { offerOpen: false, founding: false, billing, city: "Gurugram" });
+        assert.equal(q.regularTotalInr, q.totalInr, `${id} ${billing}`);
+        assert.equal(q.regularTaxableInr, q.taxableInr, `${id} ${billing}`);
+      }
+    }
   });
 });

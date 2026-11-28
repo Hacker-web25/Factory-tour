@@ -53,7 +53,6 @@ export type BuyDetails = {
   window: ShootWindowId;
   /** YYYY-MM-DD, only with window "from_date". */
   fromDate: string;
-  notes: string;
   /** Filled by the server, never by the browser. */
   consent?: { termsAt: string; policiesUpdated: string; marketing: boolean };
 };
@@ -134,11 +133,10 @@ export function parseBuyDetails(raw: unknown, today: Date = new Date()): Details
     if (picked > day(ist) + 366 * 86_400_000) return bad("bad_from_date", "Please choose a date within the next year.");
   }
 
-  const notes = clip(src.notes, 500);
   const shoot: ShootSite = { line, city, state, pincode, landmark };
   return {
     ok: true,
-    details: { v: 1, siteContactName, siteContactPhone, shoot, window, fromDate, notes },
+    details: { v: 1, siteContactName, siteContactPhone, shoot, window, fromDate },
     shootLine: composeAddress({ line: landmark ? `${line} (near ${landmark})` : line, city, state, pincode }),
     shootCity: city,
   };
